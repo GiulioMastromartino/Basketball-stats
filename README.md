@@ -1,46 +1,128 @@
-# Basketball Stats Analyzer
+# 🏀 Basketball Stats Analyzer
+
+A web application for tracking and analyzing basketball game statistics with advanced metrics.
+
+## What It Does
+
+- **Import Game Data**: Upload CSV files with player statistics from basketball games
+- **Track Performance**: Monitor individual player stats (points, rebounds, assists, shooting percentages)
+- **Advanced Analytics**: Automatically calculates True Shooting %, Effective FG%, and Game Score
+- **Game History**: View all games with win/loss records and scores
+- **Player Comparison**: Compare players across multiple games and metrics
+- **Web Interface**: User-friendly dashboard to view and analyze all data
+
+## How It Works
+
+1. **Data Import**: Place CSV files in the `Games/` folder with game statistics
+2. **Automatic Processing**: The app parses filenames to extract game info (opponent, score, date)
+3. **Database Storage**: All stats are stored in a SQLite database
+4. **Analytics Engine**: Calculates advanced basketball metrics automatically
+5. **Web Display**: View everything through a clean web interface at http://localhost:5000
 
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
+# 1. Clone and enter directory
+git clone https://github.com/GiulioMastromartino/Basketball-stats.git
+cd Basketball-stats
+
+# 2. Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 3. Install dependencies
 pip install -r requirements-local.txt
 
-# 2. Setup and run
+# 4. Run the application
 python quick_start.py --run
 
-# 3. Open browser
-# http://localhost:5000
-# Login: admin/admin123
+# 5. Open browser to http://localhost:5000
+# Login: admin / admin123
 ```
 
-## Import CSV Files
+## CSV File Format
 
-Place CSV files in `Games/` folder with format:
+**Filename Pattern:**
 ```
-Opponent_TeamScore-OpponentScore_DD-MM-YYYY_Type.csv
-Example: Lakers_105-98_15-03-2024_S.csv
+Opponent_YourScore-TheirScore_DD-MM-YYYY_Type.csv
+
+Examples:
+Lakers_105-98_15-03-2024_S.csv     (Season game)
+Warriors_88-92_20-03-2024_P.csv    (Playoff)
+Celtics_95-90_25-03-2024_F.csv     (Friendly)
 ```
 
-Then run:
+**Required Columns in CSV:**
+```
+Name, MIN, PTS, FGM, FGA, FG%, 3PM, 3PA, 3P%, 
+FTM, FTA, FT%, OREB, DREB, REB, AST, TOV, STL, BLK, PF
+```
+
+**Import Your Data:**
 ```bash
+# Place CSV files in Games/ folder, then run:
 python cli_import.py
 ```
 
-## Features
+## Key Features
 
-- User authentication & authorization
-- Advanced basketball analytics (TS%, eFG%, PER, Game Score)
-- Win/Loss tracking with score analysis
-- REST API with Swagger docs
-- Player comparison tools
-- Team performance analytics
+- 📊 Advanced basketball analytics (TS%, eFG%, Game Score)
+- 🏆 Win/loss tracking with opponent records
+- 👥 Player performance history and trends
+- 🔐 Secure login system
+- 📈 Career statistics and averages
+- 🌐 REST API with Swagger documentation
 
 ## Tech Stack
 
-- Flask 3.0
-- SQLAlchemy ORM
-- SQLite (local) / PostgreSQL (production)
-- Pandas for analytics
-- Flask-Login for auth
-- Flask-RESTx for API
+- **Backend**: Flask 3.0, SQLAlchemy, SQLite
+- **Analytics**: Pandas, NumPy
+- **Security**: Flask-Login, Bcrypt encryption
+- **API**: Flask-RESTx with Swagger UI
+
+## Requirements
+
+- Python 3.8+
+- 16MB disk space
+- Modern web browser
+
+## Project Structure
+
+```
+Basketball-stats/
+├── Games/              # Place CSV files here
+├── core/               # Analytics and data processing
+├── web/                # Web interface and routes
+├── quick_start.py      # Setup and run script
+├── cli_import.py       # CSV import tool
+└── requirements-local.txt
+```
+
+## Troubleshooting
+
+**Port already in use?**
+```bash
+python quick_start.py --run --port 8080
+```
+
+**Reset database?**
+```bash
+python quick_start.py --reset --run
+```
+
+**Import not working?**
+- Check filename matches pattern exactly
+- Verify all required CSV columns are present
+- Ensure no duplicate game files
+
+## License
+
+Apache License 2.0
+
+## Repository
+
+https://github.com/GiulioMastromartino/Basketball-stats
+
+---
+
+**⭐ Star the repo if you find it useful!**
