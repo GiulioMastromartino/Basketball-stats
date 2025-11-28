@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Analytics Suite - Basketball Stats</title>
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='css/style.css') }}"
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        />
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </head>
+    <body>
+        <!-- HEADER -->
+        <div class="header">
+            <h1>
+                <i class="fas fa-chart-pie" style="color: #4dabf7"></i>
+                Analytics Suite
+            </h1>
+            <div style="display: flex; gap: 20px; align-items: center">
+                <a href="{{ url_for('main.index') }}"
+                    ><i class="fas fa-arrow-left"></i> Dashboard</a
+                >
+            </div>
+        </div>
+
+        <div class="container">
+            <!-- NAVIGATION TABS -->
+            <div class="tabs-container">
+                <div class="tab active" onclick="switchTab('team')">
+                    <i class="fas fa-users"></i> Team Overview
+                </div>
+                <div class="tab" onclick="switchTab('multi')">
+                    <i class="fas fa-user-astronaut"></i> Player Analysis
+                </div>
+            </div>
+
+            <!-- === SECTION 1: TEAM OVERVIEW === -->
+            <div id="team" class="section active">
+                <!-- Top Performers Panel -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>
+                            <i class="fas fa-trophy" style="color: #ffc107"></i>
+                            Top Performers
+                        </h3>
+                        <div
+                            class="control-bar"
+                            style="
+                                background: transparent;
+                                border: none;
+                                padding: 0;
+                            "
+                        >
+                            <div>
+                                <label>Metric:</label>
+                                <select
+                                    id="topStat"
+                                    onchange="updateTeamCharts()"
+                                >
+                                    <option value="efficiency" selected>
+                                        Efficiency (EFF)
+                                    </option>
+                                    <option value="points">Points</option>
+                                    <option value="rebounds">Rebounds</option>
+                                    <option value="assists">Assists</option>
+                                    <option value="steals">Steals</option>
+                                    <option value="blocks">Blocks</option>
+                                    <option value="ts_pct">
+                                        True Shooting %
+                                    </option>
+                                    <option value="efg_pct">
+                                        Effective FG %
+                                    </option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Period:</label>
+                                <select
+                                    id="topLimit"
+                                    onchange="updateTeamCharts()"
+                                >
+                                    <option value="3" selected>
+                                        Last 3 Games
+                                    </option>
+                                    <option value="5">Last 5 Games</option>
+                                    <option value="10">Last 10 Games</option>
+                                    <option value="0">All Season</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="height: 300px; position: relative">
+                        <canvas id="topChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Team Trends Panel -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>
+                            <i
+                                class="fas fa-chart-line"
+                                style="color: #20c997"
+                            ></i>
+                            Team Trends
+                        </h3>
+                        <div
+                            class="control-bar"
+                            style="
+                                background: transparent;
+                                border: none;
+                                padding: 0;
+                            "
+                        >
+                            <select id="gameType" onchange="updateTeamCharts()">
+                                <option value="ALL">All Match Types</option>
+                                <option value="Season">Season Only</option>
+                                <option value="Friendly">Friendly Only</option>
+                            </select>
+                            <select
+                                id="trendLimit"
+                                onchange="updateTeamCharts()"
+                            >
+                                <option value="0">Full History</option>
+                                <option value="5">Last 5 Games</option>
+                                <option value="10">Last 10 Games</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Cards -->
+                    <div class="metrics-row">
+                        <div class="metric-card">
+                            <div class="label">Win Percentage</div>
+                            <div class="value" id="t_win">-</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">Points Per Game</div>
+                            <div class="value" id="t_ppg">-</div>
+                        </div>
+                    </div>
+
+                    <div style="height: 350px; position: relative">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- === SECTION 2: MULTI-PLAYER ANALYSIS === -->
+            <div id="multi" class="section">
+                <!-- Controls Panel -->
+                <div class="panel">
+                    <div
+                        class="panel-header"
+                        style="border: none; margin-bottom: 10px"
+                    >
+                        <h3><i class="fas fa-sliders-h"></i> Configuration</h3>
+
+                        <!-- Global Filters -->
+                        <div
+                            style="
+                                display: flex;
+                                gap: 15px;
+                                align-items: center;
+                            "
+                        >
+                            <select
+                                id="multiGameType"
+                                onchange="updateMultiChart()"
+                            >
+                                <option value="ALL">All Games</option>
+                                <option value="Season">Season Only</option>
+                                <option value="Friendly">Friendly Only</option>
+                            </select>
+                            <label
+                                class="checkbox-item"
+                                style="
+                                    background: #e7f5ff;
+                                    color: #007bff;
+                                    font-weight: bold;
+                                    border: 1px solid #d0ebff;
+                                "
+                            >
+                                <input
+                                    type="checkbox"
+                                    id="showMA"
+                                    onchange="updateMultiChart()"
+                                />
+                                Show 3-Game Avg
+                            </label>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 20px; flex-wrap: wrap">
+                        <!-- Player Selector -->
+                        <div
+                            style="flex: 1; min-width: 250px"
+                            class="checkbox-wrapper"
+                        >
+                            <h4>
+                                <i class="fas fa-user-plus"></i> Select Players
+                            </h4>
+                            <div class="checkbox-grid">
+                                {% for p in players %}
+                                <label class="checkbox-item">
+                                    <input
+                                        type="checkbox"
+                                        class="p-select"
+                                        value="{{ p }}"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    {{ p }}
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Stat Selector -->
+                        <div
+                            style="flex: 2; min-width: 350px"
+                            class="checkbox-wrapper"
+                        >
+                            <h4>
+                                <i class="fas fa-chart-bar"></i> Select Metrics
+                            </h4>
+                            <div
+                                class="checkbox-grid"
+                                style="
+                                    grid-template-columns: repeat(
+                                        auto-fill,
+                                        minmax(160px, 1fr)
+                                    );
+                                "
+                            >
+                                <!-- Core Stats -->
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="points"
+                                        checked
+                                        onchange="updateMultiChart()"
+                                    />
+                                    Points</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="efficiency"
+                                        checked
+                                        onchange="updateMultiChart()"
+                                    />
+                                    Efficiency (EFF)</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="rebounds"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    Rebounds</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="assists"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    Assists</label
+                                >
+
+                                <!-- Advanced -->
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="ts_pct"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    True Shooting %</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="efg_pct"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    Effective FG %</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="ast_tov"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    AST/TOV Ratio</label
+                                >
+
+                                <!-- Defensive / Other -->
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="steals"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    Steals</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="blocks"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    Blocks</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="turnovers"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    Turnovers</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="minutes"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    Minutes</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="fouls"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    Fouls</label
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart Panel -->
+                <div class="panel">
+                    <div style="height: 500px; position: relative">
+                        <canvas id="multiChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- JAVASCRIPT LOGIC -->
+        <script>
+            // === UI LOGIC ===
+            function switchTab(id) {
+                document
+                    .querySelectorAll(".section")
+                    .forEach((s) => s.classList.remove("active"));
+                document
+                    .querySelectorAll(".tab")
+                    .forEach((t) => t.classList.remove("active"));
+                document.getElementById(id).classList.add("active");
+                event.target.classList.add("active");
+
+                if (id === "team") updateTeamCharts();
+                if (id === "multi") updateMultiChart();
+            }
+
+            // === CHART DEFAULTS ===
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            Chart.defaults.color = "#6c757d";
+            const colors = [
+                "#007bff",
+                "#e83e8c",
+                "#28a745",
+                "#fd7e14",
+                "#17a2b8",
+                "#6610f2",
+                "#20c997",
+                "#ffc107",
+            ];
+
+            // === TEAM CHARTS LOGIC ===
+            let trendChart, topChart;
+
+            async function updateTeamCharts() {
+                const type = document.getElementById("gameType").value;
+                const trendLimit = document.getElementById("trendLimit").value;
+                const topStat = document.getElementById("topStat").value;
+                const topLimit = document.getElementById("topLimit").value;
+
+                const url = `/api/analytics/team_overview?game_type=${type}&limit_trend=${trendLimit}&top_stat=${topStat}&top_limit=${topLimit}`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                document.getElementById("t_win").textContent =
+                    data.metrics.win_pct + "%";
+                document.getElementById("t_ppg").textContent = data.metrics.ppg;
+
+                // Render Trend Chart
+                if (trendChart) trendChart.destroy();
+                const ctxTrend = document
+                    .getElementById("trendChart")
+                    .getContext("2d");
+
+                // Gradient Fill
+                const gradientTeam = ctxTrend.createLinearGradient(
+                    0,
+                    0,
+                    0,
+                    400,
+                );
+                gradientTeam.addColorStop(0, "rgba(0, 123, 255, 0.2)");
+                gradientTeam.addColorStop(1, "rgba(0, 123, 255, 0.0)");
+
+                trendChart = new Chart(ctxTrend, {
+                    type: "line",
+                    data: {
+                        labels: data.trend.labels,
+                        datasets: [
+                            {
+                                label: "Team Score",
+                                data: data.trend.team_score,
+                                borderColor: "#007bff",
+                                backgroundColor: gradientTeam,
+                                tension: 0.4,
+                                fill: true,
+                                pointRadius: 4,
+                            },
+                            {
+                                label: "Opponent Score",
+                                data: data.trend.opp_score,
+                                borderColor: "#dc3545",
+                                borderDash: [5, 5],
+                                tension: 0.4,
+                                pointRadius: 4,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: "index", intersect: false },
+                    },
+                });
+
+                // Render Top Chart
+                if (topChart) topChart.destroy();
+                topChart = new Chart(document.getElementById("topChart"), {
+                    type: "bar",
+                    data: {
+                        labels: data.top_chart.labels,
+                        datasets: [
+                            {
+                                label: data.top_chart.label,
+                                data: data.top_chart.data,
+                                backgroundColor: "#20c997",
+                                borderRadius: 6,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: "y",
+                    },
+                });
+            }
+
+            // === MULTI-PLAYER CHART LOGIC ===
+            let multiChart;
+
+            async function updateMultiChart() {
+                const players = Array.from(
+                    document.querySelectorAll(".p-select:checked"),
+                ).map((c) => c.value);
+                const stats = Array.from(
+                    document.querySelectorAll(".s-select:checked"),
+                ).map((c) => c.value);
+                const ma = document.getElementById("showMA").checked;
+                const gameType = document.getElementById("multiGameType").value;
+
+                if (players.length === 0 || stats.length === 0) {
+                    if (multiChart) multiChart.destroy();
+                    return;
+                }
+
+                const params = new URLSearchParams();
+                players.forEach((p) => params.append("players", p));
+                stats.forEach((s) => params.append("stats", s));
+                params.append("ma", ma);
+                params.append("game_type", gameType);
+
+                const res = await fetch(
+                    `/api/analytics/multi_compare?${params.toString()}`,
+                );
+                const data = await res.json();
+
+                data.datasets.forEach((ds, i) => {
+                    const colorIndex =
+                        Math.floor(i / (ma ? 2 : 1)) % colors.length;
+                    ds.borderColor = colors[colorIndex];
+                    ds.backgroundColor = colors[colorIndex];
+                });
+
+                if (multiChart) multiChart.destroy();
+                multiChart = new Chart(document.getElementById("multiChart"), {
+                    type: "line",
+                    data: { labels: data.labels, datasets: data.datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: "index", intersect: false },
+                        plugins: {
+                            tooltip: {
+                                backgroundColor: "rgba(0,0,0,0.8)",
+                                padding: 12,
+                                cornerRadius: 8,
+                            },
+                            legend: {
+                                labels: { usePointStyle: true, padding: 20 },
+                            },
+                        },
+                    },
+                });
+            }
+
+            // Load Defaults
+            document.addEventListener("DOMContentLoaded", () => {
+                updateTeamCharts();
+            });
+        </script>
+    </body>
+</html>

@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>{{ game.opponent }} - Stats</title>
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='css/style.css') }}"
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        />
+    </head>
+    <body>
+        <div class="header">
+            <h1><i class="fas fa-chart-bar"></i> Box Score</h1>
+            <a href="{{ url_for('main.index') }}"
+                ><i class="fas fa-arrow-left"></i> Back</a
+            >
+        </div>
+
+        <div class="container" style="max-width: 1600px">
+            <!-- Scoreboard Card -->
+            <div
+                class="panel"
+                style="
+                    background: linear-gradient(
+                        135deg,
+                        #212529 0%,
+                        #343a40 100%
+                    );
+                    color: white;
+                    margin-bottom: 20px;
+                "
+            >
+                <div
+                    style="
+                        display: flex;
+                        justify-content: space-around;
+                        align-items: center;
+                        text-align: center;
+                    "
+                >
+                    <div style="flex: 1">
+                        <div
+                            style="
+                                font-size: 0.9rem;
+                                opacity: 0.7;
+                                text-transform: uppercase;
+                            "
+                        >
+                            Date
+                        </div>
+                        <div style="font-size: 1.5rem; font-weight: 600">
+                            {{ game.date }}
+                        </div>
+                    </div>
+                    <div
+                        style="
+                            flex: 1;
+                            border-left: 1px solid rgba(255, 255, 255, 0.1);
+                            border-right: 1px solid rgba(255, 255, 255, 0.1);
+                        "
+                    >
+                        <div style="font-size: 3.5rem; font-weight: 800">
+                            {{ game.team_score }} - {{ game.opponent_score }}
+                        </div>
+                        <span
+                            style="background: {{ '#28a745' if game.result == 'W' else '#dc3545' }}; padding: 4px 12px; border-radius: 15px; font-weight: bold;"
+                        >
+                            {{ 'VICTORY' if game.result == 'W' else 'DEFEAT' }}
+                        </span>
+                    </div>
+                    <div style="flex: 1">
+                        <div
+                            style="
+                                font-size: 0.9rem;
+                                opacity: 0.7;
+                                text-transform: uppercase;
+                            "
+                        >
+                            Opponent
+                        </div>
+                        <div style="font-size: 1.5rem; font-weight: 600">
+                            {{ game.opponent }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Table -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3>Advanced Box Score</h3>
+                </div>
+                <div style="overflow-x: auto">
+                    <table
+                        style="
+                            width: 100%;
+                            border-collapse: collapse;
+                            min-width: 1200px;
+                        "
+                    >
+                        <thead>
+                            <tr
+                                style="
+                                    background: #f8f9fa;
+                                    border-bottom: 2px solid #eee;
+                                "
+                            >
+                                <th style="padding: 10px; text-align: left">
+                                    Player
+                                </th>
+                                <th style="padding: 10px; text-align: center">
+                                    MIN
+                                </th>
+                                <th
+                                    style="
+                                        padding: 10px;
+                                        text-align: center;
+                                        color: var(--primary);
+                                    "
+                                >
+                                    PTS
+                                </th>
+                                <th style="padding: 10px; text-align: center">
+                                    REB
+                                </th>
+                                <th style="padding: 10px; text-align: center">
+                                    AST
+                                </th>
+                                <th style="padding: 10px; text-align: center">
+                                    STL
+                                </th>
+                                <th style="padding: 10px; text-align: center">
+                                    BLK
+                                </th>
+                                <th style="padding: 10px; text-align: center">
+                                    TOV
+                                </th>
+                                <th style="padding: 10px; text-align: center">
+                                    PF
+                                </th>
+                                <th
+                                    style="
+                                        padding: 10px;
+                                        text-align: center;
+                                        background: #f8f9fa;
+                                    "
+                                >
+                                    EFF
+                                </th>
+                                <th style="padding: 10px; text-align: center">
+                                    FG
+                                </th>
+                                <th style="padding: 10px; text-align: center">
+                                    3PT
+                                </th>
+                                <th style="padding: 10px; text-align: center">
+                                    FT
+                                </th>
+                                <th
+                                    style="
+                                        padding: 10px;
+                                        text-align: center;
+                                        color: #28a745;
+                                    "
+                                >
+                                    TS%
+                                </th>
+                                <th
+                                    style="
+                                        padding: 10px;
+                                        text-align: center;
+                                        color: #17a2b8;
+                                    "
+                                >
+                                    eFG%
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in stats %}
+                            <tr style="border-bottom: 1px solid #f1f1f1">
+                                <td style="padding: 10px; font-weight: 600">
+                                    {{ p.player_name }}
+                                </td>
+                                <td
+                                    style="
+                                        padding: 10px;
+                                        text-align: center;
+                                        color: #777;
+                                    "
+                                >
+                                    {{ p.minutes }}
+                                </td>
+                                <td
+                                    style="
+                                        padding: 10px;
+                                        text-align: center;
+                                        font-weight: 700;
+                                        color: var(--primary);
+                                    "
+                                >
+                                    {{ p.points }}
+                                </td>
+                                <td style="padding: 10px; text-align: center">
+                                    {{ p.reb }}
+                                </td>
+                                <td style="padding: 10px; text-align: center">
+                                    {{ p.ast }}
+                                </td>
+                                <td style="padding: 10px; text-align: center">
+                                    {{ p.stl }}
+                                </td>
+                                <td style="padding: 10px; text-align: center">
+                                    {{ p.blk }}
+                                </td>
+                                <td style="padding: 10px; text-align: center">
+                                    {{ p.tov }}
+                                </td>
+                                <td style="padding: 10px; text-align: center">
+                                    {{ p.pf }}
+                                </td>
+                                <td
+                                    style="
+                                        padding: 10px;
+                                        text-align: center;
+                                        font-weight: 600;
+                                        background: #f8f9fa;
+                                    "
+                                >
+                                    {{ p.eff }}
+                                </td>
+                                <td style="padding: 10px; text-align: center">
+                                    {{ p.fgm }}/{{ p.fga }}
+                                </td>
+                                <td style="padding: 10px; text-align: center">
+                                    {{ p.tpm }}/{{ p.tpa }}
+                                </td>
+                                <td style="padding: 10px; text-align: center">
+                                    {{ p.ftm }}/{{ p.fta }}
+                                </td>
+                                <td
+                                    style="
+                                        padding: 10px;
+                                        text-align: center;
+                                        color: #28a745;
+                                    "
+                                >
+                                    {{ p.ts_pct|round(0) }}%
+                                </td>
+                                <td
+                                    style="
+                                        padding: 10px;
+                                        text-align: center;
+                                        color: #17a2b8;
+                                    "
+                                >
+                                    {{ p.efg_pct|round(0) }}%
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

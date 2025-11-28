@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Roster Stats</title>
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='css/style.css') }}"
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        />
+        <style>
+            th {
+                font-size: 0.75rem;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                color: #6c757d;
+                white-space: nowrap;
+                cursor: pointer;
+                transition: 0.2s;
+            }
+            th:hover {
+                color: #007bff;
+                background: #f1f3f5;
+            }
+            td {
+                font-size: 0.9rem;
+                white-space: nowrap;
+            }
+            .sticky-col {
+                position: sticky;
+                left: 0;
+                background: white;
+                z-index: 2;
+                border-right: 1px solid #eee;
+            }
+            th.sticky-col {
+                background: #f8f9fa;
+                z-index: 3;
+            }
+            .sort-icon {
+                margin-left: 5px;
+                font-size: 0.7rem;
+                color: #ccc;
+            }
+            .active-sort {
+                color: #007bff;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1><i class="fas fa-users"></i> Roster Overview</h1>
+            <a href="{{ url_for('main.index') }}"
+                ><i class="fas fa-arrow-left"></i> Dashboard</a
+            >
+        </div>
+
+        <div class="container" style="max-width: 1600px">
+            <div class="panel">
+                <div class="panel-header">
+                    <h3>Player Statistics</h3>
+
+                    <!-- FILTER CONTROLS -->
+                    <div
+                        class="control-bar"
+                        style="
+                            background: transparent;
+                            border: none;
+                            padding: 0;
+                        "
+                    >
+                        <div>
+                            <label><i class="fas fa-filter"></i> Filter:</label>
+                            <select id="gameType" onchange="applyFilters()">
+                                <option value="ALL">All Game Types</option>
+                                <option value="Season">Season Only</option>
+                                <option value="Friendly">Friendly Only</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label
+                                ><i class="fas fa-calendar-alt"></i>
+                                Period:</label
+                            >
+                            <select id="gameLimit" onchange="applyFilters()">
+                                <option value="0">Full History</option>
+                                <option value="5">Last 5 Games</option>
+                                <option value="10">Last 10 Games</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="overflow-x: auto">
+                    <table
+                        style="
+                            width: 100%;
+                            border-collapse: collapse;
+                            min-width: 1200px;
+                        "
+                    >
+                        <thead>
+                            <tr
+                                style="
+                                    background: #f8f9fa;
+                                    border-bottom: 2px solid #eee;
+                                "
+                            >
+                                <!-- Clickable Headers -->
+                                <th
+                                    class="sticky-col"
+                                    onclick="sortBy('player_name')"
+                                >
+                                    Player
+                                    <i
+                                        id="icon-player_name"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('games_played')"
+                                    style="text-align: center"
+                                >
+                                    GP
+                                    <i
+                                        id="icon-games_played"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('ppg')"
+                                    style="
+                                        text-align: center;
+                                        color: var(--primary);
+                                    "
+                                >
+                                    PTS
+                                    <i
+                                        id="icon-ppg"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('rpg')"
+                                    style="text-align: center"
+                                >
+                                    REB
+                                    <i
+                                        id="icon-rpg"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('apg')"
+                                    style="text-align: center"
+                                >
+                                    AST
+                                    <i
+                                        id="icon-apg"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('spg')"
+                                    style="text-align: center"
+                                >
+                                    STL
+                                    <i
+                                        id="icon-spg"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('bpg')"
+                                    style="text-align: center"
+                                >
+                                    BLK
+                                    <i
+                                        id="icon-bpg"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('topg')"
+                                    style="text-align: center"
+                                >
+                                    TOV
+                                    <i
+                                        id="icon-topg"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('eff')"
+                                    style="
+                                        text-align: center;
+                                        background: #f1f3f5;
+                                    "
+                                >
+                                    EFF
+                                    <i
+                                        id="icon-eff"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('fg_pct')"
+                                    style="text-align: center"
+                                >
+                                    FG%
+                                    <i
+                                        id="icon-fg_pct"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('tp_pct')"
+                                    style="text-align: center"
+                                >
+                                    3P%
+                                    <i
+                                        id="icon-tp_pct"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('ft_pct')"
+                                    style="text-align: center"
+                                >
+                                    FT%
+                                    <i
+                                        id="icon-ft_pct"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('ts_pct')"
+                                    style="text-align: center; color: #28a745"
+                                >
+                                    TS%
+                                    <i
+                                        id="icon-ts_pct"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('efg_pct')"
+                                    style="text-align: center; color: #17a2b8"
+                                >
+                                    eFG%
+                                    <i
+                                        id="icon-efg_pct"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                                <th
+                                    onclick="sortBy('ast_tov')"
+                                    style="text-align: center"
+                                >
+                                    AST/TOV
+                                    <i
+                                        id="icon-ast_tov"
+                                        class="fas fa-sort sort-icon"
+                                    ></i>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in stats %}
+                            <tr style="border-bottom: 1px solid #f1f1f1">
+                                <td
+                                    class="sticky-col"
+                                    style="padding: 12px; font-weight: 600"
+                                >
+                                    {{ p.player_name }}
+                                </td>
+                                <td style="padding: 12px; text-align: center">
+                                    {{ p.games_played }}
+                                </td>
+                                <td
+                                    style="
+                                        padding: 12px;
+                                        text-align: center;
+                                        font-weight: 700;
+                                        color: var(--primary);
+                                    "
+                                >
+                                    {{ p.ppg|round(1) }}
+                                </td>
+                                <td style="padding: 12px; text-align: center">
+                                    {{ p.rpg|round(1) }}
+                                </td>
+                                <td style="padding: 12px; text-align: center">
+                                    {{ p.apg|round(1) }}
+                                </td>
+                                <td style="padding: 12px; text-align: center">
+                                    {{ p.spg|round(1) }}
+                                </td>
+                                <td style="padding: 12px; text-align: center">
+                                    {{ p.bpg|round(1) }}
+                                </td>
+                                <td style="padding: 12px; text-align: center">
+                                    {{ p.topg|round(1) }}
+                                </td>
+                                <td
+                                    style="
+                                        padding: 12px;
+                                        text-align: center;
+                                        font-weight: 600;
+                                        background: #f8f9fa;
+                                    "
+                                >
+                                    {{ p.eff|round(1) }}
+                                </td>
+                                <td style="padding: 12px; text-align: center">
+                                    {{ (p.fg_pct * 100)|int }}%
+                                </td>
+                                <td style="padding: 12px; text-align: center">
+                                    {{ (p.tp_pct * 100)|int }}%
+                                </td>
+                                <td style="padding: 12px; text-align: center">
+                                    {{ (p.ft_pct * 100)|int }}%
+                                </td>
+                                <td
+                                    style="
+                                        padding: 12px;
+                                        text-align: center;
+                                        color: #28a745;
+                                        font-weight: 600;
+                                    "
+                                >
+                                    {{ p.ts_pct|round(1) }}%
+                                </td>
+                                <td
+                                    style="
+                                        padding: 12px;
+                                        text-align: center;
+                                        color: #17a2b8;
+                                        font-weight: 600;
+                                    "
+                                >
+                                    {{ p.efg_pct|round(1) }}%
+                                </td>
+                                <td style="padding: 12px; text-align: center">
+                                    {{ p.ast_tov|round(2) }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    {% if not stats %}
+                    <div style="text-align: center; padding: 40px; color: #999">
+                        <p>No data found for these filters.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // --- FORMATTER-PROOF INITIALIZATION ---
+            // Use JS to set the dropdown values based on server variables
+            // This avoids putting Jinja logic inside HTML tags which breaks your editor's formatter
+            const currentType = "{{ filters['type'] }}";
+            const currentLimit = "{{ filters['limit'] }}";
+            const currentSort = "{{ filters['sort'] }}";
+            const currentOrder = "{{ filters['order'] }}";
+
+            document.addEventListener("DOMContentLoaded", () => {
+                // 1. Set Dropdowns
+                const typeSelect = document.getElementById("gameType");
+                const limitSelect = document.getElementById("gameLimit");
+                if (typeSelect) typeSelect.value = currentType;
+                if (limitSelect) limitSelect.value = currentLimit;
+
+                // 2. Set Active Sort Icon
+                const icon = document.getElementById("icon-" + currentSort);
+                if (icon) {
+                    icon.classList.remove("fa-sort");
+                    icon.classList.add(
+                        currentOrder === "desc" ? "fa-sort-down" : "fa-sort-up",
+                    );
+                    icon.classList.add("active-sort");
+                }
+            });
+
+            function applyFilters() {
+                const type = document.getElementById("gameType").value;
+                const limit = document.getElementById("gameLimit").value;
+                // Keep current sort when changing filters
+                window.location.href = `{{ url_for('main.players') }}?game_type=${type}&limit=${limit}&sort=${currentSort}&order=${currentOrder}`;
+            }
+
+            function sortBy(metric) {
+                const type = document.getElementById("gameType").value;
+                const limit = document.getElementById("gameLimit").value;
+
+                // Toggle order if sorting by same metric
+                let newOrder = "desc";
+                if (metric === currentSort) {
+                    newOrder = currentOrder === "desc" ? "asc" : "desc";
+                }
+
+                window.location.href = `{{ url_for('main.players') }}?game_type=${type}&limit=${limit}&sort=${metric}&order=${newOrder}`;
+            }
+        </script>
+    </body>
+</html>

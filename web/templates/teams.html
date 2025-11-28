@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Opponent History</title>
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='css/style.css') }}"
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        />
+    </head>
+    <body>
+        <div class="header">
+            <h1><i class="fas fa-shield-alt"></i> Opponent History</h1>
+            <a href="{{ url_for('main.index') }}"
+                ><i class="fas fa-arrow-left"></i> Dashboard</a
+            >
+        </div>
+
+        <div class="container">
+            <div class="panel">
+                <div class="panel-header"><h3>Head-to-Head Records</h3></div>
+                <table style="width: 100%; border-collapse: collapse">
+                    <thead>
+                        <tr
+                            style="
+                                background: #f8f9fa;
+                                border-bottom: 2px solid #eee;
+                            "
+                        >
+                            <th style="padding: 15px; text-align: left">
+                                Opponent
+                            </th>
+                            <th style="padding: 15px; text-align: center">
+                                Games
+                            </th>
+                            <th style="padding: 15px; text-align: center">
+                                Record
+                            </th>
+                            <th style="padding: 15px; text-align: center">
+                                Avg Score
+                            </th>
+                            <th style="padding: 15px; text-align: right">
+                                Action
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in teams %}
+                        <tr style="border-bottom: 1px solid #f1f1f1">
+                            <td style="padding: 15px; font-weight: 600">
+                                {{ t.name }}
+                            </td>
+                            <td style="padding: 15px; text-align: center">
+                                {{ t.games }}
+                            </td>
+                            <td style="padding: 15px; text-align: center">
+                                <span
+                                    style="
+                                        background: #e9ecef;
+                                        padding: 4px 10px;
+                                        border-radius: 12px;
+                                    "
+                                    >{{ t.record }}</span
+                                >
+                            </td>
+                            <td style="padding: 15px; text-align: center">
+                                {{ t.avg_score }}
+                            </td>
+                            <td style="padding: 15px; text-align: right">
+                                <a
+                                    href="{{ url_for('main.opponent_games', opponent_name=t.name) }}"
+                                    style="
+                                        color: var(--primary);
+                                        font-weight: 600;
+                                        text-decoration: none;
+                                    "
+                                >
+                                    View Games
+                                    <i class="fas fa-arrow-right"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </body>
+</html>
