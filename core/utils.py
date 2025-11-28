@@ -12,7 +12,7 @@ def safe_divide(numerator, denominator, default=0.0):
 
 
 def safe_percentage(numerator, denominator, decimals=1):
-    """Calculate percentage safely"""
+    """Calculate percentage safely (returns 0-100 range)"""
     result = safe_divide(numerator * 100, denominator)
     return round(result, decimals)
 
@@ -21,7 +21,7 @@ def parse_minutes(minutes_str):
     """Convert MM:SS string to decimal minutes"""
     if not minutes_str or minutes_str in ["00:00", "0", "0:00"]:
         return 0.0
-    
+
     try:
         if ":" in minutes_str:
             parts = minutes_str.split(":")
@@ -52,18 +52,18 @@ def calculate_ppp(points, possessions):
 
 
 def calculate_ts_percent(points, fga, fta):
-    """Calculate True Shooting Percentage"""
+    """Calculate True Shooting Percentage (returns 0-100)"""
     denominator = 2 * (fga + FT_ATTEMPT_WEIGHT * fta)
     return safe_percentage(points, denominator)
 
 
 def calculate_efg_percent(fgm, tpm, fga):
-    """Calculate Effective Field Goal Percentage"""
+    """Calculate Effective Field Goal Percentage (returns 0-100)"""
     return safe_percentage(fgm + THREE_POINT_WEIGHT * tpm, fga)
 
 
 def calculate_usg_percent(possessions, team_possessions):
-    """Calculate usage percentage"""
+    """Calculate usage percentage (returns 0-100)"""
     return safe_percentage(possessions, team_possessions)
 
 
@@ -73,35 +73,30 @@ def calculate_ast_tov_ratio(ast, tov):
 
 
 def calculate_oreb_percent(oreb, total_reb):
-    """Calculate offensive rebound percentage"""
+    """Calculate offensive rebound percentage (returns 0-100)"""
     return safe_percentage(oreb, total_reb)
 
 
 def calculate_efficiency(points, reb, ast, stl, blk, fgm, fga, ftm, fta, tov):
     """Calculate player efficiency rating"""
-    return (
-        points + reb + ast + stl + blk
-        - (fga - fgm)
-        - (fta - ftm)
-        - tov
-    )
+    return points + reb + ast + stl + blk - (fga - fgm) - (fta - ftm) - tov
 
 
 def calculate_two_point_stats(fgm, fga, tpm, tpa):
-    """Calculate 2-point makes, attempts, and percentage"""
+    """Calculate 2-point makes, attempts, and percentage (returns percentage 0-100)"""
     two_pt_made = fgm - tpm
     two_pt_att = fga - tpa
     two_pt_pct = safe_percentage(two_pt_made, two_pt_att)
-    
+
     return {
-        'two_pt_made': two_pt_made,
-        'two_pt_att': two_pt_att,
-        'two_pt_pct': two_pt_pct
+        "two_pt_made": two_pt_made,
+        "two_pt_att": two_pt_att,
+        "two_pt_pct": two_pt_pct,
     }
 
 
 def calculate_fta_rate(fta, fga):
-    """Calculate free throw attempt rate (FTA/FGA)"""
+    """Calculate free throw attempt rate (returns 0-100)"""
     return safe_percentage(fta, fga)
 
 

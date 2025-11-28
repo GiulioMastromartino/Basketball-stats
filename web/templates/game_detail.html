@@ -616,7 +616,7 @@
                                             text-align: center;
                                         "
                                     >
-                                        {{ (p.fg_percent * 100)|round(0) }}%
+                                        {{ (p.fg_percent * 100)|int }}%
                                     </td>
                                     <td
                                         style="
@@ -624,7 +624,7 @@
                                             text-align: center;
                                         "
                                     >
-                                        {{ (p.tp_percent * 100)|round(0) }}%
+                                        {{ (p.tp_percent * 100)|int }}%
                                     </td>
                                     <td
                                         style="
@@ -632,7 +632,7 @@
                                             text-align: center;
                                         "
                                     >
-                                        {{ (p.ft_percent * 100)|round(0) }}%
+                                        {{ (p.ft_percent * 100)|int }}%
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -943,7 +943,7 @@
                                             text-align: center;
                                         "
                                     >
-                                        {{ (p.fg_percent * 100)|round(0) }}%
+                                        {{ (p.fg_percent * 100)|int }}%
                                     </td>
                                     <td
                                         style="
@@ -959,7 +959,7 @@
                                             text-align: center;
                                         "
                                     >
-                                        {{ p.two_pt_pct|round(0) }}%
+                                        {{ p.two_pt_pct|round(1) }}%
                                     </td>
                                     <td
                                         style="
@@ -975,7 +975,7 @@
                                             text-align: center;
                                         "
                                     >
-                                        {{ (p.tp_percent * 100)|round(0) }}%
+                                        {{ (p.tp_percent * 100)|int }}%
                                     </td>
                                     <td
                                         style="
@@ -991,7 +991,7 @@
                                             text-align: center;
                                         "
                                     >
-                                        {{ (p.ft_percent * 100)|round(0) }}%
+                                        {{ (p.ft_percent * 100)|int }}%
                                     </td>
                                     <td
                                         style="
@@ -1029,6 +1029,134 @@
                                 {% endfor %}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ACRONYM GLOSSARY -->
+            <div class="panel" style="margin-top: 30px">
+                <h3 style="margin-bottom: 20px">
+                    <i class="fas fa-book"></i> Statistics Glossary
+                </h3>
+
+                <div
+                    style="
+                        display: grid;
+                        grid-template-columns: repeat(
+                            auto-fit,
+                            minmax(300px, 1fr)
+                        );
+                        gap: 20px;
+                    "
+                >
+                    <!-- Basic Stats -->
+                    <div>
+                        <h4 style="color: #007bff; margin-bottom: 10px">
+                            Basic Stats
+                        </h4>
+                        <div style="line-height: 1.8; font-size: 0.9rem">
+                            <strong>MIN:</strong> Minutes Played<br />
+                            <strong>PTS:</strong> Points<br />
+                            <strong>REB:</strong> Total Rebounds<br />
+                            <strong>AST:</strong> Assists<br />
+                            <strong>STL:</strong> Steals<br />
+                            <strong>BLK:</strong> Blocks<br />
+                            <strong>TOV:</strong> Turnovers<br />
+                            <strong>PF:</strong> Personal Fouls<br />
+                            <strong>EFF:</strong> Efficiency Rating
+                        </div>
+                    </div>
+
+                    <!-- Advanced Stats -->
+                    <div>
+                        <h4 style="color: #28a745; margin-bottom: 10px">
+                            Advanced Metrics
+                        </h4>
+                        <div style="line-height: 1.8; font-size: 0.9rem">
+                            <strong>POSS:</strong> Possessions Used<br />
+                            <strong>ORtg:</strong> Offensive Rating (Points per
+                            100 possessions)<br />
+                            <strong>PPP:</strong> Points Per Possession<br />
+                            <strong>USG%:</strong> Usage Percentage (% of team
+                            possessions)<br />
+                            <strong>AST/TOV:</strong> Assist-to-Turnover
+                            Ratio<br />
+                            <strong>TS%:</strong> True Shooting Percentage<br />
+                            <strong>eFG%:</strong> Effective Field Goal
+                            Percentage
+                        </div>
+                    </div>
+
+                    <!-- Shooting Details -->
+                    <div>
+                        <h4 style="color: #17a2b8; margin-bottom: 10px">
+                            Shooting Breakdown
+                        </h4>
+                        <div style="line-height: 1.8; font-size: 0.9rem">
+                            <strong>FG:</strong> Field Goals (Made/Attempted)<br />
+                            <strong>2PT:</strong> Two-Point Field Goals<br />
+                            <strong>3PT:</strong> Three-Point Field Goals<br />
+                            <strong>FT:</strong> Free Throws<br />
+                            <strong>FTA/FGA:</strong> Free Throw Attempt Rate<br />
+                            <strong>OREB:</strong> Offensive Rebounds<br />
+                            <strong>DREB:</strong> Defensive Rebounds<br />
+                            <strong>OREB%:</strong> Offensive Rebound % of Total
+                        </div>
+                    </div>
+
+                    <!-- Per 100 Minutes -->
+                    <div>
+                        <h4 style="color: #ffc107; margin-bottom: 10px">
+                            Per 100 Minutes
+                        </h4>
+                        <div style="line-height: 1.8; font-size: 0.9rem">
+                            All stats normalized to per 100 minutes played to
+                            compare players with different playing time.<br /><br />
+                            <strong>Example:</strong> A player with 10 PTS in 20
+                            minutes = 50 PTS/100
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Thresholds -->
+                <div
+                    style="
+                        margin-top: 25px;
+                        padding: 15px;
+                        background: #f8f9fa;
+                        border-radius: 8px;
+                    "
+                >
+                    <h4 style="margin-bottom: 10px">
+                        <i class="fas fa-chart-line"></i> Performance Benchmarks
+                    </h4>
+                    <div
+                        style="
+                            display: grid;
+                            grid-template-columns: repeat(
+                                auto-fit,
+                                minmax(250px, 1fr)
+                            );
+                            gap: 15px;
+                            font-size: 0.9rem;
+                        "
+                    >
+                        <div>
+                            <strong>PPP:</strong> >1.1 Excellent, 0.8-1.1 Good,
+                            <0.8 Poor
+                        </div>
+                        <div>
+                            <strong>ORtg:</strong> >150 High Efficiency, <100
+                            Low Efficiency
+                        </div>
+                        <div>
+                            <strong>AST/TOV:</strong> ≥2.0 Excellent, 1.0-2.0
+                            Good, <1.0 Poor
+                        </div>
+                        <div>
+                            <strong>Foul Trouble:</strong> 3+ PF Warning, 4+ PF
+                            Critical
+                        </div>
                     </div>
                 </div>
             </div>

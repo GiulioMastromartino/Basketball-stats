@@ -434,17 +434,19 @@
                         </thead>
                         <tbody>
                             {% for p in stats %}
+                            <!-- Main Stats Row -->
                             <tr style="border-bottom: 1px solid #f1f1f1">
                                 <td
                                     class="sticky-col"
                                     style="padding: 12px; font-weight: 600"
+                                    rowspan="2"
                                 >
                                     {{ p.player_name }}
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.games_played }}
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.mpg|round(1) }}
                                 </td>
 
@@ -455,6 +457,7 @@
                                         font-weight: 700;
                                         color: var(--primary);
                                     "
+                                    rowspan="2"
                                 >
                                     {{ p.ppg|round(1) }}
                                 </td>
@@ -464,33 +467,36 @@
                                         color: #28a745;
                                         font-weight: 600;
                                     "
+                                    rowspan="2"
                                 >
                                     {{ p.ortg|round(0) }}
                                 </td>
                                 <td
                                     style="text-align: center; font-weight: 600"
                                     class="{% if p.ppp > 1.1 %}flag-excellent{% elif p.ppp < 0.8 %}flag-poor{% endif %}"
+                                    rowspan="2"
                                 >
                                     {{ p.ppp|round(2) }}
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.usg_pct|round(1) }}
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.rpg|round(1) }}
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.orebpg|round(1) }}
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.drebpg|round(1) }}
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.apg|round(1) }}
                                 </td>
                                 <td
                                     style="text-align: center"
                                     class="{% if p.ast_tov >= 2.0 %}flag-excellent{% elif p.ast_tov < 1.0 %}flag-poor{% endif %}"
+                                    rowspan="2"
                                 >
                                     {{ p.ast_tov|round(2) }}
                                 </td>
@@ -502,6 +508,7 @@
                                         font-weight: 600;
                                         background: #f8f9fa;
                                     "
+                                    rowspan="2"
                                 >
                                     {{ p.eff|round(1) }}
                                 </td>
@@ -511,28 +518,30 @@
                                         color: #17a2b8;
                                         font-weight: 600;
                                     "
+                                    rowspan="2"
                                 >
                                     {{ p.ts_pct|round(1) }}%
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.efg_pct|round(1) }}%
                                 </td>
                                 <td
                                     style="text-align: center"
                                     class="{% if p.consistency < 0.15 %}flag-good{% elif p.consistency > 0.30 %}flag-poor{% endif %}"
+                                    rowspan="2"
                                 >
                                     {{ (p.consistency * 100)|round(1) }}%
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.topg|round(1) }}
                                 </td>
 
-                                <!-- Shooting -->
+                                <!-- Shooting Percentages -->
                                 <td style="text-align: center">
                                     {{ (p.fg_pct * 100)|int }}%
                                 </td>
                                 <td style="text-align: center">
-                                    {{ (p.two_pt_pct * 100)|int }}%
+                                    {{ p.two_pt_pct|round(1) }}%
                                 </td>
                                 <td style="text-align: center">
                                     {{ (p.tp_pct * 100)|int }}%
@@ -540,22 +549,72 @@
                                 <td style="text-align: center">
                                     {{ (p.ft_pct * 100)|int }}%
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.fta_pct|round(1) }}%
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.oreb_pct|round(1) }}%
                                 </td>
 
                                 <!-- Other -->
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.spg|round(1) }}
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.bpg|round(1) }}
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" rowspan="2">
                                     {{ p.pfpg|round(1) }}
+                                </td>
+                            </tr>
+
+                            <!-- Shooting Totals Sub-Row -->
+                            <tr
+                                style="
+                                    border-bottom: 2px solid #dee2e6;
+                                    background: #fafbfc;
+                                "
+                            >
+                                <!-- Shooting Totals (Made/Attempted) -->
+                                <td
+                                    style="
+                                        text-align: center;
+                                        font-size: 0.75rem;
+                                        color: #6c757d;
+                                        font-weight: 600;
+                                    "
+                                >
+                                    {{ p.fgm }}/{{ p.fga }}
+                                </td>
+                                <td
+                                    style="
+                                        text-align: center;
+                                        font-size: 0.75rem;
+                                        color: #6c757d;
+                                        font-weight: 600;
+                                    "
+                                >
+                                    {{ p.two_pt_made }}/{{ p.two_pt_att }}
+                                </td>
+                                <td
+                                    style="
+                                        text-align: center;
+                                        font-size: 0.75rem;
+                                        color: #6c757d;
+                                        font-weight: 600;
+                                    "
+                                >
+                                    {{ p.tpm }}/{{ p.tpa }}
+                                </td>
+                                <td
+                                    style="
+                                        text-align: center;
+                                        font-size: 0.75rem;
+                                        color: #6c757d;
+                                        font-weight: 600;
+                                    "
+                                >
+                                    {{ p.ftm }}/{{ p.fta }}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -567,6 +626,123 @@
                         <p>No data found for these filters.</p>
                     </div>
                     {% endif %}
+                </div>
+
+                <!-- ACRONYM GLOSSARY -->
+                <div class="panel" style="margin-top: 30px">
+                    <h3 style="margin-bottom: 20px">
+                        <i class="fas fa-book"></i> Statistics Glossary
+                    </h3>
+
+                    <div
+                        style="
+                            display: grid;
+                            grid-template-columns: repeat(
+                                auto-fit,
+                                minmax(300px, 1fr)
+                            );
+                            gap: 20px;
+                        "
+                    >
+                        <!-- Basic Stats -->
+                        <div>
+                            <h4 style="color: #007bff; margin-bottom: 10px">
+                                Basic Stats
+                            </h4>
+                            <div style="line-height: 1.8">
+                                <strong>GP:</strong> Games Played<br />
+                                <strong>MIN:</strong> Minutes Per Game<br />
+                                <strong>PTS:</strong> Points Per Game<br />
+                                <strong>REB:</strong> Rebounds Per Game<br />
+                                <strong>OREB:</strong> Offensive Rebounds Per
+                                Game<br />
+                                <strong>DREB:</strong> Defensive Rebounds Per
+                                Game<br />
+                                <strong>AST:</strong> Assists Per Game<br />
+                                <strong>STL:</strong> Steals Per Game<br />
+                                <strong>BLK:</strong> Blocks Per Game<br />
+                                <strong>TOV:</strong> Turnovers Per Game<br />
+                                <strong>PF:</strong> Personal Fouls Per Game
+                            </div>
+                        </div>
+
+                        <!-- Advanced Efficiency -->
+                        <div>
+                            <h4 style="color: #28a745; margin-bottom: 10px">
+                                Advanced Efficiency
+                            </h4>
+                            <div style="line-height: 1.8">
+                                <strong>ORtg:</strong> Offensive Rating - Points
+                                produced per 100 possessions<br />
+                                <strong>PPP:</strong> Points Per Possession -
+                                Scoring efficiency<br />
+                                <strong>USG:</strong> Usage - Average
+                                possessions used per game<br />
+                                <strong>EFF:</strong> Efficiency Rating - (PTS +
+                                REB + AST + STL + BLK) - (Missed FG + Missed FT
+                                + TOV)<br />
+                                <strong>AST/TOV:</strong> Assist-to-Turnover
+                                Ratio - Ball handling efficiency<br />
+                                <strong>CV%:</strong> Coefficient of Variation -
+                                Performance consistency (lower = more
+                                consistent)
+                            </div>
+                        </div>
+
+                        <!-- Shooting Metrics -->
+                        <div>
+                            <h4 style="color: #17a2b8; margin-bottom: 10px">
+                                Shooting Metrics
+                            </h4>
+                            <div style="line-height: 1.8">
+                                <strong>FG%:</strong> Field Goal Percentage<br />
+                                <strong>2P%:</strong> Two-Point Field Goal
+                                Percentage<br />
+                                <strong>3P%:</strong> Three-Point Field Goal
+                                Percentage<br />
+                                <strong>FT%:</strong> Free Throw Percentage<br />
+                                <strong>TS%:</strong> True Shooting % - Overall
+                                scoring efficiency (accounts for 3PT and FT)<br />
+                                <strong>eFG%:</strong> Effective Field Goal % -
+                                FG% adjusted for 3-pointers being worth more<br />
+                                <strong>FTA/FGA:</strong> Free Throw Attempt
+                                Rate - Aggression/contact rate<br />
+                                <strong>OREB%:</strong> Offensive Rebound % of
+                                total rebounds<br />
+                                <strong>Made/Att:</strong> Total shots made and
+                                attempted (shown below percentages)
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Color Coding Legend -->
+                    <div
+                        style="
+                            margin-top: 25px;
+                            padding: 15px;
+                            background: #f8f9fa;
+                            border-radius: 8px;
+                        "
+                    >
+                        <h4 style="margin-bottom: 10px">
+                            <i class="fas fa-palette"></i> Color Coding
+                        </h4>
+                        <div style="display: flex; gap: 30px; flex-wrap: wrap">
+                            <div>
+                                <span class="flag-excellent">Green</span> =
+                                Excellent performance (PPP > 1.1, AST/TOV ≥ 2.0,
+                                CV < 15%)
+                            </div>
+                            <div>
+                                <span class="flag-good">Blue</span> = Good
+                                performance (Consistent play, CV 15-30%)
+                            </div>
+                            <div>
+                                <span class="flag-poor">Red</span> = Needs
+                                improvement (PPP < 0.8, AST/TOV < 1.0, CV > 30%)
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

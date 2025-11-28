@@ -240,7 +240,7 @@ def players():
                 "ppp": ppp,
                 "usg_pct": (total_poss / gp) if gp > 0 else 0,
                 "fg_pct": row.total_fgm / row.total_fga if row.total_fga > 0 else 0,
-                "two_pt_pct": two_pt_stats["two_pt_pct"] / 100,
+                "two_pt_pct": two_pt_stats["two_pt_pct"],
                 "tp_pct": row.total_tpm / row.total_tpa if row.total_tpa > 0 else 0,
                 "ft_pct": row.total_ftm / row.total_fta if row.total_fta > 0 else 0,
                 "ts_pct": ts_pct,
@@ -251,6 +251,15 @@ def players():
                 "fta_pct": safe_percentage(row.total_fta, row.total_fga),
                 "oreb_pct": safe_percentage(row.total_oreb, row.total_reb),
                 "consistency": consistency,
+                # SHOOTING TOTALS
+                "fgm": row.total_fgm,
+                "fga": row.total_fga,
+                "two_pt_made": two_pt_stats["two_pt_made"],
+                "two_pt_att": two_pt_stats["two_pt_att"],
+                "tpm": row.total_tpm,
+                "tpa": row.total_tpa,
+                "ftm": row.total_ftm,
+                "fta": row.total_fta,
             }
         )
 
