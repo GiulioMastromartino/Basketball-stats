@@ -9,6 +9,10 @@
             href="{{ url_for('static', filename='css/style.css') }}"
         />
         <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='css/analytics.css') }}"
+        />
+        <link
             href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
             rel="stylesheet"
         />
@@ -19,7 +23,6 @@
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     </head>
     <body>
-        <!-- HEADER -->
         <div class="header">
             <h1>
                 <i class="fas fa-chart-pie" style="color: #4dabf7"></i>
@@ -39,13 +42,18 @@
                     <i class="fas fa-users"></i> Team Overview
                 </div>
                 <div class="tab" onclick="switchTab('multi')">
-                    <i class="fas fa-user-astronaut"></i> Player Analysis
+                    <i class="fas fa-user-astronaut"></i> Player Comparison
+                </div>
+                <div class="tab" onclick="switchTab('consistency')">
+                    <i class="fas fa-chart-line"></i> Consistency
+                </div>
+                <div class="tab" onclick="switchTab('roles')">
+                    <i class="fas fa-user-tag"></i> Player Roles
                 </div>
             </div>
 
-            <!-- === SECTION 1: TEAM OVERVIEW === -->
+            <!-- TEAM OVERVIEW SECTION -->
             <div id="team" class="section active">
-                <!-- Top Performers Panel -->
                 <div class="panel">
                     <div class="panel-header">
                         <h3>
@@ -80,6 +88,9 @@
                                     <option value="efg_pct">
                                         Effective FG %
                                     </option>
+                                    <option value="fg_pct">FG%</option>
+                                    <option value="3p_pct">3P%</option>
+                                    <option value="ft_pct">FT%</option>
                                 </select>
                             </div>
                             <div>
@@ -103,7 +114,6 @@
                     </div>
                 </div>
 
-                <!-- Team Trends Panel -->
                 <div class="panel">
                     <div class="panel-header">
                         <h3>
@@ -137,7 +147,6 @@
                         </div>
                     </div>
 
-                    <!-- Metrics Cards -->
                     <div class="metrics-row">
                         <div class="metric-card">
                             <div class="label">Win Percentage</div>
@@ -155,17 +164,14 @@
                 </div>
             </div>
 
-            <!-- === SECTION 2: MULTI-PLAYER ANALYSIS === -->
+            <!-- MULTI-PLAYER ANALYSIS SECTION -->
             <div id="multi" class="section">
-                <!-- Controls Panel -->
                 <div class="panel">
                     <div
                         class="panel-header"
                         style="border: none; margin-bottom: 10px"
                     >
                         <h3><i class="fas fa-sliders-h"></i> Configuration</h3>
-
-                        <!-- Global Filters -->
                         <div
                             style="
                                 display: flex;
@@ -201,7 +207,6 @@
                     </div>
 
                     <div style="display: flex; gap: 20px; flex-wrap: wrap">
-                        <!-- Player Selector -->
                         <div
                             style="flex: 1; min-width: 250px"
                             class="checkbox-wrapper"
@@ -224,7 +229,6 @@
                             </div>
                         </div>
 
-                        <!-- Stat Selector -->
                         <div
                             style="flex: 2; min-width: 350px"
                             class="checkbox-wrapper"
@@ -260,7 +264,25 @@
                                         checked
                                         onchange="updateMultiChart()"
                                     />
-                                    Efficiency (EFF)</label
+                                    Efficiency</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="ortg"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    ORtg</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="ppp"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    PPP</label
                                 >
                                 <label class="checkbox-item"
                                     ><input
@@ -275,13 +297,31 @@
                                     ><input
                                         type="checkbox"
                                         class="s-select"
+                                        value="oreb"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    OREB</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="dreb"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    DREB</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
                                         value="assists"
                                         onchange="updateMultiChart()"
                                     />
                                     Assists</label
                                 >
 
-                                <!-- Advanced -->
+                                <!-- Advanced Stats -->
                                 <label class="checkbox-item"
                                     ><input
                                         type="checkbox"
@@ -304,13 +344,40 @@
                                     ><input
                                         type="checkbox"
                                         class="s-select"
+                                        value="fg_pct"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    FG%</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="2pt_pct"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    2PT%</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="3p_pct"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    3PT%</label
+                                >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
                                         value="ast_tov"
                                         onchange="updateMultiChart()"
                                     />
-                                    AST/TOV Ratio</label
+                                    AST/TOV</label
                                 >
 
-                                <!-- Defensive / Other -->
+                                <!-- Other Stats -->
                                 <label class="checkbox-item"
                                     ><input
                                         type="checkbox"
@@ -356,23 +423,200 @@
                                     />
                                     Fouls</label
                                 >
+                                <label class="checkbox-item"
+                                    ><input
+                                        type="checkbox"
+                                        class="s-select"
+                                        value="usg_pct"
+                                        onchange="updateMultiChart()"
+                                    />
+                                    Usage</label
+                                >
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Chart Panel -->
                 <div class="panel">
                     <div style="height: 500px; position: relative">
                         <canvas id="multiChart"></canvas>
                     </div>
                 </div>
             </div>
+
+            <!-- CONSISTENCY SECTION -->
+            <div id="consistency" class="section">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>
+                            <i class="fas fa-balance-scale"></i> Consistency
+                            Rankings
+                        </h3>
+                        <div
+                            class="control-bar"
+                            style="
+                                background: transparent;
+                                border: none;
+                                padding: 0;
+                            "
+                        >
+                            <select
+                                id="consistencyGameType"
+                                onchange="loadConsistency()"
+                            >
+                                <option value="ALL">All Games</option>
+                                <option value="Season">Season Only</option>
+                                <option value="Friendly">Friendly Only</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div
+                        style="
+                            display: grid;
+                            grid-template-columns: 1fr 1fr;
+                            gap: 20px;
+                            margin-top: 20px;
+                        "
+                    >
+                        <div>
+                            <h4 style="margin-bottom: 15px">
+                                <i
+                                    class="fas fa-check-circle"
+                                    style="color: #28a745"
+                                ></i>
+                                Most Consistent (Reliable)
+                            </h4>
+                            <div id="consistentList"></div>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 15px">
+                                <i
+                                    class="fas fa-exclamation-triangle"
+                                    style="color: #ffc107"
+                                ></i>
+                                Most Volatile (Unpredictable)
+                            </h4>
+                            <div id="volatileList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ROLES SECTION -->
+            <div id="roles" class="section">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>
+                            <i class="fas fa-users-cog"></i> Player Role
+                            Analysis
+                        </h3>
+                        <div
+                            class="control-bar"
+                            style="
+                                background: transparent;
+                                border: none;
+                                padding: 0;
+                            "
+                        >
+                            <select id="rolesGameType" onchange="loadRoles()">
+                                <option value="ALL">All Games</option>
+                                <option value="Season">Season Only</option>
+                                <option value="Friendly">Friendly Only</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div
+                        id="rolesGrid"
+                        style="
+                            display: grid;
+                            grid-template-columns: repeat(
+                                auto-fill,
+                                minmax(250px, 1fr)
+                            );
+                            gap: 15px;
+                            margin-top: 20px;
+                        "
+                    ></div>
+                </div>
+
+                <div class="panel" style="margin-top: 20px">
+                    <h4 style="margin-bottom: 15px">Role Definitions</h4>
+                    <div
+                        style="
+                            display: grid;
+                            grid-template-columns: repeat(
+                                auto-fit,
+                                minmax(200px, 1fr)
+                            );
+                            gap: 15px;
+                        "
+                    >
+                        <div
+                            style="
+                                background: #d4edda;
+                                padding: 15px;
+                                border-radius: 8px;
+                            "
+                        >
+                            <span class="role-badge role-primary"
+                                >Primary Scorer</span
+                            >
+                            <p style="margin: 10px 0 0; font-size: 0.9rem">
+                                High usage (>6 poss/g) + High efficiency (>150
+                                ORtg)
+                            </p>
+                        </div>
+                        <div
+                            style="
+                                background: #d1ecf1;
+                                padding: 15px;
+                                border-radius: 8px;
+                            "
+                        >
+                            <span class="role-badge role-efficient"
+                                >Efficient Role</span
+                            >
+                            <p style="margin: 10px 0 0; font-size: 0.9rem">
+                                Low usage (≤6 poss/g) + High efficiency (>150
+                                ORtg)
+                            </p>
+                        </div>
+                        <div
+                            style="
+                                background: #fff3cd;
+                                padding: 15px;
+                                border-radius: 8px;
+                            "
+                        >
+                            <span class="role-badge role-volume"
+                                >Volume Scorer</span
+                            >
+                            <p style="margin: 10px 0 0; font-size: 0.9rem">
+                                High usage (>6 poss/g) + Low efficiency (≤150
+                                ORtg)
+                            </p>
+                        </div>
+                        <div
+                            style="
+                                background: #f8d7da;
+                                padding: 15px;
+                                border-radius: 8px;
+                            "
+                        >
+                            <span class="role-badge role-reserve">Reserve</span>
+                            <p style="margin: 10px 0 0; font-size: 0.9rem">
+                                Low usage (≤6 poss/g) + Low efficiency (≤150
+                                ORtg)
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- JAVASCRIPT LOGIC -->
         <script>
-            // === UI LOGIC ===
             function switchTab(id) {
                 document
                     .querySelectorAll(".section")
@@ -381,13 +625,14 @@
                     .querySelectorAll(".tab")
                     .forEach((t) => t.classList.remove("active"));
                 document.getElementById(id).classList.add("active");
-                event.target.classList.add("active");
+                event.target.closest(".tab").classList.add("active");
 
                 if (id === "team") updateTeamCharts();
                 if (id === "multi") updateMultiChart();
+                if (id === "consistency") loadConsistency();
+                if (id === "roles") loadRoles();
             }
 
-            // === CHART DEFAULTS ===
             Chart.defaults.font.family = "'Inter', sans-serif";
             Chart.defaults.color = "#6c757d";
             const colors = [
@@ -401,8 +646,7 @@
                 "#ffc107",
             ];
 
-            // === TEAM CHARTS LOGIC ===
-            let trendChart, topChart;
+            let trendChart, topChart, multiChart;
 
             async function updateTeamCharts() {
                 const type = document.getElementById("gameType").value;
@@ -411,85 +655,85 @@
                 const topLimit = document.getElementById("topLimit").value;
 
                 const url = `/api/analytics/team_overview?game_type=${type}&limit_trend=${trendLimit}&top_stat=${topStat}&top_limit=${topLimit}`;
-                const res = await fetch(url);
-                const data = await res.json();
 
-                document.getElementById("t_win").textContent =
-                    data.metrics.win_pct + "%";
-                document.getElementById("t_ppg").textContent = data.metrics.ppg;
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error("Failed to load data");
+                    const data = await res.json();
 
-                // Render Trend Chart
-                if (trendChart) trendChart.destroy();
-                const ctxTrend = document
-                    .getElementById("trendChart")
-                    .getContext("2d");
+                    document.getElementById("t_win").textContent =
+                        data.metrics.win_pct + "%";
+                    document.getElementById("t_ppg").textContent =
+                        data.metrics.ppg;
 
-                // Gradient Fill
-                const gradientTeam = ctxTrend.createLinearGradient(
-                    0,
-                    0,
-                    0,
-                    400,
-                );
-                gradientTeam.addColorStop(0, "rgba(0, 123, 255, 0.2)");
-                gradientTeam.addColorStop(1, "rgba(0, 123, 255, 0.0)");
+                    if (trendChart) trendChart.destroy();
+                    const ctxTrend = document
+                        .getElementById("trendChart")
+                        .getContext("2d");
+                    const gradientTeam = ctxTrend.createLinearGradient(
+                        0,
+                        0,
+                        0,
+                        400,
+                    );
+                    gradientTeam.addColorStop(0, "rgba(0, 123, 255, 0.2)");
+                    gradientTeam.addColorStop(1, "rgba(0, 123, 255, 0.0)");
 
-                trendChart = new Chart(ctxTrend, {
-                    type: "line",
-                    data: {
-                        labels: data.trend.labels,
-                        datasets: [
-                            {
-                                label: "Team Score",
-                                data: data.trend.team_score,
-                                borderColor: "#007bff",
-                                backgroundColor: gradientTeam,
-                                tension: 0.4,
-                                fill: true,
-                                pointRadius: 4,
-                            },
-                            {
-                                label: "Opponent Score",
-                                data: data.trend.opp_score,
-                                borderColor: "#dc3545",
-                                borderDash: [5, 5],
-                                tension: 0.4,
-                                pointRadius: 4,
-                            },
-                        ],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: { mode: "index", intersect: false },
-                    },
-                });
+                    trendChart = new Chart(ctxTrend, {
+                        type: "line",
+                        data: {
+                            labels: data.trend.labels,
+                            datasets: [
+                                {
+                                    label: "Team Score",
+                                    data: data.trend.team_score,
+                                    borderColor: "#007bff",
+                                    backgroundColor: gradientTeam,
+                                    tension: 0.4,
+                                    fill: true,
+                                    pointRadius: 4,
+                                },
+                                {
+                                    label: "Opponent Score",
+                                    data: data.trend.opp_score,
+                                    borderColor: "#dc3545",
+                                    borderDash: [5, 5],
+                                    tension: 0.4,
+                                    pointRadius: 4,
+                                },
+                            ],
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { mode: "index", intersect: false },
+                        },
+                    });
 
-                // Render Top Chart
-                if (topChart) topChart.destroy();
-                topChart = new Chart(document.getElementById("topChart"), {
-                    type: "bar",
-                    data: {
-                        labels: data.top_chart.labels,
-                        datasets: [
-                            {
-                                label: data.top_chart.label,
-                                data: data.top_chart.data,
-                                backgroundColor: "#20c997",
-                                borderRadius: 6,
-                            },
-                        ],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        indexAxis: "y",
-                    },
-                });
+                    if (topChart) topChart.destroy();
+                    topChart = new Chart(document.getElementById("topChart"), {
+                        type: "bar",
+                        data: {
+                            labels: data.top_chart.labels,
+                            datasets: [
+                                {
+                                    label: data.top_chart.label,
+                                    data: data.top_chart.data,
+                                    backgroundColor: "#20c997",
+                                    borderRadius: 6,
+                                },
+                            ],
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: "y",
+                        },
+                    });
+                } catch (error) {
+                    console.error("Error loading team charts:", error);
+                }
             }
-
-            // === MULTI-PLAYER CHART LOGIC ===
-            let multiChart;
 
             async function updateMultiChart() {
                 const players = Array.from(
@@ -512,41 +756,144 @@
                 params.append("ma", ma);
                 params.append("game_type", gameType);
 
-                const res = await fetch(
-                    `/api/analytics/multi_compare?${params.toString()}`,
-                );
-                const data = await res.json();
+                try {
+                    const res = await fetch(
+                        `/api/analytics/multi_compare?${params.toString()}`,
+                    );
+                    if (!res.ok) throw new Error("Failed to load data");
+                    const data = await res.json();
 
-                data.datasets.forEach((ds, i) => {
-                    const colorIndex =
-                        Math.floor(i / (ma ? 2 : 1)) % colors.length;
-                    ds.borderColor = colors[colorIndex];
-                    ds.backgroundColor = colors[colorIndex];
-                });
+                    data.datasets.forEach((ds, i) => {
+                        const colorIndex =
+                            Math.floor(i / (ma ? 2 : 1)) % colors.length;
+                        ds.borderColor = colors[colorIndex];
+                        ds.backgroundColor = colors[colorIndex];
+                    });
 
-                if (multiChart) multiChart.destroy();
-                multiChart = new Chart(document.getElementById("multiChart"), {
-                    type: "line",
-                    data: { labels: data.labels, datasets: data.datasets },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: { mode: "index", intersect: false },
-                        plugins: {
-                            tooltip: {
-                                backgroundColor: "rgba(0,0,0,0.8)",
-                                padding: 12,
-                                cornerRadius: 8,
+                    if (multiChart) multiChart.destroy();
+                    multiChart = new Chart(
+                        document.getElementById("multiChart"),
+                        {
+                            type: "line",
+                            data: {
+                                labels: data.labels,
+                                datasets: data.datasets,
                             },
-                            legend: {
-                                labels: { usePointStyle: true, padding: 20 },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    mode: "index",
+                                    intersect: false,
+                                },
+                                plugins: {
+                                    tooltip: {
+                                        backgroundColor: "rgba(0,0,0,0.8)",
+                                        padding: 12,
+                                        cornerRadius: 8,
+                                    },
+                                    legend: {
+                                        labels: {
+                                            usePointStyle: true,
+                                            padding: 20,
+                                        },
+                                    },
+                                },
                             },
                         },
-                    },
-                });
+                    );
+                } catch (error) {
+                    console.error("Error loading multi chart:", error);
+                }
             }
 
-            // Load Defaults
+            async function loadConsistency() {
+                const gameType = document.getElementById(
+                    "consistencyGameType",
+                ).value;
+
+                try {
+                    const res = await fetch(
+                        `/api/analytics/consistency_leaderboard?game_type=${gameType}`,
+                    );
+                    if (!res.ok) throw new Error("Failed to load data");
+                    const data = await res.json();
+
+                    const consistentHtml = data.consistent
+                        .map(
+                            (p, i) => `
+                        <div class="leaderboard-item">
+                            <span><strong>${i + 1}. ${p.player}</strong> (${p.ppg} PPG, ${p.games} GP)</span>
+                            <span style="font-weight: 600;">CV: ${(p.cv * 100).toFixed(1)}%</span>
+                        </div>
+                    `,
+                        )
+                        .join("");
+
+                    const volatileHtml = data.volatile
+                        .map(
+                            (p, i) => `
+                        <div class="leaderboard-item">
+                            <span><strong>${i + 1}. ${p.player}</strong> (${p.ppg} PPG, ${p.games} GP)</span>
+                            <span style="font-weight: 600;">CV: ${(p.cv * 100).toFixed(1)}%</span>
+                        </div>
+                    `,
+                        )
+                        .join("");
+
+                    document.getElementById("consistentList").innerHTML =
+                        consistentHtml ||
+                        '<p style="text-align: center; color: #999;">No data</p>';
+                    document.getElementById("volatileList").innerHTML =
+                        volatileHtml ||
+                        '<p style="text-align: center; color: #999;">No data</p>';
+                } catch (error) {
+                    console.error("Error loading consistency:", error);
+                }
+            }
+
+            async function loadRoles() {
+                const gameType = document.getElementById("rolesGameType").value;
+
+                try {
+                    const res = await fetch(
+                        `/api/analytics/role_analysis?game_type=${gameType}`,
+                    );
+                    if (!res.ok) throw new Error("Failed to load data");
+                    const data = await res.json();
+
+                    const rolesHtml = data.players
+                        .map((p) => {
+                            let roleClass = "role-reserve";
+                            if (p.role === "Primary Scorer")
+                                roleClass = "role-primary";
+                            else if (p.role === "Efficient Role")
+                                roleClass = "role-efficient";
+                            else if (p.role === "Volume Scorer")
+                                roleClass = "role-volume";
+
+                            return `
+                            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                                <h4 style="margin: 0 0 12px;">${p.player}</h4>
+                                <span class="role-badge ${roleClass}">${p.role}</span>
+                                <div style="margin-top: 16px; font-size: 0.95rem; line-height: 1.8;">
+                                    <div><strong>PPG:</strong> ${p.ppg}</div>
+                                    <div><strong>Usage:</strong> ${p.usg} poss/g</div>
+                                    <div><strong>ORtg:</strong> ${p.ortg}</div>
+                                </div>
+                            </div>
+                        `;
+                        })
+                        .join("");
+
+                    document.getElementById("rolesGrid").innerHTML =
+                        rolesHtml ||
+                        '<p style="text-align: center; color: #999;">No data</p>';
+                } catch (error) {
+                    console.error("Error loading roles:", error);
+                }
+            }
+
             document.addEventListener("DOMContentLoaded", () => {
                 updateTeamCharts();
             });

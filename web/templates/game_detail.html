@@ -15,6 +15,68 @@
             rel="stylesheet"
             href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
         />
+        <style>
+            .flag-good {
+                color: #28a745;
+                font-weight: bold;
+            }
+            .flag-warning {
+                color: #ffc107;
+                font-weight: bold;
+            }
+            .flag-bad {
+                color: #dc3545;
+                font-weight: bold;
+            }
+            .metrics-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 15px;
+                margin: 20px 0;
+            }
+            .metric-box {
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 8px;
+                text-align: center;
+            }
+            .metric-box .label {
+                font-size: 0.8rem;
+                color: #6c757d;
+                text-transform: uppercase;
+                margin-bottom: 5px;
+            }
+            .metric-box .value {
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: #212529;
+            }
+            .tab-buttons {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 20px;
+                border-bottom: 2px solid #eee;
+            }
+            .tab-btn {
+                padding: 10px 20px;
+                border: none;
+                background: transparent;
+                cursor: pointer;
+                font-weight: 600;
+                color: #6c757d;
+                border-bottom: 3px solid transparent;
+            }
+            .tab-btn.active {
+                color: #007bff;
+                border-bottom-color: #007bff;
+            }
+            .tab-content {
+                display: none;
+            }
+            .tab-content.active {
+                display: block;
+            }
+        </style>
     </head>
     <body>
         <div class="header">
@@ -24,7 +86,7 @@
             >
         </div>
 
-        <div class="container" style="max-width: 1600px">
+        <div class="container" style="max-width: 1800px">
             <!-- Scoreboard Card -->
             <div
                 class="panel"
@@ -93,183 +155,897 @@
                 </div>
             </div>
 
-            <!-- Stats Table -->
+            <!-- Top Performers -->
             <div class="panel">
-                <div class="panel-header">
-                    <h3>Advanced Box Score</h3>
+                <h3>
+                    <i class="fas fa-trophy" style="color: #ffc107"></i> Top
+                    Performers
+                </h3>
+                <div class="metrics-grid">
+                    {% set top_scorer = stats|sort(attribute='points',
+                    reverse=True)|first %} {% set top_ortg =
+                    stats|selectattr('possessions', 'gt',
+                    3)|sort(attribute='ortg', reverse=True)|first %} {% set
+                    top_eff = stats|sort(attribute='eff', reverse=True)|first %}
+
+                    <div class="metric-box">
+                        <div class="label">Top Scorer</div>
+                        <div class="value">{{ top_scorer.player_name }}</div>
+                        <div style="color: #007bff">
+                            {{ top_scorer.points }} PTS
+                        </div>
+                    </div>
+
+                    {% if top_ortg %}
+                    <div class="metric-box">
+                        <div class="label">Best ORtg</div>
+                        <div class="value">{{ top_ortg.player_name }}</div>
+                        <div style="color: #28a745">
+                            {{ top_ortg.ortg|round(1) }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="metric-box">
+                        <div class="label">Top Efficiency</div>
+                        <div class="value">{{ top_eff.player_name }}</div>
+                        <div style="color: #17a2b8">
+                            {{ top_eff.eff|round(1) }} EFF
+                        </div>
+                    </div>
                 </div>
-                <div style="overflow-x: auto">
-                    <table
-                        style="
-                            width: 100%;
-                            border-collapse: collapse;
-                            min-width: 1200px;
-                        "
-                    >
-                        <thead>
-                            <tr
-                                style="
-                                    background: #f8f9fa;
-                                    border-bottom: 2px solid #eee;
-                                "
-                            >
-                                <th style="padding: 10px; text-align: left">
-                                    Player
-                                </th>
-                                <th style="padding: 10px; text-align: center">
-                                    MIN
-                                </th>
-                                <th
+            </div>
+
+            <!-- Alerts -->
+            {% set foul_trouble = stats|selectattr('foul_trouble', 'equalto',
+            True)|list %} {% set inefficient = stats|selectattr('ppp', 'lt',
+            0.8)|selectattr('fga', 'gt', 5)|list %} {% if foul_trouble or
+            inefficient %}
+            <div
+                class="panel"
+                style="background: #fff3cd; border-left: 4px solid #ffc107"
+            >
+                <h3>
+                    <i
+                        class="fas fa-exclamation-triangle"
+                        style="color: #ffc107"
+                    ></i>
+                    Alerts
+                </h3>
+
+                {% if foul_trouble %}
+                <div style="margin-bottom: 10px">
+                    <strong>⚠️ Foul Trouble:</strong>
+                    {% for p in foul_trouble %}
+                    <span class="flag-warning"
+                        >{{ p.player_name }} ({{ p.pf }} PF)</span
+                    >{% if not loop.last %}, {% endif %} {% endfor %}
+                </div>
+                {% endif %} {% if inefficient %}
+                <div>
+                    <strong>⚠️ Efficiency Concerns:</strong>
+                    {% for p in inefficient %}
+                    <span class="flag-bad"
+                        >{{ p.player_name }} ({{ p.ppp|round(2) }} PPP)</span
+                    >{% if not loop.last %}, {% endif %} {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Tab Navigation -->
+            <div class="panel">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" onclick="switchTab('basic')">
+                        Basic Stats
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('advanced')">
+                        Advanced Stats
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('per100')">
+                        Per 100 Min
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('shooting')">
+                        Shooting Detail
+                    </button>
+                </div>
+
+                <!-- Basic Stats Tab -->
+                <div id="basic" class="tab-content active">
+                    <div style="overflow-x: auto">
+                        <table
+                            style="
+                                width: 100%;
+                                border-collapse: collapse;
+                                min-width: 1000px;
+                            "
+                        >
+                            <thead>
+                                <tr
                                     style="
-                                        padding: 10px;
-                                        text-align: center;
-                                        color: var(--primary);
-                                    "
-                                >
-                                    PTS
-                                </th>
-                                <th style="padding: 10px; text-align: center">
-                                    REB
-                                </th>
-                                <th style="padding: 10px; text-align: center">
-                                    AST
-                                </th>
-                                <th style="padding: 10px; text-align: center">
-                                    STL
-                                </th>
-                                <th style="padding: 10px; text-align: center">
-                                    BLK
-                                </th>
-                                <th style="padding: 10px; text-align: center">
-                                    TOV
-                                </th>
-                                <th style="padding: 10px; text-align: center">
-                                    PF
-                                </th>
-                                <th
-                                    style="
-                                        padding: 10px;
-                                        text-align: center;
                                         background: #f8f9fa;
+                                        border-bottom: 2px solid #eee;
                                     "
                                 >
-                                    EFF
-                                </th>
-                                <th style="padding: 10px; text-align: center">
-                                    FG
-                                </th>
-                                <th style="padding: 10px; text-align: center">
-                                    3PT
-                                </th>
-                                <th style="padding: 10px; text-align: center">
-                                    FT
-                                </th>
-                                <th
+                                    <th style="padding: 10px; text-align: left">
+                                        Player
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        MIN
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            color: var(--primary);
+                                        "
+                                    >
+                                        PTS
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        REB
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        AST
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        STL
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        BLK
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        TOV
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        PF
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            background: #f8f9fa;
+                                        "
+                                    >
+                                        EFF
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in stats %}
+                                <tr style="border-bottom: 1px solid #f1f1f1">
+                                    <td style="padding: 10px; font-weight: 600">
+                                        {{ p.player_name }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            color: #777;
+                                        "
+                                    >
+                                        {{ p.minutes }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            font-weight: 700;
+                                            color: var(--primary);
+                                        "
+                                    >
+                                        {{ p.points }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.reb }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.ast }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.stl }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.blk }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.tov }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                        class="{% if p.foul_trouble %}flag-warning{% endif %}"
+                                    >
+                                        {{ p.pf }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            font-weight: 600;
+                                            background: #f8f9fa;
+                                        "
+                                    >
+                                        {{ p.eff }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Advanced Stats Tab -->
+                <div id="advanced" class="tab-content">
+                    <div style="overflow-x: auto">
+                        <table
+                            style="
+                                width: 100%;
+                                border-collapse: collapse;
+                                min-width: 1200px;
+                            "
+                        >
+                            <thead>
+                                <tr
                                     style="
-                                        padding: 10px;
-                                        text-align: center;
-                                        color: #28a745;
-                                    "
-                                >
-                                    TS%
-                                </th>
-                                <th
-                                    style="
-                                        padding: 10px;
-                                        text-align: center;
-                                        color: #17a2b8;
-                                    "
-                                >
-                                    eFG%
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for p in stats %}
-                            <tr style="border-bottom: 1px solid #f1f1f1">
-                                <td style="padding: 10px; font-weight: 600">
-                                    {{ p.player_name }}
-                                </td>
-                                <td
-                                    style="
-                                        padding: 10px;
-                                        text-align: center;
-                                        color: #777;
-                                    "
-                                >
-                                    {{ p.minutes }}
-                                </td>
-                                <td
-                                    style="
-                                        padding: 10px;
-                                        text-align: center;
-                                        font-weight: 700;
-                                        color: var(--primary);
-                                    "
-                                >
-                                    {{ p.points }}
-                                </td>
-                                <td style="padding: 10px; text-align: center">
-                                    {{ p.reb }}
-                                </td>
-                                <td style="padding: 10px; text-align: center">
-                                    {{ p.ast }}
-                                </td>
-                                <td style="padding: 10px; text-align: center">
-                                    {{ p.stl }}
-                                </td>
-                                <td style="padding: 10px; text-align: center">
-                                    {{ p.blk }}
-                                </td>
-                                <td style="padding: 10px; text-align: center">
-                                    {{ p.tov }}
-                                </td>
-                                <td style="padding: 10px; text-align: center">
-                                    {{ p.pf }}
-                                </td>
-                                <td
-                                    style="
-                                        padding: 10px;
-                                        text-align: center;
-                                        font-weight: 600;
                                         background: #f8f9fa;
+                                        border-bottom: 2px solid #eee;
                                     "
                                 >
-                                    {{ p.eff }}
-                                </td>
-                                <td style="padding: 10px; text-align: center">
-                                    {{ p.fgm }}/{{ p.fga }}
-                                </td>
-                                <td style="padding: 10px; text-align: center">
-                                    {{ p.tpm }}/{{ p.tpa }}
-                                </td>
-                                <td style="padding: 10px; text-align: center">
-                                    {{ p.ftm }}/{{ p.fta }}
-                                </td>
-                                <td
+                                    <th style="padding: 10px; text-align: left">
+                                        Player
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        POSS
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            color: #28a745;
+                                        "
+                                    >
+                                        ORtg
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            color: #007bff;
+                                        "
+                                    >
+                                        PPP
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        USG%
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        AST/TOV
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            color: #17a2b8;
+                                        "
+                                    >
+                                        TS%
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        eFG%
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        FG%
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        3P%
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        FT%
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in stats %}
+                                <tr style="border-bottom: 1px solid #f1f1f1">
+                                    <td style="padding: 10px; font-weight: 600">
+                                        {{ p.player_name }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.possessions|round(1) }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            color: #28a745;
+                                            font-weight: 600;
+                                        "
+                                    >
+                                        {{ p.ortg|round(0) }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            font-weight: 600;
+                                        "
+                                        class="{% if p.ppp > 1.1 %}flag-good{% elif p.ppp < 0.8 %}flag-bad{% endif %}"
+                                    >
+                                        {{ p.ppp|round(2) }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.usg_pct|round(1) }}%
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.ast_tov_ratio|round(2) }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            color: #17a2b8;
+                                            font-weight: 600;
+                                        "
+                                    >
+                                        {{ p.ts_pct|round(1) }}%
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.efg_pct|round(1) }}%
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ (p.fg_percent * 100)|round(0) }}%
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ (p.tp_percent * 100)|round(0) }}%
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ (p.ft_percent * 100)|round(0) }}%
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Per 100 Min Tab -->
+                <div id="per100" class="tab-content">
+                    <div style="overflow-x: auto">
+                        <table
+                            style="
+                                width: 100%;
+                                border-collapse: collapse;
+                                min-width: 1000px;
+                            "
+                        >
+                            <thead>
+                                <tr
                                     style="
-                                        padding: 10px;
-                                        text-align: center;
-                                        color: #28a745;
+                                        background: #f8f9fa;
+                                        border-bottom: 2px solid #eee;
                                     "
                                 >
-                                    {{ p.ts_pct|round(0) }}%
-                                </td>
-                                <td
+                                    <th style="padding: 10px; text-align: left">
+                                        Player
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        MIN
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        PTS/100
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        REB/100
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        AST/100
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        STL/100
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        BLK/100
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        TOV/100
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        PF/100
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in stats %}
+                                <tr style="border-bottom: 1px solid #f1f1f1">
+                                    <td style="padding: 10px; font-weight: 600">
+                                        {{ p.player_name }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                            color: #777;
+                                        "
+                                    >
+                                        {{ p.minutes }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.pts_100|round(1) }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.reb_100|round(1) }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.ast_100|round(1) }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.stl_100|round(1) }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.blk_100|round(1) }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.tov_100|round(1) }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.pf_100|round(1) }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Shooting Detail Tab -->
+                <div id="shooting" class="tab-content">
+                    <div style="overflow-x: auto">
+                        <table
+                            style="
+                                width: 100%;
+                                border-collapse: collapse;
+                                min-width: 1200px;
+                            "
+                        >
+                            <thead>
+                                <tr
                                     style="
-                                        padding: 10px;
-                                        text-align: center;
-                                        color: #17a2b8;
+                                        background: #f8f9fa;
+                                        border-bottom: 2px solid #eee;
                                     "
                                 >
-                                    {{ p.efg_pct|round(0) }}%
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                                    <th style="padding: 10px; text-align: left">
+                                        Player
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        FG
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        FG%
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        2PT
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        2P%
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        3PT
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        3P%
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        FT
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        FT%
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        FTA/FGA
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        OREB
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        DREB
+                                    </th>
+                                    <th
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        OREB%
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in stats %}
+                                <tr style="border-bottom: 1px solid #f1f1f1">
+                                    <td style="padding: 10px; font-weight: 600">
+                                        {{ p.player_name }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.fgm }}/{{ p.fga }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ (p.fg_percent * 100)|round(0) }}%
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.two_pt_made }}/{{ p.two_pt_att }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.two_pt_pct|round(0) }}%
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.tpm }}/{{ p.tpa }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ (p.tp_percent * 100)|round(0) }}%
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.ftm }}/{{ p.fta }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ (p.ft_percent * 100)|round(0) }}%
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.fta_pct|round(1) }}%
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.oreb }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.dreb }}
+                                    </td>
+                                    <td
+                                        style="
+                                            padding: 10px;
+                                            text-align: center;
+                                        "
+                                    >
+                                        {{ p.oreb_pct|round(1) }}%
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <script>
+            function switchTab(tabName) {
+                document.querySelectorAll(".tab-content").forEach((tab) => {
+                    tab.classList.remove("active");
+                });
+                document.querySelectorAll(".tab-btn").forEach((btn) => {
+                    btn.classList.remove("active");
+                });
+
+                document.getElementById(tabName).classList.add("active");
+                event.target.classList.add("active");
+            }
+        </script>
     </body>
 </html>
