@@ -102,12 +102,19 @@ Basketball-stats/
 
 **Port already in use?**
 ```bash
-python quick_start.py --run --port 8080
+python quick_start.py --port 8080
 ```
 
 **Reset database?**
 ```bash
-python quick_start.py --reset --run
+python reset_empty.py
+```
+
+**Run app from new database**
+```bash
+python reset_empty.py
+python cli_import.py
+python quick_start.py
 ```
 
 **Import not working?**
