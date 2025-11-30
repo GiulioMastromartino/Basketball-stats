@@ -17,7 +17,7 @@ A web application for tracking and analyzing basketball game statistics with adv
 2. **Automatic Processing**: The app parses filenames to extract game info (opponent, score, date)
 3. **Database Storage**: All stats are stored in a SQLite database
 4. **Analytics Engine**: Calculates advanced basketball metrics automatically
-5. **Web Display**: View everything through a clean web interface at http://localhost:5000
+5. **Web Display**: View everything through a clean web interface at http://localhost:8080
 
 ## Quick Start
 
@@ -36,7 +36,7 @@ pip install -r requirements-local.txt
 # 4. Run the application
 python quick_start.py --run
 
-# 5. Open browser to http://localhost:5000
+# 5. Open browser to http://localhost:8080
 # Login: admin / admin123
 ```
 
