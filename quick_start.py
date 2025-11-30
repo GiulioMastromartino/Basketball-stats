@@ -102,14 +102,25 @@ def setup_local_environment():
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--run", action="store_true")
-    parser.add_argument("--reset", action="store_true")
-    parser.add_argument("--port", type=int, default=8080)
+    parser = argparse.ArgumentParser(description="Basketball Stats - Quick Start")
+    parser.add_argument(
+        "--no-run", action="store_true", help="Setup database only, don't start server"
+    )
+    parser.add_argument(
+        "--reset", action="store_true", help="Reset database before setup"
+    )
+    parser.add_argument(
+        "--port", type=int, default=8080, help="Port to run server on (default: 8080)"
+    )
     args = parser.parse_args()
+
     if args.reset:
         Path("basketball_stats.db").unlink(missing_ok=True)
         print("Database reset.\n")
+
     app = setup_local_environment()
-    if args.run:
+
+    if not args.no_run:  # START BY DEFAULT
         app.run(host="0.0.0.0", port=args.port, debug=True)
+    else:
+        print("Setup complete. Run 'python quick_start.py' to start server.")

@@ -34,7 +34,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements-local.txt
 
 # 4. Run the application
-python quick_start.py --run
+python quick_start.py
 
 # 5. Open browser to http://localhost:8080
 # Login: admin / admin123
