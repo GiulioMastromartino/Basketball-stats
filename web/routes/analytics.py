@@ -836,7 +836,7 @@ def player_report_pdf(player_name):
 def download_all_reports():
     """
     Generate a ZIP file containing PDF reports for all players.
-    FIXED: Proper cleanup after file is sent
+    FIXED: In-memory approach to prevent hanging
     """
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
@@ -872,62 +872,66 @@ def download_all_reports():
     # Get current date
     generated_date = datetime.now().strftime("%B %d, %Y")
 
-    # Create ZIP in memory instead of temp file
+    # Create ZIP in memory
     zip_buffer = BytesIO()
     
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for player_name in player_names:
-            # Get player stats
-            stats = (
-                PlayerStat.query.filter(PlayerStat.player_name == player_name)
-                .filter(PlayerStat.game_id.in_(game_ids))
-                .filter(PlayerStat.minutes != "00:00")
-                .filter(PlayerStat.minutes != "0")
-                .all()
-            )
+    try:
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for player_name in player_names:
+                # Get player stats
+                stats = (
+                    PlayerStat.query.filter(PlayerStat.player_name == player_name)
+                    .filter(PlayerStat.game_id.in_(game_ids))
+                    .filter(PlayerStat.minutes != "00:00")
+                    .filter(PlayerStat.minutes != "0")
+                    .all()
+                )
 
-            if not stats:
-                continue  # Skip players with no stats
+                if not stats:
+                    continue  # Skip players with no stats
 
-            # Sort stats by game date
-            stats_with_dates = [(s, game_map.get(s.game_id)) for s in stats]
-            stats_with_dates.sort(key=lambda x: x[1].sort_date if x[1] else "")
-            stats = [s[0] for s in stats_with_dates]
+                # Sort stats by game date
+                stats_with_dates = [(s, game_map.get(s.game_id)) for s in stats]
+                stats_with_dates.sort(key=lambda x: x[1].sort_date if x[1] else "")
+                stats = [s[0] for s in stats_with_dates]
 
-            # Calculate metrics
-            report_data = _calculate_player_metrics(stats, game_map, games_played=len(stats))
+                # Calculate metrics
+                report_data = _calculate_player_metrics(stats, game_map, games_played=len(stats))
 
-            # Generate charts
-            charts = _generate_player_charts(stats, game_map, player_name)
+                # Generate charts
+                charts = _generate_player_charts(stats, game_map, player_name)
 
-            # Render HTML
-            html = render_template(
-                "player_report_pdf.html",
-                player_name=player_name,
-                game_type=game_type,
-                generated_date=generated_date,
-                **report_data,
-                **charts,
-            )
+                # Render HTML
+                html = render_template(
+                    "player_report_pdf.html",
+                    player_name=player_name,
+                    game_type=game_type,
+                    generated_date=generated_date,
+                    **report_data,
+                    **charts,
+                )
 
-            # Convert to PDF
-            html_doc = HTML(string=html)
-            pdf_data = html_doc.write_pdf()
+                # Convert to PDF
+                html_doc = HTML(string=html)
+                pdf_data = html_doc.write_pdf()
 
-            # Add to ZIP
-            filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
-            zipf.writestr(filename, pdf_data)
+                # Add to ZIP
+                filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
+                zipf.writestr(filename, pdf_data)
 
-    # Seek to beginning for reading
-    zip_buffer.seek(0)
+        # Seek to beginning for reading
+        zip_buffer.seek(0)
 
-    # Send the ZIP file
-    return send_file(
-        zip_buffer,
-        mimetype="application/zip",
-        as_attachment=True,
-        download_name=f"all_player_reports_{game_type}.zip",
-    )
+        # Send the ZIP file
+        return send_file(
+            zip_buffer,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name=f"all_player_reports_{game_type}.zip",
+        )
+    except Exception as e:
+        # If anything fails, return error
+        return jsonify({"error": f"Failed to generate reports: {str(e)}"}), 500
 
 
 def _calculate_enhanced_team_metrics(games, game_ids):
@@ -953,8 +957,12 @@ def _calculate_enhanced_team_metrics(games, game_ids):
     # Opponent analysis
     opponent_stats = _analyze_opponents(games)
     
-    # Home/Away splits
-    home_away_splits = _calculate_home_away_splits(games)
+    # Home/Away splits - REMOVED since location field doesn't exist
+    home_away_splits = {
+        'home': None,
+        'away': None,
+        'neutral': None
+    }
     
     return {
         "total_games": total_games,
@@ -1112,46 +1120,6 @@ def _analyze_opponents(games):
     results.sort(key=lambda x: (x['games'], x['win_pct']), reverse=True)
     
     return results
-
-
-def _calculate_home_away_splits(games):
-    """Calculate home vs away performance splits"""
-    home_stats = {'games': 0, 'wins': 0, 'pts': 0, 'opp_pts': 0}
-    away_stats = {'games': 0, 'wins': 0, 'pts': 0, 'opp_pts': 0}
-    neutral_stats = {'games': 0, 'wins': 0, 'pts': 0, 'opp_pts': 0}
-    
-    for game in games:
-        location = game.location.upper()
-        
-        if location == 'HOME':
-            stats = home_stats
-        elif location == 'AWAY':
-            stats = away_stats
-        else:
-            stats = neutral_stats
-        
-        stats['games'] += 1
-        if game.result == 'W':
-            stats['wins'] += 1
-        stats['pts'] += game.team_score
-        stats['opp_pts'] += game.opponent_score
-    
-    def format_stats(stats):
-        if stats['games'] == 0:
-            return None
-        return {
-            'record': f"{stats['wins']}-{stats['games'] - stats['wins']}",
-            'win_pct': round((stats['wins'] / stats['games'] * 100), 1),
-            'ppg': round(stats['pts'] / stats['games'], 1),
-            'opp_ppg': round(stats['opp_pts'] / stats['games'], 1),
-            'diff': round((stats['pts'] - stats['opp_pts']) / stats['games'], 1)
-        }
-    
-    return {
-        'home': format_stats(home_stats),
-        'away': format_stats(away_stats),
-        'neutral': format_stats(neutral_stats)
-    }
 
 
 def _calculate_player_metrics(stats, game_map, games_played):
