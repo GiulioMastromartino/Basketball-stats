@@ -800,44 +800,44 @@
                 btn.style.opacity = '0.6';
                 btn.style.cursor = 'not-allowed';
                 
-                // Simulate progress stages
-                const stages = [
-                    { percent: 10, text: 'Fetching player data...' },
-                    { percent: 25, text: 'Calculating statistics...' },
-                    { percent: 40, text: 'Generating team averages...' },
-                    { percent: 60, text: 'Creating PDF reports...' },
-                    { percent: 85, text: 'Compiling ZIP archive...' },
-                    { percent: 95, text: 'Finalizing download...' }
+                // Initial stages - quick progress to 70%
+                const initialStages = [
+                    { percent: 15, text: 'Fetching player data...', delay: 300 },
+                    { percent: 30, text: 'Calculating statistics...', delay: 300 },
+                    { percent: 45, text: 'Generating team averages...', delay: 300 },
+                    { percent: 60, text: 'Creating PDF reports...', delay: 300 },
+                    { percent: 70, text: 'Processing documents...', delay: 300 }
                 ];
                 
-                let currentStage = 0;
-                
-                const progressInterval = setInterval(() => {
-                    if (currentStage < stages.length) {
-                        const stage = stages[currentStage];
-                        progressBar.style.width = stage.percent + '%';
-                        progressText.textContent = stage.percent + '%';
-                        progressStage.textContent = stage.text;
-                        currentStage++;
-                    }
-                }, 800);
+                // Animate through initial stages
+                for (const stage of initialStages) {
+                    await new Promise(resolve => setTimeout(resolve, stage.delay));
+                    progressBar.style.width = stage.percent + '%';
+                    progressText.textContent = stage.percent + '%';
+                    progressStage.textContent = stage.text;
+                }
                 
                 try {
                     // Start the actual download
+                    progressStage.textContent = 'Compiling ZIP archive...';
                     const response = await fetch('/reports/download-all?game_type=ALL');
                     
                     if (!response.ok) {
                         throw new Error('Download failed');
                     }
                     
-                    // Complete progress
-                    clearInterval(progressInterval);
-                    progressBar.style.width = '100%';
-                    progressText.textContent = '100%';
-                    progressStage.textContent = 'Download complete!';
+                    // Update to 90% while getting blob
+                    progressBar.style.width = '90%';
+                    progressText.textContent = '90%';
+                    progressStage.textContent = 'Preparing download...';
                     
                     // Get the blob
                     const blob = await response.blob();
+                    
+                    // Complete progress
+                    progressBar.style.width = '100%';
+                    progressText.textContent = '100%';
+                    progressStage.textContent = 'Download complete!';
                     
                     // Create download link
                     const url = window.URL.createObjectURL(blob);
@@ -860,10 +860,9 @@
                         progressBar.style.width = '0%';
                         progressText.textContent = '0%';
                         progressStage.textContent = 'Initializing...';
-                    }, 1500);
+                    }, 1000);
                     
                 } catch (error) {
-                    clearInterval(progressInterval);
                     console.error('Download error:', error);
                     
                     progressBar.style.width = '100%';
