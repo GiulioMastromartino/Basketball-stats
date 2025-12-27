@@ -166,6 +166,23 @@
       text-align: center;
       margin-bottom: 10px;
     }
+
+    .chart-container {
+      text-align: center;
+      margin: 15px 0;
+    }
+
+    .chart-container img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .two-column {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 10px 0;
+    }
   </style>
 </head>
 <body>
@@ -275,23 +292,245 @@
       </table>
     </div>
 
-    <h2>Season Breakdown</h2>
-    <div class="section-box">
-      <h3>Record Analysis</h3>
-      <ul style="margin: 8px 0; padding-left: 20px; font-size: 10px;">
-        <li><strong>Total Games Played:</strong> {{ total_games }}</li>
-        <li><strong>Wins:</strong> {{ wins }} ({{ "%.1f"|format(win_pct) }}%)</li>
-        <li><strong>Losses:</strong> {{ losses }} ({{ "%.1f"|format(100 - win_pct) }}%)</li>
-        <li><strong>Avg Points Scored:</strong> {{ "%.1f"|format(ppg) }} per game</li>
-        <li><strong>Avg Points Allowed:</strong> {{ "%.1f"|format(opp_ppg) }} per game</li>
-        <li><strong>Point Differential:</strong> {{ "%+.1f"|format(ppg - opp_ppg) }} per game</li>
-      </ul>
+    <!-- Scoring Trend Chart -->
+    {% if chart_trend %}
+    <h2>Scoring Trends</h2>
+    <div class="chart-container">
+      <img src="data:image/png;base64,{{ chart_trend }}" alt="Team Scoring Trends">
     </div>
+    {% endif %}
   </div>
   
   <div class="page-break"></div>
 
-  <!-- PAGE 2: GAME-BY-GAME RESULTS -->
+  <!-- PAGE 2: TOP CONTRIBUTORS -->
+  <div class="page">
+    <h1>Top Contributors</h1>
+
+    <h2>Points Leaders</h2>
+    <table>
+      <tr>
+        <th>Rank</th>
+        <th>Player</th>
+        <th>Total Points</th>
+        <th>PPG</th>
+        <th>Games</th>
+      </tr>
+      {% for player in top_contributors.points %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ player.player }}</td>
+        <td class="highlight">{{ player.total }}</td>
+        <td>{{ "%.1f"|format(player.avg) }}</td>
+        <td>{{ player.games }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <h2>Rebounds Leaders</h2>
+    <table>
+      <tr>
+        <th>Rank</th>
+        <th>Player</th>
+        <th>Total Rebounds</th>
+        <th>RPG</th>
+      </tr>
+      {% for player in top_contributors.rebounds %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ player.player }}</td>
+        <td class="highlight">{{ player.total }}</td>
+        <td>{{ "%.1f"|format(player.avg) }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <h2>Assists Leaders</h2>
+    <table>
+      <tr>
+        <th>Rank</th>
+        <th>Player</th>
+        <th>Total Assists</th>
+        <th>APG</th>
+      </tr>
+      {% for player in top_contributors.assists %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ player.player }}</td>
+        <td class="highlight">{{ player.total }}</td>
+        <td>{{ "%.1f"|format(player.avg) }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <p class="note" style="margin-top: 10px;">
+      * Leaders are determined by total stats across all games in the selected filter.
+    </p>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- PAGE 3: OPPONENT ANALYSIS -->
+  <div class="page">
+    <h1>Opponent Analysis</h1>
+
+    <h2>Performance by Opponent</h2>
+    <table>
+      <tr>
+        <th>Opponent</th>
+        <th>Games</th>
+        <th>Record</th>
+        <th>Win %</th>
+        <th>Team PPG</th>
+        <th>Opp PPG</th>
+      </tr>
+      {% for opp in opponent_stats %}
+      <tr>
+        <td>{{ opp.opponent }}</td>
+        <td>{{ opp.games }}</td>
+        <td class="{% if opp.win_pct > 50 %}win{% else %}loss{% endif %}">{{ opp.record }}</td>
+        <td>{{ "%.1f"|format(opp.win_pct) }}%</td>
+        <td>{{ "%.1f"|format(opp.ppg) }}</td>
+        <td>{{ "%.1f"|format(opp.opp_ppg) }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <p class="note" style="margin-top: 10px;">
+      * Analysis shows performance against each opponent played during the season.
+    </p>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- PAGE 4: HOME/AWAY SPLITS -->
+  <div class="page">
+    <h1>Home/Away Analysis</h1>
+
+    <h2>Location-Based Performance</h2>
+    
+    {% if home_away_splits.home %}
+    <div class="section-box">
+      <h3>🏠 Home Games</h3>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Record</div>
+          <div class="stat-value" style="font-size: 16px;">{{ home_away_splits.home.record }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Win %</div>
+          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.home.win_pct) }}%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Team PPG</div>
+          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.home.ppg) }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Opp PPG</div>
+          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.home.opp_ppg) }}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if home_away_splits.away %}
+    <div class="section-box">
+      <h3>✈️ Away Games</h3>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Record</div>
+          <div class="stat-value" style="font-size: 16px;">{{ home_away_splits.away.record }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Win %</div>
+          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.away.win_pct) }}%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Team PPG</div>
+          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.away.ppg) }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Opp PPG</div>
+          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.away.opp_ppg) }}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if home_away_splits.neutral %}
+    <div class="section-box">
+      <h3>🏟️ Neutral Site Games</h3>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Record</div>
+          <div class="stat-value" style="font-size: 16px;">{{ home_away_splits.neutral.record }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Win %</div>
+          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.neutral.win_pct) }}%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Team PPG</div>
+          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.neutral.ppg) }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Opp PPG</div>
+          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.neutral.opp_ppg) }}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <h2>Comparison Table</h2>
+    <table>
+      <tr>
+        <th>Location</th>
+        <th>Record</th>
+        <th>Win %</th>
+        <th>Team PPG</th>
+        <th>Opp PPG</th>
+        <th>Differential</th>
+      </tr>
+      {% if home_away_splits.home %}
+      <tr>
+        <td>Home</td>
+        <td class="{% if home_away_splits.home.win_pct > 50 %}win{% endif %}">{{ home_away_splits.home.record }}</td>
+        <td>{{ "%.1f"|format(home_away_splits.home.win_pct) }}%</td>
+        <td>{{ "%.1f"|format(home_away_splits.home.ppg) }}</td>
+        <td>{{ "%.1f"|format(home_away_splits.home.opp_ppg) }}</td>
+        <td class="{% if home_away_splits.home.diff > 0 %}win{% else %}loss{% endif %}">{{ "%+.1f"|format(home_away_splits.home.diff) }}</td>
+      </tr>
+      {% endif %}
+      {% if home_away_splits.away %}
+      <tr>
+        <td>Away</td>
+        <td class="{% if home_away_splits.away.win_pct > 50 %}win{% endif %}">{{ home_away_splits.away.record }}</td>
+        <td>{{ "%.1f"|format(home_away_splits.away.win_pct) }}%</td>
+        <td>{{ "%.1f"|format(home_away_splits.away.ppg) }}</td>
+        <td>{{ "%.1f"|format(home_away_splits.away.opp_ppg) }}</td>
+        <td class="{% if home_away_splits.away.diff > 0 %}win{% else %}loss{% endif %}">{{ "%+.1f"|format(home_away_splits.away.diff) }}</td>
+      </tr>
+      {% endif %}
+      {% if home_away_splits.neutral %}
+      <tr>
+        <td>Neutral</td>
+        <td class="{% if home_away_splits.neutral.win_pct > 50 %}win{% endif %}">{{ home_away_splits.neutral.record }}</td>
+        <td>{{ "%.1f"|format(home_away_splits.neutral.win_pct) }}%</td>
+        <td>{{ "%.1f"|format(home_away_splits.neutral.ppg) }}</td>
+        <td>{{ "%.1f"|format(home_away_splits.neutral.opp_ppg) }}</td>
+        <td class="{% if home_away_splits.neutral.diff > 0 %}win{% else %}loss{% endif %}">{{ "%+.1f"|format(home_away_splits.neutral.diff) }}</td>
+      </tr>
+      {% endif %}
+    </table>
+
+    <p class="note" style="margin-top: 10px;">
+      * Differential shows average point margin per game at each location.
+    </p>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- PAGE 5: GAME-BY-GAME RESULTS -->
   <div class="page">
     <h1>Game-by-Game Results</h1>
 
@@ -332,42 +571,11 @@
     <p class="note" style="margin-top: 10px;">
       * Wins are highlighted in green, losses in red. Point differential shows margin of victory/defeat.
     </p>
-
-    <h2>Key Statistics</h2>
-    <div class="section-box">
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-label">Biggest Win</div>
-          <div class="stat-value" style="font-size: 14px;">
-            {% set max_win = games | selectattr('result', 'equalto', 'W') | map(attribute='team_score') | list | max if wins > 0 else 0 %}
-            {{ max_win }} pts
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Highest Score</div>
-          <div class="stat-value" style="font-size: 14px;">
-            {{ games | map(attribute='team_score') | max }} pts
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Lowest Score</div>
-          <div class="stat-value" style="font-size: 14px;">
-            {{ games | map(attribute='team_score') | min }} pts
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Avg Margin</div>
-          <div class="stat-value" style="font-size: 14px;">
-            {{ "%+.1f"|format(ppg - opp_ppg) }} pts
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <div class="page-break"></div>
 
-  <!-- PAGE 3: TRENDS & INSIGHTS -->
+  <!-- PAGE 6: TRENDS & INSIGHTS -->
   <div class="page">
     <h1>Season Trends & Insights</h1>
 
