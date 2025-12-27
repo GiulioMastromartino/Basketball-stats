@@ -308,15 +308,15 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">FG%</div>
-        <div class="stat-value">{{ "%.1f"|format(shooting.fg_pct) }}</div>
+        <div class="stat-value">{{ "%.1f"|format(shooting.fg_pct) }}%</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">3P%</div>
-        <div class="stat-value">{{ "%.1f"|format(shooting.tp_pct) }}</div>
+        <div class="stat-value">{{ "%.1f"|format(shooting.tp_pct) }}%</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">TS%</div>
-        <div class="stat-value">{{ "%.1f"|format(shooting.ts_pct) }}</div>
+        <div class="stat-value">{{ "%.1f"|format(shooting.ts_pct) }}%</div>
         {% if team_rankings and team_rankings.ts_pct %}
         <div class="note">#{{ team_rankings.ts_pct.rank }} on team</div>
         {% endif %}
@@ -353,13 +353,13 @@
       </tr>
       <tr>
         <td>{{ totals.fgm }}-{{ totals.fga }}</td>
-        <td>{{ "%.1f"|format(shooting.fg_pct) }}</td>
+        <td>{{ "%.1f"|format(shooting.fg_pct) }}%</td>
         <td>{{ shooting.two_pt_made }}-{{ shooting.two_pt_att }}</td>
-        <td>{{ "%.1f"|format(shooting.two_pt_pct) }}</td>
+        <td>{{ "%.1f"|format(shooting.two_pt_pct) }}%</td>
         <td>{{ totals.tpm }}-{{ totals.tpa }}</td>
-        <td>{{ "%.1f"|format(shooting.tp_pct) }}</td>
+        <td>{{ "%.1f"|format(shooting.tp_pct) }}%</td>
         <td>{{ totals.ftm }}-{{ totals.fta }}</td>
-        <td>{{ "%.1f"|format(shooting.ft_pct) }}</td>
+        <td>{{ "%.1f"|format(shooting.ft_pct) }}%</td>
       </tr>
     </table>
 
@@ -372,8 +372,8 @@
         <td>{{ totals.reb }}</td>
         <td>{{ totals.oreb }}</td>
         <td>{{ totals.dreb }}</td>
-        <td>{{ "%.1f"|format(advanced.oreb_pct) }}</td>
-        <td>{{ "%.1f"|format(advanced.dreb_pct) }}</td>
+        <td>{{ "%.1f"|format(advanced.oreb_pct) }}%</td>
+        <td>{{ "%.1f"|format(advanced.dreb_pct) }}%</td>
       </tr>
     </table>
   </div>
@@ -533,17 +533,17 @@
         </tr>
         <tr>
           <td>Usage %</td>
-          <td>{{ "%.1f"|format(advanced.usg_pct) }}</td>
+          <td>{{ "%.1f"|format(advanced.usg_pct) }}%</td>
           <td>Avg possessions used per game</td>
         </tr>
         <tr>
           <td>OREB %</td>
-          <td>{{ "%.1f"|format(advanced.oreb_pct) }}</td>
+          <td>{{ "%.1f"|format(advanced.oreb_pct) }}%</td>
           <td>Offensive rebound rate</td>
         </tr>
         <tr>
           <td>DREB %</td>
-          <td>{{ "%.1f"|format(advanced.dreb_pct) }}</td>
+          <td>{{ "%.1f"|format(advanced.dreb_pct) }}%</td>
           <td>Defensive rebound rate</td>
         </tr>
       </table>
@@ -835,11 +835,11 @@
           <td>{{ game.blk }}</td>
           <td>{{ game.tov }}</td>
           <td>{{ game.fg }}</td>
-          <td>{{ "%.0f"|format(game.fg_pct) }}</td>
+          <td>{{ "%.1f"|format(game.fg_pct) }}%</td>
           <td>{{ game.tp }}</td>
-          <td>{{ "%.0f"|format(game.tp_pct) }}</td>
+          <td>{{ "%.1f"|format(game.tp_pct) }}%</td>
           <td>{{ game.ft }}</td>
-          <td>{{ "%.0f"|format(game.ft_pct) }}</td>
+          <td>{{ "%.1f"|format(game.ft_pct) }}%</td>
           <td>{{ "%.0f"|format(game.eff) }}</td>
           <td>{{ "%.0f"|format(game.ortg) }}</td>
         </tr>
