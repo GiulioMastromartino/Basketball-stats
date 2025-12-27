@@ -7,6 +7,7 @@ from io import BytesIO
 import zipfile
 import tempfile
 import os
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 from flask import Blueprint, jsonify, render_template, request, send_file
@@ -731,11 +732,15 @@ def player_report_pdf(player_name):
     # Generate charts
     charts = _generate_player_charts(stats, game_map, player_name)
 
+    # Get current date
+    generated_date = datetime.now().strftime("%B %d, %Y")
+
     # Render HTML
     html = render_template(
         "player_report_pdf.html",
         player_name=player_name,
         game_type=game_type,
+        generated_date=generated_date,
         **report_data,
         **charts,
     )
@@ -791,6 +796,9 @@ def download_all_reports():
     game_ids = [g.id for g in games]
     game_map = {g.id: g for g in games}
 
+    # Get current date
+    generated_date = datetime.now().strftime("%B %d, %Y")
+
     # Create a temporary directory for PDFs
     temp_dir = tempfile.mkdtemp()
     zip_path = os.path.join(temp_dir, f"player_reports_{game_type}.zip")
@@ -826,6 +834,7 @@ def download_all_reports():
                     "player_report_pdf.html",
                     player_name=player_name,
                     game_type=game_type,
+                    generated_date=generated_date,
                     **report_data,
                     **charts,
                 )
