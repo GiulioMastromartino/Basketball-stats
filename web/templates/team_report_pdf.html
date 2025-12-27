@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Team Report - Basketball Stats</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 1.5cm;
+      @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font-size: 9px;
+        color: #666;
+      }
+    }
+    
+    body {
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      font-size: 10px;
+      line-height: 1.4;
+      color: #333;
+    }
+    
+    h1 {
+      font-size: 24px;
+      margin: 0 0 8px 0;
+      color: #1a1a1a;
+      border-bottom: 3px solid #28a745;
+      padding-bottom: 8px;
+    }
+    
+    h2 {
+      font-size: 16px;
+      margin: 20px 0 10px 0;
+      color: #28a745;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 4px;
+      page-break-after: avoid;
+    }
+    
+    h3 {
+      font-size: 13px;
+      margin: 12px 0 6px 0;
+      color: #333;
+      font-weight: 600;
+    }
+    
+    .page-break {
+      page-break-after: always;
+    }
+    
+    .header-info {
+      background: #f5f5f5;
+      padding: 10px;
+      margin: 10px 0;
+      border-left: 4px solid #28a745;
+    }
+    
+    .header-info p {
+      margin: 2px 0;
+      font-size: 11px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      font-size: 9px;
+    }
+    
+    th, td {
+      border: 1px solid #ddd;
+      padding: 6px 4px;
+      text-align: center;
+    }
+    
+    th {
+      background: #28a745;
+      color: white;
+      font-weight: 600;
+      font-size: 9px;
+    }
+    
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    
+    .highlight {
+      background: #d4edda !important;
+      font-weight: bold;
+    }
+    
+    .section-box {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 10px 0;
+    }
+    
+    .stat-card {
+      background: white;
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+      border-radius: 4px;
+    }
+    
+    .stat-label {
+      font-size: 8px;
+      color: #666;
+      text-transform: uppercase;
+    }
+    
+    .stat-value {
+      font-size: 18px;
+      font-weight: bold;
+      color: #28a745;
+      margin: 4px 0;
+    }
+    
+    .note {
+      font-size: 8px;
+      color: #666;
+      font-style: italic;
+      margin-top: 4px;
+    }
+    
+    .game-log-table {
+      font-size: 8px;
+    }
+    
+    .game-log-table th {
+      font-size: 8px;
+    }
+    
+    .win {
+      color: #28a745;
+      font-weight: bold;
+    }
+    
+    .loss {
+      color: #dc3545;
+      font-weight: bold;
+    }
+    
+    .record-display {
+      font-size: 48px;
+      font-weight: bold;
+      color: #28a745;
+      text-align: center;
+      margin: 20px 0;
+      line-height: 1.2;
+    }
+    
+    .record-label {
+      font-size: 14px;
+      color: #666;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PAGE 1: TEAM OVERVIEW -->
+  <div class="page">
+    <h1>🏆 Team Report</h1>
+    
+    <div class="header-info">
+      <p><strong>Report Type:</strong> {{ game_type }}</p>
+      <p><strong>Total Games:</strong> {{ total_games }}</p>
+      <p><strong>Season Record:</strong> {{ wins }}-{{ losses }}</p>
+      <p><strong>Generated:</strong> {{ generated_date }}</p>
+    </div>
+
+    <h2>Season Record</h2>
+    <div class="record-label">WINS - LOSSES</div>
+    <div class="record-display">{{ wins }} - {{ losses }}</div>
+    
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Win Percentage</div>
+        <div class="stat-value">{{ "%.1f"|format(win_pct) }}%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">PPG (Team)</div>
+        <div class="stat-value">{{ "%.1f"|format(ppg) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">PPG (Opp)</div>
+        <div class="stat-value">{{ "%.1f"|format(opp_ppg) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Point Diff</div>
+        <div class="stat-value">{{ "%+.1f"|format(ppg - opp_ppg) }}</div>
+      </div>
+    </div>
+
+    <h2>Performance Summary</h2>
+    <div class="section-box">
+      <table>
+        <tr>
+          <th>Metric</th>
+          <th>Value</th>
+          <th>Status</th>
+        </tr>
+        <tr>
+          <td>Win Rate</td>
+          <td class="highlight">{{ "%.1f"|format(win_pct) }}%</td>
+          <td>
+            {% if win_pct >= 60 %}
+              ✅ Excellent
+            {% elif win_pct >= 50 %}
+              ✅ Above .500
+            {% elif win_pct >= 40 %}
+              ⚠️ Below .500
+            {% else %}
+              ❌ Needs Improvement
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>Scoring Average</td>
+          <td>{{ "%.1f"|format(ppg) }} PPG</td>
+          <td>
+            {% if ppg >= 80 %}
+              ✅ High Scoring
+            {% elif ppg >= 70 %}
+              ✅ Good Offense
+            {% elif ppg >= 60 %}
+              ⚠️ Average
+            {% else %}
+              ❌ Low Scoring
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>Defensive Efficiency</td>
+          <td>{{ "%.1f"|format(opp_ppg) }} PPG Allowed</td>
+          <td>
+            {% if opp_ppg <= 65 %}
+              ✅ Elite Defense
+            {% elif opp_ppg <= 75 %}
+              ✅ Good Defense
+            {% elif opp_ppg <= 85 %}
+              ⚠️ Average
+            {% else %}
+              ❌ Weak Defense
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>Point Differential</td>
+          <td>{{ "%+.1f"|format(ppg - opp_ppg) }} per game</td>
+          <td>
+            {% if (ppg - opp_ppg) >= 10 %}
+              ✅ Dominant
+            {% elif (ppg - opp_ppg) >= 5 %}
+              ✅ Strong
+            {% elif (ppg - opp_ppg) >= 0 %}
+              ⚠️ Competitive
+            {% else %}
+              ❌ Struggling
+            {% endif %}
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <h2>Season Breakdown</h2>
+    <div class="section-box">
+      <h3>Record Analysis</h3>
+      <ul style="margin: 8px 0; padding-left: 20px; font-size: 10px;">
+        <li><strong>Total Games Played:</strong> {{ total_games }}</li>
+        <li><strong>Wins:</strong> {{ wins }} ({{ "%.1f"|format(win_pct) }}%)</li>
+        <li><strong>Losses:</strong> {{ losses }} ({{ "%.1f"|format(100 - win_pct) }}%)</li>
+        <li><strong>Avg Points Scored:</strong> {{ "%.1f"|format(ppg) }} per game</li>
+        <li><strong>Avg Points Allowed:</strong> {{ "%.1f"|format(opp_ppg) }} per game</li>
+        <li><strong>Point Differential:</strong> {{ "%+.1f"|format(ppg - opp_ppg) }} per game</li>
+      </ul>
+    </div>
+  </div>
+  
+  <div class="page-break"></div>
+
+  <!-- PAGE 2: GAME-BY-GAME RESULTS -->
+  <div class="page">
+    <h1>Game-by-Game Results</h1>
+
+    <h2>Complete Season Log</h2>
+    <table class="game-log-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Opponent</th>
+          <th>Result</th>
+          <th>Team Score</th>
+          <th>Opp Score</th>
+          <th>Diff</th>
+          <th>Location</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for game in games %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ game.date }}</td>
+          <td>{{ game.game_type }}</td>
+          <td>{{ game.opponent }}</td>
+          <td class="{% if game.result == 'W' %}win{% else %}loss{% endif %}">{{ game.result }}</td>
+          <td class="{% if game.result == 'W' %}highlight{% endif %}">{{ game.team_score }}</td>
+          <td>{{ game.opponent_score }}</td>
+          <td class="{% if game.team_score > game.opponent_score %}win{% else %}loss{% endif %}">
+            {{ "%+d"|format(game.team_score - game.opponent_score) }}
+          </td>
+          <td>{{ game.location }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p class="note" style="margin-top: 10px;">
+      * Wins are highlighted in green, losses in red. Point differential shows margin of victory/defeat.
+    </p>
+
+    <h2>Key Statistics</h2>
+    <div class="section-box">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Biggest Win</div>
+          <div class="stat-value" style="font-size: 14px;">
+            {% set max_win = games | selectattr('result', 'equalto', 'W') | map(attribute='team_score') | list | max if wins > 0 else 0 %}
+            {{ max_win }} pts
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Highest Score</div>
+          <div class="stat-value" style="font-size: 14px;">
+            {{ games | map(attribute='team_score') | max }} pts
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Lowest Score</div>
+          <div class="stat-value" style="font-size: 14px;">
+            {{ games | map(attribute='team_score') | min }} pts
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg Margin</div>
+          <div class="stat-value" style="font-size: 14px;">
+            {{ "%+.1f"|format(ppg - opp_ppg) }} pts
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- PAGE 3: TRENDS & INSIGHTS -->
+  <div class="page">
+    <h1>Season Trends & Insights</h1>
+
+    <h2>Win/Loss Patterns</h2>
+    <div class="section-box">
+      <h3>Record by Game Type</h3>
+      <table>
+        <tr>
+          <th>Game Type</th>
+          <th>Games</th>
+          <th>Wins</th>
+          <th>Losses</th>
+          <th>Win %</th>
+        </tr>
+        {% set season_games = games | selectattr('game_type', 'equalto', 'Season') | list %}
+        {% set friendly_games = games | selectattr('game_type', 'equalto', 'Friendly') | list %}
+        {% if season_games | length > 0 %}
+        <tr>
+          <td>Season</td>
+          <td>{{ season_games | length }}</td>
+          <td>{{ season_games | selectattr('result', 'equalto', 'W') | list | length }}</td>
+          <td>{{ season_games | selectattr('result', 'equalto', 'L') | list | length }}</td>
+          <td>{{ "%.1f"|format((season_games | selectattr('result', 'equalto', 'W') | list | length) / (season_games | length) * 100) }}%</td>
+        </tr>
+        {% endif %}
+        {% if friendly_games | length > 0 %}
+        <tr>
+          <td>Friendly</td>
+          <td>{{ friendly_games | length }}</td>
+          <td>{{ friendly_games | selectattr('result', 'equalto', 'W') | list | length }}</td>
+          <td>{{ friendly_games | selectattr('result', 'equalto', 'L') | list | length }}</td>
+          <td>{{ "%.1f"|format((friendly_games | selectattr('result', 'equalto', 'W') | list | length) / (friendly_games | length) * 100) }}%</td>
+        </tr>
+        {% endif %}
+      </table>
+    </div>
+
+    <h2>Scoring Analysis</h2>
+    <div class="section-box">
+      <h3>Point Distribution</h3>
+      <table>
+        <tr>
+          <th>Category</th>
+          <th>Games</th>
+          <th>Win %</th>
+        </tr>
+        <tr>
+          <td>80+ Points Scored</td>
+          <td>{{ games | selectattr('team_score', 'ge', 80) | list | length }}</td>
+          <td>
+            {% set high_scoring = games | selectattr('team_score', 'ge', 80) | list %}
+            {% if high_scoring | length > 0 %}
+              {{ "%.1f"|format((high_scoring | selectattr('result', 'equalto', 'W') | list | length) / (high_scoring | length) * 100) }}%
+            {% else %}
+              0.0%
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>70-79 Points Scored</td>
+          <td>{{ games | selectattr('team_score', 'ge', 70) | selectattr('team_score', 'lt', 80) | list | length }}</td>
+          <td>
+            {% set mid_scoring = games | selectattr('team_score', 'ge', 70) | selectattr('team_score', 'lt', 80) | list %}
+            {% if mid_scoring | length > 0 %}
+              {{ "%.1f"|format((mid_scoring | selectattr('result', 'equalto', 'W') | list | length) / (mid_scoring | length) * 100) }}%
+            {% else %}
+              0.0%
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>Under 70 Points</td>
+          <td>{{ games | selectattr('team_score', 'lt', 70) | list | length }}</td>
+          <td>
+            {% set low_scoring = games | selectattr('team_score', 'lt', 70) | list %}
+            {% if low_scoring | length > 0 %}
+              {{ "%.1f"|format((low_scoring | selectattr('result', 'equalto', 'W') | list | length) / (low_scoring | length) * 100) }}%
+            {% else %}
+              0.0%
+            {% endif %}
+          </td>
+        </tr>
+      </table>
+      <p class="note">Higher scoring games typically correlate with better win rates.</p>
+    </div>
+
+    <h2>Key Insights</h2>
+    <div class="section-box">
+      <ul style="margin: 8px 0; padding-left: 20px; font-size: 10px; line-height: 1.8;">
+        <li>
+          <strong>Offensive Strength:</strong>
+          {% if ppg >= 80 %}
+            Team averages {{ "%.1f"|format(ppg) }} PPG - an elite scoring pace.
+          {% elif ppg >= 70 %}
+            Team averages {{ "%.1f"|format(ppg) }} PPG - solid offensive production.
+          {% else %}
+            Team averages {{ "%.1f"|format(ppg) }} PPG - room for offensive improvement.
+          {% endif %}
+        </li>
+        <li>
+          <strong>Defensive Performance:</strong>
+          {% if opp_ppg <= 65 %}
+            Allowing only {{ "%.1f"|format(opp_ppg) }} PPG shows elite defensive capabilities.
+          {% elif opp_ppg <= 75 %}
+            Allowing {{ "%.1f"|format(opp_ppg) }} PPG demonstrates solid defensive play.
+          {% else %}
+            Allowing {{ "%.1f"|format(opp_ppg) }} PPG indicates defensive challenges to address.
+          {% endif %}
+        </li>
+        <li>
+          <strong>Consistency:</strong>
+          {% if win_pct >= 60 %}
+            With a {{ "%.1f"|format(win_pct) }}% win rate, the team shows strong consistency.
+          {% elif win_pct >= 50 %}
+            At {{ "%.1f"|format(win_pct) }}% wins, the team is competitive and above .500.
+          {% else %}
+            Currently {{ "%.1f"|format(win_pct) }}% - focus on consistency and execution.
+          {% endif %}
+        </li>
+        <li>
+          <strong>Point Differential:</strong>
+          {% if (ppg - opp_ppg) >= 10 %}
+            Outscoring opponents by {{ "%+.1f"|format(ppg - opp_ppg) }} PPG - dominant play on both ends.
+          {% elif (ppg - opp_ppg) >= 5 %}
+            {{ "%+.1f"|format(ppg - opp_ppg) }} PPG differential shows strong overall team play.
+          {% elif (ppg - opp_ppg) >= 0 %}
+            Slight positive differential ({{ "%+.1f"|format(ppg - opp_ppg) }} PPG) - games are competitive.
+          {% else %}
+            Negative differential ({{ "%+.1f"|format(ppg - opp_ppg) }} PPG) - need improvement on both ends.
+          {% endif %}
+        </li>
+      </ul>
+    </div>
+  </div>
+
+</body>
+</html>
