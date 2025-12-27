@@ -7,10 +7,12 @@ from io import BytesIO
 import zipfile
 import tempfile
 import os
+import atexit
+import shutil
 from datetime import datetime
 
 import matplotlib.pyplot as plt
-from flask import Blueprint, jsonify, render_template, request, send_file
+from flask import Blueprint, jsonify, render_template, request, send_file, after_this_request
 from flask_login import login_required
 from sqlalchemy import desc, func
 from weasyprint import HTML
@@ -38,6 +40,20 @@ MIN_FGA_PER_GAME = 4.0
 MIN_3PA_PER_GAME = 1.0
 MIN_FTA_PER_GAME = 1.0
 VALID_GAME_TYPES = {"ALL", "Season", "Friendly"}
+
+# Track temp directories for cleanup
+_temp_dirs = []
+
+def cleanup_temp_dirs():
+    """Clean up any remaining temp directories on exit"""
+    for temp_dir in _temp_dirs:
+        try:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+        except:
+            pass
+
+atexit.register(cleanup_temp_dirs)
 
 
 @analytics_bp.route("/analytics")
@@ -679,6 +695,57 @@ def role_analysis():
     return jsonify({"players": player_roles})
 
 
+@analytics_bp.route("/team/report.pdf")
+@login_required
+def team_report_pdf():
+    """
+    Generate team-level PDF report with aggregate statistics
+    """
+    game_type = request.args.get("game_type", "ALL")
+    if game_type not in VALID_GAME_TYPES:
+        game_type = "ALL"
+
+    # Build game query
+    game_query = Game.query.order_by(Game.sort_date.asc())
+    if game_type == "Season":
+        game_query = game_query.filter(Game.game_type == "Season")
+    elif game_type == "Friendly":
+        game_query = game_query.filter(Game.game_type == "Friendly")
+
+    games = game_query.all()
+    if not games:
+        return jsonify({"error": "No games for selected filter"}), 404
+
+    # Calculate team statistics
+    team_data = _calculate_team_metrics(games)
+
+    # Get current date
+    generated_date = datetime.now().strftime("%B %d, %Y")
+
+    # Render HTML (you'll need to create team_report_pdf.html template)
+    html = render_template(
+        "team_report_pdf.html",
+        game_type=game_type,
+        generated_date=generated_date,
+        **team_data,
+    )
+
+    # Convert to PDF
+    html_doc = HTML(string=html)
+    pdf_bytes = html_doc.write_pdf()
+    
+    pdf_io = BytesIO(pdf_bytes)
+    pdf_io.seek(0)
+
+    filename = f"Team_Report_{game_type}.pdf"
+    return send_file(
+        pdf_io,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
 @analytics_bp.route("/player/<player_name>/report.pdf")
 @login_required
 def player_report_pdf(player_name):
@@ -745,11 +812,10 @@ def player_report_pdf(player_name):
         **charts,
     )
 
-    # Convert to PDF - FIXED: write_pdf() returns bytes, no need for BytesIO parameter
+    # Convert to PDF
     html_doc = HTML(string=html)
     pdf_bytes = html_doc.write_pdf()
     
-    # Wrap in BytesIO for send_file
     pdf_io = BytesIO(pdf_bytes)
     pdf_io.seek(0)
 
@@ -767,6 +833,7 @@ def player_report_pdf(player_name):
 def download_all_reports():
     """
     Generate a ZIP file containing PDF reports for all players.
+    FIXED: Proper cleanup after file is sent
     """
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
@@ -802,69 +869,87 @@ def download_all_reports():
     # Get current date
     generated_date = datetime.now().strftime("%B %d, %Y")
 
-    # Create a temporary directory for PDFs
-    temp_dir = tempfile.mkdtemp()
-    zip_path = os.path.join(temp_dir, f"player_reports_{game_type}.zip")
+    # Create ZIP in memory instead of temp file
+    zip_buffer = BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for player_name in player_names:
+            # Get player stats
+            stats = (
+                PlayerStat.query.filter(PlayerStat.player_name == player_name)
+                .filter(PlayerStat.game_id.in_(game_ids))
+                .filter(PlayerStat.minutes != "00:00")
+                .filter(PlayerStat.minutes != "0")
+                .all()
+            )
 
-    try:
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for player_name in player_names:
-                # Get player stats
-                stats = (
-                    PlayerStat.query.filter(PlayerStat.player_name == player_name)
-                    .filter(PlayerStat.game_id.in_(game_ids))
-                    .filter(PlayerStat.minutes != "00:00")
-                    .filter(PlayerStat.minutes != "0")
-                    .all()
-                )
+            if not stats:
+                continue  # Skip players with no stats
 
-                if not stats:
-                    continue  # Skip players with no stats
+            # Sort stats by game date
+            stats_with_dates = [(s, game_map.get(s.game_id)) for s in stats]
+            stats_with_dates.sort(key=lambda x: x[1].sort_date if x[1] else "")
+            stats = [s[0] for s in stats_with_dates]
 
-                # Sort stats by game date
-                stats_with_dates = [(s, game_map.get(s.game_id)) for s in stats]
-                stats_with_dates.sort(key=lambda x: x[1].sort_date if x[1] else "")
-                stats = [s[0] for s in stats_with_dates]
+            # Calculate metrics
+            report_data = _calculate_player_metrics(stats, game_map, games_played=len(stats))
 
-                # Calculate metrics
-                report_data = _calculate_player_metrics(stats, game_map, games_played=len(stats))
+            # Generate charts
+            charts = _generate_player_charts(stats, game_map, player_name)
 
-                # Generate charts
-                charts = _generate_player_charts(stats, game_map, player_name)
+            # Render HTML
+            html = render_template(
+                "player_report_pdf.html",
+                player_name=player_name,
+                game_type=game_type,
+                generated_date=generated_date,
+                **report_data,
+                **charts,
+            )
 
-                # Render HTML
-                html = render_template(
-                    "player_report_pdf.html",
-                    player_name=player_name,
-                    game_type=game_type,
-                    generated_date=generated_date,
-                    **report_data,
-                    **charts,
-                )
+            # Convert to PDF
+            html_doc = HTML(string=html)
+            pdf_data = html_doc.write_pdf()
 
-                # Convert to PDF - FIXED: write_pdf() returns bytes directly
-                html_doc = HTML(string=html)
-                pdf_data = html_doc.write_pdf()
+            # Add to ZIP
+            filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
+            zipf.writestr(filename, pdf_data)
 
-                # Add to ZIP
-                filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
-                zipf.writestr(filename, pdf_data)
+    # Seek to beginning for reading
+    zip_buffer.seek(0)
 
-        # Send the ZIP file
-        return send_file(
-            zip_path,
-            mimetype="application/zip",
-            as_attachment=True,
-            download_name=f"all_player_reports_{game_type}.zip",
-        )
+    # Send the ZIP file
+    return send_file(
+        zip_buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"all_player_reports_{game_type}.zip",
+    )
 
-    finally:
-        # Clean up temp directory after sending
-        try:
-            os.remove(zip_path)
-            os.rmdir(temp_dir)
-        except:
-            pass
+
+def _calculate_team_metrics(games):
+    """
+    Calculate comprehensive team-level metrics from games
+    """
+    total_games = len(games)
+    wins = sum(1 for g in games if g.result == "W")
+    losses = total_games - wins
+    win_pct = (wins / total_games * 100) if total_games > 0 else 0
+    
+    total_team_score = sum(g.team_score for g in games)
+    total_opp_score = sum(g.opponent_score for g in games)
+    ppg = total_team_score / total_games if total_games > 0 else 0
+    opp_ppg = total_opp_score / total_games if total_games > 0 else 0
+    
+    return {
+        "total_games": total_games,
+        "wins": wins,
+        "losses": losses,
+        "win_pct": round(win_pct, 1),
+        "ppg": round(ppg, 1),
+        "opp_ppg": round(opp_ppg, 1),
+        "games": games,
+    }
 
 
 def _calculate_player_metrics(stats, game_map, games_played):
@@ -1029,7 +1114,6 @@ def _calculate_player_metrics(stats, game_map, games_played):
 
 def _generate_player_charts(stats, game_map, player_name):
     """Generate base64-encoded charts for PDF."""
-    # FIXED: Return empty strings instead of empty dict when no stats
     if not stats:
         return {
             "chart_core_stats": "",
@@ -1066,7 +1150,6 @@ def _generate_player_charts(stats, game_map, player_name):
         poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
         ortg_series.append(calculate_ortg(s.points, poss))
 
-    # FIXED: If no valid dates after filtering, return empty strings
     if not dates:
         return {
             "chart_core_stats": "",
