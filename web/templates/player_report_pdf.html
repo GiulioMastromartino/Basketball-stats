@@ -161,6 +161,109 @@
       color: #dc3545;
       font-weight: bold;
     }
+    
+    /* Team Rankings Styles */
+    .rank-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: bold;
+      font-size: 10px;
+      margin-left: 8px;
+    }
+    
+    .rank-1 {
+      background: #ffd700;
+      color: #000;
+    }
+    
+    .rank-top3 {
+      background: #28a745;
+      color: white;
+    }
+    
+    .rank-top50 {
+      background: #0066cc;
+      color: white;
+    }
+    
+    .rank-bottom {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .percentile-bar {
+      width: 100%;
+      height: 20px;
+      background: #e9ecef;
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+      margin: 8px 0;
+    }
+    
+    .percentile-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
+      transition: width 0.3s ease;
+    }
+    
+    .percentile-marker {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 9px;
+      font-weight: bold;
+      color: white;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    }
+    
+    .distribution-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 8px 0;
+      font-size: 9px;
+    }
+    
+    .distribution-label {
+      width: 60px;
+      font-weight: 600;
+    }
+    
+    .distribution-bar {
+      flex: 1;
+      height: 16px;
+      background: #e9ecef;
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .distribution-fill {
+      height: 100%;
+      background: #0066cc;
+      opacity: 0.3;
+    }
+    
+    .distribution-player-marker {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      width: 3px;
+      background: #dc3545;
+    }
+    
+    .leader-badge {
+      background: #ffd700;
+      color: #000;
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 8px;
+      display: inline-block;
+      margin-left: 4px;
+    }
   </style>
 </head>
 <body>
@@ -181,14 +284,23 @@
       <div class="stat-card">
         <div class="stat-label">PPG</div>
         <div class="stat-value">{{ "%.1f"|format(per_game.ppg) }}</div>
+        {% if team_rankings and team_rankings.ppg %}
+        <div class="note">#{{ team_rankings.ppg.rank }} on team</div>
+        {% endif %}
       </div>
       <div class="stat-card">
         <div class="stat-label">RPG</div>
         <div class="stat-value">{{ "%.1f"|format(per_game.rpg) }}</div>
+        {% if team_rankings and team_rankings.rpg %}
+        <div class="note">#{{ team_rankings.rpg.rank }} on team</div>
+        {% endif %}
       </div>
       <div class="stat-card">
         <div class="stat-label">APG</div>
         <div class="stat-value">{{ "%.1f"|format(per_game.apg) }}</div>
+        {% if team_rankings and team_rankings.apg %}
+        <div class="note">#{{ team_rankings.apg.rank }} on team</div>
+        {% endif %}
       </div>
       <div class="stat-card">
         <div class="stat-label">MPG</div>
@@ -205,6 +317,9 @@
       <div class="stat-card">
         <div class="stat-label">TS%</div>
         <div class="stat-value">{{ "%.1f"|format(shooting.ts_pct) }}</div>
+        {% if team_rankings and team_rankings.ts_pct %}
+        <div class="note">#{{ team_rankings.ts_pct.rank }} on team</div>
+        {% endif %}
       </div>
       <div class="stat-card">
         <div class="stat-label">EFF</div>
@@ -265,7 +380,105 @@
   
   <div class="page-break"></div>
 
-  <!-- PAGE 2: PER-GAME & PER-100 STATS -->
+  <!-- PAGE 2: TEAM RANKINGS & PERCENTILES -->
+  {% if team_rankings %}
+  <div class="page">
+    <h1>{{ player_name }} - Team Rankings</h1>
+
+    <h2>Performance Rankings</h2>
+    <div class="section-box">
+      {% for metric_key, metric_name in [('ppg', 'Points Per Game'), ('rpg', 'Rebounds Per Game'), ('apg', 'Assists Per Game')] %}
+        {% if team_rankings[metric_key] %}
+        {% set ranking = team_rankings[metric_key] %}
+        <div class="distribution-row">
+          <div class="distribution-label">{{ metric_name }}:</div>
+          <div style="flex: 1;">
+            <strong>#{{ ranking.rank }} of {{ ranking.total }}</strong>
+            {% if ranking.is_leader %}
+              <span class="leader-badge">🏆 TEAM LEADER</span>
+            {% elif ranking.rank <= 3 %}
+              <span class="rank-badge rank-top3">TOP 3</span>
+            {% elif ranking.percentile >= 50 %}
+              <span class="rank-badge rank-top50">TOP {{ ranking.percentile|int }}%</span>
+            {% else %}
+              <span class="rank-badge rank-bottom">{{ ranking.percentile|int }}th %ile</span>
+            {% endif %}
+            <div class="percentile-bar">
+              <div class="percentile-fill" style="width: {{ ranking.percentile }}%;"></div>
+              <div class="percentile-marker" style="left: {{ ranking.percentile }}%;">{{ ranking.percentile|int }}%</div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <h2>Advanced Metrics Rankings</h2>
+    <div class="section-box">
+      {% for metric_key, metric_name in [('ts_pct', 'True Shooting %'), ('efg_pct', 'Effective FG %'), ('ortg', 'Offensive Rating'), ('ast_tov', 'AST/TOV Ratio')] %}
+        {% if team_rankings[metric_key] %}
+        {% set ranking = team_rankings[metric_key] %}
+        <div class="distribution-row">
+          <div class="distribution-label">{{ metric_name }}:</div>
+          <div style="flex: 1;">
+            <strong>#{{ ranking.rank }} of {{ ranking.total }}</strong>
+            {% if ranking.is_leader %}
+              <span class="leader-badge">🏆 TEAM LEADER</span>
+            {% elif ranking.rank <= 3 %}
+              <span class="rank-badge rank-top3">TOP 3</span>
+            {% elif ranking.percentile >= 50 %}
+              <span class="rank-badge rank-top50">TOP {{ ranking.percentile|int }}%</span>
+            {% else %}
+              <span class="rank-badge rank-bottom">{{ ranking.percentile|int }}th %ile</span>
+            {% endif %}
+            <div class="percentile-bar">
+              <div class="percentile-fill" style="width: {{ ranking.percentile }}%;"></div>
+              <div class="percentile-marker" style="left: {{ ranking.percentile }}%;">{{ ranking.percentile|int }}%</div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <h2>Team Distribution Analysis</h2>
+    <div class="section-box">
+      <p class="note" style="font-size: 9px; margin-bottom: 10px;">
+        The charts below show where {{ player_name }} ranks within the team distribution for key metrics. 
+        The red line indicates the player's position relative to teammates.
+      </p>
+      
+      {% for metric_key, metric_name in [('ppg', 'PPG'), ('ts_pct', 'TS%'), ('ortg', 'ORTG')] %}
+        {% if team_rankings[metric_key] and team_rankings[metric_key].distribution %}
+        {% set ranking = team_rankings[metric_key] %}
+        {% set min_val = ranking.distribution|min %}
+        {% set max_val = ranking.distribution|max %}
+        {% set range_val = max_val - min_val %}
+        {% set player_val = ranking.distribution[ranking.rank - 1] %}
+        {% set player_pos = ((player_val - min_val) / range_val * 100) if range_val > 0 else 50 %}
+        
+        <div style="margin: 15px 0;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <strong style="font-size: 10px;">{{ metric_name }}</strong>
+            <span style="font-size: 9px;">{{ "%.1f"|format(min_val) }} → {{ "%.1f"|format(max_val) }}</span>
+          </div>
+          <div class="distribution-bar">
+            <div class="distribution-fill" style="width: 100%;"></div>
+            <div class="distribution-player-marker" style="left: {{ player_pos }}%;"></div>
+          </div>
+          <div style="text-align: center; font-size: 8px; margin-top: 2px; color: #dc3545;">
+            ▲ {{ player_name }}: {{ "%.1f"|format(player_val) }}
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  
+  <div class="page-break"></div>
+  {% endif %}
+
+  <!-- PAGE 3: PER-GAME & PER-100 STATS -->
   <div class="page">
     <h1>{{ player_name }} - Per-Game Statistics</h1>
 
@@ -339,7 +552,7 @@
   
   <div class="page-break"></div>
 
-  <!-- PAGE 3: SHOOTING BREAKDOWN -->
+  <!-- PAGE 4: SHOOTING BREAKDOWN -->
   <div class="page">
     <h1>{{ player_name }} - Shooting Analysis</h1>
 
@@ -417,7 +630,7 @@
   
   <div class="page-break"></div>
 
-  <!-- PAGE 4: ADVANCED METRICS -->
+  <!-- PAGE 5: ADVANCED METRICS -->
   <div class="page">
     <h1>{{ player_name }} - Advanced Metrics</h1>
 
@@ -478,6 +691,11 @@
         {% else %}
           ❌ <strong>Below Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% needs improvement (Team: {{ "%.1f"|format(team_avg.ts_pct) }}%)
         {% endif %}
+        {% if team_rankings and team_rankings.ts_pct %}
+          <span class="rank-badge rank-{% if team_rankings.ts_pct.percentile >= 66 %}top3{% elif team_rankings.ts_pct.percentile >= 33 %}top50{% else %}bottom{% endif %}">
+            #{{ team_rankings.ts_pct.rank }} on team
+          </span>
+        {% endif %}
       </p>
 
       <h3>Playmaking</h3>
@@ -490,6 +708,11 @@
           ⚠️ <strong>Average</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} is adequate (Team: {{ "%.2f"|format(team_avg.ast_tov) }})
         {% else %}
           ❌ <strong>Needs Work</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} indicates turnover issues (Team: {{ "%.2f"|format(team_avg.ast_tov) }})
+        {% endif %}
+        {% if team_rankings and team_rankings.ast_tov %}
+          <span class="rank-badge rank-{% if team_rankings.ast_tov.percentile >= 66 %}top3{% elif team_rankings.ast_tov.percentile >= 33 %}top50{% else %}bottom{% endif %}">
+            #{{ team_rankings.ast_tov.rank }} on team
+          </span>
         {% endif %}
       </p>
 
@@ -504,13 +727,18 @@
         {% else %}
           ❌ <strong>Below Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} needs improvement (Team: {{ "%.1f"|format(team_avg.ortg) }})
         {% endif %}
+        {% if team_rankings and team_rankings.ortg %}
+          <span class="rank-badge rank-{% if team_rankings.ortg.percentile >= 66 %}top3{% elif team_rankings.ortg.percentile >= 33 %}top50{% else %}bottom{% endif %}">
+            #{{ team_rankings.ortg.rank }} on team
+          </span>
+        {% endif %}
       </p>
     </div>
   </div>
   
   <div class="page-break"></div>
 
-  <!-- PAGE 5: PERFORMANCE CHARTS - CORE STATS -->
+  <!-- PAGE 6: PERFORMANCE CHARTS - CORE STATS -->
   <div class="page">
     <h1>{{ player_name }} - Performance Trends</h1>
 
@@ -534,7 +762,7 @@
   
   <div class="page-break"></div>
 
-  <!-- PAGE 6: PERFORMANCE CHARTS - ADVANCED METRICS -->
+  <!-- PAGE 7: PERFORMANCE CHARTS - ADVANCED METRICS -->
   <div class="page">
     <h1>{{ player_name }} - Advanced Metrics Trends</h1>
 
@@ -564,7 +792,7 @@
   
   <div class="page-break"></div>
 
-  <!-- PAGE 7+: GAME-BY-GAME LOG -->
+  <!-- PAGE 8+: GAME-BY-GAME LOG -->
   <div class="page">
     <h1>{{ player_name }} - Game-by-Game Log</h1>
 
