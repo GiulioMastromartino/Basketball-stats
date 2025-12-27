@@ -745,9 +745,10 @@ def player_report_pdf(player_name):
         **charts,
     )
 
-    # Convert to PDF
+    # Convert to PDF - FIXED: Proper WeasyPrint usage
     pdf_io = BytesIO()
-    HTML(string=html).write_pdf(pdf_io)
+    html_doc = HTML(string=html)
+    html_doc.write_pdf(pdf_io)
     pdf_io.seek(0)
 
     filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
@@ -839,9 +840,10 @@ def download_all_reports():
                     **charts,
                 )
 
-                # Convert to PDF
+                # Convert to PDF - FIXED: Proper WeasyPrint usage
                 pdf_io = BytesIO()
-                HTML(string=html).write_pdf(pdf_io)
+                html_doc = HTML(string=html)
+                html_doc.write_pdf(pdf_io)
                 pdf_data = pdf_io.getvalue()
 
                 # Add to ZIP
@@ -1027,8 +1029,12 @@ def _calculate_player_metrics(stats, game_map, games_played):
 
 def _generate_player_charts(stats, game_map, player_name):
     """Generate base64-encoded charts for PDF."""
+    # FIXED: Return empty strings instead of empty dict when no stats
     if not stats:
-        return {}
+        return {
+            "chart_core_stats": "",
+            "chart_advanced": ""
+        }
 
     # Prepare data series
     dates = []
@@ -1059,6 +1065,13 @@ def _generate_player_charts(stats, game_map, player_name):
 
         poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
         ortg_series.append(calculate_ortg(s.points, poss))
+
+    # FIXED: If no valid dates after filtering, return empty strings
+    if not dates:
+        return {
+            "chart_core_stats": "",
+            "chart_advanced": ""
+        }
 
     # Calculate 3-game moving averages
     def moving_average(series, window=3):
