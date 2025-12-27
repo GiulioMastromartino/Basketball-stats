@@ -87,14 +87,41 @@
                 transform: translateY(-1px);
                 box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             }
+            .btn-download-all {
+                display: inline-block;
+                padding: 8px 16px;
+                background: #28a745;
+                color: white;
+                text-decoration: none;
+                border-radius: 6px;
+                font-size: 0.9rem;
+                font-weight: 600;
+                transition: 0.2s;
+                margin-left: 15px;
+            }
+            .btn-download-all:hover {
+                background: #218838;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            }
+            .btn-download-all i {
+                margin-right: 6px;
+            }
         </style>
     </head>
     <body>
         <div class="header">
             <h1><i class="fas fa-users"></i> Roster Overview</h1>
-            <a href="{{ url_for('main.index') }}"
-                ><i class="fas fa-arrow-left"></i> Dashboard</a
-            >
+            <div>
+                <a href="{{ url_for('main.index') }}"
+                    ><i class="fas fa-arrow-left"></i> Dashboard</a
+                >
+                <a href="{{ url_for('analytics.download_all_reports', game_type=filters.type) }}" 
+                   class="btn-download-all"
+                   title="Download PDF reports for all players">
+                    <i class="fas fa-file-archive"></i> Download All Reports
+                </a>
+            </div>
         </div>
 
         <div class="container" style="max-width: 1800px">
@@ -675,7 +702,7 @@
                             display: grid;
                             grid-template-columns: repeat(
                                 auto-fit,
-                                minmax(300px, 1fr)
+                                minmin(300px, 1fr)
                             );
                             gap: 20px;
                         "
