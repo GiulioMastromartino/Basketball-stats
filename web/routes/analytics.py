@@ -755,9 +755,9 @@ def player_report_pdf(player_name):
     """
     Generate a multi-page PDF report with:
     - Page 1: Summary & Season Totals
-    - Page 2: Per-Game & Per-100 Stats
+    - Page 2: Per-Game & Per-100 Stats  
     - Page 3: Shooting Breakdown
-    - Page 4: Advanced Metrics
+    - Page 4: Advanced Metrics with Team Rankings
     - Page 5-6: Performance Charts with 3-Game MA
     - Page 7+: Game-by-Game Log
     """
@@ -799,8 +799,9 @@ def player_report_pdf(player_name):
     # Calculate all metrics
     report_data = _calculate_player_metrics(stats, game_map, games_played=len(stats))
 
-    # Calculate team averages
+    # Calculate team averages and rankings
     team_avg = _calculate_team_averages(game_ids)
+    team_rankings = _calculate_team_rankings(player_name, game_ids, report_data)
 
     # Generate charts
     charts = _generate_player_charts(stats, game_map, player_name)
@@ -815,6 +816,7 @@ def player_report_pdf(player_name):
         game_type=game_type,
         generated_date=generated_date,
         team_avg=team_avg,
+        team_rankings=team_rankings,
         **report_data,
         **charts,
     )
@@ -905,6 +907,9 @@ def download_all_reports():
                 # Calculate metrics
                 report_data = _calculate_player_metrics(stats, game_map, games_played=len(stats))
 
+                # Calculate team rankings
+                team_rankings = _calculate_team_rankings(player_name, game_ids, report_data)
+
                 # Generate charts
                 charts = _generate_player_charts(stats, game_map, player_name)
 
@@ -915,6 +920,7 @@ def download_all_reports():
                     game_type=game_type,
                     generated_date=generated_date,
                     team_avg=team_avg,
+                    team_rankings=team_rankings,
                     **report_data,
                     **charts,
                 )
@@ -1023,6 +1029,105 @@ def _calculate_team_averages(game_ids):
         'ast_tov': round(ast_tov, 2),
         'ortg': round(ortg, 1)
     }
+
+
+def _calculate_team_rankings(player_name, game_ids, report_data):
+    """
+    Calculate player's rank and percentile within the team for key metrics
+    Returns rankings, percentiles, and distribution data
+    """
+    # Get all players' aggregate stats
+    all_players_stats = (
+        db.session.query(
+            PlayerStat.player_name,
+            func.avg(PlayerStat.points).label('ppg'),
+            func.avg(PlayerStat.reb).label('rpg'),
+            func.avg(PlayerStat.ast).label('apg'),
+            func.sum(PlayerStat.points).label('total_pts'),
+            func.sum(PlayerStat.fga).label('total_fga'),
+            func.sum(PlayerStat.fta).label('total_fta'),
+            func.sum(PlayerStat.fgm).label('total_fgm'),
+            func.sum(PlayerStat.tpm).label('total_tpm'),
+            func.sum(PlayerStat.ast).label('total_ast'),
+            func.sum(PlayerStat.tov).label('total_tov'),
+            func.count(PlayerStat.id).label('games')
+        )
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .group_by(PlayerStat.player_name)
+        .all()
+    )
+    
+    if not all_players_stats:
+        return {}
+    
+    # Calculate metrics for all players
+    players_data = []
+    for player in all_players_stats:
+        ts_pct = calculate_ts_percent(player.total_pts, player.total_fga, player.total_fta)
+        efg_pct = calculate_efg_percent(player.total_fgm, player.total_tpm, player.total_fga)
+        ast_tov = (player.total_ast / player.total_tov) if player.total_tov > 0 else player.total_ast
+        
+        # Calculate ORTG
+        player_stats_list = (
+            PlayerStat.query
+            .filter(PlayerStat.player_name == player.player_name)
+            .filter(PlayerStat.game_id.in_(game_ids))
+            .filter(PlayerStat.minutes != "00:00")
+            .filter(PlayerStat.minutes != "0")
+            .all()
+        )
+        
+        total_poss = sum(calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in player_stats_list)
+        ortg = calculate_ortg(player.total_pts, total_poss)
+        
+        players_data.append({
+            'name': player.player_name,
+            'ppg': round(player.ppg, 1),
+            'rpg': round(player.rpg, 1),
+            'apg': round(player.apg, 1),
+            'ts_pct': round(ts_pct, 1),
+            'efg_pct': round(efg_pct, 1),
+            'ast_tov': round(ast_tov, 2),
+            'ortg': round(ortg, 1)
+        })
+    
+    # Calculate rankings and percentiles
+    rankings = {}
+    num_players = len(players_data)
+    
+    for metric in ['ppg', 'rpg', 'apg', 'ts_pct', 'efg_pct', 'ast_tov', 'ortg']:
+        # Sort players by metric (descending)
+        sorted_players = sorted(players_data, key=lambda x: x[metric], reverse=True)
+        
+        # Find player's rank
+        rank = None
+        for i, p in enumerate(sorted_players, 1):
+            if p['name'] == player_name:
+                rank = i
+                break
+        
+        # Calculate percentile (higher percentile = better performance)
+        percentile = ((num_players - rank + 1) / num_players * 100) if rank else 0
+        
+        # Get distribution for chart (all values)
+        distribution = [p[metric] for p in players_data]
+        
+        # Determine if player is leader
+        is_leader = (rank == 1) if rank else False
+        leader_name = sorted_players[0]['name'] if sorted_players else ""
+        
+        rankings[metric] = {
+            'rank': rank,
+            'total': num_players,
+            'percentile': round(percentile, 0),
+            'is_leader': is_leader,
+            'leader_name': leader_name,
+            'distribution': distribution
+        }
+    
+    return rankings
 
 
 def _calculate_enhanced_team_metrics(games, game_ids):
