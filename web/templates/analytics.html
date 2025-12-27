@@ -21,8 +21,130 @@
             href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
         />
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            /* Progress Modal Styles */
+            .progress-modal {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                z-index: 10000;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .progress-modal.active {
+                display: flex;
+            }
+            
+            .progress-content {
+                background: white;
+                padding: 40px;
+                border-radius: 16px;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                max-width: 500px;
+                width: 90%;
+                text-align: center;
+            }
+            
+            .progress-icon {
+                font-size: 64px;
+                margin-bottom: 20px;
+                animation: spin 2s linear infinite;
+            }
+            
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+            
+            .progress-title {
+                font-size: 24px;
+                font-weight: 700;
+                color: #333;
+                margin-bottom: 12px;
+            }
+            
+            .progress-description {
+                color: #666;
+                margin-bottom: 30px;
+                font-size: 14px;
+            }
+            
+            .progress-bar-container {
+                width: 100%;
+                height: 20px;
+                background: #e9ecef;
+                border-radius: 10px;
+                overflow: hidden;
+                margin-bottom: 15px;
+                position: relative;
+            }
+            
+            .progress-bar-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
+                width: 0%;
+                transition: width 0.5s ease;
+                position: relative;
+            }
+            
+            .progress-bar-fill::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    rgba(255, 255, 255, 0.3),
+                    transparent
+                );
+                animation: shimmer 2s infinite;
+            }
+            
+            @keyframes shimmer {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+            }
+            
+            .progress-text {
+                color: #333;
+                font-weight: 600;
+                font-size: 14px;
+            }
+            
+            .progress-stage {
+                color: #999;
+                font-size: 12px;
+                margin-top: 10px;
+            }
+        </style>
     </head>
     <body>
+        <!-- Progress Modal -->
+        <div id="progressModal" class="progress-modal">
+            <div class="progress-content">
+                <div class="progress-icon">
+                    <i class="fas fa-file-pdf" style="color: #f5576c;"></i>
+                </div>
+                <div class="progress-title">Generating Reports</div>
+                <div class="progress-description">
+                    Creating PDF reports for all players. This may take a moment...
+                </div>
+                <div class="progress-bar-container">
+                    <div id="progressBarFill" class="progress-bar-fill"></div>
+                </div>
+                <div class="progress-text" id="progressText">0%</div>
+                <div class="progress-stage" id="progressStage">Initializing...</div>
+            </div>
+        </div>
+
         <div class="header">
             <h1>
                 <i class="fas fa-chart-pie" style="color: #4dabf7"></i>
@@ -52,9 +174,10 @@
                     <i class="fas fa-users"></i> Team Report
                 </button>
                 
-                <!-- Download All Button -->
+                <!-- Download All Button with Progress -->
                 <button 
-                    onclick="window.location.href='/reports/download-all?game_type=ALL'" 
+                    id="downloadAllBtn"
+                    onclick="downloadAllReports()" 
                     style="
                         background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
                         color: white;
@@ -663,6 +786,104 @@
         </div>
 
         <script>
+            // Download All Reports with Progress Bar
+            async function downloadAllReports() {
+                const modal = document.getElementById('progressModal');
+                const progressBar = document.getElementById('progressBarFill');
+                const progressText = document.getElementById('progressText');
+                const progressStage = document.getElementById('progressStage');
+                const btn = document.getElementById('downloadAllBtn');
+                
+                // Show modal
+                modal.classList.add('active');
+                btn.disabled = true;
+                btn.style.opacity = '0.6';
+                btn.style.cursor = 'not-allowed';
+                
+                // Simulate progress stages
+                const stages = [
+                    { percent: 10, text: 'Fetching player data...' },
+                    { percent: 25, text: 'Calculating statistics...' },
+                    { percent: 40, text: 'Generating team averages...' },
+                    { percent: 60, text: 'Creating PDF reports...' },
+                    { percent: 85, text: 'Compiling ZIP archive...' },
+                    { percent: 95, text: 'Finalizing download...' }
+                ];
+                
+                let currentStage = 0;
+                
+                const progressInterval = setInterval(() => {
+                    if (currentStage < stages.length) {
+                        const stage = stages[currentStage];
+                        progressBar.style.width = stage.percent + '%';
+                        progressText.textContent = stage.percent + '%';
+                        progressStage.textContent = stage.text;
+                        currentStage++;
+                    }
+                }, 800);
+                
+                try {
+                    // Start the actual download
+                    const response = await fetch('/reports/download-all?game_type=ALL');
+                    
+                    if (!response.ok) {
+                        throw new Error('Download failed');
+                    }
+                    
+                    // Complete progress
+                    clearInterval(progressInterval);
+                    progressBar.style.width = '100%';
+                    progressText.textContent = '100%';
+                    progressStage.textContent = 'Download complete!';
+                    
+                    // Get the blob
+                    const blob = await response.blob();
+                    
+                    // Create download link
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'all_player_reports_ALL.zip';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    
+                    // Close modal after short delay
+                    setTimeout(() => {
+                        modal.classList.remove('active');
+                        btn.disabled = false;
+                        btn.style.opacity = '1';
+                        btn.style.cursor = 'pointer';
+                        
+                        // Reset progress
+                        progressBar.style.width = '0%';
+                        progressText.textContent = '0%';
+                        progressStage.textContent = 'Initializing...';
+                    }, 1500);
+                    
+                } catch (error) {
+                    clearInterval(progressInterval);
+                    console.error('Download error:', error);
+                    
+                    progressBar.style.width = '100%';
+                    progressBar.style.background = '#dc3545';
+                    progressText.textContent = 'Error!';
+                    progressStage.textContent = 'Download failed. Please try again.';
+                    
+                    setTimeout(() => {
+                        modal.classList.remove('active');
+                        btn.disabled = false;
+                        btn.style.opacity = '1';
+                        btn.style.cursor = 'pointer';
+                        progressBar.style.background = 'linear-gradient(90deg, #f093fb 0%, #f5576c 100%)';
+                        progressBar.style.width = '0%';
+                        progressText.textContent = '0%';
+                        progressStage.textContent = 'Initializing...';
+                    }, 3000);
+                }
+            }
+
             function switchTab(id) {
                 document
                     .querySelectorAll(".section")
