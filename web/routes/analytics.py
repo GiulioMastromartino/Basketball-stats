@@ -745,10 +745,12 @@ def player_report_pdf(player_name):
         **charts,
     )
 
-    # Convert to PDF - FIXED: Proper WeasyPrint usage
-    pdf_io = BytesIO()
+    # Convert to PDF - FIXED: write_pdf() returns bytes, no need for BytesIO parameter
     html_doc = HTML(string=html)
-    html_doc.write_pdf(pdf_io)
+    pdf_bytes = html_doc.write_pdf()
+    
+    # Wrap in BytesIO for send_file
+    pdf_io = BytesIO(pdf_bytes)
     pdf_io.seek(0)
 
     filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
@@ -840,11 +842,9 @@ def download_all_reports():
                     **charts,
                 )
 
-                # Convert to PDF - FIXED: Proper WeasyPrint usage
-                pdf_io = BytesIO()
+                # Convert to PDF - FIXED: write_pdf() returns bytes directly
                 html_doc = HTML(string=html)
-                html_doc.write_pdf(pdf_io)
-                pdf_data = pdf_io.getvalue()
+                pdf_data = html_doc.write_pdf()
 
                 # Add to ZIP
                 filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
