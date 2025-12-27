@@ -370,18 +370,18 @@
     <h2>Advanced Shooting Metrics</h2>
     <table>
       <tr>
-        <th>Metric</th><th>Value</th><th>League Avg</th><th>Description</th>
+        <th>Metric</th><th>Player Value</th><th>Team Avg</th><th>Description</th>
       </tr>
       <tr>
         <td>True Shooting %</td>
         <td class="highlight">{{ "%.1f"|format(shooting.ts_pct) }}%</td>
-        <td>~55%</td>
+        <td>{{ "%.1f"|format(team_avg.ts_pct) }}%</td>
         <td>Shooting efficiency accounting for FTs and 3PTs</td>
       </tr>
       <tr>
         <td>Effective FG %</td>
         <td class="highlight">{{ "%.1f"|format(shooting.efg_pct) }}%</td>
-        <td>~52%</td>
+        <td>{{ "%.1f"|format(team_avg.efg_pct) }}%</td>
         <td>FG% adjusted for 3PT value</td>
       </tr>
     </table>
@@ -421,27 +421,30 @@
   <div class="page">
     <h1>{{ player_name }} - Advanced Metrics</h1>
 
-    <h2>Offensive Metrics</h2>
+    <h2>Offensive Metrics vs Team Average</h2>
     <div class="section-box">
       <table>
         <tr>
-          <th>Metric</th><th>Value</th><th>Elite</th><th>Meaning</th>
+          <th>Metric</th><th>Player</th><th>Team Avg</th><th>Elite</th><th>Meaning</th>
         </tr>
         <tr>
           <td>Offensive Rating (ORTG)</td>
           <td class="highlight">{{ "%.1f"|format(advanced.ortg) }}</td>
+          <td>{{ "%.1f"|format(team_avg.ortg) }}</td>
           <td>&gt;110</td>
           <td>Points per 100 possessions</td>
         </tr>
         <tr>
           <td>Points Per Possession (PPP)</td>
           <td class="highlight">{{ "%.3f"|format(advanced.ppp) }}</td>
+          <td>-</td>
           <td>&gt;1.10</td>
           <td>Scoring efficiency per possession</td>
         </tr>
         <tr>
           <td>Efficiency (EFF)</td>
           <td class="highlight">{{ "%.1f"|format(advanced.eff_per_game) }}</td>
+          <td>-</td>
           <td>&gt;15</td>
           <td>Overall production metric</td>
         </tr>
@@ -449,7 +452,15 @@
           <td>Total Efficiency</td>
           <td>{{ "%.1f"|format(advanced.eff_total) }}</td>
           <td>-</td>
+          <td>-</td>
           <td>Season cumulative efficiency</td>
+        </tr>
+        <tr>
+          <td>AST/TOV Ratio</td>
+          <td class="highlight">{{ "%.2f"|format(advanced.ast_tov_ratio) }}</td>
+          <td>{{ "%.2f"|format(team_avg.ast_tov) }}</td>
+          <td>&gt;2.0</td>
+          <td>Decision making quality</td>
         </tr>
       </table>
     </div>
@@ -459,39 +470,39 @@
       <h3>Scoring Efficiency</h3>
       <p>
         {% if shooting.ts_pct >= 60 %}
-          ✅ <strong>Elite</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is outstanding
+          ✅ <strong>Elite</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is outstanding (Team: {{ "%.1f"|format(team_avg.ts_pct) }}%)
         {% elif shooting.ts_pct >= 55 %}
-          ✅ <strong>Above Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is solid
+          ✅ <strong>Above Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is solid (Team: {{ "%.1f"|format(team_avg.ts_pct) }}%)
         {% elif shooting.ts_pct >= 50 %}
-          ⚠️ <strong>Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is league average
+          ⚠️ <strong>Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is acceptable (Team: {{ "%.1f"|format(team_avg.ts_pct) }}%)
         {% else %}
-          ❌ <strong>Below Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% needs improvement
+          ❌ <strong>Below Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% needs improvement (Team: {{ "%.1f"|format(team_avg.ts_pct) }}%)
         {% endif %}
       </p>
 
       <h3>Playmaking</h3>
       <p>
         {% if advanced.ast_tov_ratio >= 2.0 %}
-          ✅ <strong>Excellent</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} shows great decision making
+          ✅ <strong>Excellent</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} shows great decision making (Team: {{ "%.2f"|format(team_avg.ast_tov) }})
         {% elif advanced.ast_tov_ratio >= 1.5 %}
-          ✅ <strong>Good</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} is solid
+          ✅ <strong>Good</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} is solid (Team: {{ "%.2f"|format(team_avg.ast_tov) }})
         {% elif advanced.ast_tov_ratio >= 1.0 %}
-          ⚠️ <strong>Average</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} is adequate
+          ⚠️ <strong>Average</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} is adequate (Team: {{ "%.2f"|format(team_avg.ast_tov) }})
         {% else %}
-          ❌ <strong>Needs Work</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} indicates turnover issues
+          ❌ <strong>Needs Work</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} indicates turnover issues (Team: {{ "%.2f"|format(team_avg.ast_tov) }})
         {% endif %}
       </p>
 
       <h3>Offensive Impact</h3>
       <p>
         {% if advanced.ortg >= 120 %}
-          ✅ <strong>Elite Scorer</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is exceptional
+          ✅ <strong>Elite Scorer</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is exceptional (Team: {{ "%.1f"|format(team_avg.ortg) }})
         {% elif advanced.ortg >= 110 %}
-          ✅ <strong>Above Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is very good
+          ✅ <strong>Above Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is very good (Team: {{ "%.1f"|format(team_avg.ortg) }})
         {% elif advanced.ortg >= 100 %}
-          ⚠️ <strong>Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is league average
+          ⚠️ <strong>Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is league average (Team: {{ "%.1f"|format(team_avg.ortg) }})
         {% else %}
-          ❌ <strong>Below Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} needs improvement
+          ❌ <strong>Below Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} needs improvement (Team: {{ "%.1f"|format(team_avg.ortg) }})
         {% endif %}
       </p>
     </div>
