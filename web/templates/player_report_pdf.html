@@ -454,7 +454,7 @@
         {% set min_val = ranking.distribution|min %}
         {% set max_val = ranking.distribution|max %}
         {% set range_val = max_val - min_val %}
-        {% set player_val = ranking.distribution[ranking.rank - 1] %}
+        {% set player_val = ranking.player_value %}
         {% set player_pos = ((player_val - min_val) / range_val * 100) if range_val > 0 else 50 %}
         
         <div style="margin: 15px 0;">

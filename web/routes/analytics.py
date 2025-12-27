@@ -1062,8 +1062,10 @@ def _calculate_team_rankings(player_name, game_ids, report_data):
     if not all_players_stats:
         return {}
     
-    # Calculate metrics for all players
+    # Calculate metrics for all players including THIS player's actual value
     players_data = []
+    current_player_values = {}
+    
     for player in all_players_stats:
         ts_pct = calculate_ts_percent(player.total_pts, player.total_fga, player.total_fta)
         efg_pct = calculate_efg_percent(player.total_fgm, player.total_tpm, player.total_fga)
@@ -1082,7 +1084,7 @@ def _calculate_team_rankings(player_name, game_ids, report_data):
         total_poss = sum(calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in player_stats_list)
         ortg = calculate_ortg(player.total_pts, total_poss)
         
-        players_data.append({
+        player_metrics = {
             'name': player.player_name,
             'ppg': round(player.ppg, 1),
             'rpg': round(player.rpg, 1),
@@ -1091,7 +1093,13 @@ def _calculate_team_rankings(player_name, game_ids, report_data):
             'efg_pct': round(efg_pct, 1),
             'ast_tov': round(ast_tov, 2),
             'ortg': round(ortg, 1)
-        })
+        }
+        
+        players_data.append(player_metrics)
+        
+        # Store current player's values
+        if player.player_name == player_name:
+            current_player_values = player_metrics
     
     # Calculate rankings and percentiles
     rankings = {}
@@ -1111,8 +1119,11 @@ def _calculate_team_rankings(player_name, game_ids, report_data):
         # Calculate percentile (higher percentile = better performance)
         percentile = ((num_players - rank + 1) / num_players * 100) if rank else 0
         
-        # Get distribution for chart (all values)
-        distribution = [p[metric] for p in players_data]
+        # Get distribution for chart (all values sorted)
+        distribution = sorted([p[metric] for p in players_data])
+        
+        # Get the ACTUAL player value from their calculated stats
+        player_value = current_player_values.get(metric, 0)
         
         # Determine if player is leader
         is_leader = (rank == 1) if rank else False
@@ -1124,7 +1135,8 @@ def _calculate_team_rankings(player_name, game_ids, report_data):
             'percentile': round(percentile, 0),
             'is_leader': is_leader,
             'leader_name': leader_name,
-            'distribution': distribution
+            'distribution': distribution,
+            'player_value': player_value  # Add this for template to use
         }
     
     return rankings
