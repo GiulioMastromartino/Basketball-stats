@@ -71,6 +71,22 @@
                 padding: 8px 4px;
                 border-top: 2px solid #dee2e6;
             }
+            .btn-pdf {
+                display: inline-block;
+                padding: 4px 10px;
+                background: #007bff;
+                color: white;
+                text-decoration: none;
+                border-radius: 4px;
+                font-size: 0.75rem;
+                transition: 0.2s;
+                white-space: nowrap;
+            }
+            .btn-pdf:hover {
+                background: #0056b3;
+                transform: translateY(-1px);
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
         </style>
     </head>
     <body>
@@ -180,6 +196,11 @@
                                 <!-- Other -->
                                 <th class="section-header" colspan="3">
                                     DEFENSE & OTHER
+                                </th>
+                                
+                                <!-- Actions -->
+                                <th class="section-header">
+                                    REPORT
                                 </th>
                             </tr>
                             <tr style="background: #f8f9fa">
@@ -430,6 +451,11 @@
                                         class="fas fa-sort sort-icon"
                                     ></i>
                                 </th>
+                                
+                                <!-- Actions -->
+                                <th style="text-align: center">
+                                    PDF
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -565,6 +591,16 @@
                                 </td>
                                 <td style="text-align: center" rowspan="2">
                                     {{ p.pfpg|round(1) }}
+                                </td>
+                                
+                                <!-- PDF Report Button -->
+                                <td style="text-align: center" rowspan="2">
+                                    <a href="{{ url_for('analytics.player_report_pdf', player_name=p.player_name, game_type=filters.type) }}" 
+                                       class="btn-pdf" 
+                                       target="_blank"
+                                       title="Download comprehensive PDF report for {{ p.player_name }}">
+                                        <i class="fas fa-file-pdf"></i> Report
+                                    </a>
                                 </td>
                             </tr>
 
