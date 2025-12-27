@@ -1,8 +1,14 @@
-import statistics
+import matplotlib
 
-from flask import Blueprint, jsonify, render_template, request
+matplotlib.use("Agg")  # Non-GUI backend
+import base64
+import statistics
+from io import BytesIO
+
+import matplotlib.pyplot as plt
+from flask import Blueprint, jsonify, render_template, request, send_file
 from flask_login import login_required
-from sqlalchemy import desc, func
+from weasyprint import HTML
 
 from core.models import Game, PlayerStat, db
 from core.utils import (
@@ -660,3 +666,467 @@ def role_analysis():
         )
 
     return jsonify({"players": player_roles})
+
+
+@analytics_bp.route("/player/<player_name>/report.pdf")
+@login_required
+def player_report_pdf(player_name):
+    """
+    Generate a multi-page PDF report with:
+    - Page 1: Summary & Season Totals
+    - Page 2: Per-Game & Per-100 Stats
+    - Page 3: Shooting Breakdown
+    - Page 4: Advanced Metrics
+    - Page 5-6: Performance Charts with 3-Game MA
+    - Page 7+: Game-by-Game Log
+    """
+    game_type = request.args.get("game_type", "ALL")
+    if game_type not in VALID_GAME_TYPES:
+        game_type = "ALL"
+
+    # Build game query
+    game_query = Game.query.order_by(Game.sort_date.asc())
+    if game_type == "Season":
+        game_query = game_query.filter(Game.game_type == "Season")
+    elif game_type == "Friendly":
+        game_query = game_query.filter(Game.game_type == "Friendly")
+
+    games = game_query.all()
+    if not games:
+        return jsonify({"error": "No games for selected filter"}), 404
+
+    game_ids = [g.id for g in games]
+
+    # Get player stats
+    stats = (
+        PlayerStat.query.filter(PlayerStat.player_name == player_name)
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .all()
+    )
+
+    if not stats:
+        return jsonify({"error": "No stats for this player"}), 404
+
+    # Sort stats by game date
+    game_map = {g.id: g for g in games}
+    stats_with_dates = [(s, game_map.get(s.game_id)) for s in stats]
+    stats_with_dates.sort(key=lambda x: x[1].sort_date if x[1] else "")
+    stats = [s[0] for s in stats_with_dates]
+
+    # Calculate all metrics
+    report_data = _calculate_player_metrics(stats, game_map, games_played=len(stats))
+
+    # Generate charts
+    charts = _generate_player_charts(stats, game_map, player_name)
+
+    # Render HTML
+    html = render_template(
+        "player_report_pdf.html",
+        player_name=player_name,
+        game_type=game_type,
+        **report_data,
+        **charts,
+    )
+
+    # Convert to PDF
+    pdf_io = BytesIO()
+    HTML(string=html).write_pdf(pdf_io)
+    pdf_io.seek(0)
+
+    filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
+    return send_file(
+        pdf_io,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+def _calculate_player_metrics(stats, game_map, games_played):
+    """Calculate comprehensive player metrics."""
+    # Aggregate totals
+    totals = {
+        "points": sum(s.points for s in stats),
+        "reb": sum(s.reb for s in stats),
+        "ast": sum(s.ast for s in stats),
+        "stl": sum(s.stl for s in stats),
+        "blk": sum(s.blk for s in stats),
+        "tov": sum(s.tov for s in stats),
+        "pf": sum(s.pf for s in stats),
+        "fgm": sum(s.fgm for s in stats),
+        "fga": sum(s.fga for s in stats),
+        "tpm": sum(s.tpm for s in stats),
+        "tpa": sum(s.tpa for s in stats),
+        "ftm": sum(s.ftm for s in stats),
+        "fta": sum(s.fta for s in stats),
+        "oreb": sum(s.oreb for s in stats),
+        "dreb": sum(s.dreb for s in stats),
+        "minutes": sum(parse_minutes(s.minutes) for s in stats),
+    }
+
+    # Possessions
+    total_possessions = sum(
+        calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in stats
+    )
+
+    # Advanced metrics
+    eff_total = calculate_efficiency(
+        totals["points"],
+        totals["reb"],
+        totals["ast"],
+        totals["stl"],
+        totals["blk"],
+        totals["fgm"],
+        totals["fga"],
+        totals["ftm"],
+        totals["fta"],
+        totals["tov"],
+    )
+
+    ts_pct = calculate_ts_percent(totals["points"], totals["fga"], totals["fta"])
+    efg_pct = calculate_efg_percent(totals["fgm"], totals["tpm"], totals["fga"])
+    ortg = calculate_ortg(totals["points"], total_possessions)
+    ppp = calculate_ppp(totals["points"], total_possessions)
+
+    two_pt_stats = calculate_two_point_stats(
+        totals["fgm"], totals["fga"], totals["tpm"], totals["tpa"]
+    )
+
+    # Per-game averages
+    def avg(val):
+        return val / games_played if games_played > 0 else 0
+
+    per_game = {
+        "mpg": avg(totals["minutes"]),
+        "ppg": avg(totals["points"]),
+        "rpg": avg(totals["reb"]),
+        "apg": avg(totals["ast"]),
+        "spg": avg(totals["stl"]),
+        "bpg": avg(totals["blk"]),
+        "topg": avg(totals["tov"]),
+        "pfpg": avg(totals["pf"]),
+    }
+
+    # Per-100 minutes
+    per_100 = {}
+    if totals["minutes"] > 0:
+        per_100 = {
+            "pts": calculate_per_100_minutes(totals["points"], totals["minutes"]),
+            "reb": calculate_per_100_minutes(totals["reb"], totals["minutes"]),
+            "ast": calculate_per_100_minutes(totals["ast"], totals["minutes"]),
+            "stl": calculate_per_100_minutes(totals["stl"], totals["minutes"]),
+            "blk": calculate_per_100_minutes(totals["blk"], totals["minutes"]),
+            "tov": calculate_per_100_minutes(totals["tov"], totals["minutes"]),
+            "pf": calculate_per_100_minutes(totals["pf"], totals["minutes"]),
+        }
+
+    # Shooting percentages
+    shooting = {
+        "fg_pct": safe_percentage(totals["fgm"], totals["fga"]),
+        "two_pt_pct": two_pt_stats["two_pt_pct"],
+        "tp_pct": safe_percentage(totals["tpm"], totals["tpa"]),
+        "ft_pct": safe_percentage(totals["ftm"], totals["fta"]),
+        "ts_pct": ts_pct,
+        "efg_pct": efg_pct,
+        "two_pt_made": two_pt_stats["two_pt_made"],
+        "two_pt_att": two_pt_stats["two_pt_att"],
+    }
+
+    # Advanced stats
+    advanced = {
+        "ortg": ortg,
+        "ppp": ppp,
+        "eff_total": eff_total,
+        "eff_per_game": avg(eff_total),
+        "ast_tov_ratio": totals["ast"] / totals["tov"]
+        if totals["tov"] > 0
+        else totals["ast"],
+        "usg_pct": avg(total_possessions),
+        "oreb_pct": safe_percentage(totals["oreb"], totals["reb"]),
+        "dreb_pct": safe_percentage(totals["dreb"], totals["reb"]),
+    }
+
+    # Game breakdown
+    game_breakdown = []
+    for s in stats:
+        g = game_map.get(s.game_id)
+        if not g:
+            continue
+
+        poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
+        game_breakdown.append(
+            {
+                "date": g.date,
+                "opponent": g.opponent,
+                "result": g.result,
+                "team_score": g.team_score,
+                "opp_score": g.opponent_score,
+                "minutes": s.minutes,
+                "points": s.points,
+                "reb": s.reb,
+                "ast": s.ast,
+                "stl": s.stl,
+                "blk": s.blk,
+                "tov": s.tov,
+                "pf": s.pf,
+                "fg": f"{s.fgm}-{s.fga}",
+                "fg_pct": s.fg_percent * 100 if s.fg_percent else 0,
+                "tp": f"{s.tpm}-{s.tpa}",
+                "tp_pct": s.tp_percent * 100 if s.tp_percent else 0,
+                "ft": f"{s.ftm}-{s.fta}",
+                "ft_pct": s.ft_percent * 100 if s.ft_percent else 0,
+                "eff": calculate_efficiency(
+                    s.points,
+                    s.reb,
+                    s.ast,
+                    s.stl,
+                    s.blk,
+                    s.fgm,
+                    s.fga,
+                    s.ftm,
+                    s.fta,
+                    s.tov,
+                ),
+                "ortg": calculate_ortg(s.points, poss),
+            }
+        )
+
+    return {
+        "games_played": games_played,
+        "totals": totals,
+        "per_game": per_game,
+        "per_100": per_100,
+        "shooting": shooting,
+        "advanced": advanced,
+        "game_breakdown": game_breakdown,
+    }
+
+
+def _generate_player_charts(stats, game_map, player_name):
+    """Generate base64-encoded charts for PDF."""
+    if not stats:
+        return {}
+
+    # Prepare data series
+    dates = []
+    points_series = []
+    reb_series = []
+    ast_series = []
+    eff_series = []
+    ts_pct_series = []
+    ortg_series = []
+
+    for s in stats:
+        g = game_map.get(s.game_id)
+        if not g:
+            continue
+
+        dates.append(g.date)
+        points_series.append(s.points)
+        reb_series.append(s.reb)
+        ast_series.append(s.ast)
+
+        eff = calculate_efficiency(
+            s.points, s.reb, s.ast, s.stl, s.blk, s.fgm, s.fga, s.ftm, s.fta, s.tov
+        )
+        eff_series.append(eff)
+
+        ts = calculate_ts_percent(s.points, s.fga, s.fta)
+        ts_pct_series.append(ts)
+
+        poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
+        ortg_series.append(calculate_ortg(s.points, poss))
+
+    # Calculate 3-game moving averages
+    def moving_average(series, window=3):
+        if len(series) < window:
+            return [None] * len(series)
+        ma = []
+        for i in range(len(series)):
+            if i < window - 1:
+                ma.append(None)
+            else:
+                ma.append(sum(series[i - window + 1 : i + 1]) / window)
+        return ma
+
+    points_ma = moving_average(points_series)
+    reb_ma = moving_average(reb_series)
+    ast_ma = moving_average(ast_series)
+    eff_ma = moving_average(eff_series)
+    ts_ma = moving_average(ts_pct_series)
+    ortg_ma = moving_average(ortg_series)
+
+    # Chart 1: Core Stats (Points, Rebounds, Assists)
+    chart1 = _create_chart(
+        dates,
+        {
+            "Points": (points_series, points_ma),
+            "Rebounds": (reb_series, reb_ma),
+            "Assists": (ast_series, ast_ma),
+        },
+        f"{player_name} - Core Statistics Progression",
+        "Stats per Game",
+    )
+
+    # Chart 2: Advanced Metrics (Efficiency, TS%, ORTG)
+    chart2 = _create_dual_axis_chart(
+        dates,
+        {
+            "Efficiency": (eff_series, eff_ma),
+            "TS%": (ts_pct_series, ts_ma),
+            "ORTG": (ortg_series, ortg_ma),
+        },
+        f"{player_name} - Advanced Metrics Progression",
+    )
+
+    return {
+        "chart_core_stats": chart1,
+        "chart_advanced": chart2,
+    }
+
+
+def _create_chart(dates, data_dict, title, ylabel):
+    """Create a line chart with 3-game moving average."""
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c"]
+
+    for idx, (label, (values, ma_values)) in enumerate(data_dict.items()):
+        color = colors[idx % len(colors)]
+
+        # Main line
+        ax.plot(
+            range(len(dates)), values, marker="o", label=label, color=color, linewidth=2
+        )
+
+        # Moving average line (dashed)
+        if ma_values:
+            ma_clean = [v if v is not None else float("nan") for v in ma_values]
+            ax.plot(
+                range(len(dates)),
+                ma_clean,
+                linestyle="--",
+                color=color,
+                alpha=0.6,
+                linewidth=1.5,
+                label=f"{label} (3-game MA)",
+            )
+
+    ax.set_xlabel("Game Number", fontsize=10)
+    ax.set_ylabel(ylabel, fontsize=10)
+    ax.set_title(title, fontsize=12, fontweight="bold")
+    ax.legend(fontsize=8, loc="best")
+    ax.grid(True, alpha=0.3)
+
+    # Set x-axis to show game numbers
+    ax.set_xticks(range(0, len(dates), max(1, len(dates) // 10)))
+    ax.set_xticklabels(range(1, len(dates) + 1, max(1, len(dates) // 10)))
+
+    plt.tight_layout()
+
+    # Convert to base64
+    img_io = BytesIO()
+    plt.savefig(img_io, format="png", dpi=100, bbox_inches="tight")
+    img_io.seek(0)
+    img_base64 = base64.b64encode(img_io.read()).decode()
+    plt.close(fig)
+
+    return img_base64
+
+
+def _create_dual_axis_chart(dates, data_dict, title):
+    """Create chart with dual y-axes for different scale metrics."""
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+
+    # Efficiency on left axis
+    eff_data, eff_ma = data_dict["Efficiency"]
+    color1 = "#1f77b4"
+    ax1.set_xlabel("Game Number", fontsize=10)
+    ax1.set_ylabel("Efficiency / ORTG", fontsize=10, color=color1)
+    ax1.plot(
+        range(len(dates)),
+        eff_data,
+        marker="o",
+        color=color1,
+        label="Efficiency",
+        linewidth=2,
+    )
+    if eff_ma:
+        ma_clean = [v if v is not None else float("nan") for v in eff_ma]
+        ax1.plot(
+            range(len(dates)),
+            ma_clean,
+            linestyle="--",
+            color=color1,
+            alpha=0.6,
+            linewidth=1.5,
+        )
+
+    # ORTG on same axis
+    ortg_data, ortg_ma = data_dict["ORTG"]
+    color3 = "#2ca02c"
+    ax1.plot(
+        range(len(dates)),
+        ortg_data,
+        marker="s",
+        color=color3,
+        label="ORTG",
+        linewidth=2,
+    )
+    if ortg_ma:
+        ma_clean = [v if v is not None else float("nan") for v in ortg_ma]
+        ax1.plot(
+            range(len(dates)),
+            ma_clean,
+            linestyle="--",
+            color=color3,
+            alpha=0.6,
+            linewidth=1.5,
+        )
+
+    ax1.tick_params(axis="y", labelcolor=color1)
+
+    # TS% on right axis
+    ax2 = ax1.twinx()
+    ts_data, ts_ma = data_dict["TS%"]
+    color2 = "#ff7f0e"
+    ax2.set_ylabel("True Shooting %", fontsize=10, color=color2)
+    ax2.plot(
+        range(len(dates)), ts_data, marker="^", color=color2, label="TS%", linewidth=2
+    )
+    if ts_ma:
+        ma_clean = [v if v is not None else float("nan") for v in ts_ma]
+        ax2.plot(
+            range(len(dates)),
+            ma_clean,
+            linestyle="--",
+            color=color2,
+            alpha=0.6,
+            linewidth=1.5,
+        )
+    ax2.tick_params(axis="y", labelcolor=color2)
+
+    # Set x-axis
+    ax1.set_xticks(range(0, len(dates), max(1, len(dates) // 10)))
+    ax1.set_xticklabels(range(1, len(dates) + 1, max(1, len(dates) // 10)))
+
+    fig.suptitle(title, fontsize=12, fontweight="bold")
+    ax1.grid(True, alpha=0.3)
+
+    # Combined legend
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=8, loc="upper left")
+
+    plt.tight_layout()
+
+    # Convert to base64
+    img_io = BytesIO()
+    plt.savefig(img_io, format="png", dpi=100, bbox_inches="tight")
+    img_io.seek(0)
+    img_base64 = base64.b64encode(img_io.read()).decode()
+    plt.close(fig)
+
+    return img_base64

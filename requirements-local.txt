@@ -13,3 +13,4 @@ Flask-Caching==2.1.0
 Flask-Limiter==3.5.0
 python-dotenv==1.0.0
 pytest==7.4.3
+WeasyPrint==61.0

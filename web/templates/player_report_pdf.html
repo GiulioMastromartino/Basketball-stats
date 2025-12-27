@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ player_name }} - Player Report</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 1.5cm;
+      @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font-size: 9px;
+        color: #666;
+      }
+    }
+    
+    body {
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      font-size: 10px;
+      line-height: 1.4;
+      color: #333;
+    }
+    
+    h1 {
+      font-size: 24px;
+      margin: 0 0 8px 0;
+      color: #1a1a1a;
+      border-bottom: 3px solid #0066cc;
+      padding-bottom: 8px;
+    }
+    
+    h2 {
+      font-size: 16px;
+      margin: 20px 0 10px 0;
+      color: #0066cc;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 4px;
+      page-break-after: avoid;
+    }
+    
+    h3 {
+      font-size: 13px;
+      margin: 12px 0 6px 0;
+      color: #333;
+      font-weight: 600;
+    }
+    
+    .page-break {
+      page-break-after: always;
+    }
+    
+    .header-info {
+      background: #f5f5f5;
+      padding: 10px;
+      margin: 10px 0;
+      border-left: 4px solid #0066cc;
+    }
+    
+    .header-info p {
+      margin: 2px 0;
+      font-size: 11px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      font-size: 9px;
+    }
+    
+    th, td {
+      border: 1px solid #ddd;
+      padding: 6px 4px;
+      text-align: center;
+    }
+    
+    th {
+      background: #0066cc;
+      color: white;
+      font-weight: 600;
+      font-size: 9px;
+    }
+    
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    
+    .highlight {
+      background: #fff3cd !important;
+      font-weight: bold;
+    }
+    
+    .section-box {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 10px 0;
+    }
+    
+    .stat-card {
+      background: white;
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+      border-radius: 4px;
+    }
+    
+    .stat-label {
+      font-size: 8px;
+      color: #666;
+      text-transform: uppercase;
+    }
+    
+    .stat-value {
+      font-size: 18px;
+      font-weight: bold;
+      color: #0066cc;
+      margin: 4px 0;
+    }
+    
+    .chart-container {
+      margin: 15px 0;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+    
+    .chart-container img {
+      max-width: 100%;
+      height: auto;
+    }
+    
+    .note {
+      font-size: 8px;
+      color: #666;
+      font-style: italic;
+      margin-top: 4px;
+    }
+    
+    .game-log-table {
+      font-size: 8px;
+    }
+    
+    .game-log-table th {
+      font-size: 8px;
+    }
+    
+    .win {
+      color: #28a745;
+      font-weight: bold;
+    }
+    
+    .loss {
+      color: #dc3545;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PAGE 1: SUMMARY & OVERVIEW -->
+  <div class="page">
+    <h1>🏀 {{ player_name }}</h1>
+    
+    <div class="header-info">
+      <p><strong>Report Type:</strong> {{ game_type }}</p>
+      <p><strong>Games Played:</strong> {{ games_played }}</p>
+      <p><strong>Total Minutes:</strong> {{ "%.1f"|format(totals.minutes) }}</p>
+      <p><strong>Generated:</strong> {{ "now"|datetime("%B %d, %Y") }}</p>
+    </div>
+
+    <h2>Season Summary</h2>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">PPG</div>
+        <div class="stat-value">{{ "%.1f"|format(per_game.ppg) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">RPG</div>
+        <div class="stat-value">{{ "%.1f"|format(per_game.rpg) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">APG</div>
+        <div class="stat-value">{{ "%.1f"|format(per_game.apg) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">MPG</div>
+        <div class="stat-value">{{ "%.1f"|format(per_game.mpg) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">FG%</div>
+        <div class="stat-value">{{ "%.1f"|format(shooting.fg_pct) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">3P%</div>
+        <div class="stat-value">{{ "%.1f"|format(shooting.tp_pct) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">TS%</div>
+        <div class="stat-value">{{ "%.1f"|format(shooting.ts_pct) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">EFF</div>
+        <div class="stat-value">{{ "%.1f"|format(advanced.eff_per_game) }}</div>
+      </div>
+    </div>
+
+    <h2>Season Totals</h2>
+    <table>
+      <tr>
+        <th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th>
+        <th>BLK</th><th>TOV</th><th>PF</th>
+      </tr>
+      <tr>
+        <td>{{ "%.0f"|format(totals.minutes) }}</td>
+        <td class="highlight">{{ totals.points }}</td>
+        <td>{{ totals.reb }}</td>
+        <td>{{ totals.ast }}</td>
+        <td>{{ totals.stl }}</td>
+        <td>{{ totals.blk }}</td>
+        <td>{{ totals.tov }}</td>
+        <td>{{ totals.pf }}</td>
+      </tr>
+    </table>
+
+    <h3>Shooting Totals</h3>
+    <table>
+      <tr>
+        <th>FGM-FGA</th><th>FG%</th><th>2PM-2PA</th><th>2P%</th>
+        <th>3PM-3PA</th><th>3P%</th><th>FTM-FTA</th><th>FT%</th>
+      </tr>
+      <tr>
+        <td>{{ totals.fgm }}-{{ totals.fga }}</td>
+        <td>{{ "%.1f"|format(shooting.fg_pct) }}</td>
+        <td>{{ shooting.two_pt_made }}-{{ shooting.two_pt_att }}</td>
+        <td>{{ "%.1f"|format(shooting.two_pt_pct) }}</td>
+        <td>{{ totals.tpm }}-{{ totals.tpa }}</td>
+        <td>{{ "%.1f"|format(shooting.tp_pct) }}</td>
+        <td>{{ totals.ftm }}-{{ totals.fta }}</td>
+        <td>{{ "%.1f"|format(shooting.ft_pct) }}</td>
+      </tr>
+    </table>
+
+    <h3>Rebounding Breakdown</h3>
+    <table>
+      <tr>
+        <th>Total REB</th><th>OREB</th><th>DREB</th><th>OREB%</th><th>DREB%</th>
+      </tr>
+      <tr>
+        <td>{{ totals.reb }}</td>
+        <td>{{ totals.oreb }}</td>
+        <td>{{ totals.dreb }}</td>
+        <td>{{ "%.1f"|format(advanced.oreb_pct) }}</td>
+        <td>{{ "%.1f"|format(advanced.dreb_pct) }}</td>
+      </tr>
+    </table>
+  </div>
+  
+  <div class="page-break"></div>
+
+  <!-- PAGE 2: PER-GAME & PER-100 STATS -->
+  <div class="page">
+    <h1>{{ player_name }} - Per-Game Statistics</h1>
+
+    <h2>Per Game Averages</h2>
+    <table>
+      <tr>
+        <th>MPG</th><th>PPG</th><th>RPG</th><th>APG</th><th>SPG</th>
+        <th>BPG</th><th>TOPG</th><th>PFPG</th>
+      </tr>
+      <tr>
+        <td>{{ "%.1f"|format(per_game.mpg) }}</td>
+        <td class="highlight">{{ "%.1f"|format(per_game.ppg) }}</td>
+        <td>{{ "%.1f"|format(per_game.rpg) }}</td>
+        <td>{{ "%.1f"|format(per_game.apg) }}</td>
+        <td>{{ "%.1f"|format(per_game.spg) }}</td>
+        <td>{{ "%.1f"|format(per_game.bpg) }}</td>
+        <td>{{ "%.1f"|format(per_game.topg) }}</td>
+        <td>{{ "%.1f"|format(per_game.pfpg) }}</td>
+      </tr>
+    </table>
+
+    {% if per_100 %}
+    <h2>Per 100 Minutes (Pace-Adjusted)</h2>
+    <table>
+      <tr>
+        <th>PTS</th><th>REB</th><th>AST</th><th>STL</th>
+        <th>BLK</th><th>TOV</th><th>PF</th>
+      </tr>
+      <tr>
+        <td>{{ "%.1f"|format(per_100.pts) }}</td>
+        <td>{{ "%.1f"|format(per_100.reb) }}</td>
+        <td>{{ "%.1f"|format(per_100.ast) }}</td>
+        <td>{{ "%.1f"|format(per_100.stl) }}</td>
+        <td>{{ "%.1f"|format(per_100.blk) }}</td>
+        <td>{{ "%.1f"|format(per_100.tov) }}</td>
+        <td>{{ "%.1f"|format(per_100.pf) }}</td>
+      </tr>
+    </table>
+    <p class="note">* Normalized to 100 minutes of play for comparison purposes</p>
+    {% endif %}
+
+    <h2>Statistical Ratios</h2>
+    <div class="section-box">
+      <table>
+        <tr>
+          <th>Metric</th><th>Value</th><th>Description</th>
+        </tr>
+        <tr>
+          <td>AST/TOV Ratio</td>
+          <td class="highlight">{{ "%.2f"|format(advanced.ast_tov_ratio) }}</td>
+          <td>Assists per turnover (higher is better)</td>
+        </tr>
+        <tr>
+          <td>Usage %</td>
+          <td>{{ "%.1f"|format(advanced.usg_pct) }}</td>
+          <td>Avg possessions used per game</td>
+        </tr>
+        <tr>
+          <td>OREB %</td>
+          <td>{{ "%.1f"|format(advanced.oreb_pct) }}</td>
+          <td>Offensive rebound rate</td>
+        </tr>
+        <tr>
+          <td>DREB %</td>
+          <td>{{ "%.1f"|format(advanced.dreb_pct) }}</td>
+          <td>Defensive rebound rate</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+  
+  <div class="page-break"></div>
+
+  <!-- PAGE 3: SHOOTING BREAKDOWN -->
+  <div class="page">
+    <h1>{{ player_name }} - Shooting Analysis</h1>
+
+    <h2>Shooting Percentages</h2>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Field Goal %</div>
+        <div class="stat-value">{{ "%.1f"|format(shooting.fg_pct) }}%</div>
+        <div class="note">{{ totals.fgm }}/{{ totals.fga }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">2-Point %</div>
+        <div class="stat-value">{{ "%.1f"|format(shooting.two_pt_pct) }}%</div>
+        <div class="note">{{ shooting.two_pt_made }}/{{ shooting.two_pt_att }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">3-Point %</div>
+        <div class="stat-value">{{ "%.1f"|format(shooting.tp_pct) }}%</div>
+        <div class="note">{{ totals.tpm }}/{{ totals.tpa }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Free Throw %</div>
+        <div class="stat-value">{{ "%.1f"|format(shooting.ft_pct) }}%</div>
+        <div class="note">{{ totals.ftm }}/{{ totals.fta }}</div>
+      </div>
+    </div>
+
+    <h2>Advanced Shooting Metrics</h2>
+    <table>
+      <tr>
+        <th>Metric</th><th>Value</th><th>League Avg</th><th>Description</th>
+      </tr>
+      <tr>
+        <td>True Shooting %</td>
+        <td class="highlight">{{ "%.1f"|format(shooting.ts_pct) }}%</td>
+        <td>~55%</td>
+        <td>Shooting efficiency accounting for FTs and 3PTs</td>
+      </tr>
+      <tr>
+        <td>Effective FG %</td>
+        <td class="highlight">{{ "%.1f"|format(shooting.efg_pct) }}%</td>
+        <td>~52%</td>
+        <td>FG% adjusted for 3PT value</td>
+      </tr>
+    </table>
+
+    <h2>Shot Distribution</h2>
+    <table>
+      <tr>
+        <th>Shot Type</th><th>Makes</th><th>Attempts</th><th>%</th><th>Per Game</th>
+      </tr>
+      <tr>
+        <td>2-Point</td>
+        <td>{{ shooting.two_pt_made }}</td>
+        <td>{{ shooting.two_pt_att }}</td>
+        <td>{{ "%.1f"|format(shooting.two_pt_pct) }}%</td>
+        <td>{{ "%.1f"|format(shooting.two_pt_att / games_played) }}</td>
+      </tr>
+      <tr>
+        <td>3-Point</td>
+        <td>{{ totals.tpm }}</td>
+        <td>{{ totals.tpa }}</td>
+        <td>{{ "%.1f"|format(shooting.tp_pct) }}%</td>
+        <td>{{ "%.1f"|format(totals.tpa / games_played) }}</td>
+      </tr>
+      <tr>
+        <td>Free Throw</td>
+        <td>{{ totals.ftm }}</td>
+        <td>{{ totals.fta }}</td>
+        <td>{{ "%.1f"|format(shooting.ft_pct) }}%</td>
+        <td>{{ "%.1f"|format(totals.fta / games_played) }}</td>
+      </tr>
+    </table>
+  </div>
+  
+  <div class="page-break"></div>
+
+  <!-- PAGE 4: ADVANCED METRICS -->
+  <div class="page">
+    <h1>{{ player_name }} - Advanced Metrics</h1>
+
+    <h2>Offensive Metrics</h2>
+    <div class="section-box">
+      <table>
+        <tr>
+          <th>Metric</th><th>Value</th><th>Elite</th><th>Meaning</th>
+        </tr>
+        <tr>
+          <td>Offensive Rating (ORTG)</td>
+          <td class="highlight">{{ "%.1f"|format(advanced.ortg) }}</td>
+          <td>&gt;110</td>
+          <td>Points per 100 possessions</td>
+        </tr>
+        <tr>
+          <td>Points Per Possession (PPP)</td>
+          <td class="highlight">{{ "%.3f"|format(advanced.ppp) }}</td>
+          <td>&gt;1.10</td>
+          <td>Scoring efficiency per possession</td>
+        </tr>
+        <tr>
+          <td>Efficiency (EFF)</td>
+          <td class="highlight">{{ "%.1f"|format(advanced.eff_per_game) }}</td>
+          <td>&gt;15</td>
+          <td>Overall production metric</td>
+        </tr>
+        <tr>
+          <td>Total Efficiency</td>
+          <td>{{ "%.1f"|format(advanced.eff_total) }}</td>
+          <td>-</td>
+          <td>Season cumulative efficiency</td>
+        </tr>
+      </table>
+    </div>
+
+    <h2>Performance Benchmarks</h2>
+    <div class="section-box">
+      <h3>Scoring Efficiency</h3>
+      <p>
+        {% if shooting.ts_pct >= 60 %}
+          ✅ <strong>Elite</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is outstanding
+        {% elif shooting.ts_pct >= 55 %}
+          ✅ <strong>Above Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is solid
+        {% elif shooting.ts_pct >= 50 %}
+          ⚠️ <strong>Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is league average
+        {% else %}
+          ❌ <strong>Below Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% needs improvement
+        {% endif %}
+      </p>
+
+      <h3>Playmaking</h3>
+      <p>
+        {% if advanced.ast_tov_ratio >= 2.0 %}
+          ✅ <strong>Excellent</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} shows great decision making
+        {% elif advanced.ast_tov_ratio >= 1.5 %}
+          ✅ <strong>Good</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} is solid
+        {% elif advanced.ast_tov_ratio >= 1.0 %}
+          ⚠️ <strong>Average</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} is adequate
+        {% else %}
+          ❌ <strong>Needs Work</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} indicates turnover issues
+        {% endif %}
+      </p>
+
+      <h3>Offensive Impact</h3>
+      <p>
+        {% if advanced.ortg >= 120 %}
+          ✅ <strong>Elite Scorer</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is exceptional
+        {% elif advanced.ortg >= 110 %}
+          ✅ <strong>Above Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is very good
+        {% elif advanced.ortg >= 100 %}
+          ⚠️ <strong>Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is league average
+        {% else %}
+          ❌ <strong>Below Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} needs improvement
+        {% endif %}
+      </p>
+    </div>
+  </div>
+  
+  <div class="page-break"></div>
+
+  <!-- PAGE 5: PERFORMANCE CHARTS - CORE STATS -->
+  <div class="page">
+    <h1>{{ player_name }} - Performance Trends</h1>
+
+    <h2>Core Statistics Progression</h2>
+    {% if chart_core_stats %}
+    <div class="chart-container">
+      <img src="data:image/png;base64,{{ chart_core_stats }}" alt="Core Stats Chart">
+    </div>
+    <p class="note">Solid lines show game-by-game stats. Dashed lines represent 3-game moving averages to smooth out variance.</p>
+    {% else %}
+    <p>Chart data not available.</p>
+    {% endif %}
+
+    <h2>Key Observations</h2>
+    <div class="section-box">
+      <p><strong>Consistency:</strong> The 3-game moving average helps identify performance trends and consistency over the season.</p>
+      <p><strong>Peak Performance:</strong> Look for games where multiple stats spike simultaneously.</p>
+      <p><strong>Growth Trend:</strong> Rising moving averages indicate improving form.</p>
+    </div>
+  </div>
+  
+  <div class="page-break"></div>
+
+  <!-- PAGE 6: PERFORMANCE CHARTS - ADVANCED METRICS -->
+  <div class="page">
+    <h1>{{ player_name }} - Advanced Metrics Trends</h1>
+
+    <h2>Efficiency & Rating Progression</h2>
+    {% if chart_advanced %}
+    <div class="chart-container">
+      <img src="data:image/png;base64,{{ chart_advanced }}" alt="Advanced Metrics Chart">
+    </div>
+    <p class="note">
+      Charts display Efficiency and ORTG on the left axis, True Shooting % on the right axis. 
+      Dashed lines show 3-game moving averages for trend analysis.
+    </p>
+    {% else %}
+    <p>Chart data not available.</p>
+    {% endif %}
+
+    <h2>Metric Interpretation</h2>
+    <div class="section-box">
+      <ul style="margin: 8px 0; padding-left: 20px;">
+        <li><strong>Efficiency:</strong> Positive values indicate productive games. Higher is better.</li>
+        <li><strong>ORTG:</strong> Points produced per 100 possessions. Elite level is 115+.</li>
+        <li><strong>TS%:</strong> Best measure of shooting efficiency. 55%+ is above average.</li>
+        <li><strong>Moving Averages:</strong> Smooth out game-to-game noise to show true form.</li>
+      </ul>
+    </div>
+  </div>
+  
+  <div class="page-break"></div>
+
+  <!-- PAGE 7+: GAME-BY-GAME LOG -->
+  <div class="page">
+    <h1>{{ player_name }} - Game-by-Game Log</h1>
+
+    <table class="game-log-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Opponent</th>
+          <th>W/L</th>
+          <th>Score</th>
+          <th>MIN</th>
+          <th>PTS</th>
+          <th>REB</th>
+          <th>AST</th>
+          <th>STL</th>
+          <th>BLK</th>
+          <th>TOV</th>
+          <th>FG</th>
+          <th>FG%</th>
+          <th>3P</th>
+          <th>3P%</th>
+          <th>FT</th>
+          <th>FT%</th>
+          <th>EFF</th>
+          <th>ORTG</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for game in game_breakdown %}
+        <tr>
+          <td>{{ game.date }}</td>
+          <td>{{ game.opponent }}</td>
+          <td class="{% if game.result == 'W' %}win{% else %}loss{% endif %}">{{ game.result }}</td>
+          <td>{{ game.team_score }}-{{ game.opp_score }}</td>
+          <td>{{ game.minutes }}</td>
+          <td class="{% if game.points >= 20 %}highlight{% endif %}">{{ game.points }}</td>
+          <td>{{ game.reb }}</td>
+          <td>{{ game.ast }}</td>
+          <td>{{ game.stl }}</td>
+          <td>{{ game.blk }}</td>
+          <td>{{ game.tov }}</td>
+          <td>{{ game.fg }}</td>
+          <td>{{ "%.0f"|format(game.fg_pct) }}</td>
+          <td>{{ game.tp }}</td>
+          <td>{{ "%.0f"|format(game.tp_pct) }}</td>
+          <td>{{ game.ft }}</td>
+          <td>{{ "%.0f"|format(game.ft_pct) }}</td>
+          <td>{{ "%.0f"|format(game.eff) }}</td>
+          <td>{{ "%.0f"|format(game.ortg) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p class="note" style="margin-top: 10px;">
+      * Games with 20+ points are highlighted. W/L shows individual game result.
+    </p>
+  </div>
+
+</body>
+</html>
