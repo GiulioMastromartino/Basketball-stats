@@ -10,6 +10,7 @@ import os
 import atexit
 import shutil
 from datetime import datetime
+from collections import defaultdict
 
 import matplotlib.pyplot as plt
 from flask import Blueprint, jsonify, render_template, request, send_file, after_this_request
@@ -699,7 +700,7 @@ def role_analysis():
 @login_required
 def team_report_pdf():
     """
-    Generate team-level PDF report with aggregate statistics
+    Generate enhanced team-level PDF report
     """
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
@@ -716,13 +717,15 @@ def team_report_pdf():
     if not games:
         return jsonify({"error": "No games for selected filter"}), 404
 
-    # Calculate team statistics
-    team_data = _calculate_team_metrics(games)
+    game_ids = [g.id for g in games]
+
+    # Calculate enhanced team statistics
+    team_data = _calculate_enhanced_team_metrics(games, game_ids)
 
     # Get current date
     generated_date = datetime.now().strftime("%B %d, %Y")
 
-    # Render HTML (you'll need to create team_report_pdf.html template)
+    # Render HTML
     html = render_template(
         "team_report_pdf.html",
         game_type=game_type,
@@ -927,9 +930,9 @@ def download_all_reports():
     )
 
 
-def _calculate_team_metrics(games):
+def _calculate_enhanced_team_metrics(games, game_ids):
     """
-    Calculate comprehensive team-level metrics from games
+    Calculate comprehensive team-level metrics with charts and analysis
     """
     total_games = len(games)
     wins = sum(1 for g in games if g.result == "W")
@@ -941,6 +944,18 @@ def _calculate_team_metrics(games):
     ppg = total_team_score / total_games if total_games > 0 else 0
     opp_ppg = total_opp_score / total_games if total_games > 0 else 0
     
+    # Generate scoring trend chart
+    chart_trend = _generate_team_scoring_chart(games)
+    
+    # Get top contributors
+    top_contributors = _get_top_contributors(game_ids)
+    
+    # Opponent analysis
+    opponent_stats = _analyze_opponents(games)
+    
+    # Home/Away splits
+    home_away_splits = _calculate_home_away_splits(games)
+    
     return {
         "total_games": total_games,
         "wins": wins,
@@ -949,6 +964,193 @@ def _calculate_team_metrics(games):
         "ppg": round(ppg, 1),
         "opp_ppg": round(opp_ppg, 1),
         "games": games,
+        "chart_trend": chart_trend,
+        "top_contributors": top_contributors,
+        "opponent_stats": opponent_stats,
+        "home_away_splits": home_away_splits,
+    }
+
+
+def _generate_team_scoring_chart(games):
+    """Generate team scoring trend chart"""
+    if not games:
+        return ""
+    
+    dates = [g.date for g in games]
+    team_scores = [g.team_score for g in games]
+    opp_scores = [g.opponent_score for g in games]
+    
+    fig, ax = plt.subplots(figsize=(10, 5))
+    
+    # Plot lines
+    ax.plot(range(len(dates)), team_scores, marker='o', label='Team Score', 
+            color='#28a745', linewidth=2)
+    ax.plot(range(len(dates)), opp_scores, marker='s', label='Opponent Score', 
+            color='#dc3545', linewidth=2, linestyle='--')
+    
+    # Add horizontal average lines
+    avg_team = sum(team_scores) / len(team_scores)
+    avg_opp = sum(opp_scores) / len(opp_scores)
+    ax.axhline(y=avg_team, color='#28a745', linestyle=':', alpha=0.5, label=f'Avg Team: {avg_team:.1f}')
+    ax.axhline(y=avg_opp, color='#dc3545', linestyle=':', alpha=0.5, label=f'Avg Opp: {avg_opp:.1f}')
+    
+    ax.set_xlabel('Game Number', fontsize=10)
+    ax.set_ylabel('Points', fontsize=10)
+    ax.set_title('Team Scoring Trends', fontsize=12, fontweight='bold')
+    ax.legend(fontsize=8, loc='best')
+    ax.grid(True, alpha=0.3)
+    
+    # Set x-axis
+    ax.set_xticks(range(0, len(dates), max(1, len(dates) // 10)))
+    ax.set_xticklabels(range(1, len(dates) + 1, max(1, len(dates) // 10)))
+    
+    plt.tight_layout()
+    
+    # Convert to base64
+    img_io = BytesIO()
+    plt.savefig(img_io, format='png', dpi=100, bbox_inches='tight')
+    img_io.seek(0)
+    img_base64 = base64.b64encode(img_io.read()).decode()
+    plt.close(fig)
+    
+    return img_base64
+
+
+def _get_top_contributors(game_ids):
+    """Get top 5 players by various metrics"""
+    # Points leaders
+    points_leaders = (
+        db.session.query(
+            PlayerStat.player_name,
+            func.sum(PlayerStat.points).label('total_points'),
+            func.avg(PlayerStat.points).label('ppg'),
+            func.count(PlayerStat.id).label('games')
+        )
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .group_by(PlayerStat.player_name)
+        .order_by(desc('total_points'))
+        .limit(5)
+        .all()
+    )
+    
+    # Rebounds leaders
+    reb_leaders = (
+        db.session.query(
+            PlayerStat.player_name,
+            func.sum(PlayerStat.reb).label('total_reb'),
+            func.avg(PlayerStat.reb).label('rpg'),
+        )
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .group_by(PlayerStat.player_name)
+        .order_by(desc('total_reb'))
+        .limit(5)
+        .all()
+    )
+    
+    # Assists leaders
+    ast_leaders = (
+        db.session.query(
+            PlayerStat.player_name,
+            func.sum(PlayerStat.ast).label('total_ast'),
+            func.avg(PlayerStat.ast).label('apg'),
+        )
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .group_by(PlayerStat.player_name)
+        .order_by(desc('total_ast'))
+        .limit(5)
+        .all()
+    )
+    
+    return {
+        'points': [{
+            'player': p[0],
+            'total': p[1],
+            'avg': round(p[2], 1),
+            'games': p[3]
+        } for p in points_leaders],
+        'rebounds': [{
+            'player': r[0],
+            'total': r[1],
+            'avg': round(r[2], 1)
+        } for r in reb_leaders],
+        'assists': [{
+            'player': a[0],
+            'total': a[1],
+            'avg': round(a[2], 1)
+        } for a in ast_leaders],
+    }
+
+
+def _analyze_opponents(games):
+    """Analyze performance against different opponents"""
+    opponent_stats = defaultdict(lambda: {'games': 0, 'wins': 0, 'pts_for': 0, 'pts_against': 0})
+    
+    for game in games:
+        opp = game.opponent
+        opponent_stats[opp]['games'] += 1
+        if game.result == 'W':
+            opponent_stats[opp]['wins'] += 1
+        opponent_stats[opp]['pts_for'] += game.team_score
+        opponent_stats[opp]['pts_against'] += game.opponent_score
+    
+    # Calculate averages and format
+    results = []
+    for opp, stats in opponent_stats.items():
+        results.append({
+            'opponent': opp,
+            'record': f"{stats['wins']}-{stats['games'] - stats['wins']}",
+            'win_pct': round((stats['wins'] / stats['games'] * 100) if stats['games'] > 0 else 0, 1),
+            'ppg': round(stats['pts_for'] / stats['games'], 1),
+            'opp_ppg': round(stats['pts_against'] / stats['games'], 1),
+            'games': stats['games']
+        })
+    
+    # Sort by games played, then win percentage
+    results.sort(key=lambda x: (x['games'], x['win_pct']), reverse=True)
+    
+    return results
+
+
+def _calculate_home_away_splits(games):
+    """Calculate home vs away performance splits"""
+    home_stats = {'games': 0, 'wins': 0, 'pts': 0, 'opp_pts': 0}
+    away_stats = {'games': 0, 'wins': 0, 'pts': 0, 'opp_pts': 0}
+    neutral_stats = {'games': 0, 'wins': 0, 'pts': 0, 'opp_pts': 0}
+    
+    for game in games:
+        location = game.location.upper()
+        
+        if location == 'HOME':
+            stats = home_stats
+        elif location == 'AWAY':
+            stats = away_stats
+        else:
+            stats = neutral_stats
+        
+        stats['games'] += 1
+        if game.result == 'W':
+            stats['wins'] += 1
+        stats['pts'] += game.team_score
+        stats['opp_pts'] += game.opponent_score
+    
+    def format_stats(stats):
+        if stats['games'] == 0:
+            return None
+        return {
+            'record': f"{stats['wins']}-{stats['games'] - stats['wins']}",
+            'win_pct': round((stats['wins'] / stats['games'] * 100), 1),
+            'ppg': round(stats['pts'] / stats['games'], 1),
+            'opp_ppg': round(stats['opp_pts'] / stats['games'], 1),
+            'diff': round((stats['pts'] - stats['opp_pts']) / stats['games'], 1)
+        }
+    
+    return {
+        'home': format_stats(home_stats),
+        'away': format_stats(away_stats),
+        'neutral': format_stats(neutral_stats)
     }
 
 
