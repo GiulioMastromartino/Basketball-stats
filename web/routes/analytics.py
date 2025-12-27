@@ -799,6 +799,9 @@ def player_report_pdf(player_name):
     # Calculate all metrics
     report_data = _calculate_player_metrics(stats, game_map, games_played=len(stats))
 
+    # Calculate team averages
+    team_avg = _calculate_team_averages(game_ids)
+
     # Generate charts
     charts = _generate_player_charts(stats, game_map, player_name)
 
@@ -811,6 +814,7 @@ def player_report_pdf(player_name):
         player_name=player_name,
         game_type=game_type,
         generated_date=generated_date,
+        team_avg=team_avg,
         **report_data,
         **charts,
     )
@@ -869,6 +873,9 @@ def download_all_reports():
     game_ids = [g.id for g in games]
     game_map = {g.id: g for g in games}
 
+    # Calculate team averages once
+    team_avg = _calculate_team_averages(game_ids)
+
     # Get current date
     generated_date = datetime.now().strftime("%B %d, %Y")
 
@@ -907,6 +914,7 @@ def download_all_reports():
                     player_name=player_name,
                     game_type=game_type,
                     generated_date=generated_date,
+                    team_avg=team_avg,
                     **report_data,
                     **charts,
                 )
@@ -932,6 +940,89 @@ def download_all_reports():
     except Exception as e:
         # If anything fails, return error
         return jsonify({"error": f"Failed to generate reports: {str(e)}"}), 500
+
+
+def _calculate_team_averages(game_ids):
+    """
+    Calculate team-wide averages across all players for comparison
+    Returns averages for key metrics based on actual game data
+    """
+    # Get aggregate stats across all players
+    team_stats = (
+        db.session.query(
+            func.avg(PlayerStat.points).label('avg_ppg'),
+            func.avg(PlayerStat.reb).label('avg_rpg'),
+            func.avg(PlayerStat.ast).label('avg_apg'),
+            func.sum(PlayerStat.points).label('total_pts'),
+            func.sum(PlayerStat.fga).label('total_fga'),
+            func.sum(PlayerStat.fta).label('total_fta'),
+            func.sum(PlayerStat.fgm).label('total_fgm'),
+            func.sum(PlayerStat.tpm).label('total_tpm'),
+            func.sum(PlayerStat.ast).label('total_ast'),
+            func.sum(PlayerStat.tov).label('total_tov'),
+            func.sum(PlayerStat.fga).label('sum_fga'),
+            func.sum(PlayerStat.fta).label('sum_fta'),
+            func.sum(PlayerStat.oreb).label('sum_oreb'),
+            func.count(PlayerStat.id).label('player_games')
+        )
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .first()
+    )
+    
+    if not team_stats or not team_stats.player_games:
+        # Return default values if no data
+        return {
+            'ppg': 0,
+            'rpg': 0,
+            'apg': 0,
+            'ts_pct': 0,
+            'efg_pct': 0,
+            'ast_tov': 0,
+            'ortg': 0
+        }
+    
+    # Calculate team shooting percentages
+    ts_pct = calculate_ts_percent(
+        team_stats.total_pts,
+        team_stats.total_fga,
+        team_stats.total_fta
+    )
+    
+    efg_pct = calculate_efg_percent(
+        team_stats.total_fgm,
+        team_stats.total_tpm,
+        team_stats.total_fga
+    )
+    
+    # AST/TOV ratio
+    ast_tov = (team_stats.total_ast / team_stats.total_tov) if team_stats.total_tov > 0 else team_stats.total_ast
+    
+    # Calculate total possessions for ORTG
+    total_possessions = 0
+    all_stats = (
+        PlayerStat.query
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .all()
+    )
+    
+    for s in all_stats:
+        total_possessions += calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
+    
+    ortg = calculate_ortg(team_stats.total_pts, total_possessions)
+    
+    return {
+        'ppg': round(team_stats.avg_ppg or 0, 1),
+        'rpg': round(team_stats.avg_rpg or 0, 1),
+        'apg': round(team_stats.avg_apg or 0, 1),
+        'ts_pct': round(ts_pct, 1),
+        'efg_pct': round(efg_pct, 1),
+        'ast_tov': round(ast_tov, 2),
+        'ortg': round(ortg, 1)
+    }
 
 
 def _calculate_enhanced_team_metrics(games, game_ids):
