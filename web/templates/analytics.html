@@ -28,10 +28,56 @@
                 <i class="fas fa-chart-pie" style="color: #4dabf7"></i>
                 Analytics Suite
             </h1>
-            <div style="display: flex; gap: 20px; align-items: center">
-                <a href="{{ url_for('main.index') }}"
-                    ><i class="fas fa-arrow-left"></i> Dashboard</a
+            <div style="display: flex; gap: 15px; align-items: center">
+                <!-- Team PDF Report Button -->
+                <button 
+                    onclick="window.location.href='/team/report.pdf?game_type=ALL'" 
+                    style="
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        transition: all 0.3s ease;
+                    "
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.15)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)'"
                 >
+                    <i class="fas fa-users"></i> Team Report
+                </button>
+                
+                <!-- Download All Button -->
+                <button 
+                    onclick="window.location.href='/reports/download-all?game_type=ALL'" 
+                    style="
+                        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        transition: all 0.3s ease;
+                    "
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.15)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)'"
+                >
+                    <i class="fas fa-download"></i> Download All
+                </button>
+                
+                <a href="{{ url_for('main.index') }}">
+                    <i class="fas fa-arrow-left"></i> Dashboard
+                </a>
             </div>
         </div>
 
