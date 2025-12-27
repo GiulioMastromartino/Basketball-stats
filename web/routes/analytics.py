@@ -8,16 +8,23 @@ from io import BytesIO
 import matplotlib.pyplot as plt
 from flask import Blueprint, jsonify, render_template, request, send_file
 from flask_login import login_required
+from sqlalchemy import desc, func
 from weasyprint import HTML
 
 from core.models import Game, PlayerStat, db
 from core.utils import (
     FT_ATTEMPT_WEIGHT,
     THREE_POINT_WEIGHT,
+    calculate_efficiency,
+    calculate_efg_percent,
     calculate_ortg,
+    calculate_per_100_minutes,
     calculate_possessions,
     calculate_ppp,
+    calculate_ts_percent,
+    calculate_two_point_stats,
     parse_minutes,
+    safe_percentage,
 )
 
 analytics_bp = Blueprint("analytics", __name__)
