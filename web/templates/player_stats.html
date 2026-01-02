@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="header mb-4">
+        <h1><i class="fas fa-user"></i> {{ player_name }} Stats</h1>
+        <div>
+            <a href="{{ url_for('main.players') }}" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i> Back to Roster
+            </a>
+            <a href="{{ url_for('analytics.player_report_pdf', player_name=player_name, game_type='ALL') }}" 
+               class="btn btn-primary"
+               target="_blank">
+                <i class="fas fa-file-pdf"></i> Download Report
+            </a>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Comprehensive Statistics</h3>
+        </div>
+
+        <div style="overflow-x: auto">
+            <table class="table table-hover" style="min-width: 1200px;">
+                <thead>
+                    <tr style="background: #f8f9fa;">
+                        <th>Metric</th>
+                        <th class="text-center">Value</th>
+                        <th>Metric</th>
+                        <th class="text-center">Value</th>
+                        <th>Metric</th>
+                        <th class="text-center">Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in stats %}
+                    <tr>
+                        <td><strong>Games Played</strong></td>
+                        <td class="text-center">{{ p.games_played }}</td>
+                        <td><strong>Minutes/Game</strong></td>
+                        <td class="text-center">{{ p.mpg|round(1) }}</td>
+                        <td><strong>Usage %</strong></td>
+                        <td class="text-center">{{ p.usg_pct|round(1) }}%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Points/Game</strong></td>
+                        <td class="text-center text-teal font-bold">{{ p.ppg|round(1) }}</td>
+                        <td><strong>Rebounds/Game</strong></td>
+                        <td class="text-center">{{ p.rpg|round(1) }}</td>
+                        <td><strong>Assists/Game</strong></td>
+                        <td class="text-center">{{ p.apg|round(1) }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Off Rating</strong></td>
+                        <td class="text-center text-success">{{ p.ortg|round(0) }}</td>
+                        <td><strong>Def Rebounds</strong></td>
+                        <td class="text-center">{{ p.drebpg|round(1) }}</td>
+                        <td><strong>AST/TOV</strong></td>
+                        <td class="text-center">{{ p.ast_tov|round(2) }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>FG %</strong></td>
+                        <td class="text-center">{{ (p.fg_pct * 100)|int }}%</td>
+                        <td><strong>3P %</strong></td>
+                        <td class="text-center">{{ (p.tp_pct * 100)|int }}%</td>
+                        <td><strong>FT %</strong></td>
+                        <td class="text-center">{{ (p.ft_pct * 100)|int }}%</td>
+                    </tr>
+                     <tr>
+                        <td><strong>Steals</strong></td>
+                        <td class="text-center">{{ p.spg|round(1) }}</td>
+                        <td><strong>Blocks</strong></td>
+                        <td class="text-center">{{ p.bpg|round(1) }}</td>
+                        <td><strong>Turnovers</strong></td>
+                        <td class="text-center">{{ p.topg|round(1) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
