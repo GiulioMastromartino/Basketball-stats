@@ -1,90 +1,72 @@
-{% extends "layout.html" %}
-
-{% block title %}Dashboard - HoopsStats{% endblock %}
+{% extends "base.html" %}
 
 {% block content %}
-<div class="metrics-row">
-    <div class="metric-card">
-        <div class="icon"><i class="fas fa-basketball-ball"></i></div>
-        <div class="label">Total Games</div>
-        <div class="value">{{ stats.games }}</div>
+    <div class="header">
+        <h1><i class="fas fa-chart-line"></i> Dashboard Overview</h1>
+        <a href="{{ url_for('main.upload_game') }}" class="btn btn-accent">
+            <i class="fas fa-plus"></i> New Game
+        </a>
     </div>
-    <div class="metric-card">
-        <div class="icon"><i class="fas fa-users"></i></div>
-        <div class="label">Roster Size</div>
-        <div class="value">{{ stats.players }}</div>
-    </div>
-    <div class="metric-card">
-        <div class="icon"><i class="fas fa-trophy"></i></div>
-        <div class="label">Win Record</div>
-        <div class="value" style="color: {{ 'var(--success)' if stats.wins > stats.losses else 'var(--primary)' }}">
-            {{ stats.wins }} - {{ stats.losses }}
+
+    <!-- Key Metrics -->
+    <div class="metrics-row">
+        <div class="metric-card">
+            <div class="icon"><i class="fas fa-gamepad"></i></div>
+            <div class="label">Total Games</div>
+            <div class="value">{{ stats.games }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="icon"><i class="fas fa-users"></i></div>
+            <div class="label">Active Players</div>
+            <div class="value">{{ stats.players }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="icon"><i class="fas fa-trophy"></i></div>
+            <div class="label">Wins</div>
+            <div class="value text-success">{{ stats.wins }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="icon"><i class="fas fa-times-circle"></i></div>
+            <div class="label">Losses</div>
+            <div class="value text-danger">{{ stats.losses }}</div>
         </div>
     </div>
-    <div class="metric-card">
-        <div class="icon"><i class="fas fa-chart-line"></i></div>
-        <div class="label">Win Percentage</div>
-        <div class="value">
-            {% if stats.games > 0 %}
-                {{ (stats.wins / stats.games * 100)|round(1) }}%
-            {% else %}
-                0%
+
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Recent Games</h3>
+        </div>
+        
+        <div class="game-card-list">
+            {% for game in games %}
+            <a href="{{ url_for('main.game_detail', game_id=game.id) }}" class="game-card {% if game.result == 'W' %}win{% else %}loss{% endif %}">
+                <div style="display: flex; align-items: center;">
+                    <div class="game-result-badge {% if game.result == 'W' %}win{% else %}loss{% endif %}">
+                        {{ game.result }}
+                    </div>
+                    <div class="game-info" style="margin-left: 15px;">
+                        <h4>{{ game.opponent }}</h4>
+                        <span class="game-date"><i class="far fa-calendar-alt"></i> {{ game.date }}</span>
+                        {% if game.game_type %}
+                        <span class="badge" style="background: #eee; margin-left: 10px;">{{ game.game_type }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="game-score">
+                    <span class="{% if game.team_score > game.opponent_score %}text-success{% else %}text-danger{% endif %}">{{ game.team_score }}</span>
+                    <span style="color: #ccc; margin: 0 5px;">-</span>
+                    <span class="{% if game.opponent_score > game.team_score %}text-success{% else %}text-danger{% endif %}">{{ game.opponent_score }}</span>
+                </div>
+            </a>
+            {% endfor %}
+            
+            {% if not games %}
+            <div style="text-align: center; padding: 40px; color: #999;">
+                <i class="fas fa-basketball-ball" style="font-size: 3rem; margin-bottom: 20px; opacity: 0.3;"></i>
+                <p>No games recorded yet.</p>
+                <a href="{{ url_for('main.upload_game') }}" class="btn btn-outline btn-sm">Upload your first game</a>
+            </div>
             {% endif %}
         </div>
     </div>
-</div>
-
-<div class="card">
-    <div class="panel-header">
-        <h3><i class="fas fa-history" style="color: var(--primary)"></i> Recent Games</h3>
-        <button onclick="window.location.reload()" class="btn btn-sm btn-outline">
-            <i class="fas fa-sync"></i> Refresh
-        </button>
-    </div>
-
-    {% if games %}
-    <div class="game-card-list">
-        {% for game in games %}
-        <a href="{{ url_for('main.game_detail', game_id=game.id) }}" style="text-decoration: none;">
-            <div class="game-card {{ 'win' if game.result == 'W' else 'loss' }}">
-                <div class="game-info">
-                    <h4>{{ game.opponent }}</h4>
-                    <span class="game-date">{{ game.date }}</span>
-                </div>
-                
-                <div class="game-score">
-                    {{ game.score_display }}
-                </div>
-                
-                <div class="game-result-badge {{ 'win' if game.result == 'W' else 'loss' }}">
-                    {{ game.result }}
-                </div>
-            </div>
-        </a>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div style="text-align: center; padding: 60px; color: var(--text-muted);">
-        <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
-        <p>No games found. Import your CSV files to get started.</p>
-    </div>
-    {% endif %}
-</div>
-
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
-    <div class="card" style="text-align: center; padding: 40px;">
-        <h3 style="margin-bottom: 15px;">Add New Game</h3>
-        <p style="color: var(--text-muted); margin-bottom: 20px;">Upload a CSV file to add stats.</p>
-        <a href="{{ url_for('main.upload_game') }}" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Import Game
-        </a>
-    </div>
-    <div class="card" style="text-align: center; padding: 40px;">
-        <h3 style="margin-bottom: 15px;">Manage Roster</h3>
-        <p style="color: var(--text-muted); margin-bottom: 20px;">View and edit player profiles.</p>
-        <a href="{{ url_for('main.players') }}" class="btn btn-outline">
-            <i class="fas fa-users"></i> View Players
-        </a>
-    </div>
-</div>
 {% endblock %}
