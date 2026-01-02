@@ -7,7 +7,7 @@
     ----------------------------- */
     /* Restore standard card overflow behavior since we use fixed tooltips now */
     .players-table-card {
-        overflow: hidden; 
+        overflow: hidden;
     }
     .players-table-card .card-body {
         overflow: auto;
@@ -126,7 +126,7 @@
         color: white;
         text-decoration: none;
     }
-    
+
     .header-content {
         display: inline-flex;
         align-items: center;
@@ -152,7 +152,7 @@
         transition: opacity 0.15s ease;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
-    
+
     #global-tooltip.visible {
         opacity: 1;
     }
@@ -231,7 +231,7 @@
                         <th></th>
                         <th class="section-header section-off" colspan="9">OFFENSIVE</th>
                         <th class="section-header section-eff" colspan="5">EFFICIENCY</th>
-                        <th class="section-header section-sho" colspan="7">SHOOTING</th>
+                        <th class="section-header section-sho" colspan="6">SHOOTING</th>
                         <th class="section-header section-def" colspan="3">DEFENSE & OTHER</th>
                         <th class="section-header section-rpt">REPORT</th>
                     </tr>
@@ -259,9 +259,9 @@
                             ('games_played', 'GP', 'Games Played', ''),
                             ('mpg', 'MIN', 'Minutes Per Game', '')
                         ] %}
-                        <th class="text-center" 
-                            data-title="{{ col[1] }}" 
-                            data-desc="{{ col[2] }}" 
+                        <th class="text-center"
+                            data-title="{{ col[1] }}"
+                            data-desc="{{ col[2] }}"
                             {% if col[3] %}data-formula="{{ col[3] }}"{% endif %}>
                             <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
                                 <div class="header-content">
@@ -288,9 +288,9 @@
                             ('apg', 'AST', 'Assists per game.', ''),
                             ('ast_tov', 'A/TO', 'Assist-to-turnover ratio.', 'Formula: A/TO = AST / TOV')
                         ] %}
-                        <th class="text-center" 
-                            data-title="{{ col[1] }}" 
-                            data-desc="{{ col[2] }}" 
+                        <th class="text-center"
+                            data-title="{{ col[1] }}"
+                            data-desc="{{ col[2] }}"
                             {% if col[3] %}data-formula="{{ col[3] }}"{% endif %}>
                             <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
                                 <div class="header-content">
@@ -314,8 +314,8 @@
                             ('topg', 'TOV', 'Turnovers per game.', '')
                         ] %}
                         <th class="text-center {% if col[1] == 'EFF' %}bg-light{% endif %}"
-                            data-title="{{ col[1] }}" 
-                            data-desc="{{ col[2] }}" 
+                            data-title="{{ col[1] }}"
+                            data-desc="{{ col[2] }}"
                             {% if col[3] %}data-formula="{{ col[3] }}"{% endif %}>
                             <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
                                 <div class="header-content">
@@ -336,12 +336,11 @@
                             ('two_pt_pct', '2P%', 'Two-point field goal percentage.', 'Formula: 2P% = 2PM / 2PA × 100'),
                             ('tp_pct', '3P%', 'Three-point percentage.', 'Formula: 3P% = 3PM / 3PA × 100'),
                             ('ft_pct', 'FT%', 'Free throw percentage.', 'Formula: FT% = FTM / FTA × 100'),
-                            ('fta_pct', 'FTR', 'How often a player gets to the line.', 'Formula: FTR = FTA / FGA'),
-                            ('oreb_pct', 'OR%', 'Share of offensive rebounds.', 'Formula: OR% = OREB / Total REB × 100')
+                            ('fta_pct', 'FTA/FGA', 'How often a player gets to the line relative to shot attempts.', 'Formula: FTA/FGA = FTA / FGA')
                         ] %}
                         <th class="text-center"
-                            data-title="{{ col[1] }}" 
-                            data-desc="{{ col[2] }}" 
+                            data-title="{{ col[1] }}"
+                            data-desc="{{ col[2] }}"
                             {% if col[3] %}data-formula="{{ col[3] }}"{% endif %}>
                             <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
                                 <div class="header-content">
@@ -356,12 +355,10 @@
                         </th>
                         {% endfor %}
 
-                        <th class="text-center" 
-                            data-title="M/A" 
+                        <th class="text-center"
+                            data-title="M/A"
                             data-desc="Made / Attempted totals for FG.">
-                            <div class="header-content">
-                                M/A
-                            </div>
+                            <div class="header-content">M/A</div>
                         </th>
 
                         <!-- DEFENSE -->
@@ -371,8 +368,8 @@
                             ('pfpg', 'PF', 'Personal fouls per game.', '')
                         ] %}
                         <th class="text-center"
-                            data-title="{{ col[1] }}" 
-                            data-desc="{{ col[2] }}" 
+                            data-title="{{ col[1] }}"
+                            data-desc="{{ col[2] }}"
                             {% if col[3] %}data-formula="{{ col[3] }}"{% endif %}>
                             <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
                                 <div class="header-content">
@@ -425,8 +422,7 @@
                         <td class="text-center">{{ p.two_pt_pct|round(1) }}%</td>
                         <td class="text-center">{{ (p.tp_pct * 100)|int }}%</td>
                         <td class="text-center">{{ (p.ft_pct * 100)|int }}%</td>
-                        <td class="text-center">{{ p.fta_pct|round(1) }}%</td>
-                        <td class="text-center">{{ p.oreb_pct|round(1) }}%</td>
+                        <td class="text-center">{{ p.fta_pct|round(2) }}</td>
                         <td class="text-center text-muted" style="font-size: 0.75rem;">
                             <div>{{ p.fgm }}/{{ p.fga }}</div>
                         </td>
@@ -475,7 +471,6 @@
                 const desc = header.getAttribute('data-desc');
                 const formula = header.getAttribute('data-formula');
 
-                // Build HTML
                 let html = `<div class="tt-title">${title}</div><div class="tt-desc">${desc}</div>`;
                 if (formula) {
                     html += `<div class="tt-formula">${formula}</div>`;
@@ -500,7 +495,6 @@
             let left = e.clientX + offset;
             let top = e.clientY + offset;
 
-            // Boundary checks to prevent going off-screen
             const ttRect = tooltipEl.getBoundingClientRect();
             if (left + ttRect.width > window.innerWidth) {
                 left = e.clientX - ttRect.width - offset;
