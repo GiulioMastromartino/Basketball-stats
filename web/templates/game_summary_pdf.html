@@ -185,6 +185,11 @@
                     <td style="color: #718096;">45%</td>
                 </tr>
                 <tr>
+                    <td class="text-left">2P%</td>
+                    <td class="{{ 'stat-good' if team_aggregates.two_pt_pct >= 50 else 'stat-bad' }}">{{ team_aggregates.two_pt_pct|round(1) }}%</td>
+                    <td style="color: #718096;">50%</td>
+                </tr>
+                <tr>
                     <td class="text-left">3P%</td>
                     <td class="{{ 'stat-good' if team_aggregates.tp_pct >= 33 else 'stat-bad' }}">{{ team_aggregates.tp_pct|round(1) }}%</td>
                     <td style="color: #718096;">33%</td>
