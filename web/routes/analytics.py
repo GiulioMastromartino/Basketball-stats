@@ -1010,6 +1010,22 @@ def _calculate_game_stats(stats):
         s.ast_tov_ratio = (s.ast / s.tov) if s.tov > 0 else s.ast
         s.usg_pct = (poss / (parse_minutes(s.minutes) / 40)) if parse_minutes(s.minutes) > 0 else 0
         
+        # Game Score (GmSc) - Hollinger Formula
+        # GmSc = PTS + 0.4 * FGM - 0.7 * FGA - 0.4 * (FTA - FTM) + 0.7 * ORB + 0.3 * DRB + STL + 0.7 * AST + 0.7 * BLK - 0.4 * PF - TOV
+        s.game_score = (
+            s.points + 
+            0.4 * s.fgm - 
+            0.7 * s.fga - 
+            0.4 * (s.fta - s.ftm) + 
+            0.7 * s.oreb + 
+            0.3 * s.dreb + 
+            s.stl + 
+            0.7 * s.ast + 
+            0.7 * s.blk - 
+            0.4 * s.pf - 
+            s.tov
+        )
+        
         # 2PT breakdown
         two_pt = calculate_two_point_stats(s.fgm, s.fga, s.tpm, s.tpa)
         s.two_pt_made = two_pt["two_pt_made"]
@@ -1050,10 +1066,15 @@ def _get_team_aggregates(stats):
     total_fta = sum(s.fta for s in stats)
     total_pts = sum(s.points for s in stats)
     
+    # 2PT Calculations
+    total_2pm = total_fgm - total_tpm
+    total_2pa = total_fga - total_tpa
+    
     return {
         'fg_pct': (total_fgm / total_fga * 100) if total_fga > 0 else 0,
         'tp_pct': (total_tpm / total_tpa * 100) if total_tpa > 0 else 0,
         'ft_pct': (total_ftm / total_fta * 100) if total_fta > 0 else 0,
+        'two_pt_pct': (total_2pm / total_2pa * 100) if total_2pa > 0 else 0,
         'ts_pct': calculate_ts_percent(total_pts, total_fga, total_fta),
     }
 
