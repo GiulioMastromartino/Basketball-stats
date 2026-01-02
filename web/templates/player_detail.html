@@ -77,19 +77,23 @@
 
     .stat-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-        gap: 15px;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 18px;
         margin-top: 20px;
     }
 
     .stat-card {
         background: white;
-        padding: 15px;
+        padding: 20px 16px;
         border-radius: 10px;
         text-align: center;
         border: 1px solid #e0e0e0;
         transition: all 0.3s ease;
         position: relative;
+        min-height: 85px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
 
     .stat-card:hover {
@@ -98,16 +102,18 @@
     }
 
     .stat-card-value {
-        font-size: 24px;
+        font-size: 26px;
         font-weight: 700;
         color: #333;
-        margin-bottom: 2px;
+        margin-bottom: 4px;
+        line-height: 1.2;
     }
 
     .stat-card-subvalue {
         font-size: 11px;
         color: #999;
-        margin-bottom: 4px;
+        margin-bottom: 6px;
+        line-height: 1.3;
     }
 
     .stat-card-label {
@@ -116,6 +122,7 @@
         text-transform: uppercase;
         letter-spacing: 0.5px;
         font-weight: 600;
+        line-height: 1.2;
     }
 
     .section-title {
@@ -215,6 +222,50 @@
     .stat-card:hover .stat-tooltip-icon {
         color: #a0aec0;
     }
+
+    /* Per 40 section styling */
+    .per40-section {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .per40-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: #718096;
+        margin-bottom: 10px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+
+    .per40-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        text-align: center;
+    }
+
+    .per40-item {
+        background: #f7fafc;
+        padding: 10px 8px;
+        border-radius: 6px;
+    }
+
+    .per40-value {
+        font-weight: 700;
+        font-size: 18px;
+        color: #2d3748;
+        line-height: 1.2;
+    }
+
+    .per40-label {
+        font-size: 10px;
+        color: #718096;
+        margin-top: 2px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
 </style>
 
 <!-- Loading overlay -->
@@ -287,40 +338,40 @@
                 <div class="col-md-6">
                     <div class="chart-container h-100">
                         <h6 style="color: #4a5568; font-weight: 700; text-transform: uppercase; font-size: 12px; margin-bottom: 15px;">Scoring & Efficiency</h6>
-                        <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 0;">
-                            <div class="stat-card" style="padding: 10px;">
+                        <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 0;">
+                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
                                 <div class="stat-card-value">{{ averages.ppp|round(2) }}</div>
                                 <div class="stat-card-label">PPP (Pts/Poss)</div>
                             </div>
-                            <div class="stat-card" style="padding: 10px;">
+                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
                                 <div class="stat-card-value">{{ averages.usg_pct|round(1) }}%</div>
                                 <div class="stat-card-label">Usage Rate</div>
                             </div>
-                            <div class="stat-card" style="padding: 10px;">
+                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
                                 <div class="stat-card-value">{{ averages.efg_pct|round(1) }}%</div>
                                 <div class="stat-card-label">eFG%</div>
                             </div>
-                            <div class="stat-card" style="padding: 10px;">
-                                <div class="stat-card-value">{{ averages.consistency|round(2) }}</div>
+                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
+                                <div class="stat-card-value">{{ (averages.consistency * 100)|round(1) }}%</div>
                                 <div class="stat-card-label">CV (Consistency)</div>
                             </div>
                         </div>
                         
-                        <!-- Per 36 Estimate (Additional Stat) -->
-                        <div class="mt-3 pt-3 border-top">
-                            <h6 style="font-size: 11px; text-transform: uppercase; color: #718096; margin-bottom: 8px;">Per 36 Minutes Estimate</h6>
-                            <div class="d-flex justify-content-between text-center">
-                                <div>
-                                    <div style="font-weight: 700;">{{ (averages.ppg * (36 / averages.mpg))|round(1) }}</div>
-                                    <div style="font-size: 10px; color: #718096;">PTS36</div>
+                        <!-- Per 40 Estimate -->
+                        <div class="per40-section">
+                            <h6 class="per40-title">Per 40 Minutes Estimate</h6>
+                            <div class="per40-grid">
+                                <div class="per40-item">
+                                    <div class="per40-value">{{ (averages.ppg * (40 / averages.mpg))|round(1) }}</div>
+                                    <div class="per40-label">PTS</div>
                                 </div>
-                                <div>
-                                    <div style="font-weight: 700;">{{ (averages.rpg * (36 / averages.mpg))|round(1) }}</div>
-                                    <div style="font-size: 10px; color: #718096;">REB36</div>
+                                <div class="per40-item">
+                                    <div class="per40-value">{{ (averages.rpg * (40 / averages.mpg))|round(1) }}</div>
+                                    <div class="per40-label">REB</div>
                                 </div>
-                                <div>
-                                    <div style="font-weight: 700;">{{ (averages.apg * (36 / averages.mpg))|round(1) }}</div>
-                                    <div style="font-size: 10px; color: #718096;">AST36</div>
+                                <div class="per40-item">
+                                    <div class="per40-value">{{ (averages.apg * (40 / averages.mpg))|round(1) }}</div>
+                                    <div class="per40-label">AST</div>
                                 </div>
                             </div>
                         </div>
@@ -331,20 +382,20 @@
                 <div class="col-md-6">
                     <div class="chart-container h-100">
                         <h6 style="color: #4a5568; font-weight: 700; text-transform: uppercase; font-size: 12px; margin-bottom: 15px;">Handling & Shooting Splits</h6>
-                         <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 0;">
-                            <div class="stat-card" style="padding: 10px;">
+                         <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 0;">
+                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
                                 <div class="stat-card-value">{{ averages.ast_tov|round(2) }}</div>
                                 <div class="stat-card-label">AST / TOV</div>
                             </div>
-                            <div class="stat-card" style="padding: 10px;">
+                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
                                 <div class="stat-card-value">{{ averages.fta_pct|round(1) }}%</div>
                                 <div class="stat-card-label">Free Throw Rate</div>
                             </div>
-                            <div class="stat-card" style="padding: 10px;">
+                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
                                 <div class="stat-card-value">{{ averages.two_pt_pct|round(1) }}%</div>
                                 <div class="stat-card-label">2PT FG%</div>
                             </div>
-                             <div class="stat-card" style="padding: 10px;">
+                             <div class="stat-card" style="padding: 12px; min-height: 75px;">
                                 <div class="stat-card-value">{{ averages.oreb_pct|round(1) }}%</div>
                                 <div class="stat-card-label">Off. Reb %</div>
                             </div>
@@ -384,22 +435,22 @@
                 <i class="fas fa-trophy" style="color: #fbbf24;"></i>
                 Career Bests
             </div>
-            <div class="stat-grid" style="grid-template-columns: 1fr; gap: 10px;">
-                <div class="stat-card d-flex align-items-center justify-content-between px-4">
+            <div class="stat-grid" style="grid-template-columns: 1fr; gap: 12px;">
+                <div class="stat-card d-flex align-items-center justify-content-between px-4" style="min-height: 70px;">
                     <div class="text-start">
                         <div class="stat-card-label">Points</div>
                         <div class="stat-card-value">{{ career_highs.points }}</div>
                     </div>
                     <i class="fas fa-basketball-ball text-muted opacity-25 fa-2x"></i>
                 </div>
-                <div class="stat-card d-flex align-items-center justify-content-between px-4">
+                <div class="stat-card d-flex align-items-center justify-content-between px-4" style="min-height: 70px;">
                     <div class="text-start">
                         <div class="stat-card-label">Rebounds</div>
                         <div class="stat-card-value">{{ career_highs.reb }}</div>
                     </div>
                     <i class="fas fa-hand-holding text-muted opacity-25 fa-2x"></i>
                 </div>
-                <div class="stat-card d-flex align-items-center justify-content-between px-4">
+                <div class="stat-card d-flex align-items-center justify-content-between px-4" style="min-height: 70px;">
                     <div class="text-start">
                         <div class="stat-card-label">Assists</div>
                         <div class="stat-card-value">{{ career_highs.ast }}</div>
@@ -413,19 +464,19 @@
                 Defense
             </div>
             <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr);">
-                <div class="stat-card">
+                <div class="stat-card" style="min-height: 75px;">
                     <div class="stat-card-value">{{ averages.spg|round(1) }}</div>
                     <div class="stat-card-label">Steals</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" style="min-height: 75px;">
                     <div class="stat-card-value">{{ averages.bpg|round(1) }}</div>
                     <div class="stat-card-label">Blocks</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" style="min-height: 75px;">
                     <div class="stat-card-value">{{ averages.drebpg|round(1) }}</div>
                     <div class="stat-card-label">Def Rebs</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" style="min-height: 75px;">
                     <div class="stat-card-value">{{ averages.pfpg|round(1) }}</div>
                     <div class="stat-card-label">Fouls</div>
                 </div>
@@ -458,7 +509,7 @@
                     <th>TOV</th>
                     <th>EFF</th>
                     <th>ORtg</th>
-                    <th>GmSc</th> <!-- Added Game Score -->
+                    <th>GmSc</th>
                 </tr>
             </thead>
             <tbody>
