@@ -17,22 +17,25 @@
     }
     
     .data-table thead {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        /* Increased contrast: darker gradient */
+        background: linear-gradient(135deg, #4c51bf 0%, #6b46c1 100%);
         color: white;
     }
     
     .data-table th {
         padding: 15px 10px;
         text-align: center;
-        font-weight: 600;
+        font-weight: 700; /* Bolder text */
         white-space: nowrap;
-        border-right: 1px solid rgba(255,255,255,0.1);
+        border-right: 1px solid rgba(255,255,255,0.2); /* Slightly more visible separator */
         cursor: pointer;
         position: relative;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.2); /* Text shadow for legibility */
+        letter-spacing: 0.5px;
     }
     
     .data-table th:hover {
-        background: rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.15);
     }
     
     .data-table td {
@@ -47,7 +50,7 @@
     }
     
     .player-link {
-        color: #667eea;
+        color: #5a67d8; /* Darker link color for better contrast */
         font-weight: 600;
         text-decoration: none;
         display: flex;
@@ -58,19 +61,20 @@
     
     .player-link:hover {
         text-decoration: underline;
+        color: #434190;
     }
     
     .avatar-sm {
         width: 32px;
         height: 32px;
-        background: #f0f2f5;
+        background: #e2e8f0; /* Darker grey background */
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 12px;
         font-weight: 700;
-        color: #666;
+        color: #4a5568; /* Darker text */
     }
     
     /* Sticky first column for names */
@@ -84,7 +88,7 @@
     }
     
     .data-table th:first-child {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #4c51bf 0%, #6b46c1 100%); /* Match thead gradient */
         z-index: 3;
     }
 
@@ -92,27 +96,31 @@
     .stat-header {
         position: relative;
         display: inline-block;
+        border-bottom: 1px dashed rgba(255,255,255,0.6); /* Hint for interactivity */
+        padding-bottom: 2px;
     }
 
     .tooltip-text {
         visibility: hidden;
-        width: 200px;
-        background-color: #333;
+        width: 220px;
+        background-color: #2d3748; /* Darker tooltip background */
         color: #fff;
         text-align: center;
         border-radius: 6px;
-        padding: 8px;
+        padding: 10px;
         position: absolute;
         z-index: 10;
-        bottom: 125%; /* Position above */
+        bottom: 135%; /* Position slightly higher */
         left: 50%;
-        margin-left: -100px;
+        margin-left: -110px;
         opacity: 0;
-        transition: opacity 0.3s;
-        font-size: 12px;
-        font-weight: normal;
+        transition: opacity 0.2s;
+        font-size: 13px;
+        font-weight: 500;
         pointer-events: none;
         white-space: normal;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        text-shadow: none; /* No shadow inside tooltip */
     }
 
     .tooltip-text::after {
@@ -123,7 +131,7 @@
         margin-left: -5px;
         border-width: 5px;
         border-style: solid;
-        border-color: #333 transparent transparent transparent;
+        border-color: #2d3748 transparent transparent transparent;
     }
 
     .stat-header:hover .tooltip-text {
@@ -133,10 +141,13 @@
 
     .formula {
         display: block;
-        margin-top: 4px;
-        color: #aebbf0;
-        font-family: monospace;
+        margin-top: 6px;
+        color: #a3bffa;
+        font-family: 'Consolas', 'Monaco', monospace;
         font-size: 11px;
+        background: rgba(0,0,0,0.2);
+        padding: 2px 4px;
+        border-radius: 3px;
     }
 
     /* Glossary Section */
@@ -146,6 +157,7 @@
         border-radius: 12px;
         padding: 25px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border: 1px solid #e2e8f0;
     }
 
     .glossary-grid {
@@ -158,32 +170,34 @@
     .glossary-item {
         padding: 15px;
         border-radius: 8px;
-        background: #f8f9fa;
-        border-left: 3px solid #667eea;
+        background: #f7fafc;
+        border-left: 4px solid #5a67d8;
     }
 
     .glossary-term {
         font-weight: 700;
-        color: #333;
+        color: #2d3748;
         margin-bottom: 5px;
         display: flex;
         justify-content: space-between;
+        font-size: 15px;
     }
 
     .glossary-def {
         font-size: 13px;
-        color: #666;
-        line-height: 1.4;
+        color: #4a5568;
+        line-height: 1.5;
     }
 
     .glossary-formula-box {
         margin-top: 8px;
-        padding: 6px;
-        background: rgba(102, 126, 234, 0.1);
+        padding: 8px;
+        background: rgba(90, 103, 216, 0.1);
         border-radius: 4px;
-        font-family: monospace;
+        font-family: 'Consolas', 'Monaco', monospace;
         font-size: 11px;
-        color: #555;
+        color: #434190;
+        border: 1px solid rgba(90, 103, 216, 0.2);
     }
 </style>
 
