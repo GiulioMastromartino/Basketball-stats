@@ -392,6 +392,7 @@ def player_detail(player_name):
 @login_required
 def players():
     """List of all players with Comprehensive Advanced Stats"""
+    view = request.args.get("view", "cards")  # Default to card view
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
         game_type = "ALL"
@@ -422,8 +423,11 @@ def players():
     target_game_ids = [g.id for g in target_games]
 
     if not target_game_ids:
+        # Pass view parameter to template so links persist the current view preference if needed, 
+        # though usually empty state handles its own display.
+        template = "players_table.html" if view == "table" else "players.html"
         return render_template(
-            "players.html",
+            template,
             stats=[],
             filters={
                 "type": game_type,
@@ -554,8 +558,10 @@ def players():
     reverse = order == "desc"
     players_data.sort(key=lambda x: x.get(sort_by, 0), reverse=reverse)
 
+    template = "players_table.html" if view == "table" else "players.html"
+
     return render_template(
-        "players.html",
+        template,
         stats=players_data,
         filters={"type": game_type, "limit": limit, "sort": sort_by, "order": order},
     )
