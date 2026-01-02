@@ -996,6 +996,12 @@ def _calculate_game_stats(stats):
         # Possessions
         poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
         
+        # Calculate Efficiency explicitly and assign to attribute
+        s.eff = calculate_efficiency(
+            s.points, s.reb, s.ast, s.stl, s.blk,
+            s.fgm, s.fga, s.ftm, s.fta, s.tov
+        )
+
         # Advanced metrics
         s.ortg = calculate_ortg(s.points, poss) if poss > 0 else 0
         s.ppp = calculate_ppp(s.points, poss) if poss > 0 else 0
@@ -1014,7 +1020,10 @@ def _calculate_game_stats(stats):
 
 def _get_game_top_performers(stats):
     """Top 3 performers by efficiency"""
-    sorted_by_eff = sorted(stats, key=lambda x: x.eff, reverse=True)
+    # Filter out players with None stats to be safe
+    valid_stats = [s for s in stats if hasattr(s, 'eff') and s.eff is not None]
+    
+    sorted_by_eff = sorted(valid_stats, key=lambda x: x.eff, reverse=True)
     sorted_by_pts = sorted(stats, key=lambda x: x.points, reverse=True)
     sorted_by_reb = sorted(stats, key=lambda x: x.reb, reverse=True)
     
@@ -1028,7 +1037,7 @@ def _get_game_alerts(stats):
     """Extract fouls and low efficiency alerts"""
     return {
         'foul_trouble': [s for s in stats if s.pf >= 4],
-        'inefficient': [s for s in stats if s.fga > 5 and s.ppp < 0.8],
+        'inefficient': [s for s in stats if s.fga > 5 and hasattr(s, 'ppp') and s.ppp < 0.8],
     }
 
 def _get_team_aggregates(stats):
