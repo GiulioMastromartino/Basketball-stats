@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .data-table-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        overflow: hidden;
+        margin-top: 20px;
+    }
+    
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+    
+    .data-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .data-table th {
+        padding: 15px 10px;
+        text-align: center;
+        font-weight: 600;
+        white-space: nowrap;
+        border-right: 1px solid rgba(255,255,255,0.1);
+        cursor: pointer;
+        position: relative;
+    }
+    
+    .data-table th:hover {
+        background: rgba(255,255,255,0.1);
+    }
+    
+    .data-table td {
+        padding: 12px 10px;
+        text-align: center;
+        border-bottom: 1px solid #eee;
+        color: #333;
+    }
+    
+    .data-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .player-link {
+        color: #667eea;
+        font-weight: 600;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: flex-start; /* Align name to left */
+    }
+    
+    .player-link:hover {
+        text-decoration: underline;
+    }
+    
+    .avatar-sm {
+        width: 32px;
+        height: 32px;
+        background: #f0f2f5;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+        color: #666;
+    }
+    
+    /* Sticky first column for names */
+    .data-table td:first-child, 
+    .data-table th:first-child {
+        position: sticky;
+        left: 0;
+        background: inherit;
+        z-index: 2;
+        text-align: left;
+    }
+    
+    .data-table th:first-child {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        z-index: 3;
+    }
+</style>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>Player Statistics</h1>
+            <p class="text-muted">Comprehensive data view for {{ stats|length }} players</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('main.players', view='cards', game_type=filters.type) }}" class="btn btn-outline-primary">
+                <i class="fas fa-th-large"></i> Card View
+            </a>
+            <select class="form-select" style="width: auto;" onchange="window.location.href='{{ url_for('main.players', view='table') }}&game_type=' + this.value">
+                <option value="ALL" {% if filters.type == 'ALL' %}selected{% endif %}>All Games</option>
+                <option value="Season" {% if filters.type == 'Season' %}selected{% endif %}>Season</option>
+                <option value="Friendly" {% if filters.type == 'Friendly' %}selected{% endif %}>Friendly</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="data-table-container">
+        <div style="overflow-x: auto;">
+            <table class="data-table" id="statsTable">
+                <thead>
+                    <tr>
+                        <th onclick="sortTable(0)">Player</th>
+                        <th onclick="sortTable(1)">GP</th>
+                        <th onclick="sortTable(2)">MPG</th>
+                        <th onclick="sortTable(3)">PPG</th>
+                        <th onclick="sortTable(4)">RPG</th>
+                        <th onclick="sortTable(5)">APG</th>
+                        <th onclick="sortTable(6)">SPG</th>
+                        <th onclick="sortTable(7)">BPG</th>
+                        <th onclick="sortTable(8)">TOPG</th>
+                        <th onclick="sortTable(9)">FG%</th>
+                        <th onclick="sortTable(10)">3P%</th>
+                        <th onclick="sortTable(11)">FT%</th>
+                        <th onclick="sortTable(12)">EFF</th>
+                        <th onclick="sortTable(13)">ORtg</th>
+                        <th onclick="sortTable(14)">TS%</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in stats %}
+                    <tr>
+                        <td style="background: white;">
+                            <a href="{{ url_for('main.player_detail', player_name=p.player_name, game_type=filters.type) }}" class="player-link">
+                                <div class="avatar-sm">{{ p.player_name[:2]|upper }}</div>
+                                {{ p.player_name }}
+                            </a>
+                        </td>
+                        <td>{{ p.games_played }}</td>
+                        <td>{{ p.mpg|round(1) }}</td>
+                        <td><strong>{{ p.ppg|round(1) }}</strong></td>
+                        <td>{{ p.rpg|round(1) }}</td>
+                        <td>{{ p.apg|round(1) }}</td>
+                        <td>{{ p.spg|round(1) }}</td>
+                        <td>{{ p.bpg|round(1) }}</td>
+                        <td>{{ p.topg|round(1) }}</td>
+                        <td>{{ p.fg_pct|round(1) }}%</td>
+                        <td>{{ p.tp_pct|round(1) }}%</td>
+                        <td>{{ p.ft_pct|round(1) }}%</td>
+                        <td><strong>{{ p.eff|round(1) }}</strong></td>
+                        <td>{{ p.ortg|round(0) }}</td>
+                        <td>{{ p.ts_pct|round(1) }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function sortTable(n) {
+  var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+  table = document.getElementById("statsTable");
+  switching = true;
+  dir = "desc"; // Default desc for stats
+  
+  // If sorting by name (column 0), default to asc
+  if (n === 0) dir = "asc";
+
+  while (switching) {
+    switching = false;
+    rows = table.rows;
+    
+    for (i = 1; i < (rows.length - 1); i++) {
+      shouldSwitch = false;
+      x = rows[i].getElementsByTagName("TD")[n];
+      y = rows[i + 1].getElementsByTagName("TD")[n];
+      
+      let xVal = x.innerText.replace('%', '').trim();
+      let yVal = y.innerText.replace('%', '').trim();
+      
+      let xNum = parseFloat(xVal);
+      let yNum = parseFloat(yVal);
+      
+      // Check if numeric
+      if (!isNaN(xNum) && !isNaN(yNum)) {
+          if (dir == "asc") {
+            if (xNum > yNum) { shouldSwitch = true; break; }
+          } else if (dir == "desc") {
+            if (xNum < yNum) { shouldSwitch = true; break; }
+          }
+      } else {
+          // String comparison
+          if (dir == "asc") {
+            if (xVal.toLowerCase() > yVal.toLowerCase()) { shouldSwitch = true; break; }
+          } else if (dir == "desc") {
+            if (xVal.toLowerCase() < yVal.toLowerCase()) { shouldSwitch = true; break; }
+          }
+      }
+    }
+    if (shouldSwitch) {
+      rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+      switching = true;
+      switchcount ++;
+    } else {
+      if (switchcount == 0 && dir == "desc") {
+        dir = "asc";
+        switching = true;
+      }
+    }
+  }
+}
+</script>
+{% endblock %}
