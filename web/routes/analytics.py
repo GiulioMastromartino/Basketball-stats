@@ -13,7 +13,7 @@ from datetime import datetime
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
-from flask import Blueprint, jsonify, render_template, request, send_file, after_this_request
+from flask import Blueprint, jsonify, render_template, request, send_file, after_this_request, url_for
 from flask_login import login_required
 from sqlalchemy import desc, func
 from weasyprint import HTML
@@ -696,6 +696,48 @@ def role_analysis():
     return jsonify({"players": player_roles})
 
 
+@analytics_bp.route("/games/<int:game_id>/summary.pdf")
+@login_required
+def game_summary_pdf(game_id):
+    """Generate full game summary PDF with box score, stats, and analysis"""
+    game = Game.query.get_or_404(game_id)
+    stats = PlayerStat.query.filter_by(game_id=game_id).all()
+    
+    if not stats:
+        return jsonify({"error": "No stats for this game"}), 404
+    
+    # Enrich stats with calculated metrics
+    stats_with_metrics = _calculate_game_stats(stats)
+    
+    # Generate top performers & alerts
+    top_performers = _get_game_top_performers(stats_with_metrics)
+    alerts = _get_game_alerts(stats_with_metrics)
+    
+    # Team aggregates
+    team_aggregates = _get_team_aggregates(stats_with_metrics)
+    
+    # Render HTML template
+    html = render_template(
+        "game_summary_pdf.html",
+        game=game,
+        stats=stats_with_metrics,
+        top_performers=top_performers,
+        alerts=alerts,
+        team_aggregates=team_aggregates,
+        generated_date=datetime.now().strftime("%B %d, %Y")
+    )
+    
+    # Convert to PDF
+    html_doc = HTML(string=html)
+    pdf_bytes = html_doc.write_pdf()
+    pdf_io = BytesIO(pdf_bytes)
+    pdf_io.seek(0)
+    
+    filename = f"game_{game.opponent}_{game.date}.pdf"
+    return send_file(pdf_io, mimetype="application/pdf", 
+                     as_attachment=True, download_name=filename)
+
+
 @analytics_bp.route("/team/report.pdf")
 @login_required
 def team_report_pdf():
@@ -946,6 +988,65 @@ def download_all_reports():
     except Exception as e:
         # If anything fails, return error
         return jsonify({"error": f"Failed to generate reports: {str(e)}"}), 500
+
+
+def _calculate_game_stats(stats):
+    """Enrich player stats with calculated metrics for PDF"""
+    for s in stats:
+        # Possessions
+        poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
+        
+        # Advanced metrics
+        s.ortg = calculate_ortg(s.points, poss) if poss > 0 else 0
+        s.ppp = calculate_ppp(s.points, poss) if poss > 0 else 0
+        s.ts_pct = calculate_ts_percent(s.points, s.fga, s.fta)
+        s.efg_pct = calculate_efg_percent(s.fgm, s.tpm, s.fga)
+        s.ast_tov_ratio = (s.ast / s.tov) if s.tov > 0 else s.ast
+        s.usg_pct = (poss / (parse_minutes(s.minutes) / 40)) if parse_minutes(s.minutes) > 0 else 0
+        
+        # 2PT breakdown
+        two_pt = calculate_two_point_stats(s.fgm, s.fga, s.tpm, s.tpa)
+        s.two_pt_made = two_pt["two_pt_made"]
+        s.two_pt_att = two_pt["two_pt_att"]
+        s.two_pt_pct = two_pt["two_pt_pct"]
+    
+    return stats
+
+def _get_game_top_performers(stats):
+    """Top 3 performers by efficiency"""
+    sorted_by_eff = sorted(stats, key=lambda x: x.eff, reverse=True)
+    sorted_by_pts = sorted(stats, key=lambda x: x.points, reverse=True)
+    sorted_by_reb = sorted(stats, key=lambda x: x.reb, reverse=True)
+    
+    return {
+        'efficiency': sorted_by_eff[0] if sorted_by_eff else None,
+        'points': sorted_by_pts[0] if sorted_by_pts else None,
+        'rebounds': sorted_by_reb[0] if sorted_by_reb else None,
+    }
+
+def _get_game_alerts(stats):
+    """Extract fouls and low efficiency alerts"""
+    return {
+        'foul_trouble': [s for s in stats if s.pf >= 4],
+        'inefficient': [s for s in stats if s.fga > 5 and s.ppp < 0.8],
+    }
+
+def _get_team_aggregates(stats):
+    """Team-level shooting and efficiency"""
+    total_fgm = sum(s.fgm for s in stats)
+    total_fga = sum(s.fga for s in stats)
+    total_tpm = sum(s.tpm for s in stats)
+    total_tpa = sum(s.tpa for s in stats)
+    total_ftm = sum(s.ftm for s in stats)
+    total_fta = sum(s.fta for s in stats)
+    total_pts = sum(s.points for s in stats)
+    
+    return {
+        'fg_pct': (total_fgm / total_fga * 100) if total_fga > 0 else 0,
+        'tp_pct': (total_tpm / total_tpa * 100) if total_tpa > 0 else 0,
+        'ft_pct': (total_ftm / total_fta * 100) if total_fta > 0 else 0,
+        'ts_pct': calculate_ts_percent(total_pts, total_fga, total_fta),
+    }
 
 
 def _calculate_team_averages(game_ids):
