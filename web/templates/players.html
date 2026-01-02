@@ -7,7 +7,10 @@
             <h1>Players</h1>
             <p class="text-muted">{{ stats|length }} active players</p>
         </div>
-        <div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('main.players', view='table', game_type=filters.type) }}" class="btn btn-outline-primary">
+                <i class="fas fa-table"></i> Table View
+            </a>
             <a href="#" class="btn btn-primary" onclick="alert('Add Player modal would open here')">
                 <i class="fas fa-plus"></i> Add Player
             </a>
@@ -32,13 +35,10 @@
                         <button type="button" class="btn btn-outline">All</button>
                     </div>
 
-                    <select class="form-select" style="width: auto;" id="positionFilter" onchange="filterPositions(this.value)">
-                        <option value="All">All Positions</option>
-                        <option value="PG">Point Guard</option>
-                        <option value="SG">Shooting Guard</option>
-                        <option value="SF">Small Forward</option>
-                        <option value="PF">Power Forward</option>
-                        <option value="C">Center</option>
+                    <select class="form-select" style="width: auto;" id="gameTypeFilter" onchange="window.location.href='{{ url_for('main.players') }}?game_type=' + this.value">
+                        <option value="ALL" {% if filters.type == 'ALL' %}selected{% endif %}>All Games</option>
+                        <option value="Season" {% if filters.type == 'Season' %}selected{% endif %}>Season</option>
+                        <option value="Friendly" {% if filters.type == 'Friendly' %}selected{% endif %}>Friendly</option>
                     </select>
                 </div>
             </div>
@@ -49,7 +49,7 @@
     <div class="grid-players" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--spacing-md);">
         {% for p in stats %}
         <a href="{{ url_for('main.player_detail', player_name=p.player_name, game_type=filters.type) }}" style="text-decoration: none; color: inherit;">
-            <div class="player-card" data-name="{{ p.player_name|lower }}" data-position="All" style="cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'">
+            <div class="player-card" data-name="{{ p.player_name|lower }}" style="cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'">
                 <div class="player-card-header w-100">
                     <div class="d-flex align-items-center gap-3 w-100">
                         <!-- Avatar Placeholder -->
@@ -57,18 +57,11 @@
                             {{ p.player_name[:2]|upper }}
                         </div>
                         
-                        <!-- Name & Pos -->
+                        <!-- Name -->
                         <div style="flex: 1;">
                             <h3 class="player-card-name">{{ p.player_name }}</h3>
-                            
-                            <!-- Auto-detect position from name or data if available, else static placeholder or random for demo -->
-                            <!-- In a real app, 'position' would be in 'p' object. Using placeholder logic for now. -->
-                            {% set pos_list = ['PG', 'SG', 'SF', 'PF', 'C'] %}
-                            {% set pos = pos_list[loop.index0 % 5] %} 
-                            
-                            <div class="d-flex align-items-center gap-2 mt-1">
-                                <span class="badge position-{{ pos|lower }}">{{ pos_list[loop.index0 % 5] }}</span> <!-- Mock position rotation -->
-                                <span class="player-card-height">6'{{ 2 + (loop.index0 % 10) }}"</span> <!-- Mock height -->
+                            <div class="text-muted small mt-1">
+                                {{ p.games_played }} Games Played
                             </div>
                         </div>
 
@@ -78,10 +71,6 @@
 
                 <!-- Mini Stats Grid -->
                 <div class="player-card-stats mt-3">
-                    <div class="player-stat">
-                        <div class="player-stat-value">{{ p.games_played }}</div>
-                        <div class="player-stat-label">Games</div>
-                    </div>
                     <div class="player-stat">
                         <div class="player-stat-value">{{ p.ppg|round(1) }}</div>
                         <div class="player-stat-label">PPG</div>
@@ -93,6 +82,10 @@
                     <div class="player-stat">
                         <div class="player-stat-value">{{ p.apg|round(1) }}</div>
                         <div class="player-stat-label">APG</div>
+                    </div>
+                    <div class="player-stat">
+                        <div class="player-stat-value">{{ p.eff|round(1) }}</div>
+                        <div class="player-stat-label">EFF</div>
                     </div>
                 </div>
             </div>
@@ -115,12 +108,6 @@
                 parent.style.display = 'none';
             }
         });
-    }
-
-    function filterPositions(pos) {
-        // This is a mock client-side filter since we don't have real positions in the loop yet
-        // In production, this would likely reload the page with ?position=PG
-        console.log("Filtering for: " + pos);
     }
 </script>
 {% endblock %}
