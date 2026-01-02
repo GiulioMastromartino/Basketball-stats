@@ -87,6 +87,104 @@
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         z-index: 3;
     }
+
+    /* Tooltip Styles */
+    .stat-header {
+        position: relative;
+        display: inline-block;
+    }
+
+    .tooltip-text {
+        visibility: hidden;
+        width: 200px;
+        background-color: #333;
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 8px;
+        position: absolute;
+        z-index: 10;
+        bottom: 125%; /* Position above */
+        left: 50%;
+        margin-left: -100px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 12px;
+        font-weight: normal;
+        pointer-events: none;
+        white-space: normal;
+    }
+
+    .tooltip-text::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #333 transparent transparent transparent;
+    }
+
+    .stat-header:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
+    }
+
+    .formula {
+        display: block;
+        margin-top: 4px;
+        color: #aebbf0;
+        font-family: monospace;
+        font-size: 11px;
+    }
+
+    /* Glossary Section */
+    .glossary-section {
+        margin-top: 40px;
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+
+    .glossary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .glossary-item {
+        padding: 15px;
+        border-radius: 8px;
+        background: #f8f9fa;
+        border-left: 3px solid #667eea;
+    }
+
+    .glossary-term {
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 5px;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .glossary-def {
+        font-size: 13px;
+        color: #666;
+        line-height: 1.4;
+    }
+
+    .glossary-formula-box {
+        margin-top: 8px;
+        padding: 6px;
+        background: rgba(102, 126, 234, 0.1);
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 11px;
+        color: #555;
+    }
 </style>
 
 <div class="container-fluid">
@@ -124,9 +222,33 @@
                         <th onclick="sortTable(9)">FG%</th>
                         <th onclick="sortTable(10)">3P%</th>
                         <th onclick="sortTable(11)">FT%</th>
-                        <th onclick="sortTable(12)">EFF</th>
-                        <th onclick="sortTable(13)">ORtg</th>
-                        <th onclick="sortTable(14)">TS%</th>
+                        <th onclick="sortTable(12)">
+                            <div class="stat-header">
+                                EFF
+                                <span class="tooltip-text">
+                                    Efficiency Rating
+                                    <span class="formula">(PTS + REB + AST + STL + BLK) - ((FGA - FGM) + (FTA - FTM) + TO)</span>
+                                </span>
+                            </div>
+                        </th>
+                        <th onclick="sortTable(13)">
+                            <div class="stat-header">
+                                ORtg
+                                <span class="tooltip-text">
+                                    Offensive Rating: Points produced per 100 possessions
+                                    <span class="formula">(Points Prod / Poss) * 100</span>
+                                </span>
+                            </div>
+                        </th>
+                        <th onclick="sortTable(14)">
+                            <div class="stat-header">
+                                TS%
+                                <span class="tooltip-text">
+                                    True Shooting Percentage
+                                    <span class="formula">PTS / (2 * (FGA + 0.44 * FTA))</span>
+                                </span>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -158,6 +280,50 @@
             </table>
         </div>
     </div>
+
+    <!-- Glossary Section -->
+    <div class="glossary-section">
+        <h3><i class="fas fa-book"></i> Statistics Glossary</h3>
+        <p class="text-muted mb-0">Definitions and formulas for advanced metrics used in the table above.</p>
+        
+        <div class="glossary-grid">
+            <div class="glossary-item">
+                <div class="glossary-term">EFF <span>Efficiency</span></div>
+                <div class="glossary-def">Standard NBA composite efficiency rating derived from basic box score statistics.</div>
+                <div class="glossary-formula-box">(PTS + REB + AST + STL + BLK) - ((FGA - FGM) + (FTA - FTM) + TO)</div>
+            </div>
+
+            <div class="glossary-item">
+                <div class="glossary-term">ORtg <span>Offensive Rating</span></div>
+                <div class="glossary-def">Estimate of points produced (scored or assisted) per 100 possessions. Independent of pace.</div>
+                <div class="glossary-formula-box">(Points Produced / Possessions) * 100</div>
+            </div>
+
+            <div class="glossary-item">
+                <div class="glossary-term">TS% <span>True Shooting %</span></div>
+                <div class="glossary-def">Shooting efficiency that accounts for field goals, 3-pointers, and free throws.</div>
+                <div class="glossary-formula-box">PTS / (2 * (FGA + 0.44 * FTA))</div>
+            </div>
+
+            <div class="glossary-item">
+                <div class="glossary-term">eFG% <span>Effective FG %</span></div>
+                <div class="glossary-def">Adjusts field goal percentage to account for the fact that 3-point shots are worth more.</div>
+                <div class="glossary-formula-box">(FGM + 0.5 * 3PM) / FGA</div>
+            </div>
+
+            <div class="glossary-item">
+                <div class="glossary-term">Usage %</div>
+                <div class="glossary-def">Estimate of the percentage of team plays used by a player while they were on the floor.</div>
+                <div class="glossary-formula-box">(Player Poss / Team Poss) * 100</div>
+            </div>
+
+            <div class="glossary-item">
+                <div class="glossary-term">Possessions</div>
+                <div class="glossary-def">Estimated number of possessions based on box score data.</div>
+                <div class="glossary-formula-box">FGA + 0.44 * FTA + TOV - OREB</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -178,6 +344,9 @@ function sortTable(n) {
       shouldSwitch = false;
       x = rows[i].getElementsByTagName("TD")[n];
       y = rows[i + 1].getElementsByTagName("TD")[n];
+      
+      // Handle the complex header structure for advanced stats
+      // We need to compare the text content of the TD, which corresponds to the TH index
       
       let xVal = x.innerText.replace('%', '').trim();
       let yVal = y.innerText.replace('%', '').trim();
