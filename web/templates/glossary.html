@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="mb-4">
+        <h1><i class="fas fa-book"></i> Stats Glossary</h1>
+        <p class="text-muted">Comprehensive definitions for all statistics used in HoopsStats</p>
+    </div>
+
+    <!-- Traditional Stats -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-basketball-ball"></i> Traditional Stats</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">MIN - Minutes Played</h4>
+                    <p>Total time spent on the court during the game, shown in MM:SS format.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">PTS - Points</h4>
+                    <p>Total points scored through field goals and free throws.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">REB - Total Rebounds</h4>
+                    <p>Sum of offensive and defensive rebounds.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">OREB - Offensive Rebounds</h4>
+                    <p>Rebounds gathered on the offensive end after a missed shot by your team.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">DREB - Defensive Rebounds</h4>
+                    <p>Rebounds gathered on the defensive end after a missed shot by opponents.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">AST - Assists</h4>
+                    <p>Passes that directly lead to a made basket by a teammate.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">STL - Steals</h4>
+                    <p>Turnovers forced by taking the ball away from an opponent.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">BLK - Blocks</h4>
+                    <p>Shots deflected or stopped by the defense.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">TOV - Turnovers</h4>
+                    <p>Loss of possession through errors, violations, or opponent's steals.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">PF - Personal Fouls</h4>
+                    <p>Illegal physical contact with an opponent. Five fouls results in disqualification.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shooting Stats -->
+    <div class="card mb-4">
+        <div class="card-header" style="background: linear-gradient(135deg, rgba(255,152,0,0.15), rgba(255,152,0,0.05));">
+            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-bullseye"></i> Shooting Stats</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">FG% - Field Goal Percentage</h4>
+                    <p><strong>Formula:</strong> FGM / FGA × 100</p>
+                    <p>Percentage of all field goal attempts (2PT + 3PT) that are made.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">2P% - Two-Point Percentage</h4>
+                    <p><strong>Formula:</strong> 2PM / 2PA × 100</p>
+                    <p>Percentage of two-point field goal attempts that are made.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">3P% - Three-Point Percentage</h4>
+                    <p><strong>Formula:</strong> 3PM / 3PA × 100</p>
+                    <p>Percentage of three-point attempts that are made.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">FT% - Free Throw Percentage</h4>
+                    <p><strong>Formula:</strong> FTM / FTA × 100</p>
+                    <p>Percentage of free throw attempts that are made.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">M/A - Made/Attempted</h4>
+                    <p>Field goals made out of field goals attempted (FGM/FGA).</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">FTA/FGA - Free Throw Rate</h4>
+                    <p><strong>Formula:</strong> FTA / FGA × 100</p>
+                    <p>How often a player gets to the free throw line relative to their shot attempts. Higher values indicate a player who draws fouls frequently.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Efficiency Stats -->
+    <div class="card mb-4">
+        <div class="card-header" style="background: linear-gradient(135deg, rgba(23,162,184,0.15), rgba(23,162,184,0.05));">
+            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-chart-line"></i> Advanced Efficiency</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">EFF - Efficiency</h4>
+                    <p><strong>Formula:</strong> (PTS + REB + AST + STL + BLK) − ((FGA − FGM) + (FTA − FTM) + TOV)</p>
+                    <p>Box-score based efficiency metric that rewards positive contributions and penalizes missed shots and turnovers.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">TS% - True Shooting Percentage</h4>
+                    <p><strong>Formula:</strong> PTS / (2 × (FGA + 0.44 × FTA)) × 100</p>
+                    <p>Overall scoring efficiency that accounts for 3-pointers and free throws. League average is typically around 53-56%.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">eFG% - Effective Field Goal Percentage</h4>
+                    <p><strong>Formula:</strong> (FGM + 0.5 × 3PM) / FGA × 100</p>
+                    <p>Field goal percentage adjusted for the fact that 3-point shots are worth 50% more than 2-point shots.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">GmSc - Game Score</h4>
+                    <p><strong>Formula:</strong> PTS + 0.4×FGM − 0.7×FGA − 0.4×(FTA−FTM) + 0.7×OREB + 0.3×DREB + STL + 0.7×AST + 0.7×BLK − 0.4×PF − TOV</p>
+                    <p>John Hollinger's single-game performance metric. Average is around 8-10, excellent is 20+.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Offensive Stats -->
+    <div class="card mb-4">
+        <div class="card-header" style="background: linear-gradient(135deg, rgba(23,162,162,0.15), rgba(23,162,162,0.05));">
+            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-fire"></i> Offensive Metrics</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">ORtg - Offensive Rating</h4>
+                    <p><strong>Formula:</strong> (Points / Possessions) × 100</p>
+                    <p>Points produced per 100 possessions. Elite scorers have ORtg > 115.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">PPP - Points Per Possession</h4>
+                    <p><strong>Formula:</strong> Points / Possessions</p>
+                    <p>Scoring efficiency per possession. Values above 1.1 are excellent, below 0.8 are poor.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">USG% - Usage Percentage</h4>
+                    <p><strong>Formula:</strong> (FGA + 0.44 × FTA + TOV) / Team Possessions × 100</p>
+                    <p>Percentage of team possessions used by a player when on the court. High usage (>25%) indicates a primary offensive option.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">A/TO - Assist-to-Turnover Ratio</h4>
+                    <p><strong>Formula:</strong> AST / TOV</p>
+                    <p>Measures ball security and playmaking. Ratios above 2.0 are excellent; below 1.0 indicates poor decision-making.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Multi-Game Stats (Player Profiles) -->
+    <div class="card mb-4">
+        <div class="card-header" style="background: linear-gradient(135deg, rgba(108,117,125,0.15), rgba(108,117,125,0.05));">
+            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-calendar-alt"></i> Multi-Game Averages</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">GP - Games Played</h4>
+                    <p>Total number of games in which the player has recorded stats.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">MPG - Minutes Per Game</h4>
+                    <p>Average minutes played per game.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">PPG - Points Per Game</h4>
+                    <p>Average points scored per game.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">RPG - Rebounds Per Game</h4>
+                    <p>Average total rebounds per game.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">APG - Assists Per Game</h4>
+                    <p>Average assists per game.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">SPG - Steals Per Game</h4>
+                    <p>Average steals per game.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">BPG - Blocks Per Game</h4>
+                    <p>Average blocks per game.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">TOPG - Turnovers Per Game</h4>
+                    <p>Average turnovers per game.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">CV - Consistency (Coefficient of Variation)</h4>
+                    <p><strong>Formula:</strong> (Standard Deviation / Mean) × 100</p>
+                    <p>Measures scoring consistency across games. Lower values indicate more consistent performance. CV < 30% is excellent consistency.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Possession Calculation -->
+    <div class="card mb-4">
+        <div class="card-header" style="background: linear-gradient(135deg, rgba(40,167,69,0.15), rgba(40,167,69,0.05));">
+            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-calculator"></i> Possession Calculation</h2>
+        </div>
+        <div class="card-body">
+            <p><strong>Formula:</strong> Possessions = FGA + 0.44 × FTA − OREB + TOV</p>
+            <p>Estimates the number of possessions a player uses. This is the foundation for advanced metrics like ORtg, PPP, and USG%.</p>
+            <ul>
+                <li><strong>FGA:</strong> Each shot attempt uses a possession</li>
+                <li><strong>0.44 × FTA:</strong> Estimated possessions ending in free throws (not all FTA end possessions)</li>
+                <li><strong>− OREB:</strong> Offensive rebounds extend the possession, so they don't count as new possessions</li>
+                <li><strong>+ TOV:</strong> Turnovers end possessions</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Benchmarks & Interpretation -->
+    <div class="card mb-4">
+        <div class="card-header" style="background: linear-gradient(135deg, rgba(255,193,7,0.15), rgba(255,193,7,0.05));">
+            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-medal"></i> Performance Benchmarks</h2>
+        </div>
+        <div class="card-body">
+            <h4>Shooting Efficiency</h4>
+            <ul>
+                <li><strong>TS%:</strong> <50% (Poor), 50-55% (Average), 55-60% (Good), >60% (Elite)</li>
+                <li><strong>eFG%:</strong> <45% (Poor), 45-50% (Average), 50-55% (Good), >55% (Elite)</li>
+                <li><strong>3P%:</strong> <30% (Poor), 30-35% (Average), 35-40% (Good), >40% (Elite)</li>
+            </ul>
+
+            <h4>Scoring</h4>
+            <ul>
+                <li><strong>PPP:</strong> <0.8 (Inefficient), 0.8-1.0 (Average), 1.0-1.2 (Good), >1.2 (Elite)</li>
+                <li><strong>ORtg:</strong> <100 (Poor), 100-110 (Average), 110-120 (Good), >120 (Elite)</li>
+            </ul>
+
+            <h4>Playmaking</h4>
+            <ul>
+                <li><strong>A/TO:</strong> <1.0 (Poor), 1.0-1.5 (Average), 1.5-2.5 (Good), >2.5 (Elite)</li>
+                <li><strong>USG%:</strong> <15% (Low), 15-20% (Role Player), 20-27% (Secondary), >27% (Primary)</li>
+            </ul>
+
+            <h4>Game Score</h4>
+            <ul>
+                <li><strong>GmSc:</strong> <5 (Below Average), 5-10 (Average), 10-15 (Good), 15-20 (Very Good), >20 (Dominant)</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

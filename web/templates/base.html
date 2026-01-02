@@ -138,6 +138,11 @@
                         <i class="fas fa-chart-bar"></i> Analytics
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('main.glossary') }}" class="{% if request.endpoint == 'main.glossary' %}active{% endif %}">
+                        <i class="fas fa-book"></i> Glossary
+                    </a>
+                </li>
                  <li class="nav-item" style="margin-top: auto;">
                     <a href="{{ url_for('main.upload_game') }}">
                         <i class="fas fa-cloud-upload-alt"></i> Upload

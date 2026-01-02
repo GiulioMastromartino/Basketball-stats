@@ -14,6 +14,7 @@ from core.utils import (
     THREE_POINT_WEIGHT,
     calculate_efficiency,
     calculate_efg_percent,
+    calculate_game_score,
     calculate_ortg,
     calculate_per_100_minutes,
     calculate_possessions,
@@ -53,6 +54,13 @@ def index():
             "losses": losses,
         },
     )
+
+
+@main_bp.route("/glossary")
+@login_required
+def glossary():
+    """Stats glossary page"""
+    return render_template("glossary.html")
 
 
 @main_bp.route("/upload-game", methods=["GET", "POST"])
@@ -198,6 +206,12 @@ def game_detail(game_id):
         )
         p.ts_pct = calculate_ts_percent(p.points, p.fga, p.fta)
         p.efg_pct = calculate_efg_percent(p.fgm, p.tpm, p.fga)
+        
+        # Calculate Game Score
+        p.game_score = calculate_game_score(
+            p.points, p.fgm, p.fga, p.ftm, p.fta, 
+            p.oreb, p.dreb, p.stl, p.ast, p.blk, p.pf, p.tov
+        )
 
         if p.min_decimal > 0:
             p.pts_100 = calculate_per_100_minutes(p.points, p.min_decimal)

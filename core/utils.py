@@ -82,6 +82,28 @@ def calculate_efficiency(points, reb, ast, stl, blk, fgm, fga, ftm, fta, tov):
     return points + reb + ast + stl + blk - (fga - fgm) - (fta - ftm) - tov
 
 
+def calculate_game_score(points, fgm, fga, ftm, fta, oreb, dreb, stl, ast, blk, pf, tov):
+    """
+    Calculate Hollinger's Game Score
+    Formula: PTS + 0.4*FGM - 0.7*FGA - 0.4*(FTA-FTM) + 0.7*OREB + 0.3*DREB 
+             + STL + 0.7*AST + 0.7*BLK - 0.4*PF - TOV
+    """
+    game_score = (
+        points
+        + 0.4 * fgm
+        - 0.7 * fga
+        - 0.4 * (fta - ftm)
+        + 0.7 * oreb
+        + 0.3 * dreb
+        + stl
+        + 0.7 * ast
+        + 0.7 * blk
+        - 0.4 * pf
+        - tov
+    )
+    return game_score
+
+
 def calculate_two_point_stats(fgm, fga, tpm, tpa):
     """Calculate 2-point makes, attempts, and percentage (returns percentage 0-100)"""
     two_pt_made = fgm - tpm
