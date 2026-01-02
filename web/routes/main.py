@@ -1,10 +1,14 @@
+import os
 import statistics
+from pathlib import Path
+from werkzeug.utils import secure_filename
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_required
 from sqlalchemy import func
 
 from core.models import Game, PlayerStat, db
+from core.csv_processor import CSVProcessor
 from core.utils import (
     FT_ATTEMPT_WEIGHT,
     THREE_POINT_WEIGHT,
@@ -23,6 +27,10 @@ from core.utils import (
 main_bp = Blueprint("main", __name__)
 
 VALID_GAME_TYPES = {"ALL", "Season", "Friendly"}
+ALLOWED_EXTENSIONS = {'csv'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @main_bp.route("/")
@@ -45,6 +53,122 @@ def index():
             "losses": losses,
         },
     )
+
+
+@main_bp.route("/upload-game", methods=["GET", "POST"])
+@login_required
+def upload_game():
+    """Upload a CSV file to add a game"""
+    if request.method == "POST":
+        # Check if file was uploaded
+        if 'csv_file' not in request.files:
+            flash('No file uploaded', 'danger')
+            return redirect(request.url)
+        
+        file = request.files['csv_file']
+        
+        if file.filename == '':
+            flash('No file selected', 'danger')
+            return redirect(request.url)
+        
+        if not allowed_file(file.filename):
+            flash('Only CSV files are allowed', 'danger')
+            return redirect(request.url)
+        
+        try:
+            # Secure filename and save temporarily
+            filename = secure_filename(file.filename)
+            upload_folder = current_app.config['UPLOAD_FOLDER']
+            os.makedirs(upload_folder, exist_ok=True)
+            
+            filepath = os.path.join(upload_folder, filename)
+            file.save(filepath)
+            
+            # Parse filename to extract game info
+            info = CSVProcessor.parse_filename(filename)
+            if not info:
+                flash(f'Invalid filename format. Expected: Opponent_TeamScore-OppScore_DD-MM-YYYY_[F/S/P].csv', 'danger')
+                os.remove(filepath)
+                return redirect(request.url)
+            
+            # Check for duplicates
+            existing = Game.query.filter_by(
+                sort_date=info["sort_date"],
+                opponent=info["opponent"]
+            ).first()
+            
+            if existing:
+                flash(f'Game already exists: {existing.opponent} on {existing.date}', 'warning')
+                os.remove(filepath)
+                return redirect(url_for('main.index'))
+            
+            # Process CSV file
+            game_data = CSVProcessor.process_game(filepath, info)
+            if not game_data:
+                flash('Failed to process CSV content. Check file format.', 'danger')
+                os.remove(filepath)
+                return redirect(request.url)
+            
+            # Create Game record
+            game = Game(
+                date=game_data["date"],
+                opponent=game_data["opponent"],
+                team_score=game_data["team_score"],
+                opponent_score=game_data["opponent_score"],
+                result=game_data["result"],
+                game_type=game_data["game_type"],
+                sort_date=game_data["sort_date"],
+            )
+            db.session.add(game)
+            db.session.flush()
+            
+            # Create PlayerStat records
+            for player in game_data["players"]:
+                if not player.get("name"):
+                    continue
+                
+                stat = PlayerStat(
+                    game_id=game.id,
+                    player_name=player["name"],
+                    minutes=player["minutes"],
+                    points=player["points"],
+                    fgm=player["fgm"],
+                    fga=player["fga"],
+                    fg_percent=player["fg_percent"],
+                    tpm=player["tpm"],
+                    tpa=player["tpa"],
+                    tp_percent=player["tp_percent"],
+                    ftm=player["ftm"],
+                    fta=player["fta"],
+                    ft_percent=player["ft_percent"],
+                    oreb=player["oreb"],
+                    dreb=player["dreb"],
+                    reb=player["reb"],
+                    ast=player["ast"],
+                    tov=player["tov"],
+                    stl=player["stl"],
+                    blk=player["blk"],
+                    pf=player["pf"],
+                )
+                db.session.add(stat)
+            
+            db.session.commit()
+            
+            # Clean up uploaded file
+            os.remove(filepath)
+            
+            flash(f'Successfully imported game: {game.opponent} ({game.result})', 'success')
+            return redirect(url_for('main.game_detail', game_id=game.id))
+            
+        except Exception as e:
+            db.session.rollback()
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            flash(f'Error importing game: {str(e)}', 'danger')
+            current_app.logger.error(f'Upload error: {e}', exc_info=True)
+            return redirect(request.url)
+    
+    return render_template("upload_game.html")
 
 
 @main_bp.route("/game/<int:game_id>")
