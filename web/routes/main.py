@@ -293,6 +293,14 @@ def player_detail(player_name):
         totals['fgm'], totals['fga'], totals['tpm'], totals['tpa']
     )
 
+    # Calculate consistency (coefficient of variation) for PPG
+    game_ppgs = [s.points for s in player_stats]
+    consistency_value = 0
+    if len(game_ppgs) > 1 and statistics.mean(game_ppgs) > 0:
+        std_dev = statistics.stdev(game_ppgs)
+        mean_ppg = statistics.mean(game_ppgs)
+        consistency_value = (std_dev / mean_ppg)  # As decimal, not percentage
+
     averages = {
         'mpg': total_minutes / gp,
         'ppg': totals['points'] / gp,
@@ -321,15 +329,8 @@ def player_detail(player_name):
         'ast_tov': totals['ast'] / totals['tov'] if totals['tov'] > 0 else totals['ast'],
         'fta_pct': safe_percentage(totals['fta'], totals['fga']),
         'oreb_pct': safe_percentage(totals['oreb'], totals['reb']),
+        'consistency': consistency_value,  # Added this field
     }
-
-    # Calculate consistency (coefficient of variation)
-    game_ppgs = [s.points for s in player_stats]
-    consistency_cv = 0
-    if len(game_ppgs) > 1 and statistics.mean(game_ppgs) > 0:
-        std_dev = statistics.stdev(game_ppgs)
-        mean_ppg = statistics.mean(game_ppgs)
-        consistency_cv = (std_dev / mean_ppg) * 100
 
     # Career highs
     career_highs = {
@@ -339,6 +340,9 @@ def player_detail(player_name):
         'stl': max(s.stl for s in player_stats),
         'blk': max(s.blk for s in player_stats),
     }
+
+    # Consistency CV for display (as percentage)
+    consistency_cv = consistency_value * 100
 
     # Process game logs with advanced metrics
     game_logs = []
