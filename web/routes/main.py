@@ -224,6 +224,170 @@ def game_detail(game_id):
     return render_template("game_detail.html", game=game, stats=stats)
 
 
+@main_bp.route("/player/<player_name>")
+@login_required
+def player_detail(player_name):
+    """Detailed player profile with comprehensive stats and charts"""
+    game_type = request.args.get("game_type", "ALL")
+    if game_type not in VALID_GAME_TYPES:
+        game_type = "ALL"
+
+    # Get all games for this player
+    game_query = Game.query.order_by(Game.sort_date.desc())
+    if game_type == "Season":
+        game_query = game_query.filter(Game.game_type == "Season")
+    elif game_type == "Friendly":
+        game_query = game_query.filter(Game.game_type == "Friendly")
+
+    all_filtered_games = game_query.all()
+    target_game_ids = [g.id for g in all_filtered_games]
+
+    if not target_game_ids:
+        flash(f"No games found for {player_name}", "warning")
+        return redirect(url_for('main.players'))
+
+    # Get player's game stats
+    player_stats = (
+        PlayerStat.query
+        .filter(PlayerStat.player_name == player_name)
+        .filter(PlayerStat.game_id.in_(target_game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .join(Game)
+        .order_by(Game.sort_date.desc())
+        .all()
+    )
+
+    if not player_stats:
+        flash(f"No stats found for {player_name}", "warning")
+        return redirect(url_for('main.players'))
+
+    # Calculate aggregate stats
+    gp = len(player_stats)
+    total_minutes = sum(parse_minutes(s.minutes) for s in player_stats)
+    
+    totals = {
+        'points': sum(s.points for s in player_stats),
+        'reb': sum(s.reb for s in player_stats),
+        'oreb': sum(s.oreb for s in player_stats),
+        'dreb': sum(s.dreb for s in player_stats),
+        'ast': sum(s.ast for s in player_stats),
+        'stl': sum(s.stl for s in player_stats),
+        'blk': sum(s.blk for s in player_stats),
+        'tov': sum(s.tov for s in player_stats),
+        'pf': sum(s.pf for s in player_stats),
+        'fgm': sum(s.fgm for s in player_stats),
+        'fga': sum(s.fga for s in player_stats),
+        'tpm': sum(s.tpm for s in player_stats),
+        'tpa': sum(s.tpa for s in player_stats),
+        'ftm': sum(s.ftm for s in player_stats),
+        'fta': sum(s.fta for s in player_stats),
+    }
+
+    # Calculate advanced metrics
+    total_poss = sum(
+        calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in player_stats
+    )
+    
+    two_pt_stats = calculate_two_point_stats(
+        totals['fgm'], totals['fga'], totals['tpm'], totals['tpa']
+    )
+
+    averages = {
+        'mpg': total_minutes / gp,
+        'ppg': totals['points'] / gp,
+        'rpg': totals['reb'] / gp,
+        'orebpg': totals['oreb'] / gp,
+        'drebpg': totals['dreb'] / gp,
+        'apg': totals['ast'] / gp,
+        'spg': totals['stl'] / gp,
+        'bpg': totals['blk'] / gp,
+        'topg': totals['tov'] / gp,
+        'pfpg': totals['pf'] / gp,
+        'eff': calculate_efficiency(
+            totals['points'], totals['reb'], totals['ast'], totals['stl'], 
+            totals['blk'], totals['fgm'], totals['fga'], totals['ftm'], 
+            totals['fta'], totals['tov']
+        ) / gp,
+        'ortg': calculate_ortg(totals['points'], total_poss),
+        'ppp': calculate_ppp(totals['points'], total_poss),
+        'usg_pct': (total_poss / gp),
+        'fg_pct': (totals['fgm'] / totals['fga'] * 100) if totals['fga'] > 0 else 0,
+        'two_pt_pct': two_pt_stats['two_pt_pct'],
+        'tp_pct': (totals['tpm'] / totals['tpa'] * 100) if totals['tpa'] > 0 else 0,
+        'ft_pct': (totals['ftm'] / totals['fta'] * 100) if totals['fta'] > 0 else 0,
+        'ts_pct': calculate_ts_percent(totals['points'], totals['fga'], totals['fta']),
+        'efg_pct': calculate_efg_percent(totals['fgm'], totals['tpm'], totals['fga']),
+        'ast_tov': totals['ast'] / totals['tov'] if totals['tov'] > 0 else totals['ast'],
+        'fta_pct': safe_percentage(totals['fta'], totals['fga']),
+        'oreb_pct': safe_percentage(totals['oreb'], totals['reb']),
+    }
+
+    # Calculate consistency (coefficient of variation)
+    game_ppgs = [s.points for s in player_stats]
+    consistency_cv = 0
+    if len(game_ppgs) > 1 and statistics.mean(game_ppgs) > 0:
+        std_dev = statistics.stdev(game_ppgs)
+        mean_ppg = statistics.mean(game_ppgs)
+        consistency_cv = (std_dev / mean_ppg) * 100
+
+    # Career highs
+    career_highs = {
+        'points': max(s.points for s in player_stats),
+        'reb': max(s.reb for s in player_stats),
+        'ast': max(s.ast for s in player_stats),
+        'stl': max(s.stl for s in player_stats),
+        'blk': max(s.blk for s in player_stats),
+    }
+
+    # Process game logs with advanced metrics
+    game_logs = []
+    for stat in player_stats:
+        game = stat.game
+        poss = calculate_possessions(stat.fga, stat.fta, stat.oreb, stat.tov)
+        
+        game_logs.append({
+            'game': game,
+            'stat': stat,
+            'ortg': calculate_ortg(stat.points, poss),
+            'ppp': calculate_ppp(stat.points, poss),
+            'eff': calculate_efficiency(
+                stat.points, stat.reb, stat.ast, stat.stl, stat.blk,
+                stat.fgm, stat.fga, stat.ftm, stat.fta, stat.tov
+            ),
+            'ts_pct': calculate_ts_percent(stat.points, stat.fga, stat.fta),
+            'efg_pct': calculate_efg_percent(stat.fgm, stat.tpm, stat.fga),
+            'ast_tov': stat.ast / stat.tov if stat.tov > 0 else stat.ast,
+        })
+
+    # Prepare chart data (last 10 games for trends)
+    recent_games = game_logs[:10][::-1]  # Reverse for chronological order
+    chart_data = {
+        'labels': [g['game'].opponent[:10] for g in recent_games],
+        'points': [g['stat'].points for g in recent_games],
+        'rebounds': [g['stat'].reb for g in recent_games],
+        'assists': [g['stat'].ast for g in recent_games],
+        'efficiency': [g['eff'] for g in recent_games],
+        'fg_pct': [(g['stat'].fgm / g['stat'].fga * 100) if g['stat'].fga > 0 else 0 for g in recent_games],
+        'tp_pct': [(g['stat'].tpm / g['stat'].tpa * 100) if g['stat'].tpa > 0 else 0 for g in recent_games],
+    }
+
+    return render_template(
+        "player_detail.html",
+        player_name=player_name,
+        games_played=gp,
+        totals=totals,
+        averages=averages,
+        career_highs=career_highs,
+        consistency_cv=consistency_cv,
+        game_logs=game_logs,
+        chart_data=chart_data,
+        game_type=game_type,
+        two_pt_made=two_pt_stats['two_pt_made'],
+        two_pt_att=two_pt_stats['two_pt_att'],
+    )
+
+
 @main_bp.route("/players")
 @login_required
 def players():
