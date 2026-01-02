@@ -1,360 +1,170 @@
 {% extends "base.html" %}
 
 {% block content %}
-<style>
-    .data-table-container {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        overflow: hidden;
-        margin-top: 20px;
-    }
-    
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px; /* Slightly smaller for density */
-    }
-    
-    .data-table thead {
-        /* High contrast header */
-        background: linear-gradient(135deg, #4c51bf 0%, #6b46c1 100%);
-        color: white;
-    }
-
-    .data-table th.section-header {
-        background: rgba(0,0,0,0.2);
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        padding: 6px;
-        border-bottom: 1px solid rgba(255,255,255,0.2);
-    }
-    
-    .data-table th {
-        padding: 10px 6px;
-        text-align: center;
-        font-weight: 700;
-        white-space: nowrap;
-        border-right: 1px solid rgba(255,255,255,0.15);
-        cursor: pointer;
-        position: relative;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-    }
-    
-    .data-table th:hover {
-        background: rgba(255,255,255,0.15);
-    }
-    
-    .data-table td {
-        padding: 10px 6px;
-        text-align: center;
-        border-bottom: 1px solid #eee;
-        color: #333;
-        vertical-align: middle;
-    }
-    
-    .data-table tbody tr:hover {
-        background-color: #f8f9fa;
-    }
-    
-    .player-link {
-        color: #5a67d8;
-        font-weight: 700;
-        text-decoration: none;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        justify-content: flex-start;
-    }
-    
-    .player-link:hover {
-        text-decoration: underline;
-        color: #434190;
-    }
-    
-    .avatar-sm {
-        width: 28px;
-        height: 28px;
-        background: #e2e8f0;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 11px;
-        font-weight: 700;
-        color: #4a5568;
-    }
-    
-    /* Sticky first column */
-    .data-table td:first-child, 
-    .data-table th:first-child {
-        position: sticky;
-        left: 0;
-        background: white;
-        z-index: 2;
-        text-align: left;
-        border-right: 2px solid #e2e8f0;
-    }
-
-    .data-table thead th:first-child {
-        background: inherit; /* Handled by linear gradient on tr/thead usually, but sticky needs specific background */
-        background: #4c51bf; 
-        z-index: 3;
-    }
-
-    /* Performance Flags */
-    .flag-excellent { color: #2f855a; font-weight: 700; }
-    .flag-good { color: #3182ce; }
-    .flag-poor { color: #c53030; }
-
-    /* Sub-row styling */
-    .sub-row {
-        background: #fafbfc;
-        font-size: 11px;
-        color: #718096;
-    }
-    .sub-row td {
-        border-bottom: 2px solid #e2e8f0;
-        padding: 4px 6px;
-    }
-
-    /* Glossary Styling */
-    .glossary-section {
-        margin-top: 40px;
-        background: white;
-        border-radius: 12px;
-        padding: 25px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        border: 1px solid #e2e8f0;
-    }
-    .glossary-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 25px;
-        margin-top: 20px;
-    }
-    .glossary-col h4 {
-        font-size: 14px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 12px;
-        border-bottom: 2px solid #edf2f7;
-        padding-bottom: 6px;
-    }
-    .glossary-list {
-        font-size: 13px;
-        line-height: 1.6;
-        color: #4a5568;
-    }
-    .glossary-list strong {
-        color: #2d3748;
-    }
-</style>
-
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1>Roster Overview</h1>
-            <p class="text-muted">Comprehensive advanced statistics for {{ stats|length }} players</p>
+            <h1>Players Table</h1>
+            <p class="text-muted">{{ stats|length }} active players</p>
         </div>
         <div class="d-flex gap-2">
-            <a href="{{ url_for('analytics.download_all_reports', game_type=filters.type) }}" class="btn btn-success">
-                <i class="fas fa-file-pdf"></i> Download All Reports
+            <a href="{{ url_for('main.players', view='cards', game_type=filters.type) }}" class="btn btn-outline-primary">
+                <i class="fas fa-th"></i> Card View
             </a>
-            <select class="form-select" style="width: auto;" onchange="window.location.href='{{ url_for('main.players', view='table') }}&game_type=' + this.value">
-                <option value="ALL" {% if filters.type == 'ALL' %}selected{% endif %}>All Games</option>
-                <option value="Season" {% if filters.type == 'Season' %}selected{% endif %}>Season</option>
-                <option value="Friendly" {% if filters.type == 'Friendly' %}selected{% endif %}>Friendly</option>
-            </select>
+            <a href="#" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add Player
+            </a>
         </div>
     </div>
 
-    <div class="data-table-container">
-        <div style="overflow-x: auto;">
-            <table class="data-table" id="statsTable">
-                <thead>
-                    <!-- Section Headers -->
+    <!-- Controls / Filter Bar -->
+    <div class="card mb-4">
+        <div class="card-body p-3">
+            <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
+                <!-- Search -->
+                <div style="flex: 1; min-width: 250px; position: relative;">
+                    <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                    <input type="text" placeholder="Search players..." style="padding-left: 36px; width: 100%; border-radius: var(--border-radius);" onkeyup="searchTable(this.value)">
+                </div>
+
+                <!-- Filters -->
+                <div class="d-flex gap-2">
+                    <select class="form-select" style="width: auto;" id="gameTypeFilter" onchange="window.location.href='{{ url_for('main.players', view='table') }}&game_type=' + this.value">
+                        <option value="ALL" {% if filters.type == 'ALL' %}selected{% endif %}>All Games</option>
+                        <option value="Season" {% if filters.type == 'Season' %}selected{% endif %}>Season</option>
+                        <option value="Friendly" {% if filters.type == 'Friendly' %}selected{% endif %}>Friendly</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="playersTable">
+                <thead class="table-light">
                     <tr>
-                        <th rowspan="2" style="z-index: 4;">PLAYER</th>
-                        <th rowspan="2">GP</th>
-                        <th rowspan="2">MIN</th>
+                        {% set current_sort = filters.sort %}
+                        {% set current_order = filters.order %}
+                        {% set next_order = 'asc' if current_order == 'desc' else 'desc' %}
                         
-                        <th class="section-header" colspan="9">OFFENSIVE</th>
-                        <th class="section-header" colspan="5">EFFICIENCY</th>
-                        <th class="section-header" colspan="6">SHOOTING</th>
-                        <th class="section-header" colspan="3">DEFENSE & OTHER</th>
-                        <th class="section-header" rowspan="2">ACTIONS</th>
-                    </tr>
-                    
-                    <!-- Column Headers -->
-                    <tr>
-                        <!-- Offensive -->
-                        <th onclick="sortTable('ppg')">PTS</th>
-                        <th onclick="sortTable('ortg')">ORtg</th>
-                        <th onclick="sortTable('ppp')">PPP</th>
-                        <th onclick="sortTable('usg_pct')">USG%</th>
-                        <th onclick="sortTable('rpg')">REB</th>
-                        <th onclick="sortTable('orebpg')">OREB</th>
-                        <th onclick="sortTable('drebpg')">DREB</th>
-                        <th onclick="sortTable('apg')">AST</th>
-                        <th onclick="sortTable('ast_tov')">AST/TOV</th>
-
-                        <!-- Efficiency -->
-                        <th onclick="sortTable('eff')">EFF</th>
-                        <th onclick="sortTable('ts_pct')">TS%</th>
-                        <th onclick="sortTable('efg_pct')">eFG%</th>
-                        <th onclick="sortTable('consistency')">CV%</th>
-                        <th onclick="sortTable('topg')">TOV</th>
-
-                        <!-- Shooting -->
-                        <th onclick="sortTable('fg_pct')">FG%</th>
-                        <th onclick="sortTable('two_pt_pct')">2P%</th>
-                        <th onclick="sortTable('tp_pct')">3P%</th>
-                        <th onclick="sortTable('ft_pct')">FT%</th>
-                        <th onclick="sortTable('fta_pct')">FTR</th>
-                        <th onclick="sortTable('oreb_pct')">OR%</th>
-
-                        <!-- Defense/Other -->
-                        <th onclick="sortTable('spg')">STL</th>
-                        <th onclick="sortTable('bpg')">BLK</th>
-                        <th onclick="sortTable('pfpg')">PF</th>
+                        <th style="min-width: 200px;">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='player_name', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                Player {% if current_sort == 'player_name' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='games_played', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                GP {% if current_sort == 'games_played' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='mpg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                MPG {% if current_sort == 'mpg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center bg-light border-start border-end">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='ppg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100 fw-bold">
+                                PPG {% if current_sort == 'ppg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='rpg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                RPG {% if current_sort == 'rpg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='apg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                APG {% if current_sort == 'apg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='spg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                SPG {% if current_sort == 'spg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='bpg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                BPG {% if current_sort == 'bpg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center border-start">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='fg_pct', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                FG% {% if current_sort == 'fg_pct' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='tp_pct', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                3P% {% if current_sort == 'tp_pct' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='ft_pct', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                FT% {% if current_sort == 'ft_pct' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center border-start">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='eff', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                EFF {% if current_sort == 'eff' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='ppp', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                PPP {% if current_sort == 'ppp' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
+                         <th class="text-center">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='ortg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
+                                ORtg {% if current_sort == 'ortg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
+                            </a>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for p in stats %}
                     <tr>
-                        <td rowspan="2" style="background: white;">
-                            <a href="{{ url_for('main.player_detail', player_name=p.player_name, game_type=filters.type) }}" class="player-link">
-                                <div class="avatar-sm">{{ p.player_name[:2]|upper }}</div>
+                        <td>
+                            <a href="{{ url_for('main.player_detail', player_name=p.player_name, game_type=filters.type) }}" class="d-flex align-items-center text-decoration-none text-dark fw-bold">
+                                <div class="rounded-circle bg-light d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-size: 12px; border: 1px solid #dee2e6;">
+                                    {{ p.player_name[:2]|upper }}
+                                </div>
                                 {{ p.player_name }}
                             </a>
                         </td>
-                        <td rowspan="2">{{ p.games_played }}</td>
-                        <td rowspan="2">{{ p.mpg|round(1) }}</td>
-
-                        <!-- Offensive -->
-                        <td rowspan="2" style="font-weight: 700;">{{ p.ppg|round(1) }}</td>
-                        <td rowspan="2" style="color: #2f855a;">{{ p.ortg|round(0) }}</td>
-                        <td rowspan="2" class="{% if p.ppp > 1.1 %}flag-excellent{% elif p.ppp < 0.8 %}flag-poor{% endif %}">
-                            {{ p.ppp|round(2) }}
-                        </td>
-                        <td rowspan="2">{{ p.usg_pct|round(1) }}</td>
-                        <td rowspan="2">{{ p.rpg|round(1) }}</td>
-                        <td rowspan="2">{{ p.orebpg|round(1) }}</td>
-                        <td rowspan="2">{{ p.drebpg|round(1) }}</td>
-                        <td rowspan="2">{{ p.apg|round(1) }}</td>
-                        <td rowspan="2" class="{% if p.ast_tov >= 2.0 %}flag-excellent{% elif p.ast_tov < 1.0 %}flag-poor{% endif %}">
-                            {{ p.ast_tov|round(2) }}
-                        </td>
-
-                        <!-- Efficiency -->
-                        <td rowspan="2" style="font-weight: 600; background: #f7fafc;">{{ p.eff|round(1) }}</td>
-                        <td rowspan="2" style="color: #3182ce;">{{ p.ts_pct|round(1) }}%</td>
-                        <td rowspan="2">{{ p.efg_pct|round(1) }}%</td>
-                        <td rowspan="2" class="{% if p.consistency < 0.15 %}flag-excellent{% elif p.consistency > 0.30 %}flag-poor{% endif %}">
-                            {{ (p.consistency * 100)|round(1) }}%
-                        </td>
-                        <td rowspan="2">{{ p.topg|round(1) }}</td>
-
-                        <!-- Shooting % -->
-                        <td>{{ (p.fg_pct * 100)|int }}%</td>
-                        <td>{{ p.two_pt_pct|round(1) }}%</td>
-                        <td>{{ (p.tp_pct * 100)|int }}%</td>
-                        <td>{{ (p.ft_pct * 100)|int }}%</td>
-                        <td rowspan="2">{{ p.fta_pct|round(1) }}%</td>
-                        <td rowspan="2">{{ p.oreb_pct|round(1) }}%</td>
-
-                        <!-- Defense/Other -->
-                        <td rowspan="2">{{ p.spg|round(1) }}</td>
-                        <td rowspan="2">{{ p.bpg|round(1) }}</td>
-                        <td rowspan="2">{{ p.pfpg|round(1) }}</td>
-
-                        <!-- Actions -->
-                        <td rowspan="2">
-                             <a href="{{ url_for('analytics.player_report_pdf', player_name=p.player_name, game_type=filters.type) }}" 
-                               class="btn btn-sm btn-outline-danger" 
-                               target="_blank"
-                               title="PDF Report">
-                                <i class="fas fa-file-pdf"></i>
-                            </a>
-                        </td>
-                    </tr>
-                    
-                    <!-- Sub-row for Shooting Totals -->
-                    <tr class="sub-row">
-                        <!-- Only filling the Shooting columns that aren't rowspan=2 -->
-                        <td title="FGM/FGA">{{ p.fgm }}/{{ p.fga }}</td>
-                        <td title="2PM/2PA">{{ p.two_pt_made }}/{{ p.two_pt_att }}</td>
-                        <td title="3PM/3PA">{{ p.tpm }}/{{ p.tpa }}</td>
-                        <td title="FTM/FTA">{{ p.ftm }}/{{ p.fta }}</td>
+                        <td class="text-center">{{ p.games_played }}</td>
+                        <td class="text-center">{{ p.mpg|round(1) }}</td>
+                        <td class="text-center bg-light border-start border-end fw-bold">{{ p.ppg|round(1) }}</td>
+                        <td class="text-center">{{ p.rpg|round(1) }}</td>
+                        <td class="text-center">{{ p.apg|round(1) }}</td>
+                        <td class="text-center">{{ p.spg|round(1) }}</td>
+                        <td class="text-center">{{ p.bpg|round(1) }}</td>
+                        <td class="text-center border-start">{{ (p.fg_pct * 100)|round(1) }}%</td>
+                        <td class="text-center">{{ (p.tp_pct * 100)|round(1) }}%</td>
+                        <td class="text-center">{{ (p.ft_pct * 100)|round(1) }}%</td>
+                        <td class="text-center border-start fw-bold">{{ p.eff|round(1) }}</td>
+                        <td class="text-center">{{ p.ppp|round(2) }}</td>
+                        <td class="text-center">{{ p.ortg|round(0) }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
-
-    <!-- Enhanced Glossary -->
-    <div class="glossary-section">
-        <h3><i class="fas fa-book"></i> Statistics Glossary</h3>
-        <div class="glossary-grid">
-            <div class="glossary-col">
-                <h4 style="color: #4c51bf;">Basic & Offensive</h4>
-                <div class="glossary-list">
-                    <strong>GP:</strong> Games Played<br>
-                    <strong>MIN:</strong> Minutes Per Game<br>
-                    <strong>PTS:</strong> Points Per Game<br>
-                    <strong>REB:</strong> Rebounds (<strong>OREB</strong>/<strong>DREB</strong>: Off/Def)<br>
-                    <strong>AST:</strong> Assists Per Game<br>
-                    <strong>STL:</strong> Steals Per Game<br>
-                    <strong>BLK:</strong> Blocks Per Game<br>
-                    <strong>TOV:</strong> Turnovers Per Game<br>
-                    <strong>PF:</strong> Personal Fouls
-                </div>
-            </div>
-
-            <div class="glossary-col">
-                <h4 style="color: #2f855a;">Advanced Efficiency</h4>
-                <div class="glossary-list">
-                    <strong>ORtg:</strong> Offensive Rating (Points produced / 100 poss)<br>
-                    <strong>PPP:</strong> Points Per Possession<br>
-                    <strong>USG%:</strong> Usage Percentage (Plays used)<br>
-                    <strong>EFF:</strong> Efficiency Rating ((PTS+REB+AST+STL+BLK) - Misses/TOs)<br>
-                    <strong>AST/TOV:</strong> Assist to Turnover Ratio<br>
-                    <strong>CV%:</strong> Coefficient of Variation (Consistency metric, lower is better)
-                </div>
-            </div>
-
-            <div class="glossary-col">
-                <h4 style="color: #3182ce;">Shooting Metrics</h4>
-                <div class="glossary-list">
-                    <strong>TS%:</strong> True Shooting % (PTS / (2 * (FGA + 0.44 * FTA)))<br>
-                    <strong>eFG%:</strong> Effective FG% ((FGM + 0.5 * 3PM) / FGA)<br>
-                    <strong>FTR:</strong> Free Throw Rate (FTA / FGA)<br>
-                    <strong>OR%:</strong> Offensive Rebound Percentage<br>
-                    <em>Note: Sub-rows show totals (Made/Attempted)</em>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Legend -->
-        <div class="mt-4 p-3 rounded" style="background: #f7fafc; border: 1px solid #e2e8f0;">
-            <strong><i class="fas fa-palette"></i> Color Key:</strong>
-            <span class="ms-3"><span class="flag-excellent">Green</span> = Excellent (PPP > 1.1, AST/TOV ≥ 2.0, CV < 15%)</span>
-            <span class="ms-3"><span class="flag-good">Blue</span> = Good</span>
-            <span class="ms-3"><span class="flag-poor">Red</span> = Needs Improvement (PPP < 0.8)</span>
-        </div>
-    </div>
 </div>
 
 <script>
-// Simple client-side sort for now, ideally this would be server-side or a robust library
-function sortTable(n) {
-    // Placeholder for sorting logic
-    // In a real implementation, you might reload the page with ?sort=n query param
-    // window.location.href = window.location.pathname + "?sort=" + n;
-    alert("Sorting by " + n + " would be handled server-side or via JS library.");
-}
+    function searchTable(query) {
+        const rows = document.querySelectorAll('#playersTable tbody tr');
+        const lowerQuery = query.toLowerCase();
+        
+        rows.forEach(row => {
+            const nameCell = row.cells[0].textContent.trim().toLowerCase();
+            if (nameCell.includes(lowerQuery)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
 </script>
 {% endblock %}
