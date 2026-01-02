@@ -48,55 +48,55 @@
     <!-- Players Grid -->
     <div class="grid-players" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--spacing-md);">
         {% for p in stats %}
-        <div class="player-card" data-name="{{ p.player_name|lower }}" data-position="All">
-            <div class="player-card-header w-100">
-                <div class="d-flex align-items-center gap-3 w-100">
-                    <!-- Avatar Placeholder -->
-                    <div class="player-card-avatar">
-                        {{ p.player_name[:2]|upper }}
-                    </div>
-                    
-                    <!-- Name & Pos -->
-                    <div style="flex: 1;">
-                        <h3 class="player-card-name">{{ p.player_name }}</h3>
-                        
-                        <!-- Auto-detect position from name or data if available, else static placeholder or random for demo -->
-                        <!-- In a real app, 'position' would be in 'p' object. Using placeholder logic for now. -->
-                        {% set pos_list = ['PG', 'SG', 'SF', 'PF', 'C'] %}
-                        {% set pos = pos_list[loop.index0 % 5] %} 
-                        
-                        <div class="d-flex align-items-center gap-2 mt-1">
-                            <span class="badge position-{{ pos|lower }}">{{ pos_list[loop.index0 % 5] }}</span> <!-- Mock position rotation -->
-                            <span class="player-card-height">6'{{ 2 + (loop.index0 % 10) }}"</span> <!-- Mock height -->
+        <a href="{{ url_for('main.player_detail', player_name=p.player_name, game_type=filters.type) }}" style="text-decoration: none; color: inherit;">
+            <div class="player-card" data-name="{{ p.player_name|lower }}" data-position="All" style="cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'">
+                <div class="player-card-header w-100">
+                    <div class="d-flex align-items-center gap-3 w-100">
+                        <!-- Avatar Placeholder -->
+                        <div class="player-card-avatar">
+                            {{ p.player_name[:2]|upper }}
                         </div>
+                        
+                        <!-- Name & Pos -->
+                        <div style="flex: 1;">
+                            <h3 class="player-card-name">{{ p.player_name }}</h3>
+                            
+                            <!-- Auto-detect position from name or data if available, else static placeholder or random for demo -->
+                            <!-- In a real app, 'position' would be in 'p' object. Using placeholder logic for now. -->
+                            {% set pos_list = ['PG', 'SG', 'SF', 'PF', 'C'] %}
+                            {% set pos = pos_list[loop.index0 % 5] %} 
+                            
+                            <div class="d-flex align-items-center gap-2 mt-1">
+                                <span class="badge position-{{ pos|lower }}">{{ pos_list[loop.index0 % 5] }}</span> <!-- Mock position rotation -->
+                                <span class="player-card-height">6'{{ 2 + (loop.index0 % 10) }}"</span> <!-- Mock height -->
+                            </div>
+                        </div>
+
+                        <i class="fas fa-chevron-right" style="color: #999;"></i>
                     </div>
+                </div>
 
-                    <a href="{{ url_for('analytics.player_report_pdf', player_name=p.player_name, game_type=filters.type) }}" class="text-muted">
-                        <i class="fas fa-chevron-right"></i>
-                    </a>
+                <!-- Mini Stats Grid -->
+                <div class="player-card-stats mt-3">
+                    <div class="player-stat">
+                        <div class="player-stat-value">{{ p.games_played }}</div>
+                        <div class="player-stat-label">Games</div>
+                    </div>
+                    <div class="player-stat">
+                        <div class="player-stat-value">{{ p.ppg|round(1) }}</div>
+                        <div class="player-stat-label">PPG</div>
+                    </div>
+                    <div class="player-stat">
+                        <div class="player-stat-value">{{ p.rpg|round(1) }}</div>
+                        <div class="player-stat-label">RPG</div>
+                    </div>
+                    <div class="player-stat">
+                        <div class="player-stat-value">{{ p.apg|round(1) }}</div>
+                        <div class="player-stat-label">APG</div>
+                    </div>
                 </div>
             </div>
-
-            <!-- Mini Stats Grid -->
-            <div class="player-card-stats mt-3">
-                <div class="player-stat">
-                    <div class="player-stat-value">{{ p.games_played }}</div>
-                    <div class="player-stat-label">Games</div>
-                </div>
-                <div class="player-stat">
-                    <div class="player-stat-value">{{ p.ppg|round(1) }}</div>
-                    <div class="player-stat-label">PPG</div>
-                </div>
-                <div class="player-stat">
-                    <div class="player-stat-value">{{ p.rpg|round(1) }}</div>
-                    <div class="player-stat-label">RPG</div>
-                </div>
-                <div class="player-stat">
-                    <div class="player-stat-value">{{ p.apg|round(1) }}</div>
-                    <div class="player-stat-label">APG</div>
-                </div>
-            </div>
-        </div>
+        </a>
         {% endfor %}
     </div>
 </div>
@@ -108,10 +108,11 @@
         
         cards.forEach(card => {
             const name = card.getAttribute('data-name');
+            const parent = card.parentElement;
             if (name.includes(lowerQuery)) {
-                card.style.display = 'flex';
+                parent.style.display = 'block';
             } else {
-                card.style.display = 'none';
+                parent.style.display = 'none';
             }
         });
     }
