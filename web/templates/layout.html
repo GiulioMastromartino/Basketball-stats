@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{% block title %}HoopsStats{% endblock %}</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        />
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='css/style.css') }}"
+        />
+        {% block extra_css %}{% endblock %}
+    </head>
+    <body>
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="navbar-container">
+                <a href="{{ url_for('main.index') }}" class="navbar-brand">
+                    <div class="brand-icon">🏀</div>
+                    <span>HoopsStats</span>
+                </a>
+                
+                <div class="navbar-menu">
+                    <a href="{{ url_for('main.index') }}" class="nav-item {{ 'active' if request.endpoint == 'main.index' }}">
+                        Dashboard
+                    </a>
+                    <a href="{{ url_for('main.teams') }}" class="nav-item {{ 'active' if request.endpoint == 'main.teams' }}">
+                        Games
+                    </a>
+                    <a href="{{ url_for('main.players') }}" class="nav-item {{ 'active' if request.endpoint == 'main.players' }}">
+                        Players
+                    </a>
+                    <a href="{{ url_for('analytics.dashboard') }}" class="nav-item {{ 'active' if 'analytics' in request.endpoint }}">
+                        Analytics
+                    </a>
+                </div>
+
+                <div class="navbar-actions">
+                    <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline">Logout</a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="container">
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2025 HoopsStats. All rights reserved.</p>
+        </footer>
+
+        {% block scripts %}{% endblock %}
+    </body>
+</html>
