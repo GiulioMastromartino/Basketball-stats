@@ -1,17 +1,10 @@
 services:
-  basketball-stats:
-    build: .
-    image: basketball-stats:latest
-    container_name: basketball_stats
+  web:
+    image: giuliomastromartino/basketball-stats:latest
     ports:
       - "8080:8080"
     volumes:
-      - ./basketball_stats.db:/app/basketball_stats.db
-      - ./Games:/app/Games
-      - ./Output:/app/Output
-      - ./uploads:/app/uploads
-    environment:
-      - FLASK_ENV=production
-      - SECRET_KEY=change_me_in_production
-      - DATABASE_URL=sqlite:////app/basketball_stats.db
+      # Mount the instance folder for persistent database storage
+      # Ensure your flask config uses 'sqlite:///instance/database.db'
+      - ./instance:/app/instance
     restart: unless-stopped
