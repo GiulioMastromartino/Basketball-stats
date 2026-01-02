@@ -63,3 +63,6 @@ class PlayerStat(db.Model):
     blk = db.Column(db.Integer, default=0)
     tov = db.Column(db.Integer, default=0)
     pf = db.Column(db.Integer, default=0)
+    
+    # Relationship to Game
+    game = db.relationship("Game", backref=db.backref("stats", lazy=True))
