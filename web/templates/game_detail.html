@@ -61,10 +61,17 @@
             <h1><i class="fas fa-chart-bar"></i> Box Score</h1>
             <p class="text-muted">{{ game.date }} vs {{ game.opponent }}</p>
         </div>
-        <div>
+        <div style="display: flex; gap: 10px;">
             <a href="{{ url_for('main.index') }}" class="btn btn-outline">
                 <i class="fas fa-arrow-left"></i> Back to Dashboard
             </a>
+
+            <form method="POST" action="{{ url_for('main.delete_game', game_id=game.id) }}" onsubmit="return confirm('Delete this game? This will remove all player stats for this game.');" style="margin: 0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Delete Game
+                </button>
+            </form>
         </div>
     </div>
 
