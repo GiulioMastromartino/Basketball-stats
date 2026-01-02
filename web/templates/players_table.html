@@ -2,12 +2,14 @@
 
 {% block content %}
 <style>
-    /* Tooltip styling */
+    /* -----------------------------
+       Tooltips
+    ----------------------------- */
     .header-content {
         position: relative;
         display: inline-flex;
         align-items: center;
-        gap: 3px;
+        gap: 4px;
         cursor: help;
         width: 100%;
         justify-content: center;
@@ -20,20 +22,42 @@
         left: 50%;
         transform: translateX(-50%);
         background: #1a202c;
-        color: white;
-        padding: 8px 12px;
-        border-radius: 6px;
+        color: #fff;
+        padding: 10px 12px;
+        border-radius: 10px;
         font-size: 11px;
-        white-space: nowrap;
         z-index: 9999;
         opacity: 0;
-        transition: opacity 0.2s;
+        transition: opacity 0.15s ease;
         pointer-events: none;
-        margin-bottom: 8px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        margin-bottom: 10px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.20);
         font-weight: 500;
         text-transform: none;
-        line-height: 1.4;
+        line-height: 1.35;
+        white-space: normal;
+        max-width: 280px;
+        min-width: 220px;
+    }
+
+    .stat-tooltip .tt-title {
+        font-weight: 700;
+        margin-bottom: 4px;
+        color: #fff;
+    }
+
+    .stat-tooltip .tt-desc {
+        color: rgba(255,255,255,0.85);
+        margin-bottom: 6px;
+    }
+
+    .stat-tooltip .tt-formula {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        color: rgba(255,255,255,0.92);
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
+        padding: 6px 8px;
+        border-radius: 8px;
     }
 
     .stat-tooltip::after {
@@ -41,8 +65,8 @@
         position: absolute;
         top: 100%;
         left: 50%;
-        margin-left: -5px;
-        border-width: 5px;
+        margin-left: -6px;
+        border-width: 6px;
         border-style: solid;
         border-color: #1a202c transparent transparent transparent;
     }
@@ -52,97 +76,128 @@
         opacity: 1;
     }
 
-    /* Table styling from Dec 27 version */
+    /* -----------------------------
+       Table layout + aesthetics
+    ----------------------------- */
+    /* Cards in this repo default to overflow:hidden; that clips tooltips */
+    .players-table-card,
+    .players-table-card .card-body {
+        overflow: visible !important;
+    }
+
     th {
         font-size: 0.7rem;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.6px;
         color: #6c757d;
         white-space: nowrap;
         cursor: pointer;
-        transition: 0.2s;
-        padding: 8px 4px !important;
+        transition: 0.15s ease;
+        padding: 8px 6px !important;
         vertical-align: middle !important;
     }
+
     th:hover {
-        color: #007bff;
-        background: #f1f3f5;
+        color: var(--primary);
+        background: rgba(23, 162, 162, 0.08);
     }
+
     td {
         font-size: 0.85rem;
         white-space: nowrap;
-        padding: 10px 4px !important;
+        padding: 10px 6px !important;
         vertical-align: middle !important;
     }
+
     .sticky-col {
         position: sticky;
         left: 0;
-        background: white;
+        background: #fff;
         z-index: 2;
-        border-right: 1px solid #eee;
+        border-right: 1px solid rgba(0,0,0,0.05);
     }
+
     th.sticky-col {
-        background: #f8f9fa;
+        background: linear-gradient(135deg, rgba(23,162,162,0.08), rgba(255,152,0,0.06));
         z-index: 3;
     }
+
     .sort-icon {
         margin-left: 3px;
         font-size: 0.6rem;
-        color: #ccc;
+        color: rgba(0,0,0,0.20);
     }
+
     .sort-icon.active-sort {
-        color: #007bff;
+        color: var(--primary);
         opacity: 1;
     }
-    .flag-excellent {
-        color: #28a745;
-        font-weight: 600;
-    }
-    .flag-good {
-        color: #17a2b8;
-    }
-    .flag-poor {
-        color: #dc3545;
-    }
+
+    .flag-excellent { color: #28a745; font-weight: 700; }
+    .flag-good { color: #17a2b8; font-weight: 600; }
+    .flag-poor { color: #dc3545; font-weight: 700; }
+
+    /* Group headers with gradients */
     .section-header {
-        background: #e9ecef;
-        font-weight: 700;
+        font-weight: 800;
         text-align: center;
-        padding: 8px 4px;
-        border-top: 2px solid #dee2e6;
-        font-size: 0.75rem;
-        color: #495057;
+        padding: 8px 6px;
+        border-top: 2px solid rgba(0,0,0,0.06);
+        font-size: 0.74rem;
+        color: #2c3e50;
     }
-    .btn-pdf {
-        display: inline-block;
-        padding: 4px 10px;
-        background: #007bff;
-        color: white;
-        text-decoration: none;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        transition: 0.2s;
-        white-space: nowrap;
+
+    .section-off { background: linear-gradient(135deg, rgba(23,162,162,0.18), rgba(23,162,162,0.06)); }
+    .section-eff { background: linear-gradient(135deg, rgba(23,162,184,0.18), rgba(23,162,184,0.05)); }
+    .section-sho { background: linear-gradient(135deg, rgba(255,152,0,0.22), rgba(255,152,0,0.06)); }
+    .section-def { background: linear-gradient(135deg, rgba(44,62,80,0.16), rgba(44,62,80,0.04)); }
+    .section-rpt { background: linear-gradient(135deg, rgba(220,53,69,0.16), rgba(220,53,69,0.04)); }
+
+    /* Subtle row hover */
+    #playersTable tbody tr:hover td {
+        background: linear-gradient(90deg, rgba(23,162,162,0.06), transparent 70%);
     }
-    .btn-pdf:hover {
-        background: #0056b3;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+
+    #playersTable tbody tr:hover td.sticky-col {
+        background: rgba(23,162,162,0.05);
     }
-    
-    /* Ensure tooltips aren't clipped */
+
+    /* Ensure tooltips aren't clipped by the responsive wrapper */
     .table-responsive {
         overflow-x: auto;
-        overflow-y: visible; 
-        min-height: 400px; /* Space for dropdowns/tooltips */
+        overflow-y: visible;
+        min-height: 420px;
     }
-    
+
     .sort-link {
         text-decoration: none;
         color: inherit;
         display: block;
         width: 100%;
         height: 100%;
+    }
+
+    .btn-pdf {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 6px 10px;
+        background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        transition: 0.15s ease;
+        white-space: nowrap;
+        box-shadow: 0 6px 14px rgba(23,162,162,0.18);
+    }
+
+    .btn-pdf:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 20px rgba(23,162,162,0.22);
+        color: white;
+        text-decoration: none;
     }
 </style>
 
@@ -165,11 +220,11 @@
     <!-- Controls / Filter Bar -->
     <div class="card mb-4">
         <div class="control-bar d-flex justify-content-between align-items-center p-3">
-            <div style="flex: 1; min-width: 250px; position: relative; max-width: 400px;">
+            <div style="flex: 1; min-width: 250px; position: relative; max-width: 420px;">
                 <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                <input type="text" placeholder="Search players..." style="padding-left: 36px; width: 100%; border-radius: var(--border-radius); border: 1px solid #ced4da; padding: 6px 36px;" onkeyup="searchTable(this.value)">
+                <input type="text" placeholder="Search players..." style="padding-left: 36px; width: 100%; border-radius: var(--border-radius); border: 1px solid #ced4da; padding: 8px 36px;" onkeyup="searchTable(this.value)">
             </div>
-            
+
             <div class="d-flex gap-3 align-items-center">
                 <div>
                     <label class="me-2"><i class="fas fa-filter"></i> Filter:</label>
@@ -183,22 +238,22 @@
         </div>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm players-table-card">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" id="playersTable" style="width: 100%; border-collapse: collapse; min-width: 2000px;">
+            <table class="table table-hover align-middle mb-0" id="playersTable" style="width: 100%; border-collapse: collapse; min-width: 2400px;">
                 <thead>
                     <!-- Section Headers Row -->
-                    <tr style="background: #f8f9fa; border-bottom: 2px solid #eee;">
+                    <tr style="border-bottom: 2px solid rgba(0,0,0,0.05);">
                         <th class="sticky-col" style="min-width: 180px;"></th>
                         <th></th>
                         <th></th>
-                        <th class="section-header" colspan="9">OFFENSIVE</th>
-                        <th class="section-header" colspan="5">EFFICIENCY</th>
-                        <th class="section-header" colspan="7">SHOOTING</th>
-                        <th class="section-header" colspan="3">DEFENSE & OTHER</th>
-                        <th class="section-header">REPORT</th>
+                        <th class="section-header section-off" colspan="9">OFFENSIVE</th>
+                        <th class="section-header section-eff" colspan="5">EFFICIENCY</th>
+                        <th class="section-header section-sho" colspan="7">SHOOTING</th>
+                        <th class="section-header section-def" colspan="3">DEFENSE & OTHER</th>
+                        <th class="section-header section-rpt">REPORT</th>
                     </tr>
-                    
+
                     <!-- Column Headers Row -->
                     <tr>
                         {% set current_sort = filters.sort %}
@@ -208,7 +263,7 @@
                         <!-- Sticky Player Column -->
                         <th class="sticky-col">
                             <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='player_name', order=next_order) }}" class="sort-link text-start ps-3">
-                                Player 
+                                Player
                                 {% if current_sort == 'player_name' %}
                                     <i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }} sort-icon active-sort"></i>
                                 {% else %}
@@ -218,39 +273,19 @@
                         </th>
 
                         <!-- GP & MIN -->
-                        {% for col in [('games_played', 'GP', 'Games Played'), ('mpg', 'MIN', 'Minutes Per Game')] %}
-                        <th class="text-center">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
-                                <div class="header-content">
-                                    {{ col[1] }}
-                                    <span class="stat-tooltip">{{ col[2] }}</span>
-                                    {% if current_sort == col[0] %}
-                                        <i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }} sort-icon active-sort"></i>
-                                    {% else %}
-                                        <i class="fas fa-sort sort-icon"></i>
-                                    {% endif %}
-                                </div>
-                            </a>
-                        </th>
-                        {% endfor %}
-
-                        <!-- OFFENSIVE Stats -->
                         {% for col in [
-                            ('ppg', 'PTS', 'Points Per Game'),
-                            ('ortg', 'ORtg', 'Offensive Rating'),
-                            ('ppp', 'PPP', 'Points Per Possession'),
-                            ('usg_pct', 'USG', 'Usage Rate'),
-                            ('rpg', 'REB', 'Total Rebounds'),
-                            ('orebpg', 'OREB', 'Offensive Rebounds'),
-                            ('drebpg', 'DREB', 'Defensive Rebounds'),
-                            ('apg', 'AST', 'Assists'),
-                            ('ast_tov', 'A/TO', 'Assist/Turnover Ratio')
+                            ('games_played', 'GP', 'Games Played', ''),
+                            ('mpg', 'MIN', 'Minutes Per Game', '')
                         ] %}
                         <th class="text-center">
                             <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
                                 <div class="header-content">
                                     {{ col[1] }}
-                                    <span class="stat-tooltip">{{ col[2] }}</span>
+                                    <span class="stat-tooltip">
+                                        <div class="tt-title">{{ col[1] }}</div>
+                                        <div class="tt-desc">{{ col[2] }}</div>
+                                        {% if col[3] %}<div class="tt-formula">{{ col[3] }}</div>{% endif %}
+                                    </span>
                                     {% if current_sort == col[0] %}
                                         <i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }} sort-icon active-sort"></i>
                                     {% else %}
@@ -261,19 +296,54 @@
                         </th>
                         {% endfor %}
 
-                        <!-- EFFICIENCY Stats -->
+                        <!-- OFFENSIVE -->
                         {% for col in [
-                            ('eff', 'EFF', 'Efficiency Rating'),
-                            ('ts_pct', 'TS%', 'True Shooting Percentage'),
-                            ('efg_pct', 'eFG%', 'Effective Field Goal %'),
-                            ('consistency', 'CV%', 'Coefficient of Variation (Consistency)'),
-                            ('topg', 'TOV', 'Turnovers')
+                            ('ppg', 'PTS', 'Points per game.', ''),
+                            ('ortg', 'ORtg', 'Points produced per 100 possessions.', 'Formula: ORtg = (Points / Possessions) × 100'),
+                            ('ppp', 'PPP', 'Scoring efficiency per possession.', 'Formula: PPP = Points / Possessions'),
+                            ('usg_pct', 'USG', 'How many possessions a player finishes.', 'Formula: USG% ≈ (FGA + 0.44×FTA + TOV) / Poss × 100'),
+                            ('rpg', 'REB', 'Total rebounds per game.', ''),
+                            ('orebpg', 'OREB', 'Offensive rebounds per game.', ''),
+                            ('drebpg', 'DREB', 'Defensive rebounds per game.', ''),
+                            ('apg', 'AST', 'Assists per game.', ''),
+                            ('ast_tov', 'A/TO', 'Assist-to-turnover ratio.', 'Formula: A/TO = AST / TOV')
+                        ] %}
+                        <th class="text-center">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
+                                <div class="header-content">
+                                    {{ col[1] }}
+                                    <span class="stat-tooltip">
+                                        <div class="tt-title">{{ col[1] }}</div>
+                                        <div class="tt-desc">{{ col[2] }}</div>
+                                        {% if col[3] %}<div class="tt-formula">{{ col[3] }}</div>{% endif %}
+                                    </span>
+                                    {% if current_sort == col[0] %}
+                                        <i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }} sort-icon active-sort"></i>
+                                    {% else %}
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    {% endif %}
+                                </div>
+                            </a>
+                        </th>
+                        {% endfor %}
+
+                        <!-- EFFICIENCY -->
+                        {% for col in [
+                            ('eff', 'EFF', 'Box-score efficiency.', 'Formula: EFF = (PTS+REB+AST+STL+BLK) − ((FGA−FGM)+(FTA−FTM)+TOV)'),
+                            ('ts_pct', 'TS%', 'Overall scoring efficiency (3PT + FT).', 'Formula: TS% = PTS / (2×(FGA+0.44×FTA)) × 100'),
+                            ('efg_pct', 'eFG%', 'FG% adjusted for 3PT being worth more.', 'Formula: eFG% = (FGM+0.5×3PM) / FGA × 100'),
+                            ('consistency', 'CV%', 'Consistency (lower = steadier).', 'Formula: CV% = (StdDev / Mean) × 100'),
+                            ('topg', 'TOV', 'Turnovers per game.', '')
                         ] %}
                         <th class="text-center {% if col[1] == 'EFF' %}bg-light{% endif %}">
                             <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
                                 <div class="header-content">
                                     {{ col[1] }}
-                                    <span class="stat-tooltip">{{ col[2] }}</span>
+                                    <span class="stat-tooltip">
+                                        <div class="tt-title">{{ col[1] }}</div>
+                                        <div class="tt-desc">{{ col[2] }}</div>
+                                        {% if col[3] %}<div class="tt-formula">{{ col[3] }}</div>{% endif %}
+                                    </span>
                                     {% if current_sort == col[0] %}
                                         <i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }} sort-icon active-sort"></i>
                                     {% else %}
@@ -284,20 +354,24 @@
                         </th>
                         {% endfor %}
 
-                        <!-- SHOOTING Stats -->
+                        <!-- SHOOTING -->
                         {% for col in [
-                            ('fg_pct', 'FG%', 'Field Goal %'),
-                            ('two_pt_pct', '2P%', '2-Point %'),
-                            ('tp_pct', '3P%', '3-Point %'),
-                            ('ft_pct', 'FT%', 'Free Throw %'),
-                            ('fta_pct', 'FTR', 'Free Throw Rate'),
-                            ('oreb_pct', 'OR%', 'Offensive Rebound Rate')
+                            ('fg_pct', 'FG%', 'Field goal percentage.', 'Formula: FG% = FGM / FGA × 100'),
+                            ('two_pt_pct', '2P%', 'Two-point field goal percentage.', 'Formula: 2P% = 2PM / 2PA × 100'),
+                            ('tp_pct', '3P%', 'Three-point percentage.', 'Formula: 3P% = 3PM / 3PA × 100'),
+                            ('ft_pct', 'FT%', 'Free throw percentage.', 'Formula: FT% = FTM / FTA × 100'),
+                            ('fta_pct', 'FTR', 'How often a player gets to the line.', 'Formula: FTR = FTA / FGA'),
+                            ('oreb_pct', 'OR%', 'Share of offensive rebounds.', 'Formula: OR% = OREB / Total REB × 100')
                         ] %}
                         <th class="text-center">
                             <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
                                 <div class="header-content">
                                     {{ col[1] }}
-                                    <span class="stat-tooltip">{{ col[2] }}</span>
+                                    <span class="stat-tooltip">
+                                        <div class="tt-title">{{ col[1] }}</div>
+                                        <div class="tt-desc">{{ col[2] }}</div>
+                                        {% if col[3] %}<div class="tt-formula">{{ col[3] }}</div>{% endif %}
+                                    </span>
                                     {% if current_sort == col[0] %}
                                         <i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }} sort-icon active-sort"></i>
                                     {% else %}
@@ -307,25 +381,32 @@
                             </a>
                         </th>
                         {% endfor %}
-                         <th class="text-center">
+
+                        <th class="text-center">
                             <div class="header-content">
                                 M/A
-                                <span class="stat-tooltip">Total Made/Attempted</span>
+                                <span class="stat-tooltip">
+                                    <div class="tt-title">M/A</div>
+                                    <div class="tt-desc">Made / Attempted totals for FG.</div>
+                                </span>
                             </div>
                         </th>
 
-
-                        <!-- DEFENSE Stats -->
+                        <!-- DEFENSE -->
                         {% for col in [
-                            ('spg', 'STL', 'Steals'),
-                            ('bpg', 'BLK', 'Blocks'),
-                            ('pfpg', 'PF', 'Personal Fouls')
+                            ('spg', 'STL', 'Steals per game.', ''),
+                            ('bpg', 'BLK', 'Blocks per game.', ''),
+                            ('pfpg', 'PF', 'Personal fouls per game.', '')
                         ] %}
                         <th class="text-center">
                             <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
                                 <div class="header-content">
                                     {{ col[1] }}
-                                    <span class="stat-tooltip">{{ col[2] }}</span>
+                                    <span class="stat-tooltip">
+                                        <div class="tt-title">{{ col[1] }}</div>
+                                        <div class="tt-desc">{{ col[2] }}</div>
+                                        {% if col[3] %}<div class="tt-formula">{{ col[3] }}</div>{% endif %}
+                                    </span>
                                     {% if current_sort == col[0] %}
                                         <i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }} sort-icon active-sort"></i>
                                     {% else %}
@@ -335,14 +416,14 @@
                             </a>
                         </th>
                         {% endfor %}
-                        
+
                         <!-- Report -->
                         <th class="text-center">PDF</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for p in stats %}
-                    <tr style="border-bottom: 1px solid #f1f1f1">
+                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.05)">
                         <td class="sticky-col ps-3 fw-bold">
                             <a href="{{ url_for('main.player_detail', player_name=p.player_name, game_type=filters.type) }}" class="text-decoration-none text-dark d-flex align-items-center">
                                 {{ p.player_name }}
@@ -353,7 +434,7 @@
 
                         <!-- OFFENSIVE -->
                         <td class="text-center fw-bold" style="color: var(--primary);">{{ p.ppg|round(1) }}</td>
-                        <td class="text-center text-success fw-bold">{{ p.ortg|round(0) }}</td>
+                        <td class="text-center fw-bold" style="color: var(--success);">{{ p.ortg|round(0) }}</td>
                         <td class="text-center fw-bold {% if p.ppp > 1.1 %}flag-excellent{% elif p.ppp < 0.8 %}flag-poor{% endif %}">{{ p.ppp|round(2) }}</td>
                         <td class="text-center">{{ p.usg_pct|round(1) }}</td>
                         <td class="text-center">{{ p.rpg|round(1) }}</td>
@@ -364,7 +445,7 @@
 
                         <!-- EFFICIENCY -->
                         <td class="text-center fw-bold bg-light">{{ p.eff|round(1) }}</td>
-                        <td class="text-center text-info fw-bold">{{ p.ts_pct|round(1) }}%</td>
+                        <td class="text-center fw-bold" style="color: var(--info);">{{ p.ts_pct|round(1) }}%</td>
                         <td class="text-center">{{ p.efg_pct|round(1) }}%</td>
                         <td class="text-center {% if p.consistency < 0.15 %}flag-good{% elif p.consistency > 0.30 %}flag-poor{% endif %}">{{ (p.consistency * 100)|round(1) }}%</td>
                         <td class="text-center">{{ p.topg|round(1) }}</td>
@@ -377,7 +458,7 @@
                         <td class="text-center">{{ p.fta_pct|round(1) }}%</td>
                         <td class="text-center">{{ p.oreb_pct|round(1) }}%</td>
                         <td class="text-center text-muted" style="font-size: 0.75rem;">
-                             <div>{{ p.fgm }}/{{ p.fga }}</div>
+                            <div>{{ p.fgm }}/{{ p.fga }}</div>
                         </td>
 
                         <!-- DEFENSE -->
@@ -387,7 +468,7 @@
 
                         <!-- PDF -->
                         <td class="text-center">
-                            <a href="#" class="btn-pdf">
+                            <a href="{{ url_for('analytics.player_report_pdf', player_name=p.player_name, game_type=filters.type) }}" class="btn-pdf" target="_blank" title="Download PDF report">
                                 <i class="fas fa-file-pdf"></i>
                             </a>
                         </td>
@@ -403,14 +484,10 @@
     function searchTable(query) {
         const rows = document.querySelectorAll('#playersTable tbody tr');
         const lowerQuery = query.toLowerCase();
-        
+
         rows.forEach(row => {
             const nameCell = row.cells[0].textContent.trim().toLowerCase();
-            if (nameCell.includes(lowerQuery)) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
+            row.style.display = nameCell.includes(lowerQuery) ? '' : 'none';
         });
     }
 </script>
