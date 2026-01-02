@@ -1,97 +1,109 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <title>Opponent History</title>
-        <link
-            rel="stylesheet"
-            href="{{ url_for('static', filename='css/style.css') }}"
-        />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
-            rel="stylesheet"
-        />
-        <link
-            rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-        />
-    </head>
-    <body>
-        <div class="header">
-            <h1><i class="fas fa-shield-alt"></i> Opponent History</h1>
-            <a href="{{ url_for('main.index') }}"
-                ><i class="fas fa-arrow-left"></i> Dashboard</a
-            >
-        </div>
+{% extends "base.html" %}
 
-        <div class="container">
-            <div class="panel">
-                <div class="panel-header"><h3>Head-to-Head Records</h3></div>
-                <table style="width: 100%; border-collapse: collapse">
-                    <thead>
-                        <tr
-                            style="
-                                background: #f8f9fa;
-                                border-bottom: 2px solid #eee;
-                            "
-                        >
-                            <th style="padding: 15px; text-align: left">
-                                Opponent
-                            </th>
-                            <th style="padding: 15px; text-align: center">
-                                Games
-                            </th>
-                            <th style="padding: 15px; text-align: center">
-                                Record
-                            </th>
-                            <th style="padding: 15px; text-align: center">
-                                Avg Score
-                            </th>
-                            <th style="padding: 15px; text-align: right">
-                                Action
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for t in teams %}
-                        <tr style="border-bottom: 1px solid #f1f1f1">
-                            <td style="padding: 15px; font-weight: 600">
-                                {{ t.name }}
-                            </td>
-                            <td style="padding: 15px; text-align: center">
-                                {{ t.games }}
-                            </td>
-                            <td style="padding: 15px; text-align: center">
-                                <span
-                                    style="
-                                        background: #e9ecef;
-                                        padding: 4px 10px;
-                                        border-radius: 12px;
-                                    "
-                                    >{{ t.record }}</span
-                                >
-                            </td>
-                            <td style="padding: 15px; text-align: center">
-                                {{ t.avg_score }}
-                            </td>
-                            <td style="padding: 15px; text-align: right">
-                                <a
-                                    href="{{ url_for('main.opponent_games', opponent_name=t.name) }}"
-                                    style="
-                                        color: var(--primary);
-                                        font-weight: 600;
-                                        text-decoration: none;
-                                    "
-                                >
-                                    View Games
-                                    <i class="fas fa-arrow-right"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="fas fa-shield-alt"></i> Opponents</h1>
+            <p class="text-muted">{{ teams|length }} teams faced</p>
+        </div>
+    </div>
+
+    <!-- Controls / Filter Bar -->
+    <div class="card mb-4">
+        <div class="card-body p-3">
+            <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
+                <!-- Search -->
+                <div style="flex: 1; min-width: 250px; position: relative;">
+                    <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                    <input type="text" placeholder="Search opponents..." style="padding-left: 36px; width: 100%; border-radius: var(--border-radius);" onkeyup="searchTeams(this.value)">
+                </div>
+
+                <!-- Sort/Filter (Visual only for now matching players page style) -->
+                <div class="d-flex gap-2">
+                    <select class="form-select" style="width: auto;" onchange="filterTeams(this.value)">
+                        <option value="all">All Records</option>
+                        <option value="winning">Winning Record</option>
+                        <option value="losing">Losing Record</option>
+                    </select>
+                </div>
             </div>
         </div>
-    </body>
-</html>
+    </div>
+
+    <!-- Teams Grid -->
+    <div class="grid-players" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--spacing-md);">
+        {% for t in teams %}
+        <div class="player-card team-card" data-name="{{ t.name|lower }}" data-record="{{ 'winning' if t.record.split('-')[0]|int > t.record.split('-')[1]|int else 'losing' }}">
+            <div class="player-card-header w-100">
+                <div class="d-flex align-items-center gap-3 w-100">
+                    <!-- Avatar Placeholder for Team -->
+                    <div class="player-card-avatar" style="background: linear-gradient(135deg, var(--secondary), #4a69bd);">
+                        {{ t.name[:2]|upper }}
+                    </div>
+                    
+                    <!-- Name & Record -->
+                    <div style="flex: 1;">
+                        <h3 class="player-card-name">{{ t.name }}</h3>
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <span class="badge" style="background: #f1f3f5; color: var(--text-muted); font-family: monospace;">{{ t.record }}</span>
+                        </div>
+                    </div>
+
+                    <a href="{{ url_for('main.opponent_games', opponent_name=t.name) }}" class="btn btn-outline btn-sm">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Mini Stats Grid -->
+            <div class="player-card-stats mt-3" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="player-stat">
+                    <div class="player-stat-value">{{ t.games }}</div>
+                    <div class="player-stat-label">Games Played</div>
+                </div>
+                <div class="player-stat">
+                    <div class="player-stat-value">{{ t.avg_score }}</div>
+                    <div class="player-stat-label">Avg Score</div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+    function searchTeams(query) {
+        const cards = document.querySelectorAll('.team-card');
+        const lowerQuery = query.toLowerCase();
+        
+        cards.forEach(card => {
+            const name = card.getAttribute('data-name');
+            if (name.includes(lowerQuery)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    function filterTeams(type) {
+        const cards = document.querySelectorAll('.team-card');
+        cards.forEach(card => {
+            if (type === 'all') {
+                card.style.display = 'flex';
+            } else {
+                const recordType = card.getAttribute('data-record'); // 'winning' or 'losing' logic needs to be robust, using simplified logic here
+                // Note: Logic in template determines attribute. 
+                // Since this is a visual update, we just check if it matches roughly.
+                // For exact filtering, strictly check the attribute.
+                 if (card.getAttribute('data-record') === type || (type === 'losing' && card.getAttribute('data-record') !== 'winning')) { // Simplified
+                     card.style.display = 'flex';
+                 } else {
+                     card.style.display = 'none';
+                 }
+            }
+        });
+    }
+</script>
+{% endblock %}
