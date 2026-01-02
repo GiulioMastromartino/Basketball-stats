@@ -1,0 +1,17 @@
+services:
+  basketball-stats:
+    build: .
+    image: basketball-stats:latest
+    container_name: basketball_stats
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./basketball_stats.db:/app/basketball_stats.db
+      - ./Games:/app/Games
+      - ./Output:/app/Output
+      - ./uploads:/app/uploads
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=change_me_in_production
+      - DATABASE_URL=sqlite:////app/basketball_stats.db
+    restart: unless-stopped
