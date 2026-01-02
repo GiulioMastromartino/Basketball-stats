@@ -75,9 +75,9 @@
     <div class="card" style="text-align: center; padding: 40px;">
         <h3 style="margin-bottom: 15px;">Add New Game</h3>
         <p style="color: var(--text-muted); margin-bottom: 20px;">Upload a CSV file to add stats.</p>
-        <button class="btn btn-primary" onclick="alert('Use the CLI import tool for now!')">
+        <a href="{{ url_for('main.upload_game') }}" class="btn btn-primary">
             <i class="fas fa-plus"></i> Import Game
-        </button>
+        </a>
     </div>
     <div class="card" style="text-align: center; padding: 40px;">
         <h3 style="margin-bottom: 15px;">Manage Roster</h3>
