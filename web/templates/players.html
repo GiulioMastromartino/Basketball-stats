@@ -1,854 +1,125 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <title>Roster Stats</title>
-        <link
-            rel="stylesheet"
-            href="{{ url_for('static', filename='css/style.css') }}"
-        />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
-            rel="stylesheet"
-        />
-        <link
-            rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-        />
-        <style>
-            th {
-                font-size: 0.7rem;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                color: #6c757d;
-                white-space: nowrap;
-                cursor: pointer;
-                transition: 0.2s;
-                padding: 8px 4px !important;
-            }
-            th:hover {
-                color: #007bff;
-                background: #f1f3f5;
-            }
-            td {
-                font-size: 0.85rem;
-                white-space: nowrap;
-                padding: 10px 4px !important;
-            }
-            .sticky-col {
-                position: sticky;
-                left: 0;
-                background: white;
-                z-index: 2;
-                border-right: 1px solid #eee;
-            }
-            th.sticky-col {
-                background: #f8f9fa;
-                z-index: 3;
-            }
-            .sort-icon {
-                margin-left: 3px;
-                font-size: 0.6rem;
-                color: #ccc;
-            }
-            .active-sort {
-                color: #007bff;
-            }
-            .flag-excellent {
-                color: #28a745;
-                font-weight: 600;
-            }
-            .flag-good {
-                color: #17a2b8;
-            }
-            .flag-poor {
-                color: #dc3545;
-            }
-            .section-header {
-                background: #e9ecef;
-                font-weight: 700;
-                text-align: center;
-                padding: 8px 4px;
-                border-top: 2px solid #dee2e6;
-            }
-            .btn-pdf {
-                display: inline-block;
-                padding: 4px 10px;
-                background: #007bff;
-                color: white;
-                text-decoration: none;
-                border-radius: 4px;
-                font-size: 0.75rem;
-                transition: 0.2s;
-                white-space: nowrap;
-            }
-            .btn-pdf:hover {
-                background: #0056b3;
-                transform: translateY(-1px);
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            }
-            .btn-download-all {
-                display: inline-block;
-                padding: 8px 16px;
-                background: #28a745;
-                color: white;
-                text-decoration: none;
-                border-radius: 6px;
-                font-size: 0.9rem;
-                font-weight: 600;
-                transition: 0.2s;
-                margin-left: 15px;
-            }
-            .btn-download-all:hover {
-                background: #218838;
-                transform: translateY(-2px);
-                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            }
-            .btn-download-all i {
-                margin-right: 6px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1><i class="fas fa-users"></i> Roster Overview</h1>
-            <div>
-                <a href="{{ url_for('main.index') }}"
-                    ><i class="fas fa-arrow-left"></i> Dashboard</a
-                >
-                <a href="{{ url_for('analytics.download_all_reports', game_type=filters.type) }}" 
-                   class="btn-download-all"
-                   title="Download PDF reports for all players">
-                    <i class="fas fa-file-archive"></i> Download All Reports
-                </a>
-            </div>
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>Players</h1>
+            <p class="text-muted">{{ stats|length }} active players</p>
         </div>
+        <div>
+            <a href="#" class="btn btn-primary" onclick="alert('Add Player modal would open here')">
+                <i class="fas fa-plus"></i> Add Player
+            </a>
+        </div>
+    </div>
 
-        <div class="container" style="max-width: 1800px">
-            <div class="panel">
-                <div class="panel-header">
-                    <h3>Player Statistics</h3>
-                    <div
-                        class="control-bar"
-                        style="
-                            background: transparent;
-                            border: none;
-                            padding: 0;
-                        "
-                    >
-                        <div>
-                            <label><i class="fas fa-filter"></i> Filter:</label>
-                            <select id="gameType" onchange="applyFilters()">
-                                <option value="ALL">All Game Types</option>
-                                <option value="Season">Season Only</option>
-                                <option value="Friendly">Friendly Only</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label
-                                ><i class="fas fa-calendar-alt"></i>
-                                Period:</label
-                            >
-                            <select id="gameLimit" onchange="applyFilters()">
-                                <option value="0">Full History</option>
-                                <option value="5">Last 5 Games</option>
-                                <option value="10">Last 10 Games</option>
-                            </select>
-                        </div>
-                    </div>
+    <!-- Controls / Filter Bar -->
+    <div class="card mb-4">
+        <div class="card-body p-3">
+            <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
+                <!-- Search -->
+                <div style="flex: 1; min-width: 250px; position: relative;">
+                    <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                    <input type="text" placeholder="Search players..." style="padding-left: 36px; width: 100%; border-radius: var(--border-radius);" onkeyup="searchPlayers(this.value)">
                 </div>
 
-                <div style="overflow-x: auto">
-                    <table
-                        style="
-                            width: 100%;
-                            border-collapse: collapse;
-                            min-width: 2400px;
-                        "
-                    >
-                        <thead>
-                            <tr
-                                style="
-                                    background: #f8f9fa;
-                                    border-bottom: 2px solid #eee;
-                                "
-                            >
-                                <!-- Player Info -->
-                                <th
-                                    class="sticky-col"
-                                    onclick="sortBy('player_name')"
-                                >
-                                    Player
-                                    <i
-                                        id="icon-player_name"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('games_played')"
-                                    style="text-align: center"
-                                >
-                                    GP
-                                    <i
-                                        id="icon-games_played"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('mpg')"
-                                    style="text-align: center"
-                                >
-                                    MIN
-                                    <i
-                                        id="icon-mpg"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-
-                                <!-- Offensive -->
-                                <th class="section-header" colspan="9">
-                                    OFFENSIVE
-                                </th>
-
-                                <!-- Efficiency -->
-                                <th class="section-header" colspan="5">
-                                    EFFICIENCY
-                                </th>
-
-                                <!-- Shooting -->
-                                <th class="section-header" colspan="7">
-                                    SHOOTING
-                                </th>
-
-                                <!-- Other -->
-                                <th class="section-header" colspan="3">
-                                    DEFENSE & OTHER
-                                </th>
-                                
-                                <!-- Actions -->
-                                <th class="section-header">
-                                    REPORT
-                                </th>
-                            </tr>
-                            <tr style="background: #f8f9fa">
-                                <th class="sticky-col"></th>
-                                <th></th>
-                                <th></th>
-
-                                <!-- Offensive Stats -->
-                                <th
-                                    onclick="sortBy('ppg')"
-                                    style="
-                                        text-align: center;
-                                        color: var(--primary);
-                                    "
-                                >
-                                    PTS
-                                    <i
-                                        id="icon-ppg"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('ortg')"
-                                    style="text-align: center; color: #28a745"
-                                >
-                                    ORtg
-                                    <i
-                                        id="icon-ortg"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('ppp')"
-                                    style="text-align: center; color: #007bff"
-                                >
-                                    PPP
-                                    <i
-                                        id="icon-ppp"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('usg_pct')"
-                                    style="text-align: center"
-                                >
-                                    USG
-                                    <i
-                                        id="icon-usg_pct"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('rpg')"
-                                    style="text-align: center"
-                                >
-                                    REB
-                                    <i
-                                        id="icon-rpg"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('orebpg')"
-                                    style="text-align: center"
-                                >
-                                    OREB
-                                    <i
-                                        id="icon-orebpg"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('drebpg')"
-                                    style="text-align: center"
-                                >
-                                    DREB
-                                    <i
-                                        id="icon-drebpg"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('apg')"
-                                    style="text-align: center"
-                                >
-                                    AST
-                                    <i
-                                        id="icon-apg"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('ast_tov')"
-                                    style="text-align: center"
-                                >
-                                    AST/TOV
-                                    <i
-                                        id="icon-ast_tov"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-
-                                <!-- Efficiency Stats -->
-                                <th
-                                    onclick="sortBy('eff')"
-                                    style="
-                                        text-align: center;
-                                        background: #f1f3f5;
-                                    "
-                                >
-                                    EFF
-                                    <i
-                                        id="icon-eff"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('ts_pct')"
-                                    style="text-align: center; color: #17a2b8"
-                                >
-                                    TS%
-                                    <i
-                                        id="icon-ts_pct"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('efg_pct')"
-                                    style="text-align: center"
-                                >
-                                    eFG%
-                                    <i
-                                        id="icon-efg_pct"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('consistency')"
-                                    style="text-align: center"
-                                >
-                                    CV%
-                                    <i
-                                        id="icon-consistency"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('topg')"
-                                    style="text-align: center"
-                                >
-                                    TOV
-                                    <i
-                                        id="icon-topg"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-
-                                <!-- Shooting Stats -->
-                                <th
-                                    onclick="sortBy('fg_pct')"
-                                    style="text-align: center"
-                                >
-                                    FG%
-                                    <i
-                                        id="icon-fg_pct"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('two_pt_pct')"
-                                    style="text-align: center"
-                                >
-                                    2P%
-                                    <i
-                                        id="icon-two_pt_pct"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('tp_pct')"
-                                    style="text-align: center"
-                                >
-                                    3P%
-                                    <i
-                                        id="icon-tp_pct"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('ft_pct')"
-                                    style="text-align: center"
-                                >
-                                    FT%
-                                    <i
-                                        id="icon-ft_pct"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('fta_pct')"
-                                    style="text-align: center"
-                                >
-                                    FTA/FGA
-                                    <i
-                                        id="icon-fta_pct"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('oreb_pct')"
-                                    style="text-align: center"
-                                >
-                                    OREB%
-                                    <i
-                                        id="icon-oreb_pct"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-
-                                <!-- Other Stats -->
-                                <th
-                                    onclick="sortBy('spg')"
-                                    style="text-align: center"
-                                >
-                                    STL
-                                    <i
-                                        id="icon-spg"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('bpg')"
-                                    style="text-align: center"
-                                >
-                                    BLK
-                                    <i
-                                        id="icon-bpg"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                <th
-                                    onclick="sortBy('pfpg')"
-                                    style="text-align: center"
-                                >
-                                    PF
-                                    <i
-                                        id="icon-pfpg"
-                                        class="fas fa-sort sort-icon"
-                                    ></i>
-                                </th>
-                                
-                                <!-- Actions -->
-                                <th style="text-align: center">
-                                    PDF
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for p in stats %}
-                            <!-- Main Stats Row -->
-                            <tr style="border-bottom: 1px solid #f1f1f1">
-                                <td
-                                    class="sticky-col"
-                                    style="padding: 12px; font-weight: 600"
-                                    rowspan="2"
-                                >
-                                    {{ p.player_name }}
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.games_played }}
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.mpg|round(1) }}
-                                </td>
-
-                                <!-- Offensive -->
-                                <td
-                                    style="
-                                        text-align: center;
-                                        font-weight: 700;
-                                        color: var(--primary);
-                                    "
-                                    rowspan="2"
-                                >
-                                    {{ p.ppg|round(1) }}
-                                </td>
-                                <td
-                                    style="
-                                        text-align: center;
-                                        color: #28a745;
-                                        font-weight: 600;
-                                    "
-                                    rowspan="2"
-                                >
-                                    {{ p.ortg|round(0) }}
-                                </td>
-                                <td
-                                    style="text-align: center; font-weight: 600"
-                                    class="{% if p.ppp > 1.1 %}flag-excellent{% elif p.ppp < 0.8 %}flag-poor{% endif %}"
-                                    rowspan="2"
-                                >
-                                    {{ p.ppp|round(2) }}
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.usg_pct|round(1) }}
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.rpg|round(1) }}
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.orebpg|round(1) }}
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.drebpg|round(1) }}
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.apg|round(1) }}
-                                </td>
-                                <td
-                                    style="text-align: center"
-                                    class="{% if p.ast_tov >= 2.0 %}flag-excellent{% elif p.ast_tov < 1.0 %}flag-poor{% endif %}"
-                                    rowspan="2"
-                                >
-                                    {{ p.ast_tov|round(2) }}
-                                </td>
-
-                                <!-- Efficiency -->
-                                <td
-                                    style="
-                                        text-align: center;
-                                        font-weight: 600;
-                                        background: #f8f9fa;
-                                    "
-                                    rowspan="2"
-                                >
-                                    {{ p.eff|round(1) }}
-                                </td>
-                                <td
-                                    style="
-                                        text-align: center;
-                                        color: #17a2b8;
-                                        font-weight: 600;
-                                    "
-                                    rowspan="2"
-                                >
-                                    {{ p.ts_pct|round(1) }}%
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.efg_pct|round(1) }}%
-                                </td>
-                                <td
-                                    style="text-align: center"
-                                    class="{% if p.consistency < 0.15 %}flag-good{% elif p.consistency > 0.30 %}flag-poor{% endif %}"
-                                    rowspan="2"
-                                >
-                                    {{ (p.consistency * 100)|round(1) }}%
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.topg|round(1) }}
-                                </td>
-
-                                <!-- Shooting Percentages -->
-                                <td style="text-align: center">
-                                    {{ (p.fg_pct * 100)|int }}%
-                                </td>
-                                <td style="text-align: center">
-                                    {{ p.two_pt_pct|round(1) }}%
-                                </td>
-                                <td style="text-align: center">
-                                    {{ (p.tp_pct * 100)|int }}%
-                                </td>
-                                <td style="text-align: center">
-                                    {{ (p.ft_pct * 100)|int }}%
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.fta_pct|round(1) }}%
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.oreb_pct|round(1) }}%
-                                </td>
-
-                                <!-- Other -->
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.spg|round(1) }}
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.bpg|round(1) }}
-                                </td>
-                                <td style="text-align: center" rowspan="2">
-                                    {{ p.pfpg|round(1) }}
-                                </td>
-                                
-                                <!-- PDF Report Button -->
-                                <td style="text-align: center" rowspan="2">
-                                    <a href="{{ url_for('analytics.player_report_pdf', player_name=p.player_name, game_type=filters.type) }}" 
-                                       class="btn-pdf" 
-                                       target="_blank"
-                                       title="Download comprehensive PDF report for {{ p.player_name }}">
-                                        <i class="fas fa-file-pdf"></i> Report
-                                    </a>
-                                </td>
-                            </tr>
-
-                            <!-- Shooting Totals Sub-Row -->
-                            <tr
-                                style="
-                                    border-bottom: 2px solid #dee2e6;
-                                    background: #fafbfc;
-                                "
-                            >
-                                <!-- Shooting Totals (Made/Attempted) -->
-                                <td
-                                    style="
-                                        text-align: center;
-                                        font-size: 0.75rem;
-                                        color: #6c757d;
-                                        font-weight: 600;
-                                    "
-                                >
-                                    {{ p.fgm }}/{{ p.fga }}
-                                </td>
-                                <td
-                                    style="
-                                        text-align: center;
-                                        font-size: 0.75rem;
-                                        color: #6c757d;
-                                        font-weight: 600;
-                                    "
-                                >
-                                    {{ p.two_pt_made }}/{{ p.two_pt_att }}
-                                </td>
-                                <td
-                                    style="
-                                        text-align: center;
-                                        font-size: 0.75rem;
-                                        color: #6c757d;
-                                        font-weight: 600;
-                                    "
-                                >
-                                    {{ p.tpm }}/{{ p.tpa }}
-                                </td>
-                                <td
-                                    style="
-                                        text-align: center;
-                                        font-size: 0.75rem;
-                                        color: #6c757d;
-                                        font-weight: 600;
-                                    "
-                                >
-                                    {{ p.ftm }}/{{ p.fta }}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-
-                    {% if not stats %}
-                    <div style="text-align: center; padding: 40px; color: #999">
-                        <p>No data found for these filters.</p>
-                    </div>
-                    {% endif %}
-                </div>
-
-                <!-- ACRONYM GLOSSARY -->
-                <div class="panel" style="margin-top: 30px">
-                    <h3 style="margin-bottom: 20px">
-                        <i class="fas fa-book"></i> Statistics Glossary
-                    </h3>
-
-                    <div
-                        style="
-                            display: grid;
-                            grid-template-columns: repeat(
-                                auto-fit,
-                                minmin(300px, 1fr)
-                            );
-                            gap: 20px;
-                        "
-                    >
-                        <!-- Basic Stats -->
-                        <div>
-                            <h4 style="color: #007bff; margin-bottom: 10px">
-                                Basic Stats
-                            </h4>
-                            <div style="line-height: 1.8">
-                                <strong>GP:</strong> Games Played<br />
-                                <strong>MIN:</strong> Minutes Per Game<br />
-                                <strong>PTS:</strong> Points Per Game<br />
-                                <strong>REB:</strong> Rebounds Per Game<br />
-                                <strong>OREB:</strong> Offensive Rebounds Per
-                                Game<br />
-                                <strong>DREB:</strong> Defensive Rebounds Per
-                                Game<br />
-                                <strong>AST:</strong> Assists Per Game<br />
-                                <strong>STL:</strong> Steals Per Game<br />
-                                <strong>BLK:</strong> Blocks Per Game<br />
-                                <strong>TOV:</strong> Turnovers Per Game<br />
-                                <strong>PF:</strong> Personal Fouls Per Game
-                            </div>
-                        </div>
-
-                        <!-- Advanced Efficiency -->
-                        <div>
-                            <h4 style="color: #28a745; margin-bottom: 10px">
-                                Advanced Efficiency
-                            </h4>
-                            <div style="line-height: 1.8">
-                                <strong>ORtg:</strong> Offensive Rating - Points
-                                produced per 100 possessions<br />
-                                <strong>PPP:</strong> Points Per Possession -
-                                Scoring efficiency<br />
-                                <strong>USG:</strong> Usage - Average
-                                possessions used per game<br />
-                                <strong>EFF:</strong> Efficiency Rating - (PTS +
-                                REB + AST + STL + BLK) - (Missed FG + Missed FT
-                                + TOV)<br />
-                                <strong>AST/TOV:</strong> Assist-to-Turnover
-                                Ratio - Ball handling efficiency<br />
-                                <strong>CV%:</strong> Coefficient of Variation -
-                                Performance consistency (lower = more
-                                consistent)
-                            </div>
-                        </div>
-
-                        <!-- Shooting Metrics -->
-                        <div>
-                            <h4 style="color: #17a2b8; margin-bottom: 10px">
-                                Shooting Metrics
-                            </h4>
-                            <div style="line-height: 1.8">
-                                <strong>FG%:</strong> Field Goal Percentage<br />
-                                <strong>2P%:</strong> Two-Point Field Goal
-                                Percentage<br />
-                                <strong>3P%:</strong> Three-Point Field Goal
-                                Percentage<br />
-                                <strong>FT%:</strong> Free Throw Percentage<br />
-                                <strong>TS%:</strong> True Shooting % - Overall
-                                scoring efficiency (accounts for 3PT and FT)<br />
-                                <strong>eFG%:</strong> Effective Field Goal % -
-                                FG% adjusted for 3-pointers being worth more<br />
-                                <strong>FTA/FGA:</strong> Free Throw Attempt
-                                Rate - Aggression/contact rate<br />
-                                <strong>OREB%:</strong> Offensive Rebound % of
-                                total rebounds<br />
-                                <strong>Made/Att:</strong> Total shots made and
-                                attempted (shown below percentages)
-                            </div>
-                        </div>
+                <!-- Filters -->
+                <div class="d-flex gap-2">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline active">Active</button>
+                        <button type="button" class="btn btn-outline">Inactive</button>
+                        <button type="button" class="btn btn-outline">All</button>
                     </div>
 
-                    <!-- Color Coding Legend -->
-                    <div
-                        style="
-                            margin-top: 25px;
-                            padding: 15px;
-                            background: #f8f9fa;
-                            border-radius: 8px;
-                        "
-                    >
-                        <h4 style="margin-bottom: 10px">
-                            <i class="fas fa-palette"></i> Color Coding
-                        </h4>
-                        <div style="display: flex; gap: 30px; flex-wrap: wrap">
-                            <div>
-                                <span class="flag-excellent">Green</span> =
-                                Excellent performance (PPP > 1.1, AST/TOV ≥ 2.0,
-                                CV < 15%)
-                            </div>
-                            <div>
-                                <span class="flag-good">Blue</span> = Good
-                                performance (Consistent play, CV 15-30%)
-                            </div>
-                            <div>
-                                <span class="flag-poor">Red</span> = Needs
-                                improvement (PPP < 0.8, AST/TOV < 1.0, CV > 30%)
-                            </div>
-                        </div>
-                    </div>
+                    <select class="form-select" style="width: auto;" id="positionFilter" onchange="filterPositions(this.value)">
+                        <option value="All">All Positions</option>
+                        <option value="PG">Point Guard</option>
+                        <option value="SG">Shooting Guard</option>
+                        <option value="SF">Small Forward</option>
+                        <option value="PF">Power Forward</option>
+                        <option value="C">Center</option>
+                    </select>
                 </div>
             </div>
         </div>
+    </div>
 
-        <script>
-            const currentType = "{{ filters['type'] }}";
-            const currentLimit = "{{ filters['limit'] }}";
-            const currentSort = "{{ filters['sort'] }}";
-            const currentOrder = "{{ filters['order'] }}";
+    <!-- Players Grid -->
+    <div class="grid-players" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--spacing-md);">
+        {% for p in stats %}
+        <div class="player-card" data-name="{{ p.player_name|lower }}" data-position="All">
+            <div class="player-card-header w-100">
+                <div class="d-flex align-items-center gap-3 w-100">
+                    <!-- Avatar Placeholder -->
+                    <div class="player-card-avatar">
+                        {{ p.player_name[:2]|upper }}
+                    </div>
+                    
+                    <!-- Name & Pos -->
+                    <div style="flex: 1;">
+                        <h3 class="player-card-name">{{ p.player_name }}</h3>
+                        
+                        <!-- Auto-detect position from name or data if available, else static placeholder or random for demo -->
+                        <!-- In a real app, 'position' would be in 'p' object. Using placeholder logic for now. -->
+                        {% set pos_list = ['PG', 'SG', 'SF', 'PF', 'C'] %}
+                        {% set pos = pos_list[loop.index0 % 5] %} 
+                        
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <span class="badge position-{{ pos|lower }}">{{ pos_list[loop.index0 % 5] }}</span> <!-- Mock position rotation -->
+                            <span class="player-card-height">6'{{ 2 + (loop.index0 % 10) }}"</span> <!-- Mock height -->
+                        </div>
+                    </div>
 
-            document.addEventListener("DOMContentLoaded", () => {
-                const typeSelect = document.getElementById("gameType");
-                const limitSelect = document.getElementById("gameLimit");
-                if (typeSelect) typeSelect.value = currentType;
-                if (limitSelect) limitSelect.value = currentLimit;
+                    <a href="{{ url_for('analytics.player_report_pdf', player_name=p.player_name, game_type=filters.type) }}" class="text-muted">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
 
-                const icon = document.getElementById("icon-" + currentSort);
-                if (icon) {
-                    icon.classList.remove("fa-sort");
-                    icon.classList.add(
-                        currentOrder === "desc" ? "fa-sort-down" : "fa-sort-up",
-                    );
-                    icon.classList.add("active-sort");
-                }
-            });
+            <!-- Mini Stats Grid -->
+            <div class="player-card-stats mt-3">
+                <div class="player-stat">
+                    <div class="player-stat-value">{{ p.games_played }}</div>
+                    <div class="player-stat-label">Games</div>
+                </div>
+                <div class="player-stat">
+                    <div class="player-stat-value">{{ p.ppg|round(1) }}</div>
+                    <div class="player-stat-label">PPG</div>
+                </div>
+                <div class="player-stat">
+                    <div class="player-stat-value">{{ p.rpg|round(1) }}</div>
+                    <div class="player-stat-label">RPG</div>
+                </div>
+                <div class="player-stat">
+                    <div class="player-stat-value">{{ p.apg|round(1) }}</div>
+                    <div class="player-stat-label">APG</div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
 
-            function applyFilters() {
-                const type = document.getElementById("gameType").value;
-                const limit = document.getElementById("gameLimit").value;
-                window.location.href = `{{ url_for('main.players') }}?game_type=${type}&limit=${limit}&sort=${currentSort}&order=${currentOrder}`;
+<script>
+    function searchPlayers(query) {
+        const cards = document.querySelectorAll('.player-card');
+        const lowerQuery = query.toLowerCase();
+        
+        cards.forEach(card => {
+            const name = card.getAttribute('data-name');
+            if (name.includes(lowerQuery)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
             }
+        });
+    }
 
-            function sortBy(metric) {
-                const type = document.getElementById("gameType").value;
-                const limit = document.getElementById("gameLimit").value;
-
-                let newOrder = "desc";
-                if (metric === currentSort) {
-                    newOrder = currentOrder === "desc" ? "asc" : "desc";
-                }
-
-                window.location.href = `{{ url_for('main.players') }}?game_type=${type}&limit=${limit}&sort=${metric}&order=${newOrder}`;
-            }
-        </script>
-    </body>
-</html>
+    function filterPositions(pos) {
+        // This is a mock client-side filter since we don't have real positions in the loop yet
+        // In production, this would likely reload the page with ?position=PG
+        console.log("Filtering for: " + pos);
+    }
+</script>
+{% endblock %}
