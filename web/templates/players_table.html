@@ -1,6 +1,53 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+    /* Tooltip styling matching other pages */
+    .stat-header {
+        position: relative;
+        cursor: help;
+        display: inline-block;
+    }
+
+    .stat-tooltip {
+        visibility: hidden;
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #2d3748;
+        color: white;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        white-space: nowrap;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+        margin-bottom: 5px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        font-weight: 400;
+        text-transform: none;
+    }
+
+    .stat-tooltip::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #2d3748 transparent transparent transparent;
+    }
+
+    .stat-header:hover .stat-tooltip {
+        visibility: visible;
+        opacity: 1;
+    }
+</style>
+
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
@@ -44,79 +91,45 @@
             <table class="table table-hover align-middle mb-0" id="playersTable">
                 <thead class="table-light">
                     <tr>
-                        {% set current_sort = filters.sort %}
-                        {% set current_order = filters.order %}
-                        {% set next_order = 'asc' if current_order == 'desc' else 'desc' %}
-                        
-                        <th style="min-width: 200px;">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='player_name', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                Player {% if current_sort == 'player_name' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                        <th style="min-width: 200px;">Player</th>
+                        <th class="text-center">
+                            <span class="stat-header">GP<span class="stat-tooltip">Games Played</span></span>
                         </th>
                         <th class="text-center">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='games_played', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                GP {% if current_sort == 'games_played' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
-                        </th>
-                        <th class="text-center">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='mpg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                MPG {% if current_sort == 'mpg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">MPG<span class="stat-tooltip">Minutes Per Game</span></span>
                         </th>
                         <th class="text-center bg-light border-start border-end">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='ppg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100 fw-bold">
-                                PPG {% if current_sort == 'ppg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">PPG<span class="stat-tooltip">Points Per Game</span></span>
                         </th>
                         <th class="text-center">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='rpg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                RPG {% if current_sort == 'rpg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">RPG<span class="stat-tooltip">Rebounds Per Game</span></span>
                         </th>
                         <th class="text-center">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='apg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                APG {% if current_sort == 'apg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">APG<span class="stat-tooltip">Assists Per Game</span></span>
                         </th>
                         <th class="text-center">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='spg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                SPG {% if current_sort == 'spg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">SPG<span class="stat-tooltip">Steals Per Game</span></span>
                         </th>
                         <th class="text-center">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='bpg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                BPG {% if current_sort == 'bpg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">BPG<span class="stat-tooltip">Blocks Per Game</span></span>
                         </th>
                         <th class="text-center border-start">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='fg_pct', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                FG% {% if current_sort == 'fg_pct' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">FG%<span class="stat-tooltip">Field Goal Percentage</span></span>
                         </th>
                         <th class="text-center">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='tp_pct', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                3P% {% if current_sort == 'tp_pct' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">3P%<span class="stat-tooltip">3-Point Percentage</span></span>
                         </th>
                         <th class="text-center">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='ft_pct', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                FT% {% if current_sort == 'ft_pct' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">FT%<span class="stat-tooltip">Free Throw Percentage</span></span>
                         </th>
                         <th class="text-center border-start">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='eff', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                EFF {% if current_sort == 'eff' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">EFF<span class="stat-tooltip">Efficiency Rating</span></span>
                         </th>
                         <th class="text-center">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='ppp', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                PPP {% if current_sort == 'ppp' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">PPP<span class="stat-tooltip">Points Per Possession</span></span>
                         </th>
                          <th class="text-center">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='ortg', order=next_order) }}" class="text-decoration-none text-dark d-block w-100">
-                                ORtg {% if current_sort == 'ortg' %}<i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }}"></i>{% endif %}
-                            </a>
+                            <span class="stat-header">ORtg<span class="stat-tooltip">Offensive Rating (Pts/100 Poss)</span></span>
                         </th>
                     </tr>
                 </thead>
