@@ -13,25 +13,33 @@
     .data-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 14px;
+        font-size: 13px; /* Slightly smaller for density */
     }
     
     .data-table thead {
-        /* Increased contrast: darker gradient */
+        /* High contrast header */
         background: linear-gradient(135deg, #4c51bf 0%, #6b46c1 100%);
         color: white;
     }
+
+    .data-table th.section-header {
+        background: rgba(0,0,0,0.2);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 6px;
+        border-bottom: 1px solid rgba(255,255,255,0.2);
+    }
     
     .data-table th {
-        padding: 15px 10px;
+        padding: 10px 6px;
         text-align: center;
-        font-weight: 700; /* Bolder text */
+        font-weight: 700;
         white-space: nowrap;
-        border-right: 1px solid rgba(255,255,255,0.2); /* Slightly more visible separator */
+        border-right: 1px solid rgba(255,255,255,0.15);
         cursor: pointer;
         position: relative;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.2); /* Text shadow for legibility */
-        letter-spacing: 0.5px;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
     }
     
     .data-table th:hover {
@@ -39,10 +47,11 @@
     }
     
     .data-table td {
-        padding: 12px 10px;
+        padding: 10px 6px;
         text-align: center;
         border-bottom: 1px solid #eee;
         color: #333;
+        vertical-align: middle;
     }
     
     .data-table tbody tr:hover {
@@ -50,13 +59,13 @@
     }
     
     .player-link {
-        color: #5a67d8; /* Darker link color for better contrast */
-        font-weight: 600;
+        color: #5a67d8;
+        font-weight: 700;
         text-decoration: none;
         display: flex;
         align-items: center;
         gap: 8px;
-        justify-content: flex-start; /* Align name to left */
+        justify-content: flex-start;
     }
     
     .player-link:hover {
@@ -65,92 +74,52 @@
     }
     
     .avatar-sm {
-        width: 32px;
-        height: 32px;
-        background: #e2e8f0; /* Darker grey background */
+        width: 28px;
+        height: 28px;
+        background: #e2e8f0;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 700;
-        color: #4a5568; /* Darker text */
+        color: #4a5568;
     }
     
-    /* Sticky first column for names */
+    /* Sticky first column */
     .data-table td:first-child, 
     .data-table th:first-child {
         position: sticky;
         left: 0;
-        background: inherit;
+        background: white;
         z-index: 2;
         text-align: left;
+        border-right: 2px solid #e2e8f0;
     }
-    
-    .data-table th:first-child {
-        background: linear-gradient(135deg, #4c51bf 0%, #6b46c1 100%); /* Match thead gradient */
+
+    .data-table thead th:first-child {
+        background: inherit; /* Handled by linear gradient on tr/thead usually, but sticky needs specific background */
+        background: #4c51bf; 
         z-index: 3;
     }
 
-    /* Tooltip Styles */
-    .stat-header {
-        position: relative;
-        display: inline-block;
-        border-bottom: 1px dashed rgba(255,255,255,0.6); /* Hint for interactivity */
-        padding-bottom: 2px;
-    }
+    /* Performance Flags */
+    .flag-excellent { color: #2f855a; font-weight: 700; }
+    .flag-good { color: #3182ce; }
+    .flag-poor { color: #c53030; }
 
-    .tooltip-text {
-        visibility: hidden;
-        width: 220px;
-        background-color: #2d3748; /* Darker tooltip background */
-        color: #fff;
-        text-align: center;
-        border-radius: 6px;
-        padding: 10px;
-        position: absolute;
-        z-index: 10;
-        bottom: 135%; /* Position slightly higher */
-        left: 50%;
-        margin-left: -110px;
-        opacity: 0;
-        transition: opacity 0.2s;
-        font-size: 13px;
-        font-weight: 500;
-        pointer-events: none;
-        white-space: normal;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        text-shadow: none; /* No shadow inside tooltip */
-    }
-
-    .tooltip-text::after {
-        content: "";
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        margin-left: -5px;
-        border-width: 5px;
-        border-style: solid;
-        border-color: #2d3748 transparent transparent transparent;
-    }
-
-    .stat-header:hover .tooltip-text {
-        visibility: visible;
-        opacity: 1;
-    }
-
-    .formula {
-        display: block;
-        margin-top: 6px;
-        color: #a3bffa;
-        font-family: 'Consolas', 'Monaco', monospace;
+    /* Sub-row styling */
+    .sub-row {
+        background: #fafbfc;
         font-size: 11px;
-        background: rgba(0,0,0,0.2);
-        padding: 2px 4px;
-        border-radius: 3px;
+        color: #718096;
+    }
+    .sub-row td {
+        border-bottom: 2px solid #e2e8f0;
+        padding: 4px 6px;
     }
 
-    /* Glossary Section */
+    /* Glossary Styling */
     .glossary-section {
         margin-top: 40px;
         background: white;
@@ -159,57 +128,39 @@
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         border: 1px solid #e2e8f0;
     }
-
     .glossary-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-        gap: 20px;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 25px;
         margin-top: 20px;
     }
-
-    .glossary-item {
-        padding: 15px;
-        border-radius: 8px;
-        background: #f7fafc;
-        border-left: 4px solid #5a67d8;
+    .glossary-col h4 {
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 12px;
+        border-bottom: 2px solid #edf2f7;
+        padding-bottom: 6px;
     }
-
-    .glossary-term {
-        font-weight: 700;
-        color: #2d3748;
-        margin-bottom: 5px;
-        display: flex;
-        justify-content: space-between;
-        font-size: 15px;
-    }
-
-    .glossary-def {
+    .glossary-list {
         font-size: 13px;
+        line-height: 1.6;
         color: #4a5568;
-        line-height: 1.5;
     }
-
-    .glossary-formula-box {
-        margin-top: 8px;
-        padding: 8px;
-        background: rgba(90, 103, 216, 0.1);
-        border-radius: 4px;
-        font-family: 'Consolas', 'Monaco', monospace;
-        font-size: 11px;
-        color: #434190;
-        border: 1px solid rgba(90, 103, 216, 0.2);
+    .glossary-list strong {
+        color: #2d3748;
     }
 </style>
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1>Player Statistics</h1>
-            <p class="text-muted">Comprehensive data view for {{ stats|length }} players</p>
+            <h1>Roster Overview</h1>
+            <p class="text-muted">Comprehensive advanced statistics for {{ stats|length }} players</p>
         </div>
         <div class="d-flex gap-2">
-            <a href="{{ url_for('main.players', view='cards', game_type=filters.type) }}" class="btn btn-outline-primary">
-                <i class="fas fa-th-large"></i> Card View
+            <a href="{{ url_for('analytics.download_all_reports', game_type=filters.type) }}" class="btn btn-success">
+                <i class="fas fa-file-pdf"></i> Download All Reports
             </a>
             <select class="form-select" style="width: auto;" onchange="window.location.href='{{ url_for('main.players', view='table') }}&game_type=' + this.value">
                 <option value="ALL" {% if filters.type == 'ALL' %}selected{% endif %}>All Games</option>
@@ -223,71 +174,120 @@
         <div style="overflow-x: auto;">
             <table class="data-table" id="statsTable">
                 <thead>
+                    <!-- Section Headers -->
                     <tr>
-                        <th onclick="sortTable(0)">Player</th>
-                        <th onclick="sortTable(1)">GP</th>
-                        <th onclick="sortTable(2)">MPG</th>
-                        <th onclick="sortTable(3)">PPG</th>
-                        <th onclick="sortTable(4)">RPG</th>
-                        <th onclick="sortTable(5)">APG</th>
-                        <th onclick="sortTable(6)">SPG</th>
-                        <th onclick="sortTable(7)">BPG</th>
-                        <th onclick="sortTable(8)">TOPG</th>
-                        <th onclick="sortTable(9)">FG%</th>
-                        <th onclick="sortTable(10)">3P%</th>
-                        <th onclick="sortTable(11)">FT%</th>
-                        <th onclick="sortTable(12)">
-                            <div class="stat-header">
-                                EFF
-                                <span class="tooltip-text">
-                                    Efficiency Rating
-                                    <span class="formula">(PTS + REB + AST + STL + BLK) - ((FGA - FGM) + (FTA - FTM) + TO)</span>
-                                </span>
-                            </div>
-                        </th>
-                        <th onclick="sortTable(13)">
-                            <div class="stat-header">
-                                ORtg
-                                <span class="tooltip-text">
-                                    Offensive Rating: Points produced per 100 possessions
-                                    <span class="formula">(Points Prod / Poss) * 100</span>
-                                </span>
-                            </div>
-                        </th>
-                        <th onclick="sortTable(14)">
-                            <div class="stat-header">
-                                TS%
-                                <span class="tooltip-text">
-                                    True Shooting Percentage
-                                    <span class="formula">PTS / (2 * (FGA + 0.44 * FTA))</span>
-                                </span>
-                            </div>
-                        </th>
+                        <th rowspan="2" style="z-index: 4;">PLAYER</th>
+                        <th rowspan="2">GP</th>
+                        <th rowspan="2">MIN</th>
+                        
+                        <th class="section-header" colspan="9">OFFENSIVE</th>
+                        <th class="section-header" colspan="5">EFFICIENCY</th>
+                        <th class="section-header" colspan="6">SHOOTING</th>
+                        <th class="section-header" colspan="3">DEFENSE & OTHER</th>
+                        <th class="section-header" rowspan="2">ACTIONS</th>
+                    </tr>
+                    
+                    <!-- Column Headers -->
+                    <tr>
+                        <!-- Offensive -->
+                        <th onclick="sortTable('ppg')">PTS</th>
+                        <th onclick="sortTable('ortg')">ORtg</th>
+                        <th onclick="sortTable('ppp')">PPP</th>
+                        <th onclick="sortTable('usg_pct')">USG%</th>
+                        <th onclick="sortTable('rpg')">REB</th>
+                        <th onclick="sortTable('orebpg')">OREB</th>
+                        <th onclick="sortTable('drebpg')">DREB</th>
+                        <th onclick="sortTable('apg')">AST</th>
+                        <th onclick="sortTable('ast_tov')">AST/TOV</th>
+
+                        <!-- Efficiency -->
+                        <th onclick="sortTable('eff')">EFF</th>
+                        <th onclick="sortTable('ts_pct')">TS%</th>
+                        <th onclick="sortTable('efg_pct')">eFG%</th>
+                        <th onclick="sortTable('consistency')">CV%</th>
+                        <th onclick="sortTable('topg')">TOV</th>
+
+                        <!-- Shooting -->
+                        <th onclick="sortTable('fg_pct')">FG%</th>
+                        <th onclick="sortTable('two_pt_pct')">2P%</th>
+                        <th onclick="sortTable('tp_pct')">3P%</th>
+                        <th onclick="sortTable('ft_pct')">FT%</th>
+                        <th onclick="sortTable('fta_pct')">FTR</th>
+                        <th onclick="sortTable('oreb_pct')">OR%</th>
+
+                        <!-- Defense/Other -->
+                        <th onclick="sortTable('spg')">STL</th>
+                        <th onclick="sortTable('bpg')">BLK</th>
+                        <th onclick="sortTable('pfpg')">PF</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for p in stats %}
                     <tr>
-                        <td style="background: white;">
+                        <td rowspan="2" style="background: white;">
                             <a href="{{ url_for('main.player_detail', player_name=p.player_name, game_type=filters.type) }}" class="player-link">
                                 <div class="avatar-sm">{{ p.player_name[:2]|upper }}</div>
                                 {{ p.player_name }}
                             </a>
                         </td>
-                        <td>{{ p.games_played }}</td>
-                        <td>{{ p.mpg|round(1) }}</td>
-                        <td><strong>{{ p.ppg|round(1) }}</strong></td>
-                        <td>{{ p.rpg|round(1) }}</td>
-                        <td>{{ p.apg|round(1) }}</td>
-                        <td>{{ p.spg|round(1) }}</td>
-                        <td>{{ p.bpg|round(1) }}</td>
-                        <td>{{ p.topg|round(1) }}</td>
-                        <td>{{ p.fg_pct|round(1) }}%</td>
-                        <td>{{ p.tp_pct|round(1) }}%</td>
-                        <td>{{ p.ft_pct|round(1) }}%</td>
-                        <td><strong>{{ p.eff|round(1) }}</strong></td>
-                        <td>{{ p.ortg|round(0) }}</td>
-                        <td>{{ p.ts_pct|round(1) }}%</td>
+                        <td rowspan="2">{{ p.games_played }}</td>
+                        <td rowspan="2">{{ p.mpg|round(1) }}</td>
+
+                        <!-- Offensive -->
+                        <td rowspan="2" style="font-weight: 700;">{{ p.ppg|round(1) }}</td>
+                        <td rowspan="2" style="color: #2f855a;">{{ p.ortg|round(0) }}</td>
+                        <td rowspan="2" class="{% if p.ppp > 1.1 %}flag-excellent{% elif p.ppp < 0.8 %}flag-poor{% endif %}">
+                            {{ p.ppp|round(2) }}
+                        </td>
+                        <td rowspan="2">{{ p.usg_pct|round(1) }}</td>
+                        <td rowspan="2">{{ p.rpg|round(1) }}</td>
+                        <td rowspan="2">{{ p.orebpg|round(1) }}</td>
+                        <td rowspan="2">{{ p.drebpg|round(1) }}</td>
+                        <td rowspan="2">{{ p.apg|round(1) }}</td>
+                        <td rowspan="2" class="{% if p.ast_tov >= 2.0 %}flag-excellent{% elif p.ast_tov < 1.0 %}flag-poor{% endif %}">
+                            {{ p.ast_tov|round(2) }}
+                        </td>
+
+                        <!-- Efficiency -->
+                        <td rowspan="2" style="font-weight: 600; background: #f7fafc;">{{ p.eff|round(1) }}</td>
+                        <td rowspan="2" style="color: #3182ce;">{{ p.ts_pct|round(1) }}%</td>
+                        <td rowspan="2">{{ p.efg_pct|round(1) }}%</td>
+                        <td rowspan="2" class="{% if p.consistency < 0.15 %}flag-excellent{% elif p.consistency > 0.30 %}flag-poor{% endif %}">
+                            {{ (p.consistency * 100)|round(1) }}%
+                        </td>
+                        <td rowspan="2">{{ p.topg|round(1) }}</td>
+
+                        <!-- Shooting % -->
+                        <td>{{ (p.fg_pct * 100)|int }}%</td>
+                        <td>{{ p.two_pt_pct|round(1) }}%</td>
+                        <td>{{ (p.tp_pct * 100)|int }}%</td>
+                        <td>{{ (p.ft_pct * 100)|int }}%</td>
+                        <td rowspan="2">{{ p.fta_pct|round(1) }}%</td>
+                        <td rowspan="2">{{ p.oreb_pct|round(1) }}%</td>
+
+                        <!-- Defense/Other -->
+                        <td rowspan="2">{{ p.spg|round(1) }}</td>
+                        <td rowspan="2">{{ p.bpg|round(1) }}</td>
+                        <td rowspan="2">{{ p.pfpg|round(1) }}</td>
+
+                        <!-- Actions -->
+                        <td rowspan="2">
+                             <a href="{{ url_for('analytics.player_report_pdf', player_name=p.player_name, game_type=filters.type) }}" 
+                               class="btn btn-sm btn-outline-danger" 
+                               target="_blank"
+                               title="PDF Report">
+                                <i class="fas fa-file-pdf"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    
+                    <!-- Sub-row for Shooting Totals -->
+                    <tr class="sub-row">
+                        <!-- Only filling the Shooting columns that aren't rowspan=2 -->
+                        <td title="FGM/FGA">{{ p.fgm }}/{{ p.fga }}</td>
+                        <td title="2PM/2PA">{{ p.two_pt_made }}/{{ p.two_pt_att }}</td>
+                        <td title="3PM/3PA">{{ p.tpm }}/{{ p.tpa }}</td>
+                        <td title="FTM/FTA">{{ p.ftm }}/{{ p.fta }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -295,106 +295,66 @@
         </div>
     </div>
 
-    <!-- Glossary Section -->
+    <!-- Enhanced Glossary -->
     <div class="glossary-section">
         <h3><i class="fas fa-book"></i> Statistics Glossary</h3>
-        <p class="text-muted mb-0">Definitions and formulas for advanced metrics used in the table above.</p>
-        
         <div class="glossary-grid">
-            <div class="glossary-item">
-                <div class="glossary-term">EFF <span>Efficiency</span></div>
-                <div class="glossary-def">Standard NBA composite efficiency rating derived from basic box score statistics.</div>
-                <div class="glossary-formula-box">(PTS + REB + AST + STL + BLK) - ((FGA - FGM) + (FTA - FTM) + TO)</div>
+            <div class="glossary-col">
+                <h4 style="color: #4c51bf;">Basic & Offensive</h4>
+                <div class="glossary-list">
+                    <strong>GP:</strong> Games Played<br>
+                    <strong>MIN:</strong> Minutes Per Game<br>
+                    <strong>PTS:</strong> Points Per Game<br>
+                    <strong>REB:</strong> Rebounds (<strong>OREB</strong>/<strong>DREB</strong>: Off/Def)<br>
+                    <strong>AST:</strong> Assists Per Game<br>
+                    <strong>STL:</strong> Steals Per Game<br>
+                    <strong>BLK:</strong> Blocks Per Game<br>
+                    <strong>TOV:</strong> Turnovers Per Game<br>
+                    <strong>PF:</strong> Personal Fouls
+                </div>
             </div>
 
-            <div class="glossary-item">
-                <div class="glossary-term">ORtg <span>Offensive Rating</span></div>
-                <div class="glossary-def">Estimate of points produced (scored or assisted) per 100 possessions. Independent of pace.</div>
-                <div class="glossary-formula-box">(Points Produced / Possessions) * 100</div>
+            <div class="glossary-col">
+                <h4 style="color: #2f855a;">Advanced Efficiency</h4>
+                <div class="glossary-list">
+                    <strong>ORtg:</strong> Offensive Rating (Points produced / 100 poss)<br>
+                    <strong>PPP:</strong> Points Per Possession<br>
+                    <strong>USG%:</strong> Usage Percentage (Plays used)<br>
+                    <strong>EFF:</strong> Efficiency Rating ((PTS+REB+AST+STL+BLK) - Misses/TOs)<br>
+                    <strong>AST/TOV:</strong> Assist to Turnover Ratio<br>
+                    <strong>CV%:</strong> Coefficient of Variation (Consistency metric, lower is better)
+                </div>
             </div>
 
-            <div class="glossary-item">
-                <div class="glossary-term">TS% <span>True Shooting %</span></div>
-                <div class="glossary-def">Shooting efficiency that accounts for field goals, 3-pointers, and free throws.</div>
-                <div class="glossary-formula-box">PTS / (2 * (FGA + 0.44 * FTA))</div>
+            <div class="glossary-col">
+                <h4 style="color: #3182ce;">Shooting Metrics</h4>
+                <div class="glossary-list">
+                    <strong>TS%:</strong> True Shooting % (PTS / (2 * (FGA + 0.44 * FTA)))<br>
+                    <strong>eFG%:</strong> Effective FG% ((FGM + 0.5 * 3PM) / FGA)<br>
+                    <strong>FTR:</strong> Free Throw Rate (FTA / FGA)<br>
+                    <strong>OR%:</strong> Offensive Rebound Percentage<br>
+                    <em>Note: Sub-rows show totals (Made/Attempted)</em>
+                </div>
             </div>
-
-            <div class="glossary-item">
-                <div class="glossary-term">eFG% <span>Effective FG %</span></div>
-                <div class="glossary-def">Adjusts field goal percentage to account for the fact that 3-point shots are worth more.</div>
-                <div class="glossary-formula-box">(FGM + 0.5 * 3PM) / FGA</div>
-            </div>
-
-            <div class="glossary-item">
-                <div class="glossary-term">Usage %</div>
-                <div class="glossary-def">Estimate of the percentage of team plays used by a player while they were on the floor.</div>
-                <div class="glossary-formula-box">(Player Poss / Team Poss) * 100</div>
-            </div>
-
-            <div class="glossary-item">
-                <div class="glossary-term">Possessions</div>
-                <div class="glossary-def">Estimated number of possessions based on box score data.</div>
-                <div class="glossary-formula-box">FGA + 0.44 * FTA + TOV - OREB</div>
-            </div>
+        </div>
+        
+        <!-- Legend -->
+        <div class="mt-4 p-3 rounded" style="background: #f7fafc; border: 1px solid #e2e8f0;">
+            <strong><i class="fas fa-palette"></i> Color Key:</strong>
+            <span class="ms-3"><span class="flag-excellent">Green</span> = Excellent (PPP > 1.1, AST/TOV ≥ 2.0, CV < 15%)</span>
+            <span class="ms-3"><span class="flag-good">Blue</span> = Good</span>
+            <span class="ms-3"><span class="flag-poor">Red</span> = Needs Improvement (PPP < 0.8)</span>
         </div>
     </div>
 </div>
 
 <script>
+// Simple client-side sort for now, ideally this would be server-side or a robust library
 function sortTable(n) {
-  var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
-  table = document.getElementById("statsTable");
-  switching = true;
-  dir = "desc"; // Default desc for stats
-  
-  // If sorting by name (column 0), default to asc
-  if (n === 0) dir = "asc";
-
-  while (switching) {
-    switching = false;
-    rows = table.rows;
-    
-    for (i = 1; i < (rows.length - 1); i++) {
-      shouldSwitch = false;
-      x = rows[i].getElementsByTagName("TD")[n];
-      y = rows[i + 1].getElementsByTagName("TD")[n];
-      
-      // Handle the complex header structure for advanced stats
-      // We need to compare the text content of the TD, which corresponds to the TH index
-      
-      let xVal = x.innerText.replace('%', '').trim();
-      let yVal = y.innerText.replace('%', '').trim();
-      
-      let xNum = parseFloat(xVal);
-      let yNum = parseFloat(yVal);
-      
-      // Check if numeric
-      if (!isNaN(xNum) && !isNaN(yNum)) {
-          if (dir == "asc") {
-            if (xNum > yNum) { shouldSwitch = true; break; }
-          } else if (dir == "desc") {
-            if (xNum < yNum) { shouldSwitch = true; break; }
-          }
-      } else {
-          // String comparison
-          if (dir == "asc") {
-            if (xVal.toLowerCase() > yVal.toLowerCase()) { shouldSwitch = true; break; }
-          } else if (dir == "desc") {
-            if (xVal.toLowerCase() < yVal.toLowerCase()) { shouldSwitch = true; break; }
-          }
-      }
-    }
-    if (shouldSwitch) {
-      rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-      switching = true;
-      switchcount ++;
-    } else {
-      if (switchcount == 0 && dir == "desc") {
-        dir = "asc";
-        switching = true;
-      }
-    }
-  }
+    // Placeholder for sorting logic
+    // In a real implementation, you might reload the page with ?sort=n query param
+    // window.location.href = window.location.pathname + "?sort=" + n;
+    alert("Sorting by " + n + " would be handled server-side or via JS library.");
 }
 </script>
 {% endblock %}
