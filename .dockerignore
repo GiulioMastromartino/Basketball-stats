@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.git/
+.DS_Store
+.env
+basketball_stats.db
+basketball_stats.log
+Games/
+Output/
+uploads/
