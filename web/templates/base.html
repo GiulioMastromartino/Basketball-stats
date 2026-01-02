@@ -134,12 +134,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url_for('analytics.analytics_dashboard') }}" class="{% if 'analytics' in request.endpoint %}active{% endif %}">
+                    <a href="{{ url_for('analytics.dashboard') }}" class="{% if 'analytics' in request.endpoint %}active{% endif %}">
                         <i class="fas fa-chart-bar"></i> Analytics
                     </a>
                 </li>
                  <li class="nav-item" style="margin-top: auto;">
-                    <a href="{{ url_for('main.upload_stats') }}">
+                    <a href="{{ url_for('main.upload_game') }}">
                         <i class="fas fa-cloud-upload-alt"></i> Upload
                     </a>
                 </li>
