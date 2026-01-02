@@ -1,6 +1,60 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+    /* Tooltip styles matching players_table */
+    th {
+        cursor: help; /* Indicate tooltip availability */
+    }
+    
+    /* Fixed Tooltip */
+    #global-tooltip {
+        position: fixed;
+        background: #1a202c;
+        color: #fff;
+        padding: 12px 14px;
+        border-radius: 10px;
+        font-size: 12px;
+        z-index: 100000;
+        pointer-events: none;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        max-width: 300px;
+        min-width: 200px;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    
+    #global-tooltip.visible {
+        opacity: 1;
+    }
+
+    #global-tooltip .tt-title {
+        font-weight: 700;
+        margin-bottom: 4px;
+        color: #fff;
+        font-size: 13px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        padding-bottom: 4px;
+    }
+
+    #global-tooltip .tt-desc {
+        color: rgba(255,255,255,0.85);
+        margin-bottom: 8px;
+        line-height: 1.4;
+    }
+
+    #global-tooltip .tt-formula {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        color: #63b3ed;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.10);
+        padding: 6px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+    }
+</style>
+
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
@@ -126,15 +180,17 @@
                         <thead>
                             <tr style="background: var(--bg-body);">
                                 <th style="padding: 15px; text-align: left;">Player</th>
-                                <th style="text-align: center;">MIN</th>
-                                <th style="text-align: center;">PTS</th>
-                                <th style="text-align: center;">REB</th>
-                                <th style="text-align: center;">AST</th>
-                                <th style="text-align: center;">STL</th>
-                                <th style="text-align: center;">BLK</th>
-                                <th style="text-align: center;">TOV</th>
-                                <th style="text-align: center;">PF</th>
-                                <th style="text-align: center;">EFF</th>
+                                <th style="text-align: center;" data-title="MIN" data-desc="Minutes Played">MIN</th>
+                                <th style="text-align: center;" data-title="PTS" data-desc="Points Scored">PTS</th>
+                                <th style="text-align: center;" data-title="OREB" data-desc="Offensive Rebounds">OREB</th>
+                                <th style="text-align: center;" data-title="DREB" data-desc="Defensive Rebounds">DREB</th>
+                                <th style="text-align: center;" data-title="REB" data-desc="Total Rebounds">REB</th>
+                                <th style="text-align: center;" data-title="AST" data-desc="Assists">AST</th>
+                                <th style="text-align: center;" data-title="STL" data-desc="Steals">STL</th>
+                                <th style="text-align: center;" data-title="BLK" data-desc="Blocks">BLK</th>
+                                <th style="text-align: center;" data-title="TOV" data-desc="Turnovers">TOV</th>
+                                <th style="text-align: center;" data-title="PF" data-desc="Personal Fouls">PF</th>
+                                <th style="text-align: center;" data-title="EFF" data-desc="Efficiency" data-formula="EFF = (PTS+REB+AST+STL+BLK) − ((FGA−FGM)+(FTA−FTM)+TOV)">EFF</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -143,6 +199,8 @@
                                 <td style="padding: 15px; font-weight: 600;">{{ p.player_name }}</td>
                                 <td style="text-align: center;">{{ p.minutes }}</td>
                                 <td style="text-align: center; font-weight: 700; color: var(--primary);">{{ p.points }}</td>
+                                <td style="text-align: center;">{{ p.oreb }}</td>
+                                <td style="text-align: center;">{{ p.dreb }}</td>
                                 <td style="text-align: center;">{{ p.reb }}</td>
                                 <td style="text-align: center;">{{ p.ast }}</td>
                                 <td style="text-align: center;">{{ p.stl }}</td>
@@ -164,12 +222,14 @@
                         <thead>
                             <tr style="background: var(--bg-body);">
                                 <th style="padding: 15px; text-align: left;">Player</th>
-                                <th style="text-align: center;">USG%</th>
-                                <th style="text-align: center;">ORtg</th>
-                                <th style="text-align: center;">PPP</th>
-                                <th style="text-align: center;">TS%</th>
-                                <th style="text-align: center;">eFG%</th>
-                                <th style="text-align: center;">AST/TOV</th>
+                                <th style="text-align: center;" data-title="USG%" data-desc="Usage Percentage" data-formula="USG% ≈ (FGA + 0.44×FTA + TOV) / Poss × 100">USG%</th>
+                                <th style="text-align: center;" data-title="ORtg" data-desc="Offensive Rating" data-formula="ORtg = (Points / Possessions) × 100">ORtg</th>
+                                <th style="text-align: center;" data-title="PPP" data-desc="Points Per Possession" data-formula="PPP = Points / Possessions">PPP</th>
+                                <th style="text-align: center;" data-title="TS%" data-desc="True Shooting %" data-formula="TS% = PTS / (2×(FGA+0.44×FTA)) × 100">TS%</th>
+                                <th style="text-align: center;" data-title="eFG%" data-desc="Effective FG%" data-formula="eFG% = (FGM+0.5×3PM) / FGA × 100">eFG%</th>
+                                <th style="text-align: center;" data-title="A/TO" data-desc="Assist to Turnover Ratio" data-formula="A/TO = AST / TOV">AST/TOV</th>
+                                <th style="text-align: center;" data-title="GmSc" data-desc="Game Score" data-formula="GmSc = PTS + 0.4×FGM... (Hollinger)">GmSc</th>
+                                <th style="text-align: center;" data-title="FTA/FGA" data-desc="Free Throw Rate" data-formula="FTA/FGA = FTA / FGA">FTA/FGA</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -182,6 +242,14 @@
                                 <td style="text-align: center; color: var(--info);">{{ p.ts_pct|round(1) }}%</td>
                                 <td style="text-align: center;">{{ p.efg_pct|round(1) }}%</td>
                                 <td style="text-align: center;">{{ p.ast_tov_ratio|round(2) }}</td>
+                                <td style="text-align: center;">{{ p.game_score|default(0)|round(1) }}</td>
+                                <td style="text-align: center;">
+                                    {% if p.fga > 0 %}
+                                        {{ (p.fta / p.fga * 100)|round(1) }}%
+                                    {% else %}
+                                        0.0%
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -196,10 +264,10 @@
                         <thead>
                             <tr style="background: var(--bg-body);">
                                 <th style="padding: 15px; text-align: left;">Player</th>
-                                <th style="text-align: center;">FG</th>
-                                <th style="text-align: center;">2PT</th>
-                                <th style="text-align: center;">3PT</th>
-                                <th style="text-align: center;">FT</th>
+                                <th style="text-align: center;" data-title="FG" data-desc="Field Goals Made/Attempted">FG</th>
+                                <th style="text-align: center;" data-title="2PT" data-desc="2-Pointers Made/Attempted">2PT</th>
+                                <th style="text-align: center;" data-title="3PT" data-desc="3-Pointers Made/Attempted">3PT</th>
+                                <th style="text-align: center;" data-title="FT" data-desc="Free Throws Made/Attempted">FT</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -219,6 +287,9 @@
         </div>
     </div>
 </div>
+
+<!-- Global Fixed Tooltip -->
+<div id="global-tooltip"></div>
 
 <script>
     function switchTab(tabName) {
@@ -242,5 +313,53 @@
         btn.style.borderBottomColor = "var(--primary)";
         btn.style.color = "var(--primary)";
     }
+
+    /* JavaScript-based Fixed Tooltip Logic */
+    document.addEventListener("DOMContentLoaded", () => {
+        const tooltip = document.getElementById('global-tooltip');
+        const headers = document.querySelectorAll('th[data-title]');
+
+        headers.forEach(header => {
+            header.addEventListener('mouseenter', (e) => {
+                const title = header.getAttribute('data-title');
+                const desc = header.getAttribute('data-desc');
+                const formula = header.getAttribute('data-formula');
+
+                let html = `<div class="tt-title">${title}</div><div class="tt-desc">${desc}</div>`;
+                if (formula) {
+                    html += `<div class="tt-formula">${formula}</div>`;
+                }
+                tooltip.innerHTML = html;
+                tooltip.classList.add('visible');
+
+                positionTooltip(e, tooltip);
+            });
+
+            header.addEventListener('mousemove', (e) => {
+                positionTooltip(e, tooltip);
+            });
+
+            header.addEventListener('mouseleave', () => {
+                tooltip.classList.remove('visible');
+            });
+        });
+
+        function positionTooltip(e, tooltipEl) {
+            const offset = 15;
+            let left = e.clientX + offset;
+            let top = e.clientY + offset;
+
+            const ttRect = tooltipEl.getBoundingClientRect();
+            if (left + ttRect.width > window.innerWidth) {
+                left = e.clientX - ttRect.width - offset;
+            }
+            if (top + ttRect.height > window.innerHeight) {
+                top = e.clientY - ttRect.height - offset;
+            }
+
+            tooltipEl.style.left = left + 'px';
+            tooltipEl.style.top = top + 'px';
+        }
+    });
 </script>
 {% endblock %}
