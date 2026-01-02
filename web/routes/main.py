@@ -397,10 +397,10 @@ def players():
     )
 
 
-@main_bp.route("/teams")
+@main_bp.route("/games-list")
 @login_required
-def teams():
-    """Summary of performance against opponents"""
+def games():
+    """Summary of performance against opponents (formerly teams)"""
     results = db.session.query(Game.opponent).distinct().all()
 
     team_stats = []
