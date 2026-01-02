@@ -7,6 +7,7 @@ SQLAlchemy>=2.0.0
 # PDF Generation - CRITICAL: Pin pydyf to 0.10.0 to fix compatibility
 WeasyPrint==59.0
 pydyf==0.10.0
+pdfplumber>=0.10.0
 
 # Data Visualization
 matplotlib>=3.5.0
