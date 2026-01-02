@@ -335,51 +335,27 @@
 
             <!-- MULTI-PLAYER ANALYSIS SECTION -->
             <div id="multi" class="section">
-                <div class="panel">
-                    <div
-                        class="panel-header"
-                        style="border: none; margin-bottom: 10px"
-                    >
-                        <h3><i class="fas fa-sliders-h"></i> Configuration</h3>
-                        <div
-                            style="
-                                display: flex;
-                                gap: 15px;
-                                align-items: center;
-                            "
-                        >
-                            <select
-                                id="multiGameType"
-                                onchange="updateMultiChart()"
-                            >
-                                <option value="ALL">All Games</option>
-                                <option value="Season">Season Only</option>
-                                <option value="Friendly">Friendly Only</option>
-                            </select>
-                            <label
-                                class="checkbox-item"
-                                style="
-                                    background: #e7f5ff;
-                                    color: #007bff;
-                                    font-weight: bold;
-                                    border: 1px solid #d0ebff;
-                                "
-                            >
-                                <input
-                                    type="checkbox"
-                                    id="showMA"
-                                    onchange="updateMultiChart()"
-                                />
-                                Show 3-Game Avg
-                            </label>
-                        </div>
+                <!-- Configuration Panel -->
+                <div class="comparison-config">
+                    <h3><i class="fas fa-sliders-h"></i> Configuration</h3>
+                    
+                    <div class="comparison-controls">
+                        <select id="multiGameType" onchange="updateMultiChart()">
+                            <option value="ALL">All Games</option>
+                            <option value="Season">Season Only</option>
+                            <option value="Friendly">Friendly Only</option>
+                        </select>
+                        
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="showMA" onchange="updateMultiChart()" />
+                            <span>Show 3-Game Average</span>
+                        </label>
                     </div>
 
-                    <div style="display: flex; gap: 20px; flex-wrap: wrap">
-                        <div
-                            style="flex: 1; min-width: 250px"
-                            class="checkbox-wrapper"
-                        >
+                    <!-- Selection Grid -->
+                    <div class="selection-grid">
+                        <!-- Players Selection -->
+                        <div class="selection-panel">
                             <h4>
                                 <i class="fas fa-user-plus"></i> Select Players
                             </h4>
@@ -392,222 +368,112 @@
                                         value="{{ p }}"
                                         onchange="updateMultiChart()"
                                     />
-                                    {{ p }}
+                                    <span>{{ p }}</span>
                                 </label>
                                 {% endfor %}
                             </div>
                         </div>
 
-                        <div
-                            style="flex: 2; min-width: 350px"
-                            class="checkbox-wrapper"
-                        >
+                        <!-- Metrics Selection -->
+                        <div class="selection-panel">
                             <h4>
                                 <i class="fas fa-chart-bar"></i> Select Metrics
                             </h4>
-                            <div
-                                class="checkbox-grid"
-                                style="
-                                    grid-template-columns: repeat(
-                                        auto-fill,
-                                        minmax(160px, 1fr)
-                                    );
-                                "
-                            >
+                            <div class="checkbox-grid">
                                 <!-- Core Stats -->
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="points"
-                                        checked
-                                        onchange="updateMultiChart()"
-                                    />
-                                    Points</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="efficiency"
-                                        checked
-                                        onchange="updateMultiChart()"
-                                    />
-                                    Efficiency</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="ortg"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    ORtg</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="ppp"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    PPP</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="rebounds"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    Rebounds</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="oreb"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    OREB</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="dreb"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    DREB</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="assists"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    Assists</label
-                                >
-
-                                <!-- Advanced Stats -->
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="ts_pct"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    True Shooting %</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="efg_pct"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    Effective FG %</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="fg_pct"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    FG%</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="2pt_pct"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    2PT%</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="3p_pct"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    3PT%</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="ast_tov"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    AST/TOV</label
-                                >
-
-                                <!-- Other Stats -->
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="steals"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    Steals</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="blocks"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    Blocks</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="turnovers"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    Turnovers</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="minutes"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    Minutes</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="fouls"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    Fouls</label
-                                >
-                                <label class="checkbox-item"
-                                    ><input
-                                        type="checkbox"
-                                        class="s-select"
-                                        value="usg_pct"
-                                        onchange="updateMultiChart()"
-                                    />
-                                    Usage</label
-                                >
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="points" checked onchange="updateMultiChart()" />
+                                    <span>Points</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="efficiency" checked onchange="updateMultiChart()" />
+                                    <span>Efficiency</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="ortg" onchange="updateMultiChart()" />
+                                    <span>ORtg</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="ppp" onchange="updateMultiChart()" />
+                                    <span>PPP</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="rebounds" onchange="updateMultiChart()" />
+                                    <span>Rebounds</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="oreb" onchange="updateMultiChart()" />
+                                    <span>OREB</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="dreb" onchange="updateMultiChart()" />
+                                    <span>DREB</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="assists" onchange="updateMultiChart()" />
+                                    <span>Assists</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="ts_pct" onchange="updateMultiChart()" />
+                                    <span>True Shooting %</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="efg_pct" onchange="updateMultiChart()" />
+                                    <span>Effective FG %</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="fg_pct" onchange="updateMultiChart()" />
+                                    <span>FG%</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="2pt_pct" onchange="updateMultiChart()" />
+                                    <span>2PT%</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="3p_pct" onchange="updateMultiChart()" />
+                                    <span>3PT%</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="ast_tov" onchange="updateMultiChart()" />
+                                    <span>AST/TOV</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="steals" onchange="updateMultiChart()" />
+                                    <span>Steals</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="blocks" onchange="updateMultiChart()" />
+                                    <span>Blocks</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="turnovers" onchange="updateMultiChart()" />
+                                    <span>Turnovers</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="minutes" onchange="updateMultiChart()" />
+                                    <span>Minutes</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="fouls" onchange="updateMultiChart()" />
+                                    <span>Fouls</span>
+                                </label>
+                                <label class="checkbox-item">
+                                    <input type="checkbox" class="s-select" value="usg_pct" onchange="updateMultiChart()" />
+                                    <span>Usage</span>
+                                </label>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="panel">
-                    <div style="height: 500px; position: relative">
+                <!-- Chart Panel -->
+                <div class="panel chart-container">
+                    <div id="chartEmptyState" class="empty-state">
+                        <i class="fas fa-chart-line"></i>
+                        <h4>Select Players & Metrics</h4>
+                        <p>Choose at least one player and one metric to start comparing performance trends</p>
+                    </div>
+                    <div style="height: 500px; position: relative; display: none;" id="chartWrapper">
                         <canvas id="multiChart"></canvas>
                     </div>
                 </div>
@@ -1011,10 +877,18 @@
                 const ma = document.getElementById("showMA").checked;
                 const gameType = document.getElementById("multiGameType").value;
 
+                const emptyState = document.getElementById("chartEmptyState");
+                const chartWrapper = document.getElementById("chartWrapper");
+
                 if (players.length === 0 || stats.length === 0) {
+                    emptyState.style.display = "block";
+                    chartWrapper.style.display = "none";
                     if (multiChart) multiChart.destroy();
                     return;
                 }
+
+                emptyState.style.display = "none";
+                chartWrapper.style.display = "block";
 
                 const params = new URLSearchParams();
                 players.forEach((p) => params.append("players", p));
