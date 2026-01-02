@@ -78,8 +78,8 @@ Access the app at `http://localhost:8080`.
     *   **Tag**: `latest`
     *   **Pull Policy**: `Always`
 5.  **Environment Variables**:
-    *   `DATABASE_URL`: `sqlite:////app/data/basketball_stats.db`
-    *   `SECRET_KEY`: *(Generate a random string)*
+    *   **DATABASE_URL**: `sqlite:////app/data/basketball_stats.db`
+    *   **SECRET_KEY**: *(Generate a random string)*
 6.  **Storage (Volumes)**:
     Map these Host Paths to your TrueNAS datasets to ensure data persists:
     *   **Host Path**: `/mnt/pool/path/to/data` -> **Mount Path**: `/app/data`
@@ -183,3 +183,26 @@ https://github.com/GiulioMastromartino/Basketball-stats
 ---
 
 **⭐ Star the repo if you find it useful!**
+
+## 🚀 Deployment on TrueNAS Scale
+
+This application can be deployed as a Custom App on TrueNAS Scale (Electric Eel or later).
+
+### Method 1: Docker Compose (Recommended)
+1. Navigate to **Apps** > **Discover Apps** > **Custom App** in the TrueNAS UI.
+2. Application Name: `basketball-stats`
+3. Select **Install via: Docker Compose**.
+4. Copy and paste the contents of `docker-compose.yml` from this repository.
+5. **Storage Configuration**:
+   - The compose file maps `./instance` to `/app/instance`.
+   - On TrueNAS, change `./instance` to a valid host path on your ZFS pool (e.g., `/mnt/tank/apps/basketball-stats`) to ensure your database persists across restarts.
+
+### Method 2: Manual CLI
+```bash
+# Note: Map only the database directory, not the entire app
+docker run -d \
+  -p 8080:8080 \
+  -v /mnt/your-pool/app-data:/app/instance \
+  --name basketball-stats \
+  giuliomastromartino/basketball-stats:latest
+```
