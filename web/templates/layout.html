@@ -3,61 +3,82 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>{% block title %}HoopsStats{% endblock %}</title>
+        <title>Basketball Stats Analyzer</title>
         <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+            href="{{ url_for('static', filename='css/style.css') }}"
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
             rel="stylesheet"
         />
         <link
             rel="stylesheet"
             href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
         />
-        <link
-            rel="stylesheet"
-            href="{{ url_for('static', filename='css/style.css') }}"
-        />
-        {% block extra_css %}{% endblock %}
     </head>
     <body>
-        <!-- Navigation -->
         <nav class="navbar">
             <div class="navbar-container">
                 <a href="{{ url_for('main.index') }}" class="navbar-brand">
-                    <div class="brand-icon">🏀</div>
-                    <span>HoopsStats</span>
+                    <i class="fas fa-basketball-ball brand-icon"></i>
+                    HoopsStats
                 </a>
-                
                 <div class="navbar-menu">
-                    <a href="{{ url_for('main.index') }}" class="nav-item {{ 'active' if request.endpoint == 'main.index' }}">
+                    <a
+                        href="{{ url_for('main.index') }}"
+                        class="nav-item {% if request.endpoint == 'main.index' %}active{% endif %}"
+                    >
                         Dashboard
                     </a>
-                    <a href="{{ url_for('main.teams') }}" class="nav-item {{ 'active' if request.endpoint == 'main.teams' }}">
+                    <a
+                        href="{{ url_for('main.games') }}"
+                        class="nav-item {% if request.endpoint == 'main.games' %}active{% endif %}"
+                    >
                         Games
                     </a>
-                    <a href="{{ url_for('main.players') }}" class="nav-item {{ 'active' if request.endpoint == 'main.players' }}">
+                    <a
+                        href="{{ url_for('main.players') }}"
+                        class="nav-item {% if request.endpoint == 'main.players' %}active{% endif %}"
+                    >
                         Players
                     </a>
-                    <a href="{{ url_for('analytics.dashboard') }}" class="nav-item {{ 'active' if 'analytics' in request.endpoint }}">
+                    <a
+                        href="{{ url_for('analytics.analytics_dashboard') }}"
+                        class="nav-item {% if 'analytics' in request.endpoint %}active{% endif %}"
+                    >
                         Analytics
                     </a>
-                </div>
-
-                <div class="navbar-actions">
-                    <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline">Logout</a>
+                    <a
+                        href="{{ url_for('main.upload_game') }}"
+                        class="nav-item {% if request.endpoint == 'main.upload_game' %}active{% endif %}"
+                    >
+                        Upload
+                    </a>
+                    <a href="{{ url_for('auth.logout') }}" class="nav-item">
+                        Logout
+                    </a>
                 </div>
             </div>
         </nav>
 
-        <!-- Main Content -->
-        <main class="container">
-            {% block content %}{% endblock %}
-        </main>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <p>&copy; 2025 HoopsStats. All rights reserved.</p>
-        </footer>
-
-        {% block scripts %}{% endblock %}
+        <div class="container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %} {% for category, message in messages %}
+            <div
+                class="alert alert-{{ category }}"
+                style="
+                    margin-bottom: 20px;
+                    padding: 15px;
+                    border-radius: 8px;
+                    background: {% if category=='error' or category=='danger' %}#f8d7da{% else %}#d4edda{% endif %};
+                    color: {% if category=='error' or category=='danger' %}#721c24{% else %}#155724{% endif %};
+                "
+            >
+                {{ message }}
+            </div>
+            {% endfor %} {% endif %} {% endwith %} {% block content %}{% endblock
+            %}
+        </div>
     </body>
 </html>
