@@ -2,172 +2,199 @@ import pdfplumber
 import re
 from datetime import datetime
 
+
+def _safe_int(val, default=0):
+    try:
+        return int(val)
+    except Exception:
+        return default
+
+
+def _safe_float_pct(val, default=0.0):
+    try:
+        return float(str(val).replace("%", ""))
+    except Exception:
+        return default
+
+
 def parse_game_pdf(pdf_path):
-    """
-    Parses the basketball box score PDF.
-    Returns a dict compatible with the app's Game model structure.
-    """
+    """Parse a basketball box-score PDF into the internal game_data format."""
+
     game_data = {
-        "date": None,
+        "date": "",
         "opponent": "Unknown",
         "result": "W",
         "team_score": 0,
         "opponent_score": 0,
-        "game_type": "Season", # Default, user might need to adjust or filename fallback
+        "game_type": "Season",
         "players": [],
-        "sort_date": None
+        "sort_date": "",
     }
 
     with pdfplumber.open(pdf_path) as pdf:
         first_page = pdf.pages[0]
-        text = first_page.extract_text()
-        
-        # --- 1. Header Parsing ---
-        # Example: "14/12 - Cesano Boscone"
-        # We need to guess the year. We'll try to find a year in the text or default to current season logic.
-        # For now, let's assume the current academic/sport year logic (e.g. if month > 8, year=current_year, else year=next_year)
-        # But simple approach: use current year or allow override.
-        
-        lines = text.split('\n')
-        
-        # Find Date and Opponent line (usually top)
+
+        # --- Header parsing (best effort) ---
+        text = first_page.extract_text() or ""
+
         header_regex = re.search(r"(\d{1,2}/\d{1,2})\s*-\s*(.+)", text)
         if header_regex:
             date_str = header_regex.group(1)
             opponent = header_regex.group(2).strip()
-            
-            # Date logic: Append current year approximation
+
+            # Attempt to guess year if not present
             now = datetime.now()
-            day, month = map(int, date_str.split('/'))
-            
-            # If month is Sept-Dec, it's late in the year. If Jan-July, it's early.
-            # We'll use a simple heuristic based on current date to guess the year
-            # Or just use the current year if not sure.
-            # Better: Look for a year in the text.
+            day, month = map(int, date_str.split("/"))
             year_match = re.search(r"20\d{2}", text)
             if year_match:
                 year = int(year_match.group(0))
             else:
-                # Fallback: if today is 2026, and date is 14/12, it's likely 2025.
-                # If date is 02/01, it's likely 2026.
-                if month > 8: 
-                    year = now.year - 1 if now.month < 8 else now.year
-                else:
-                    year = now.year if now.month < 8 else now.year + 1
-            
-            full_date_str = f"{day:02d}/{month:02d}/{year}"
-            game_data["date"] = full_date_str
-            game_data["sort_date"] = f"{year}-{month:02d}-{day:02d}"
+                # Simple heuristic: if the PDF month is in the future relative to now, assume previous year
+                year = now.year
+                if month > now.month + 1:
+                    year = now.year - 1
+
+            game_data["date"] = f"{day:02d}/{month:02d}/{year:04d}"
+            game_data["sort_date"] = f"{year:04d}-{month:02d}-{day:02d}"
             game_data["opponent"] = opponent
 
-        # Find Score line: "win [67 - 54]" or "lose [54 - 67]"
-        score_regex = re.search(r"(win|lose)\s*\[\s*(\d+)\s*-\s*(\d+)\s*\]", text, re.IGNORECASE)
+        score_regex = re.search(
+            r"(win|lose)\s*\[\s*(\d+)\s*-\s*(\d+)\s*\]", text, re.IGNORECASE
+        )
         if score_regex:
             result_text = score_regex.group(1).lower()
-            s1 = int(score_regex.group(2))
-            s2 = int(score_regex.group(3))
-            
-            # "win [67 - 54]" -> Team=67, Opp=54
-            # "lose [54 - 67]" -> Team=54, Opp=67 (usually score is presented Team - Opp)
-            
+            s1 = _safe_int(score_regex.group(2), 0)
+            s2 = _safe_int(score_regex.group(3), 0)
             game_data["team_score"] = s1
             game_data["opponent_score"] = s2
-            game_data["result"] = 'W' if 'win' in result_text else 'L'
+            game_data["result"] = "W" if "win" in result_text else "L"
 
-        # --- 2. Player Stats Parsing ---
-        # Columns (20 total): 
-        # Name, MIN, PTS, FGM, FGA, FG%, 3PM, 3PA, 3P%, FTM, FTA, FT%, OREB, DREB, REB, AST, TOV, STL, BLK, PF
-        
-        for line in lines:
-            line = line.strip()
-            # Skip headers/footers
-            if "Name" in line or "Total" in line:
-                continue
-            if not line:
-                continue
+        # --- Player stats parsing ---
+        # Prefer table extraction (more robust than text lines)
+        try:
+            table = first_page.extract_table()
+        except Exception:
+            table = None
 
-            # Attempt to split from right
-            # We expect 19 numerical columns.
-            # Example end of line: "... 2 100% 1 3 4 6 2 2 0 2"
-            # Note: "100% 1" might be stuck together if relying on simple split, but pdfplumber extract_text usually handles space well.
-            # Let's try splitting by whitespace.
-            
-            parts = line.split()
-            
-            # We need at least 20 parts (Name + 19 stats). Name can be multiple parts.
-            if len(parts) < 20:
-                continue
-                
-            # Check if the last part is a number (PF)
-            if not parts[-1].isdigit():
-                continue
+        def parse_row_cells(row):
+            # Expected columns:
+            # Name, MIN, PTS, FGM, FGA, FG%, 3PM, 3PA, 3P%, FTM, FTA, FT%, OREB, DREB, REB, AST, TOV, STL, BLK, PF
+            if not row:
+                return None
 
-            # Map from end
+            # remove None and trim
+            row = [c.strip() if isinstance(c, str) else c for c in row]
+            row = [c for c in row if c not in (None, "")]
+            if not row:
+                return None
+
+            if str(row[0]).strip().lower() in {"name", "total"}:
+                return None
+
+            if len(row) < 20:
+                return None
+
             try:
-                # Extract stats from the right
-                pf = int(parts[-1])
-                blk = int(parts[-2])
-                stl = int(parts[-3])
-                tov = int(parts[-4])
-                ast = int(parts[-5])
-                reb = int(parts[-6])
-                dreb = int(parts[-7])
-                oreb = int(parts[-8])
-                
-                # FT% (could be "100%" or "0%")
-                ft_pct_str = parts[-9]
-                ft_pct = float(ft_pct_str.replace('%', ''))
-                
-                fta = int(parts[-10])
-                ftm = int(parts[-11])
-                
-                # 3P%
-                tp_pct_str = parts[-12]
-                tp_pct = float(tp_pct_str.replace('%', ''))
-                
-                tpa = int(parts[-13])
-                tpm = int(parts[-14])
-                
-                # FG%
-                fg_pct_str = parts[-15]
-                fg_pct = float(fg_pct_str.replace('%', ''))
-                
-                fga = int(parts[-16])
-                fgm = int(parts[-17])
-                
-                pts = int(parts[-18])
-                minutes = parts[-19] # String "MM:SS"
-                
-                # Name is everything before minutes
-                name_parts = parts[:-19]
-                name = " ".join(name_parts)
-                
-                player_stat = {
-                    "name": name,
-                    "minutes": minutes,
-                    "points": pts,
-                    "fgm": fgm,
-                    "fga": fga,
-                    "fg_percent": fg_pct,
-                    "tpm": tpm,
-                    "tpa": tpa,
-                    "tp_percent": tp_pct,
-                    "ftm": ftm,
-                    "fta": fta,
-                    "ft_percent": ft_pct,
-                    "oreb": oreb,
-                    "dreb": dreb,
-                    "reb": reb,
-                    "ast": ast,
-                    "tov": tov,
-                    "stl": stl,
-                    "blk": blk,
-                    "pf": pf
+                return {
+                    "name": str(row[0]).strip(),
+                    "minutes": str(row[1]).strip(),
+                    "points": _safe_int(row[2]),
+                    "fgm": _safe_int(row[3]),
+                    "fga": _safe_int(row[4]),
+                    "fg_percent": _safe_float_pct(row[5]),
+                    "tpm": _safe_int(row[6]),
+                    "tpa": _safe_int(row[7]),
+                    "tp_percent": _safe_float_pct(row[8]),
+                    "ftm": _safe_int(row[9]),
+                    "fta": _safe_int(row[10]),
+                    "ft_percent": _safe_float_pct(row[11]),
+                    "oreb": _safe_int(row[12]),
+                    "dreb": _safe_int(row[13]),
+                    "reb": _safe_int(row[14]),
+                    "ast": _safe_int(row[15]),
+                    "tov": _safe_int(row[16]),
+                    "stl": _safe_int(row[17]),
+                    "blk": _safe_int(row[18]),
+                    "pf": _safe_int(row[19]),
                 }
-                game_data["players"].append(player_stat)
-                
-            except (ValueError, IndexError):
-                # Skip lines that don't match structure (garbage text)
-                continue
+            except Exception:
+                return None
+
+        players = []
+        if table:
+            for row in table:
+                parsed = parse_row_cells(row)
+                if parsed:
+                    players.append(parsed)
+
+        # Fallback: line parsing (best effort)
+        if not players:
+            lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
+            for line in lines:
+                if "Name" in line or line.startswith("Total"):
+                    continue
+
+                parts = line.split()
+                if len(parts) < 20:
+                    continue
+                if not parts[-1].isdigit():
+                    continue
+
+                try:
+                    pf = int(parts[-1])
+                    blk = int(parts[-2])
+                    stl = int(parts[-3])
+                    tov = int(parts[-4])
+                    ast = int(parts[-5])
+                    reb = int(parts[-6])
+                    dreb = int(parts[-7])
+                    oreb = int(parts[-8])
+
+                    ft_pct = _safe_float_pct(parts[-9])
+                    fta = _safe_int(parts[-10])
+                    ftm = _safe_int(parts[-11])
+
+                    tp_pct = _safe_float_pct(parts[-12])
+                    tpa = _safe_int(parts[-13])
+                    tpm = _safe_int(parts[-14])
+
+                    fg_pct = _safe_float_pct(parts[-15])
+                    fga = _safe_int(parts[-16])
+                    fgm = _safe_int(parts[-17])
+
+                    pts = _safe_int(parts[-18])
+                    minutes = parts[-19]
+                    name = " ".join(parts[:-19]).strip()
+                    if not name:
+                        continue
+
+                    players.append(
+                        {
+                            "name": name,
+                            "minutes": minutes,
+                            "points": pts,
+                            "fgm": fgm,
+                            "fga": fga,
+                            "fg_percent": fg_pct,
+                            "tpm": tpm,
+                            "tpa": tpa,
+                            "tp_percent": tp_pct,
+                            "ftm": ftm,
+                            "fta": fta,
+                            "ft_percent": ft_pct,
+                            "oreb": oreb,
+                            "dreb": dreb,
+                            "reb": reb,
+                            "ast": ast,
+                            "tov": tov,
+                            "stl": stl,
+                            "blk": blk,
+                            "pf": pf,
+                        }
+                    )
+                except Exception:
+                    continue
+
+        game_data["players"] = players
 
     return game_data

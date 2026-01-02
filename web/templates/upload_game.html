@@ -3,9 +3,9 @@
 {% block title %}Upload Game - HoopsStats{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width: 800px; margin: 0 auto;">
+<div class="card" style="max-width: 900px; margin: 0 auto;">
     <div class="panel-header">
-        <h3><i class="fas fa-upload" style="color: var(--primary)"></i> Upload Game CSV</h3>
+        <h3><i class="fas fa-upload" style="color: var(--primary)"></i> Upload Game (CSV / PDF)</h3>
     </div>
 
     <!-- Flash Messages -->
@@ -29,8 +29,24 @@
 
     <form method="POST" enctype="multipart/form-data" style="margin-bottom: 30px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        
-        <div style="margin-bottom: 20px;">
+
+        <!-- Import type toggle -->
+        <div style="margin-bottom: 18px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="font-weight: 700; margin-bottom: 8px; color: var(--secondary);">
+                <i class="fas fa-sliders-h"></i> Import Type
+            </div>
+            <label style="margin-right: 16px; cursor: pointer;">
+                <input type="radio" name="import_type" value="csv" checked onchange="toggleImportType()" />
+                <span style="margin-left: 6px;"><i class="fas fa-file-csv"></i> CSV</span>
+            </label>
+            <label style="cursor: pointer;">
+                <input type="radio" name="import_type" value="pdf" onchange="toggleImportType()" />
+                <span style="margin-left: 6px;"><i class="fas fa-file-pdf"></i> PDF</span>
+            </label>
+        </div>
+
+        <!-- CSV input -->
+        <div id="csv-input" style="margin-bottom: 20px;">
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--secondary);">
                 <i class="fas fa-file-csv"></i> Select CSV File
             </label>
@@ -38,7 +54,6 @@
                 type="file" 
                 name="csv_file" 
                 accept=".csv" 
-                required
                 style="
                     width: 100%;
                     padding: 12px;
@@ -51,6 +66,68 @@
                 onmouseover="this.style.borderColor='var(--primary)'"
                 onmouseout="this.style.borderColor='var(--border-color)'"
             />
+        </div>
+
+        <!-- PDF input -->
+        <div id="pdf-input" style="margin-bottom: 20px; display: none;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--secondary);">
+                <i class="fas fa-file-pdf"></i> Select PDF File
+            </label>
+            <input 
+                type="file" 
+                name="pdf_file" 
+                accept=".pdf" 
+                style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px dashed var(--border-color);
+                    border-radius: 8px;
+                    background: #f8f9fa;
+                    cursor: pointer;
+                    transition: 0.2s;
+                "
+                onmouseover="this.style.borderColor='var(--primary)'"
+                onmouseout="this.style.borderColor='var(--border-color)'"
+            />
+
+            <!-- Overrides -->
+            <div style="margin-top: 14px; padding: 14px; background: #ffffff; border-radius: 8px; border: 1px solid var(--border-color);">
+                <div style="font-weight: 700; color: var(--secondary); margin-bottom: 10px;">
+                    <i class="fas fa-edit"></i> Overrides (optional)
+                </div>
+                <p style="margin: 0 0 12px 0; color: var(--text-muted); font-size: 0.9rem;">
+                    Use these if the PDF header is not parsed correctly (date/opponent/score).
+                </p>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="display:block; font-weight: 600; margin-bottom: 6px;">Opponent</label>
+                        <input name="pdf_opponent" type="text" placeholder="e.g. Cesano Boscone" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);" />
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight: 600; margin-bottom: 6px;">Date (DD-MM-YYYY)</label>
+                        <input name="pdf_date" type="text" placeholder="e.g. 14-12-2025" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);" />
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight: 600; margin-bottom: 6px;">Team score</label>
+                        <input name="pdf_team_score" type="number" min="0" placeholder="e.g. 67" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);" />
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight: 600; margin-bottom: 6px;">Opponent score</label>
+                        <input name="pdf_opponent_score" type="number" min="0" placeholder="e.g. 54" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);" />
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight: 600; margin-bottom: 6px;">Game type</label>
+                        <select name="pdf_game_type" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+                            <option value="">(auto)</option>
+                            <option value="Season">Season</option>
+                            <option value="Friendly">Friendly</option>
+                            <option value="Playoff">Playoff</option>
+                        </select>
+                    </div>
+                    <div></div>
+                </div>
+            </div>
         </div>
 
         <button type="submit" class="btn btn-primary" style="width: 100%;">
@@ -70,7 +147,7 @@
         </h4>
 
         <div style="margin-bottom: 20px;">
-            <strong style="color: var(--secondary);">Filename Format:</strong>
+            <strong style="color: var(--secondary);">CSV Filename Format:</strong>
             <code style="
                 display: block;
                 background: white;
@@ -80,7 +157,7 @@
                 font-family: 'Courier New', monospace;
                 color: var(--primary-dark);
             ">Opponent_TeamScore-OppScore_DD-MM-YYYY_[F/S/P].csv</code>
-            
+
             <p style="margin-top: 10px; color: var(--text-muted); font-size: 0.9rem;">
                 <strong>Examples:</strong><br>
                 • <code>Lakers_95-88_15-03-2025_S.csv</code> (Season game)<br>
@@ -90,7 +167,7 @@
         </div>
 
         <div style="margin-bottom: 20px;">
-            <strong style="color: var(--secondary);">Game Type Codes:</strong>
+            <strong style="color: var(--secondary);">Game Type Codes (CSV):</strong>
             <ul style="margin-top: 8px; line-height: 1.8;">
                 <li><strong>F</strong> = Friendly</li>
                 <li><strong>S</strong> = Season</li>
@@ -98,8 +175,8 @@
             </ul>
         </div>
 
-        <div>
-            <strong style="color: var(--secondary);">Required CSV Columns:</strong>
+        <div style="margin-bottom: 18px;">
+            <strong style="color: var(--secondary);">Required Stats Columns (CSV):</strong>
             <div style="
                 background: white;
                 padding: 12px;
@@ -115,9 +192,16 @@
                 The CSV must include a row with <strong>Name='Total'</strong> (this row will be automatically skipped during import).
             </p>
         </div>
+
+        <div>
+            <strong style="color: var(--secondary);">PDF Requirements:</strong>
+            <p style="margin-top: 8px; color: var(--text-muted); font-size: 0.9rem;">
+                The PDF should contain a box score table with the same columns as the CSV. If the header is not detected, fill the overrides (Opponent, Date, Scores).
+            </p>
+        </div>
     </div>
 
-    <!-- Sample CSV Link -->
+    <!-- Back Link -->
     <div style="margin-top: 20px; text-align: center;">
         <a href="{{ url_for('main.index') }}" class="btn btn-outline">
             <i class="fas fa-arrow-left"></i> Back to Dashboard
@@ -125,20 +209,33 @@
     </div>
 </div>
 
+<script>
+function toggleImportType() {
+    const csvInput = document.getElementById('csv-input');
+    const pdfInput = document.getElementById('pdf-input');
+    const selected = document.querySelector('input[name="import_type"]:checked').value;
+
+    if (selected === 'pdf') {
+        csvInput.style.display = 'none';
+        pdfInput.style.display = 'block';
+    } else {
+        csvInput.style.display = 'block';
+        pdfInput.style.display = 'none';
+    }
+}
+
+// Ensure correct state on load
+document.addEventListener('DOMContentLoaded', toggleImportType);
+</script>
+
 <style>
 .alert {
     animation: slideDown 0.3s ease;
 }
 
 @keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 code {

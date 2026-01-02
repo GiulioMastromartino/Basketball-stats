@@ -9,6 +9,7 @@ from sqlalchemy import func
 
 from core.models import Game, PlayerStat, db
 from core.csv_processor import CSVProcessor
+from core.parser import parse_game_pdf
 from core.utils import (
     FT_ATTEMPT_WEIGHT,
     THREE_POINT_WEIGHT,
@@ -27,11 +28,36 @@ from core.utils import (
 
 main_bp = Blueprint("main", __name__)
 
-VALID_GAME_TYPES = {"ALL", "Season", "Friendly"}
-ALLOWED_EXTENSIONS = {'csv'}
+VALID_GAME_TYPES = {"ALL", "Season", "Friendly", "Playoff"}
+ALLOWED_EXTENSIONS = {"csv", "pdf"}
+
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def normalize_date_to_display(date_str: str) -> str:
+    """Return DD/MM/YYYY."""
+    if not date_str:
+        return ""
+    date_str = date_str.strip()
+    date_str = date_str.replace("-", "/")
+    parts = date_str.split("/")
+    if len(parts) != 3:
+        return ""
+    day, month, year = parts
+    if len(year) == 2:
+        year = f"20{year}"
+    return f"{int(day):02d}/{int(month):02d}/{int(year):04d}"
+
+
+def normalize_date_to_sort(date_str: str) -> str:
+    """Return YYYY-MM-DD."""
+    display = normalize_date_to_display(date_str)
+    if not display:
+        return ""
+    day, month, year = display.split("/")
+    return f"{year}-{month}-{day}"
 
 
 @main_bp.route("/")
@@ -66,116 +92,224 @@ def glossary():
 @main_bp.route("/upload-game", methods=["GET", "POST"])
 @login_required
 def upload_game():
-    """Upload a CSV file to add a game"""
+    """Upload a CSV or PDF file to add a game"""
     if request.method == "POST":
-        # Check if file was uploaded
-        if 'csv_file' not in request.files:
-            flash('No file uploaded', 'danger')
-            return redirect(request.url)
-        
-        file = request.files['csv_file']
-        
-        if file.filename == '':
-            flash('No file selected', 'danger')
-            return redirect(request.url)
-        
-        if not allowed_file(file.filename):
-            flash('Only CSV files are allowed', 'danger')
-            return redirect(request.url)
-        
+        import_type = request.form.get("import_type", "csv").lower().strip()
+        if import_type not in {"csv", "pdf"}:
+            import_type = "csv"
+
+        upload_folder = current_app.config["UPLOAD_FOLDER"]
+        os.makedirs(upload_folder, exist_ok=True)
+
+        filepath = None
+
         try:
-            # Secure filename and save temporarily
+            if import_type == "csv":
+                if "csv_file" not in request.files:
+                    flash("No CSV file uploaded", "danger")
+                    return redirect(request.url)
+
+                file = request.files["csv_file"]
+                if file.filename == "":
+                    flash("No file selected", "danger")
+                    return redirect(request.url)
+
+                if not allowed_file(file.filename) or not file.filename.lower().endswith(".csv"):
+                    flash("Only CSV files are allowed for CSV import", "danger")
+                    return redirect(request.url)
+
+                filename = secure_filename(file.filename)
+                filepath = os.path.join(upload_folder, filename)
+                file.save(filepath)
+
+                info = CSVProcessor.parse_filename(filename)
+                if not info:
+                    flash(
+                        "Invalid filename format. Expected: Opponent_TeamScore-OppScore_DD-MM-YYYY_[F/S/P].csv",
+                        "danger",
+                    )
+                    return redirect(request.url)
+
+                existing = Game.query.filter_by(sort_date=info["sort_date"], opponent=info["opponent"]).first()
+                if existing:
+                    flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
+                    return redirect(url_for("main.index"))
+
+                game_data = CSVProcessor.process_game(filepath, info)
+                if not game_data:
+                    flash("Failed to process CSV content. Check file format.", "danger")
+                    return redirect(request.url)
+
+                game = Game(
+                    date=game_data["date"],
+                    opponent=game_data["opponent"],
+                    team_score=game_data["team_score"],
+                    opponent_score=game_data["opponent_score"],
+                    result=game_data["result"],
+                    game_type=game_data["game_type"],
+                    sort_date=game_data["sort_date"],
+                )
+                db.session.add(game)
+                db.session.flush()
+
+                for player in game_data["players"]:
+                    if not player.get("name"):
+                        continue
+
+                    stat = PlayerStat(
+                        game_id=game.id,
+                        player_name=player["name"],
+                        minutes=player["minutes"],
+                        points=player["points"],
+                        fgm=player["fgm"],
+                        fga=player["fga"],
+                        fg_percent=player["fg_percent"],
+                        tpm=player["tpm"],
+                        tpa=player["tpa"],
+                        tp_percent=player["tp_percent"],
+                        ftm=player["ftm"],
+                        fta=player["fta"],
+                        ft_percent=player["ft_percent"],
+                        oreb=player["oreb"],
+                        dreb=player["dreb"],
+                        reb=player["reb"],
+                        ast=player["ast"],
+                        tov=player["tov"],
+                        stl=player["stl"],
+                        blk=player["blk"],
+                        pf=player["pf"],
+                    )
+                    db.session.add(stat)
+
+                db.session.commit()
+                flash(f"Successfully imported game (CSV): {game.opponent} ({game.result})", "success")
+                return redirect(url_for("main.game_detail", game_id=game.id))
+
+            # --- PDF import ---
+            if "pdf_file" not in request.files:
+                flash("No PDF file uploaded", "danger")
+                return redirect(request.url)
+
+            file = request.files["pdf_file"]
+            if file.filename == "":
+                flash("No file selected", "danger")
+                return redirect(request.url)
+
+            if not allowed_file(file.filename) or not file.filename.lower().endswith(".pdf"):
+                flash("Only PDF files are allowed for PDF import", "danger")
+                return redirect(request.url)
+
             filename = secure_filename(file.filename)
-            upload_folder = current_app.config['UPLOAD_FOLDER']
-            os.makedirs(upload_folder, exist_ok=True)
-            
             filepath = os.path.join(upload_folder, filename)
             file.save(filepath)
-            
-            # Parse filename to extract game info
-            info = CSVProcessor.parse_filename(filename)
-            if not info:
-                flash(f'Invalid filename format. Expected: Opponent_TeamScore-OppScore_DD-MM-YYYY_[F/S/P].csv', 'danger')
-                os.remove(filepath)
+
+            parsed = parse_game_pdf(filepath)
+
+            # Overrides (optional)
+            override_opponent = (request.form.get("pdf_opponent") or "").strip()
+            override_date = (request.form.get("pdf_date") or "").strip()
+            override_team_score = (request.form.get("pdf_team_score") or "").strip()
+            override_opponent_score = (request.form.get("pdf_opponent_score") or "").strip()
+            override_game_type = (request.form.get("pdf_game_type") or "").strip()
+
+            opponent = override_opponent or parsed.get("opponent") or "Unknown"
+
+            date_display = normalize_date_to_display(override_date) if override_date else (parsed.get("date") or "")
+            if override_date and not date_display:
+                flash("Invalid date format. Use DD-MM-YYYY or DD/MM/YYYY.", "danger")
                 return redirect(request.url)
-            
-            # Check for duplicates
-            existing = Game.query.filter_by(
-                sort_date=info["sort_date"],
-                opponent=info["opponent"]
-            ).first()
-            
+
+            sort_date = normalize_date_to_sort(override_date) if override_date else (parsed.get("sort_date") or "")
+
+            # Scores
+            team_score = parsed.get("team_score") or 0
+            opp_score = parsed.get("opponent_score") or 0
+            if override_team_score:
+                team_score = int(override_team_score)
+            if override_opponent_score:
+                opp_score = int(override_opponent_score)
+
+            if not date_display or not sort_date:
+                flash("Could not determine game date from PDF. Please fill the Date override.", "danger")
+                return redirect(request.url)
+
+            if team_score == opp_score:
+                flash("Team score and opponent score cannot be equal. Please verify overrides.", "danger")
+                return redirect(request.url)
+
+            result = "W" if team_score > opp_score else "L"
+
+            game_type = override_game_type if override_game_type in {"Season", "Friendly", "Playoff"} else (parsed.get("game_type") or "Season")
+
+            # Duplicate check
+            existing = Game.query.filter_by(sort_date=sort_date, opponent=opponent).first()
             if existing:
-                flash(f'Game already exists: {existing.opponent} on {existing.date}', 'warning')
-                os.remove(filepath)
-                return redirect(url_for('main.index'))
-            
-            # Process CSV file
-            game_data = CSVProcessor.process_game(filepath, info)
-            if not game_data:
-                flash('Failed to process CSV content. Check file format.', 'danger')
-                os.remove(filepath)
+                flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
+                return redirect(url_for("main.index"))
+
+            players = parsed.get("players") or []
+            if not players:
+                flash("No player rows detected in the PDF. Please check PDF format.", "danger")
                 return redirect(request.url)
-            
-            # Create Game record
+
             game = Game(
-                date=game_data["date"],
-                opponent=game_data["opponent"],
-                team_score=game_data["team_score"],
-                opponent_score=game_data["opponent_score"],
-                result=game_data["result"],
-                game_type=game_data["game_type"],
-                sort_date=game_data["sort_date"],
+                date=date_display,
+                opponent=opponent,
+                team_score=team_score,
+                opponent_score=opp_score,
+                result=result,
+                game_type=game_type,
+                sort_date=sort_date,
             )
             db.session.add(game)
             db.session.flush()
-            
-            # Create PlayerStat records
-            for player in game_data["players"]:
+
+            for player in players:
                 if not player.get("name"):
                     continue
-                
+
                 stat = PlayerStat(
                     game_id=game.id,
-                    player_name=player["name"],
-                    minutes=player["minutes"],
-                    points=player["points"],
-                    fgm=player["fgm"],
-                    fga=player["fga"],
-                    fg_percent=player["fg_percent"],
-                    tpm=player["tpm"],
-                    tpa=player["tpa"],
-                    tp_percent=player["tp_percent"],
-                    ftm=player["ftm"],
-                    fta=player["fta"],
-                    ft_percent=player["ft_percent"],
-                    oreb=player["oreb"],
-                    dreb=player["dreb"],
-                    reb=player["reb"],
-                    ast=player["ast"],
-                    tov=player["tov"],
-                    stl=player["stl"],
-                    blk=player["blk"],
-                    pf=player["pf"],
+                    player_name=player.get("name", "").strip(),
+                    minutes=player.get("minutes", "0"),
+                    points=int(player.get("points", 0) or 0),
+                    fgm=int(player.get("fgm", 0) or 0),
+                    fga=int(player.get("fga", 0) or 0),
+                    fg_percent=float(player.get("fg_percent", 0) or 0),
+                    tpm=int(player.get("tpm", 0) or 0),
+                    tpa=int(player.get("tpa", 0) or 0),
+                    tp_percent=float(player.get("tp_percent", 0) or 0),
+                    ftm=int(player.get("ftm", 0) or 0),
+                    fta=int(player.get("fta", 0) or 0),
+                    ft_percent=float(player.get("ft_percent", 0) or 0),
+                    oreb=int(player.get("oreb", 0) or 0),
+                    dreb=int(player.get("dreb", 0) or 0),
+                    reb=int(player.get("reb", 0) or 0),
+                    ast=int(player.get("ast", 0) or 0),
+                    tov=int(player.get("tov", 0) or 0),
+                    stl=int(player.get("stl", 0) or 0),
+                    blk=int(player.get("blk", 0) or 0),
+                    pf=int(player.get("pf", 0) or 0),
                 )
                 db.session.add(stat)
-            
+
             db.session.commit()
-            
-            # Clean up uploaded file
-            os.remove(filepath)
-            
-            flash(f'Successfully imported game: {game.opponent} ({game.result})', 'success')
-            return redirect(url_for('main.game_detail', game_id=game.id))
-            
+            flash(f"Successfully imported game (PDF): {game.opponent} ({game.result})", "success")
+            return redirect(url_for("main.game_detail", game_id=game.id))
+
         except Exception as e:
             db.session.rollback()
-            if os.path.exists(filepath):
-                os.remove(filepath)
-            flash(f'Error importing game: {str(e)}', 'danger')
-            current_app.logger.error(f'Upload error: {e}', exc_info=True)
+            flash(f"Error importing game: {str(e)}", "danger")
+            current_app.logger.error(f"Upload error: {e}", exc_info=True)
             return redirect(request.url)
-    
+
+        finally:
+            if filepath and os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    pass
+
     return render_template("upload_game.html")
 
 
@@ -206,11 +340,21 @@ def game_detail(game_id):
         )
         p.ts_pct = calculate_ts_percent(p.points, p.fga, p.fta)
         p.efg_pct = calculate_efg_percent(p.fgm, p.tpm, p.fga)
-        
+
         # Calculate Game Score
         p.game_score = calculate_game_score(
-            p.points, p.fgm, p.fga, p.ftm, p.fta, 
-            p.oreb, p.dreb, p.stl, p.ast, p.blk, p.pf, p.tov
+            p.points,
+            p.fgm,
+            p.fga,
+            p.ftm,
+            p.fta,
+            p.oreb,
+            p.dreb,
+            p.stl,
+            p.ast,
+            p.blk,
+            p.pf,
+            p.tov,
         )
 
         if p.min_decimal > 0:
@@ -252,18 +396,19 @@ def player_detail(player_name):
         game_query = game_query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
         game_query = game_query.filter(Game.game_type == "Friendly")
+    elif game_type == "Playoff":
+        game_query = game_query.filter(Game.game_type == "Playoff")
 
     all_filtered_games = game_query.all()
     target_game_ids = [g.id for g in all_filtered_games]
 
     if not target_game_ids:
         flash(f"No games found for {player_name}", "warning")
-        return redirect(url_for('main.players'))
+        return redirect(url_for("main.players"))
 
     # Get player's game stats
     player_stats = (
-        PlayerStat.query
-        .filter(PlayerStat.player_name == player_name)
+        PlayerStat.query.filter(PlayerStat.player_name == player_name)
         .filter(PlayerStat.game_id.in_(target_game_ids))
         .filter(PlayerStat.minutes != "00:00")
         .filter(PlayerStat.minutes != "0")
@@ -274,37 +419,37 @@ def player_detail(player_name):
 
     if not player_stats:
         flash(f"No stats found for {player_name}", "warning")
-        return redirect(url_for('main.players'))
+        return redirect(url_for("main.players"))
 
     # Calculate aggregate stats
     gp = len(player_stats)
     total_minutes = sum(parse_minutes(s.minutes) for s in player_stats)
-    
+
     totals = {
-        'points': sum(s.points for s in player_stats),
-        'reb': sum(s.reb for s in player_stats),
-        'oreb': sum(s.oreb for s in player_stats),
-        'dreb': sum(s.dreb for s in player_stats),
-        'ast': sum(s.ast for s in player_stats),
-        'stl': sum(s.stl for s in player_stats),
-        'blk': sum(s.blk for s in player_stats),
-        'tov': sum(s.tov for s in player_stats),
-        'pf': sum(s.pf for s in player_stats),
-        'fgm': sum(s.fgm for s in player_stats),
-        'fga': sum(s.fga for s in player_stats),
-        'tpm': sum(s.tpm for s in player_stats),
-        'tpa': sum(s.tpa for s in player_stats),
-        'ftm': sum(s.ftm for s in player_stats),
-        'fta': sum(s.fta for s in player_stats),
+        "points": sum(s.points for s in player_stats),
+        "reb": sum(s.reb for s in player_stats),
+        "oreb": sum(s.oreb for s in player_stats),
+        "dreb": sum(s.dreb for s in player_stats),
+        "ast": sum(s.ast for s in player_stats),
+        "stl": sum(s.stl for s in player_stats),
+        "blk": sum(s.blk for s in player_stats),
+        "tov": sum(s.tov for s in player_stats),
+        "pf": sum(s.pf for s in player_stats),
+        "fgm": sum(s.fgm for s in player_stats),
+        "fga": sum(s.fga for s in player_stats),
+        "tpm": sum(s.tpm for s in player_stats),
+        "tpa": sum(s.tpa for s in player_stats),
+        "ftm": sum(s.ftm for s in player_stats),
+        "fta": sum(s.fta for s in player_stats),
     }
 
     # Calculate advanced metrics
     total_poss = sum(
         calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in player_stats
     )
-    
+
     two_pt_stats = calculate_two_point_stats(
-        totals['fgm'], totals['fga'], totals['tpm'], totals['tpa']
+        totals["fgm"], totals["fga"], totals["tpm"], totals["tpa"]
     )
 
     # Calculate consistency (coefficient of variation) for PPG
@@ -313,81 +458,101 @@ def player_detail(player_name):
     if len(game_ppgs) > 1 and statistics.mean(game_ppgs) > 0:
         std_dev = statistics.stdev(game_ppgs)
         mean_ppg = statistics.mean(game_ppgs)
-        consistency_value = (std_dev / mean_ppg)  # As decimal, not percentage
+        consistency_value = std_dev / mean_ppg
 
     averages = {
-        'mpg': total_minutes / gp,
-        'ppg': totals['points'] / gp,
-        'rpg': totals['reb'] / gp,
-        'orebpg': totals['oreb'] / gp,
-        'drebpg': totals['dreb'] / gp,
-        'apg': totals['ast'] / gp,
-        'spg': totals['stl'] / gp,
-        'bpg': totals['blk'] / gp,
-        'topg': totals['tov'] / gp,
-        'pfpg': totals['pf'] / gp,
-        'eff': calculate_efficiency(
-            totals['points'], totals['reb'], totals['ast'], totals['stl'], 
-            totals['blk'], totals['fgm'], totals['fga'], totals['ftm'], 
-            totals['fta'], totals['tov']
-        ) / gp,
-        'ortg': calculate_ortg(totals['points'], total_poss),
-        'ppp': calculate_ppp(totals['points'], total_poss),
-        'usg_pct': (total_poss / gp),
-        'fg_pct': (totals['fgm'] / totals['fga'] * 100) if totals['fga'] > 0 else 0,
-        'two_pt_pct': two_pt_stats['two_pt_pct'],
-        'tp_pct': (totals['tpm'] / totals['tpa'] * 100) if totals['tpa'] > 0 else 0,
-        'ft_pct': (totals['ftm'] / totals['fta'] * 100) if totals['fta'] > 0 else 0,
-        'ts_pct': calculate_ts_percent(totals['points'], totals['fga'], totals['fta']),
-        'efg_pct': calculate_efg_percent(totals['fgm'], totals['tpm'], totals['fga']),
-        'ast_tov': totals['ast'] / totals['tov'] if totals['tov'] > 0 else totals['ast'],
-        'fta_pct': safe_percentage(totals['fta'], totals['fga']),
-        'oreb_pct': safe_percentage(totals['oreb'], totals['reb']),
-        'consistency': consistency_value,  # Added this field
+        "mpg": total_minutes / gp,
+        "ppg": totals["points"] / gp,
+        "rpg": totals["reb"] / gp,
+        "orebpg": totals["oreb"] / gp,
+        "drebpg": totals["dreb"] / gp,
+        "apg": totals["ast"] / gp,
+        "spg": totals["stl"] / gp,
+        "bpg": totals["blk"] / gp,
+        "topg": totals["tov"] / gp,
+        "pfpg": totals["pf"] / gp,
+        "eff": calculate_efficiency(
+            totals["points"],
+            totals["reb"],
+            totals["ast"],
+            totals["stl"],
+            totals["blk"],
+            totals["fgm"],
+            totals["fga"],
+            totals["ftm"],
+            totals["fta"],
+            totals["tov"],
+        )
+        / gp,
+        "ortg": calculate_ortg(totals["points"], total_poss),
+        "ppp": calculate_ppp(totals["points"], total_poss),
+        "usg_pct": total_poss / gp,
+        "fg_pct": (totals["fgm"] / totals["fga"] * 100) if totals["fga"] > 0 else 0,
+        "two_pt_pct": two_pt_stats["two_pt_pct"],
+        "tp_pct": (totals["tpm"] / totals["tpa"] * 100) if totals["tpa"] > 0 else 0,
+        "ft_pct": (totals["ftm"] / totals["fta"] * 100) if totals["fta"] > 0 else 0,
+        "ts_pct": calculate_ts_percent(totals["points"], totals["fga"], totals["fta"]),
+        "efg_pct": calculate_efg_percent(totals["fgm"], totals["tpm"], totals["fga"]),
+        "ast_tov": totals["ast"] / totals["tov"] if totals["tov"] > 0 else totals["ast"],
+        "fta_pct": safe_percentage(totals["fta"], totals["fga"]),
+        "oreb_pct": safe_percentage(totals["oreb"], totals["reb"]),
+        "consistency": consistency_value,
     }
 
-    # Career highs
     career_highs = {
-        'points': max(s.points for s in player_stats),
-        'reb': max(s.reb for s in player_stats),
-        'ast': max(s.ast for s in player_stats),
-        'stl': max(s.stl for s in player_stats),
-        'blk': max(s.blk for s in player_stats),
+        "points": max(s.points for s in player_stats),
+        "reb": max(s.reb for s in player_stats),
+        "ast": max(s.ast for s in player_stats),
+        "stl": max(s.stl for s in player_stats),
+        "blk": max(s.blk for s in player_stats),
     }
 
-    # Consistency CV for display (as percentage)
     consistency_cv = consistency_value * 100
 
-    # Process game logs with advanced metrics
     game_logs = []
     for stat in player_stats:
         game = stat.game
         poss = calculate_possessions(stat.fga, stat.fta, stat.oreb, stat.tov)
-        
-        game_logs.append({
-            'game': game,
-            'stat': stat,
-            'ortg': calculate_ortg(stat.points, poss),
-            'ppp': calculate_ppp(stat.points, poss),
-            'eff': calculate_efficiency(
-                stat.points, stat.reb, stat.ast, stat.stl, stat.blk,
-                stat.fgm, stat.fga, stat.ftm, stat.fta, stat.tov
-            ),
-            'ts_pct': calculate_ts_percent(stat.points, stat.fga, stat.fta),
-            'efg_pct': calculate_efg_percent(stat.fgm, stat.tpm, stat.fga),
-            'ast_tov': stat.ast / stat.tov if stat.tov > 0 else stat.ast,
-        })
 
-    # Prepare chart data (last 10 games for trends)
-    recent_games = game_logs[:10][::-1]  # Reverse for chronological order
+        game_logs.append(
+            {
+                "game": game,
+                "stat": stat,
+                "ortg": calculate_ortg(stat.points, poss),
+                "ppp": calculate_ppp(stat.points, poss),
+                "eff": calculate_efficiency(
+                    stat.points,
+                    stat.reb,
+                    stat.ast,
+                    stat.stl,
+                    stat.blk,
+                    stat.fgm,
+                    stat.fga,
+                    stat.ftm,
+                    stat.fta,
+                    stat.tov,
+                ),
+                "ts_pct": calculate_ts_percent(stat.points, stat.fga, stat.fta),
+                "efg_pct": calculate_efg_percent(stat.fgm, stat.tpm, stat.fga),
+                "ast_tov": stat.ast / stat.tov if stat.tov > 0 else stat.ast,
+            }
+        )
+
+    recent_games = game_logs[:10][::-1]
     chart_data = {
-        'labels': [g['game'].opponent[:10] for g in recent_games],
-        'points': [g['stat'].points for g in recent_games],
-        'rebounds': [g['stat'].reb for g in recent_games],
-        'assists': [g['stat'].ast for g in recent_games],
-        'efficiency': [g['eff'] for g in recent_games],
-        'fg_pct': [(g['stat'].fgm / g['stat'].fga * 100) if g['stat'].fga > 0 else 0 for g in recent_games],
-        'tp_pct': [(g['stat'].tpm / g['stat'].tpa * 100) if g['stat'].tpa > 0 else 0 for g in recent_games],
+        "labels": [g["game"].opponent[:10] for g in recent_games],
+        "points": [g["stat"].points for g in recent_games],
+        "rebounds": [g["stat"].reb for g in recent_games],
+        "assists": [g["stat"].ast for g in recent_games],
+        "efficiency": [g["eff"] for g in recent_games],
+        "fg_pct": [
+            (g["stat"].fgm / g["stat"].fga * 100) if g["stat"].fga > 0 else 0
+            for g in recent_games
+        ],
+        "tp_pct": [
+            (g["stat"].tpm / g["stat"].tpa * 100) if g["stat"].tpa > 0 else 0
+            for g in recent_games
+        ],
     }
 
     return render_template(
@@ -401,8 +566,8 @@ def player_detail(player_name):
         game_logs=game_logs,
         chart_data=chart_data,
         game_type=game_type,
-        two_pt_made=two_pt_stats['two_pt_made'],
-        two_pt_att=two_pt_stats['two_pt_att'],
+        two_pt_made=two_pt_stats["two_pt_made"],
+        two_pt_att=two_pt_stats["two_pt_att"],
     )
 
 
@@ -410,7 +575,7 @@ def player_detail(player_name):
 @login_required
 def players():
     """List of all players with Comprehensive Advanced Stats"""
-    view = request.args.get("view", "cards")  # Default to card view
+    view = request.args.get("view", "cards")
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
         game_type = "ALL"
@@ -430,6 +595,8 @@ def players():
         game_query = game_query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
         game_query = game_query.filter(Game.game_type == "Friendly")
+    elif game_type == "Playoff":
+        game_query = game_query.filter(Game.game_type == "Playoff")
 
     all_filtered_games = game_query.all()
 
@@ -441,18 +608,11 @@ def players():
     target_game_ids = [g.id for g in target_games]
 
     if not target_game_ids:
-        # Pass view parameter to template so links persist the current view preference if needed, 
-        # though usually empty state handles its own display.
         template = "players_table.html" if view == "table" else "players.html"
         return render_template(
             template,
             stats=[],
-            filters={
-                "type": game_type,
-                "limit": limit,
-                "sort": sort_by,
-                "order": order,
-            },
+            filters={"type": game_type, "limit": limit, "sort": sort_by, "order": order},
         )
 
     stats_query = (
@@ -555,13 +715,10 @@ def players():
                 "ft_pct": row.total_ftm / row.total_fta if row.total_fta > 0 else 0,
                 "ts_pct": ts_pct,
                 "efg_pct": efg_pct,
-                "ast_tov": row.total_ast / row.total_tov
-                if row.total_tov > 0
-                else row.total_ast,
+                "ast_tov": row.total_ast / row.total_tov if row.total_tov > 0 else row.total_ast,
                 "fta_pct": safe_percentage(row.total_fta, row.total_fga),
                 "oreb_pct": safe_percentage(row.total_oreb, row.total_reb),
                 "consistency": consistency,
-                # SHOOTING TOTALS
                 "fgm": row.total_fgm,
                 "fga": row.total_fga,
                 "two_pt_made": two_pt_stats["two_pt_made"],
@@ -606,12 +763,7 @@ def games():
             avg_score = "0-0"
 
         team_stats.append(
-            {
-                "name": opp_name,
-                "games": len(games),
-                "record": f"{wins}-{losses}",
-                "avg_score": avg_score,
-            }
+            {"name": opp_name, "games": len(games), "record": f"{wins}-{losses}", "avg_score": avg_score}
         )
 
     return render_template("teams.html", teams=team_stats)
@@ -621,11 +773,7 @@ def games():
 @login_required
 def opponent_games(opponent_name):
     """List games against a specific opponent"""
-    games = (
-        Game.query.filter_by(opponent=opponent_name)
-        .order_by(Game.sort_date.desc())
-        .all()
-    )
+    games = Game.query.filter_by(opponent=opponent_name).order_by(Game.sort_date.desc()).all()
 
     wins = sum(1 for g in games if g.result == "W")
     losses = len(games) - wins
