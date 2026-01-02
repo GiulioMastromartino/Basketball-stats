@@ -2,6 +2,56 @@
 
 {% block content %}
 <style>
+    /* Prevent layout jump while charts initialize */
+    .page-loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(6px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 200ms ease;
+    }
+
+    .page-loading-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .page-loading-card {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 14px;
+        padding: 18px 22px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #333;
+        font-weight: 600;
+    }
+
+    .spinner {
+        width: 18px;
+        height: 18px;
+        border: 3px solid #e9ecef;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .page-hidden {
+        visibility: hidden;
+    }
+
     .player-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -10,7 +60,7 @@
         margin-bottom: 30px;
         box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
     }
-    
+
     .player-avatar-lg {
         width: 120px;
         height: 120px;
@@ -24,14 +74,14 @@
         border: 4px solid white;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
-    
+
     .stat-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
         gap: 15px;
         margin-top: 20px;
     }
-    
+
     .stat-card {
         background: white;
         padding: 20px;
@@ -40,26 +90,26 @@
         border: 1px solid #e0e0e0;
         transition: all 0.3s ease;
     }
-    
+
     .stat-card:hover {
         transform: translateY(-4px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
     }
-    
+
     .stat-card-value {
         font-size: 28px;
         font-weight: 700;
         color: #333;
         margin-bottom: 4px;
     }
-    
+
     .stat-card-label {
         font-size: 12px;
         color: #666;
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-    
+
     .section-title {
         font-size: 20px;
         font-weight: 700;
@@ -69,7 +119,7 @@
         align-items: center;
         gap: 10px;
     }
-    
+
     .chart-container {
         background: white;
         padding: 25px;
@@ -77,8 +127,30 @@
         margin-bottom: 25px;
         border: 1px solid #e0e0e0;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
     }
-    
+
+    /* Fix: Chart.js responsive sizing needs an explicit parent height when maintainAspectRatio=false */
+    .chart-box {
+        position: relative;
+        width: 100%;
+        height: 280px;
+    }
+
+    .chart-box.chart-box--md {
+        height: 240px;
+    }
+
+    .chart-box.chart-box--sm {
+        height: 220px;
+    }
+
+    .chart-box canvas {
+        width: 100% !important;
+        height: 100% !important;
+        display: block;
+    }
+
     .game-log-table {
         width: 100%;
         background: white;
@@ -86,12 +158,12 @@
         overflow: hidden;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
-    
+
     .game-log-table thead {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
     }
-    
+
     .game-log-table th {
         padding: 12px 8px;
         font-weight: 600;
@@ -99,18 +171,18 @@
         text-align: center;
         border-right: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
+
     .game-log-table td {
         padding: 12px 8px;
         text-align: center;
         border-bottom: 1px solid #f0f0f0;
         font-size: 13px;
     }
-    
+
     .game-log-table tbody tr:hover {
         background: #f8f9fa;
     }
-    
+
     .result-badge {
         display: inline-block;
         padding: 4px 10px;
@@ -118,17 +190,17 @@
         font-weight: 600;
         font-size: 11px;
     }
-    
+
     .result-w {
         background: #d4edda;
         color: #155724;
     }
-    
+
     .result-l {
         background: #f8d7da;
         color: #721c24;
     }
-    
+
     .consistency-badge {
         display: inline-block;
         padding: 6px 14px;
@@ -136,35 +208,41 @@
         font-weight: 600;
         font-size: 14px;
     }
-    
+
     .consistency-excellent {
         background: #d4edda;
         color: #155724;
     }
-    
+
     .consistency-good {
         background: #d1ecf1;
         color: #0c5460;
     }
-    
+
     .consistency-average {
         background: #fff3cd;
         color: #856404;
     }
-    
+
     .consistency-volatile {
         background: #f8d7da;
         color: #721c24;
     }
 </style>
 
-<div class="container-fluid">
+<!-- Loading overlay (hide page until charts are laid out) -->
+<div id="pageLoader" class="page-loading-overlay">
+    <div class="page-loading-card">
+        <span class="spinner"></span>
+        Loading player analytics…
+    </div>
+</div>
+
+<div id="playerPage" class="container-fluid page-hidden">
     <!-- Player Header -->
     <div class="player-header">
         <div class="d-flex align-items-center gap-4">
-            <div class="player-avatar-lg">
-                {{ player_name[:2]|upper }}
-            </div>
+            <div class="player-avatar-lg">{{ player_name[:2]|upper }}</div>
             <div style="flex: 1;">
                 <h1 style="font-size: 36px; margin: 0;">{{ player_name }}</h1>
                 <div class="d-flex align-items-center gap-3 mt-2" style="opacity: 0.9;">
@@ -222,25 +300,31 @@
         <i class="fas fa-chart-area" style="color: #667eea;"></i>
         Performance Trends (Last 10 Games)
     </div>
-    
+
     <div class="row">
         <div class="col-md-6">
             <div class="chart-container">
                 <h5>Scoring Performance</h5>
-                <canvas id="scoringChart" height="250"></canvas>
+                <div class="chart-box chart-box--md">
+                    <canvas id="scoringChart"></canvas>
+                </div>
             </div>
         </div>
         <div class="col-md-6">
             <div class="chart-container">
                 <h5>Shooting Efficiency</h5>
-                <canvas id="shootingChart" height="250"></canvas>
+                <div class="chart-box chart-box--md">
+                    <canvas id="shootingChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
-    
+
     <div class="chart-container">
         <h5>All-Around Performance</h5>
-        <canvas id="allAroundChart" height="200"></canvas>
+        <div class="chart-box chart-box--sm">
+            <canvas id="allAroundChart"></canvas>
+        </div>
     </div>
 
     <!-- Advanced Stats -->
@@ -248,56 +332,29 @@
         <i class="fas fa-calculator" style="color: #f5576c;"></i>
         Advanced Statistics
     </div>
-    
+
     <div class="row">
         <div class="col-md-6">
             <div class="chart-container">
                 <h5>Offensive Metrics</h5>
                 <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr);">
-                    <div class="stat-card">
-                        <div class="stat-card-value">{{ averages.ortg|round(0) }}</div>
-                        <div class="stat-card-label">ORtg</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-card-value">{{ averages.ppp|round(2) }}</div>
-                        <div class="stat-card-label">PPP</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-card-value">{{ averages.usg_pct|round(1) }}</div>
-                        <div class="stat-card-label">Usage</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-card-value">{{ averages.ts_pct|round(1) }}%</div>
-                        <div class="stat-card-label">TS%</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-card-value">{{ averages.efg_pct|round(1) }}%</div>
-                        <div class="stat-card-label">eFG%</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-card-value">{{ averages.ast_tov|round(1) }}</div>
-                        <div class="stat-card-label">AST/TOV</div>
-                    </div>
+                    <div class="stat-card"><div class="stat-card-value">{{ averages.ortg|round(0) }}</div><div class="stat-card-label">ORtg</div></div>
+                    <div class="stat-card"><div class="stat-card-value">{{ averages.ppp|round(2) }}</div><div class="stat-card-label">PPP</div></div>
+                    <div class="stat-card"><div class="stat-card-value">{{ averages.usg_pct|round(1) }}</div><div class="stat-card-label">Usage</div></div>
+                    <div class="stat-card"><div class="stat-card-value">{{ averages.ts_pct|round(1) }}%</div><div class="stat-card-label">TS%</div></div>
+                    <div class="stat-card"><div class="stat-card-value">{{ averages.efg_pct|round(1) }}%</div><div class="stat-card-label">eFG%</div></div>
+                    <div class="stat-card"><div class="stat-card-value">{{ averages.ast_tov|round(1) }}</div><div class="stat-card-label">AST/TOV</div></div>
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-6">
             <div class="chart-container">
                 <h5>Career Highs & Consistency</h5>
                 <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr);">
-                    <div class="stat-card">
-                        <div class="stat-card-value">{{ career_highs.points }}</div>
-                        <div class="stat-card-label">Max Points</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-card-value">{{ career_highs.reb }}</div>
-                        <div class="stat-card-label">Max Rebounds</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-card-value">{{ career_highs.ast }}</div>
-                        <div class="stat-card-label">Max Assists</div>
-                    </div>
+                    <div class="stat-card"><div class="stat-card-value">{{ career_highs.points }}</div><div class="stat-card-label">Max Points</div></div>
+                    <div class="stat-card"><div class="stat-card-value">{{ career_highs.reb }}</div><div class="stat-card-label">Max Rebounds</div></div>
+                    <div class="stat-card"><div class="stat-card-value">{{ career_highs.ast }}</div><div class="stat-card-label">Max Assists</div></div>
                     <div class="stat-card" style="grid-column: span 2;">
                         <div class="stat-card-label" style="margin-bottom: 8px;">Consistency Score</div>
                         {% if consistency_cv < 25 %}
@@ -320,7 +377,7 @@
         <i class="fas fa-list" style="color: #20c997;"></i>
         Game Log
     </div>
-    
+
     <div style="overflow-x: auto;">
         <table class="game-log-table">
             <thead>
@@ -374,120 +431,132 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     const chartData = {{ chart_data|tojson }};
-    
-    // Scoring Performance Chart
-    new Chart(document.getElementById('scoringChart'), {
-        type: 'line',
-        data: {
-            labels: chartData.labels,
-            datasets: [{
-                label: 'Points',
-                data: chartData.points,
-                borderColor: '#667eea',
-                backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                tension: 0.4,
-                fill: true,
-                pointRadius: 5,
-                pointHoverRadius: 7
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: 'rgba(0,0,0,0.8)',
-                    padding: 12,
-                    cornerRadius: 8
-                }
-            },
-            scales: {
-                y: { beginAtZero: true }
-            }
-        }
-    });
-    
-    // Shooting Efficiency Chart
-    new Chart(document.getElementById('shootingChart'), {
-        type: 'line',
-        data: {
-            labels: chartData.labels,
-            datasets: [
-                {
-                    label: 'FG%',
-                    data: chartData.fg_pct,
-                    borderColor: '#28a745',
-                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                },
-                {
-                    label: '3PT%',
-                    data: chartData.tp_pct,
-                    borderColor: '#f5576c',
-                    backgroundColor: 'rgba(245, 87, 108, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                tooltip: {
-                    backgroundColor: 'rgba(0,0,0,0.8)',
-                    padding: 12,
-                    cornerRadius: 8
-                }
-            },
-            scales: {
-                y: { 
-                    beginAtZero: true,
-                    max: 100
-                }
-            }
-        }
-    });
-    
-    // All-Around Performance
-    new Chart(document.getElementById('allAroundChart'), {
-        type: 'bar',
-        data: {
-            labels: chartData.labels,
-            datasets: [
-                {
+
+    let scoringChart, shootingChart, allAroundChart;
+
+    function buildCharts() {
+        const scoringEl = document.getElementById('scoringChart');
+        const shootingEl = document.getElementById('shootingChart');
+        const allAroundEl = document.getElementById('allAroundChart');
+
+        if (!scoringEl || !shootingEl || !allAroundEl) return;
+
+        // Defensive: if the page is cached or scripts run twice, destroy existing charts.
+        if (scoringChart) scoringChart.destroy();
+        if (shootingChart) shootingChart.destroy();
+        if (allAroundChart) allAroundChart.destroy();
+
+        scoringChart = new Chart(scoringEl, {
+            type: 'line',
+            data: {
+                labels: chartData.labels,
+                datasets: [{
                     label: 'Points',
                     data: chartData.points,
-                    backgroundColor: '#667eea'
-                },
-                {
-                    label: 'Rebounds',
-                    data: chartData.rebounds,
-                    backgroundColor: '#20c997'
-                },
-                {
-                    label: 'Assists',
-                    data: chartData.assists,
-                    backgroundColor: '#ffc107'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                tooltip: {
-                    backgroundColor: 'rgba(0,0,0,0.8)',
-                    padding: 12,
-                    cornerRadius: 8
-                }
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }]
             },
-            scales: {
-                y: { beginAtZero: true }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        padding: 12,
+                        cornerRadius: 8
+                    }
+                },
+                scales: { y: { beginAtZero: true } }
             }
+        });
+
+        shootingChart = new Chart(shootingEl, {
+            type: 'line',
+            data: {
+                labels: chartData.labels,
+                datasets: [
+                    {
+                        label: 'FG%',
+                        data: chartData.fg_pct,
+                        borderColor: '#28a745',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: '3PT%',
+                        data: chartData.tp_pct,
+                        borderColor: '#f5576c',
+                        backgroundColor: 'rgba(245, 87, 108, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        padding: 12,
+                        cornerRadius: 8
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+
+        allAroundChart = new Chart(allAroundEl, {
+            type: 'bar',
+            data: {
+                labels: chartData.labels,
+                datasets: [
+                    { label: 'Points', data: chartData.points, backgroundColor: '#667eea' },
+                    { label: 'Rebounds', data: chartData.rebounds, backgroundColor: '#20c997' },
+                    { label: 'Assists', data: chartData.assists, backgroundColor: '#ffc107' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        padding: 12,
+                        cornerRadius: 8
+                    }
+                },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        // Reveal the page only after charts have been laid out.
+        const loader = document.getElementById('pageLoader');
+        const page = document.getElementById('playerPage');
+        if (page) page.classList.remove('page-hidden');
+        if (loader) {
+            loader.classList.add('hidden');
+            // Remove from DOM after transition
+            setTimeout(() => loader.remove(), 250);
         }
+    }
+
+    // Wait for full load so layout widths/heights are stable (prevents runaway resize loops).
+    window.addEventListener('load', () => {
+        // One extra frame so the browser completes layout before Chart.js measures.
+        requestAnimationFrame(() => requestAnimationFrame(buildCharts));
     });
 </script>
 {% endblock %}
