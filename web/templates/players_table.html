@@ -3,15 +3,12 @@
 {% block content %}
 <style>
     /* Tooltip styling */
-    .stat-header-container {
+    .header-content {
         position: relative;
-        cursor: pointer;
         display: inline-flex;
         align-items: center;
-        justify-content: center;
-        gap: 4px;
-        text-decoration: none;
-        color: inherit;
+        gap: 5px;
+        cursor: help;
     }
 
     .stat-tooltip {
@@ -20,20 +17,21 @@
         bottom: 100%;
         left: 50%;
         transform: translateX(-50%);
-        background: #2d3748;
+        background: #1a202c;
         color: white;
-        padding: 6px 10px;
+        padding: 8px 12px;
         border-radius: 6px;
-        font-size: 11px;
+        font-size: 12px;
         white-space: nowrap;
-        z-index: 1000;
+        z-index: 9999;
         opacity: 0;
         transition: opacity 0.2s;
         pointer-events: none;
         margin-bottom: 8px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        font-weight: 400;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        font-weight: 500;
         text-transform: none;
+        line-height: 1.4;
     }
 
     .stat-tooltip::after {
@@ -44,35 +42,43 @@
         margin-left: -5px;
         border-width: 5px;
         border-style: solid;
-        border-color: #2d3748 transparent transparent transparent;
+        border-color: #1a202c transparent transparent transparent;
     }
 
-    .stat-header-container:hover .stat-tooltip {
+    .header-content:hover .stat-tooltip {
         visibility: visible;
         opacity: 1;
     }
 
-    /* Table styling tweaks */
+    /* Table styling to match original aesthetics */
     .table th {
         vertical-align: middle;
         font-size: 12px;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        padding: 12px 8px;
+        padding: 12px 10px;
+        white-space: nowrap;
+    }
+
+    .sort-link {
+        color: inherit;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
     }
 
     .sort-icon {
-        color: #adb5bd;
         font-size: 10px;
-        margin-left: 2px;
+        margin-left: 4px;
+        opacity: 0.3;
     }
-    
-    .stat-header-container:hover .sort-icon {
-        color: #6c757d;
-    }
-    
+
     .active-sort {
-        color: #0d6efd;
+        opacity: 1;
+        color: #3182ce;
     }
 </style>
 
@@ -122,18 +128,20 @@
                         {% set current_sort = filters.sort %}
                         {% set current_order = filters.order %}
                         {% set next_order = 'asc' if current_order == 'desc' else 'desc' %}
-                        
-                        <th style="min-width: 200px;">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='player_name', order=next_order) }}" class="text-decoration-none text-dark d-flex align-items-center">
-                                Player 
+
+                        <!-- Player Name Column -->
+                        <th style="min-width: 200px; padding-left: 20px;">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='player_name', order=next_order) }}" class="sort-link justify-content-start">
+                                PLAYER
                                 {% if current_sort == 'player_name' %}
-                                    <i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }} ms-1 active-sort"></i>
+                                    <i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }} sort-icon active-sort"></i>
                                 {% else %}
-                                    <i class="fas fa-sort ms-1 text-muted opacity-25"></i>
+                                    <i class="fas fa-sort sort-icon"></i>
                                 {% endif %}
                             </a>
                         </th>
                         
+                        <!-- Stats Columns -->
                         {% for col in [
                             ('games_played', 'GP', 'Games Played'),
                             ('mpg', 'MPG', 'Minutes Per Game'),
@@ -150,14 +158,16 @@
                             ('ortg', 'ORtg', 'Offensive Rating')
                         ] %}
                         <th class="text-center {% if col[1] in ['PPG', 'EFF'] %}bg-light border-start border-end{% endif %}">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="stat-header-container">
-                                {{ col[1] }}
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
+                                <div class="header-content">
+                                    {{ col[1] }}
+                                    <span class="stat-tooltip">{{ col[2] }}</span>
+                                </div>
                                 {% if current_sort == col[0] %}
                                     <i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }} sort-icon active-sort"></i>
                                 {% else %}
-                                    <i class="fas fa-sort sort-icon opacity-25"></i>
+                                    <i class="fas fa-sort sort-icon"></i>
                                 {% endif %}
-                                <span class="stat-tooltip">{{ col[2] }}</span>
                             </a>
                         </th>
                         {% endfor %}
@@ -166,12 +176,15 @@
                 <tbody>
                     {% for p in stats %}
                     <tr>
-                        <td>
+                        <td style="padding-left: 20px;">
                             <a href="{{ url_for('main.player_detail', player_name=p.player_name, game_type=filters.type) }}" class="d-flex align-items-center text-decoration-none text-dark fw-bold">
                                 <div class="rounded-circle bg-light d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-size: 14px; border: 1px solid #dee2e6; color: #667eea; font-weight: 700;">
                                     {{ p.player_name[:2]|upper }}
                                 </div>
-                                {{ p.player_name }}
+                                <div>
+                                    <div style="line-height: 1;">{{ p.player_name }}</div>
+                                    <small class="text-muted" style="font-weight: 400; font-size: 11px;">{{ p.games_played }} Games</small>
+                                </div>
                             </a>
                         </td>
                         <td class="text-center">{{ p.games_played }}</td>
