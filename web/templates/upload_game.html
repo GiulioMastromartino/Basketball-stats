@@ -1,0 +1,151 @@
+{% extends "layout.html" %}
+
+{% block title %}Upload Game - HoopsStats{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 800px; margin: 0 auto;">
+    <div class="panel-header">
+        <h3><i class="fas fa-upload" style="color: var(--primary)"></i> Upload Game CSV</h3>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}" style="
+                padding: 12px 16px;
+                margin-bottom: 20px;
+                border-radius: 8px;
+                background: {% if category == 'success' %}#d4edda{% elif category == 'danger' %}#f8d7da{% elif category == 'warning' %}#fff3cd{% else %}#d1ecf1{% endif %};
+                color: {% if category == 'success' %}#155724{% elif category == 'danger' %}#721c24{% elif category == 'warning' %}#856404{% else %}#0c5460{% endif %};
+                border: 1px solid {% if category == 'success' %}#c3e6cb{% elif category == 'danger' %}#f5c6cb{% elif category == 'warning' %}#ffeaa7{% else %}#bee5eb{% endif %};
+            ">
+                <i class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'danger' %}exclamation-circle{% elif category == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" enctype="multipart/form-data" style="margin-bottom: 30px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--secondary);">
+                <i class="fas fa-file-csv"></i> Select CSV File
+            </label>
+            <input 
+                type="file" 
+                name="csv_file" 
+                accept=".csv" 
+                required
+                style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px dashed var(--border-color);
+                    border-radius: 8px;
+                    background: #f8f9fa;
+                    cursor: pointer;
+                    transition: 0.2s;
+                "
+                onmouseover="this.style.borderColor='var(--primary)'"
+                onmouseout="this.style.borderColor='var(--border-color)'"
+            />
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%;">
+            <i class="fas fa-cloud-upload-alt"></i> Upload & Import Game
+        </button>
+    </form>
+
+    <!-- Format Requirements -->
+    <div style="
+        background: var(--primary-light);
+        padding: 20px;
+        border-radius: 8px;
+        border-left: 4px solid var(--primary);
+    ">
+        <h4 style="margin-bottom: 15px; color: var(--secondary);">
+            <i class="fas fa-info-circle"></i> File Requirements
+        </h4>
+
+        <div style="margin-bottom: 20px;">
+            <strong style="color: var(--secondary);">Filename Format:</strong>
+            <code style="
+                display: block;
+                background: white;
+                padding: 10px;
+                border-radius: 4px;
+                margin-top: 8px;
+                font-family: 'Courier New', monospace;
+                color: var(--primary-dark);
+            ">Opponent_TeamScore-OppScore_DD-MM-YYYY_[F/S/P].csv</code>
+            
+            <p style="margin-top: 10px; color: var(--text-muted); font-size: 0.9rem;">
+                <strong>Examples:</strong><br>
+                • <code>Lakers_95-88_15-03-2025_S.csv</code> (Season game)<br>
+                • <code>Warriors_102-99_20-12-2024_F.csv</code> (Friendly)<br>
+                • <code>Celtics_110-105_05-04-2025_P.csv</code> (Playoff)
+            </p>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <strong style="color: var(--secondary);">Game Type Codes:</strong>
+            <ul style="margin-top: 8px; line-height: 1.8;">
+                <li><strong>F</strong> = Friendly</li>
+                <li><strong>S</strong> = Season</li>
+                <li><strong>P</strong> = Playoff</li>
+            </ul>
+        </div>
+
+        <div>
+            <strong style="color: var(--secondary);">Required CSV Columns:</strong>
+            <div style="
+                background: white;
+                padding: 12px;
+                border-radius: 4px;
+                margin-top: 8px;
+                font-size: 0.85rem;
+                font-family: 'Courier New', monospace;
+            ">
+                Name, MIN, PTS, FGM, FGA, FG%, 3PM, 3PA, 3P%, FTM, FTA, FT%, OREB, DREB, REB, AST, TOV, STL, BLK, PF
+            </div>
+            <p style="margin-top: 10px; color: var(--text-muted); font-size: 0.85rem;">
+                <i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i>
+                The CSV must include a row with <strong>Name='Total'</strong> (this row will be automatically skipped during import).
+            </p>
+        </div>
+    </div>
+
+    <!-- Sample CSV Link -->
+    <div style="margin-top: 20px; text-align: center;">
+        <a href="{{ url_for('main.index') }}" class="btn btn-outline">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+</div>
+
+<style>
+.alert {
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+code {
+    background: #f4f4f4;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+</style>
+{% endblock %}
