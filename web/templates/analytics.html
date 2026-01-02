@@ -124,6 +124,64 @@
                 font-size: 12px;
                 margin-top: 10px;
             }
+
+            /* Glossary Styles */
+            .glossary-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                gap: 20px;
+            }
+            
+            .glossary-card {
+                background: white;
+                border-radius: 10px;
+                padding: 20px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                border-left: 4px solid #667eea;
+                transition: transform 0.2s;
+            }
+            
+            .glossary-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            }
+            
+            .glossary-term {
+                font-size: 18px;
+                font-weight: 700;
+                color: #333;
+                margin-bottom: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            
+            .glossary-badge {
+                font-size: 11px;
+                background: #f0f2f5;
+                color: #666;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-weight: 600;
+                text-transform: uppercase;
+            }
+            
+            .glossary-def {
+                color: #555;
+                font-size: 14px;
+                line-height: 1.5;
+                margin-bottom: 12px;
+            }
+            
+            .glossary-formula {
+                background: #f8f9fa;
+                padding: 8px 12px;
+                border-radius: 6px;
+                font-family: monospace;
+                font-size: 12px;
+                color: #e83e8c;
+                border: 1px solid #e9ecef;
+            }
         </style>
     </head>
     <body>
@@ -218,6 +276,9 @@
                 </div>
                 <div class="tab" onclick="switchTab('roles')">
                     <i class="fas fa-user-tag"></i> Player Roles
+                </div>
+                <div class="tab" onclick="switchTab('glossary')">
+                    <i class="fas fa-book"></i> Glossary
                 </div>
             </div>
 
@@ -649,6 +710,126 @@
                     </div>
                 </div>
             </div>
+
+            <!-- GLOSSARY SECTION -->
+            <div id="glossary" class="section">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-book"></i> Statistics Glossary</h3>
+                        <p class="text-muted" style="font-size: 0.9em; margin: 0;">Definitions and formulas for advanced metrics</p>
+                    </div>
+                    
+                    <div class="glossary-grid" style="margin-top: 20px;">
+                        <div class="glossary-card">
+                            <div class="glossary-term">
+                                ORtg <span class="glossary-badge">Efficiency</span>
+                            </div>
+                            <div class="glossary-def">
+                                <strong>Offensive Rating</strong>: An estimate of points produced (scored or assisted) per 100 possessions. It measures a player's scoring efficiency independent of game pace.
+                            </div>
+                            <div class="glossary-formula">
+                                Formula: (Points Produced / Possessions) * 100
+                            </div>
+                        </div>
+
+                        <div class="glossary-card">
+                            <div class="glossary-term">
+                                PPP <span class="glossary-badge">Scoring</span>
+                            </div>
+                            <div class="glossary-def">
+                                <strong>Points Per Possession</strong>: The average number of points a player scores each time they use a possession (shot, turnover, or free throws).
+                            </div>
+                            <div class="glossary-formula">
+                                Formula: Points / Possessions
+                            </div>
+                        </div>
+
+                        <div class="glossary-card">
+                            <div class="glossary-term">
+                                TS% <span class="glossary-badge">Shooting</span>
+                            </div>
+                            <div class="glossary-def">
+                                <strong>True Shooting Percentage</strong>: A measure of shooting efficiency that takes into account 2-point field goals, 3-point field goals, and free throws.
+                            </div>
+                            <div class="glossary-formula">
+                                Formula: PTS / (2 * (FGA + 0.44 * FTA))
+                            </div>
+                        </div>
+
+                        <div class="glossary-card">
+                            <div class="glossary-term">
+                                eFG% <span class="glossary-badge">Shooting</span>
+                            </div>
+                            <div class="glossary-def">
+                                <strong>Effective Field Goal Percentage</strong>: This statistic adjusts for the fact that a 3-point field goal is worth one more point than a 2-point field goal.
+                            </div>
+                            <div class="glossary-formula">
+                                Formula: (FGM + 0.5 * 3PM) / FGA
+                            </div>
+                        </div>
+
+                        <div class="glossary-card">
+                            <div class="glossary-term">
+                                EFF <span class="glossary-badge">Overall</span>
+                            </div>
+                            <div class="glossary-def">
+                                <strong>Efficiency Rating</strong>: A standard NBA composite stat derived from basic individual statistics.
+                            </div>
+                            <div class="glossary-formula">
+                                Formula: (PTS + REB + AST + STL + BLK) - ((FGA - FGM) + (FTA - FTM) + TO)
+                            </div>
+                        </div>
+
+                        <div class="glossary-card">
+                            <div class="glossary-term">
+                                Usage % <span class="glossary-badge">Volume</span>
+                            </div>
+                            <div class="glossary-def">
+                                <strong>Usage Percentage</strong>: An estimate of the percentage of team plays used by a player while they were on the floor.
+                            </div>
+                            <div class="glossary-formula">
+                                Formula: (Player Possessions / Team Possessions) * 100
+                            </div>
+                        </div>
+
+                        <div class="glossary-card">
+                            <div class="glossary-term">
+                                AST/TOV <span class="glossary-badge">Playmaking</span>
+                            </div>
+                            <div class="glossary-def">
+                                <strong>Assist to Turnover Ratio</strong>: Measures ball control and decision making. Higher is better (2:1 or 3:1 is excellent).
+                            </div>
+                            <div class="glossary-formula">
+                                Formula: Assists / Turnovers
+                            </div>
+                        </div>
+
+                        <div class="glossary-card">
+                            <div class="glossary-term">
+                                CV% <span class="glossary-badge">Consistency</span>
+                            </div>
+                            <div class="glossary-def">
+                                <strong>Coefficient of Variation</strong>: Measures the volatility of a player's scoring. Lower percentages indicate more consistent performance game-to-game.
+                            </div>
+                            <div class="glossary-formula">
+                                Formula: (Standard Deviation of Points / Average Points) * 100
+                            </div>
+                        </div>
+                        
+                        <div class="glossary-card">
+                            <div class="glossary-term">
+                                Possessions <span class="glossary-badge">Advanced</span>
+                            </div>
+                            <div class="glossary-def">
+                                <strong>Possessions Estimate</strong>: The number of times a player or team has the ball with a chance to score.
+                            </div>
+                            <div class="glossary-formula">
+                                Formula: FGA + 0.44 * FTA + TOV - OREB
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <script>
@@ -763,6 +944,7 @@
                 if (id === "multi") updateMultiChart();
                 if (id === "consistency") loadConsistency();
                 if (id === "roles") loadRoles();
+                // No load function needed for glossary (static content)
             }
 
             Chart.defaults.font.family = "'Inter', sans-serif";
