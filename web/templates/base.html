@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{% block title %}HoopsStats{% endblock %}</title>
+        
+        <!-- Fonts & Icons -->
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+        
+        <!-- Main Stylesheet -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+        
+        <style>
+            /* Layout specific styles needed for sidebar + content structure */
+            body {
+                display: flex;
+                min-height: 100vh;
+                margin: 0;
+                background-color: var(--bg-body);
+            }
+            
+            /* Sidebar */
+            .sidebar {
+                width: 260px;
+                background-color: var(--bg-header);
+                border-right: 1px solid var(--border-color);
+                display: flex;
+                flex-direction: column;
+                position: fixed;
+                height: 100vh;
+                z-index: 1000;
+                padding: var(--spacing-md);
+            }
+            
+            .sidebar-brand {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                font-size: 20px;
+                font-weight: 700;
+                color: var(--text-main);
+                margin-bottom: 40px;
+                text-decoration: none;
+                padding: 0 12px;
+            }
+            
+            .sidebar-brand i {
+                color: var(--accent); /* Orange ball icon */
+                font-size: 24px;
+            }
+            
+            .nav-list {
+                list-style: none;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .nav-item a {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px;
+                border-radius: 8px;
+                color: var(--text-muted);
+                font-weight: 500;
+                text-decoration: none;
+                transition: all 0.2s ease;
+            }
+            
+            .nav-item a:hover {
+                background-color: var(--bg-body);
+                color: var(--text-main);
+            }
+            
+            .nav-item a.active {
+                background-color: var(--secondary);
+                color: var(--text-light);
+            }
+            
+            .nav-item a.active i {
+                color: var(--text-light);
+            }
+            
+            /* Main Content Area */
+            .main-content {
+                margin-left: 260px; /* Match sidebar width */
+                flex: 1;
+                padding: var(--spacing-xl);
+                overflow-y: auto;
+            }
+            
+            /* Responsive */
+            @media (max-width: 768px) {
+                .sidebar {
+                    transform: translateX(-100%);
+                    transition: transform 0.3s ease;
+                }
+                .sidebar.open {
+                    transform: translateX(0);
+                }
+                .main-content {
+                    margin-left: 0;
+                    padding: var(--spacing-md);
+                }
+            }
+        </style>
+        {% block extra_css %}{% endblock %}
+    </head>
+    <body>
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <a href="{{ url_for('main.index') }}" class="sidebar-brand">
+                <i class="fas fa-basketball-ball"></i>
+                Hoops
+            </a>
+            
+            <ul class="nav-list">
+                <li class="nav-item">
+                    <a href="{{ url_for('main.index') }}" class="{% if request.endpoint == 'main.index' %}active{% endif %}">
+                        <i class="fas fa-th-large"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('main.games') }}" class="{% if request.endpoint == 'main.games' %}active{% endif %}">
+                        <i class="far fa-calendar-alt"></i> Games
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('main.players') }}" class="{% if request.endpoint == 'main.players' %}active{% endif %}">
+                        <i class="fas fa-users"></i> Players
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('analytics.analytics_dashboard') }}" class="{% if 'analytics' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-chart-bar"></i> Analytics
+                    </a>
+                </li>
+                 <li class="nav-item" style="margin-top: auto;">
+                    <a href="{{ url_for('main.upload_stats') }}">
+                        <i class="fas fa-cloud-upload-alt"></i> Upload
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Page Content -->
+        <main class="main-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}" style="margin-bottom: 20px; padding: 15px; border-radius: 8px; background: {% if category=='error' %}#f8d7da{% else %}#d4edda{% endif %}; color: {% if category=='error' %}#721c24{% else %}#155724{% endif %};">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            {% block content %}{% endblock %}
+        </main>
+
+        {% block scripts %}{% endblock %}
+    </body>
+</html>
