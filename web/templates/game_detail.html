@@ -166,10 +166,19 @@
     <!-- Stats Tabs -->
     <div class="card">
         <div class="card-header" style="padding-bottom: 0; border-bottom: none;">
-            <div class="tab-buttons" style="display: flex; gap: 20px;">
-                <button class="tab-btn active" onclick="switchTab('basic')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: 600; cursor: pointer;">Basic Stats</button>
-                <button class="tab-btn" onclick="switchTab('advanced')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid transparent; color: var(--text-muted); font-weight: 600; cursor: pointer;">Advanced</button>
-                <button class="tab-btn" onclick="switchTab('shooting')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid transparent; color: var(--text-muted); font-weight: 600; cursor: pointer;">Shooting</button>
+            <div class="tab-buttons" style="display: flex; gap: 20px; align-items: center; justify-content: space-between;">
+                <div style="display: flex; gap: 20px;">
+                    <button class="tab-btn active" onclick="switchTab('basic')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: 600; cursor: pointer;">Basic Stats</button>
+                    <button class="tab-btn" onclick="switchTab('advanced')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid transparent; color: var(--text-muted); font-weight: 600; cursor: pointer;">Advanced</button>
+                    <button class="tab-btn" onclick="switchTab('shooting')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid transparent; color: var(--text-muted); font-weight: 600; cursor: pointer;">Shooting</button>
+                </div>
+
+                <!-- Download button -->
+                <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" 
+                   class="btn btn-sm btn-outline" 
+                   style="margin-left: auto; padding: 8px 15px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; color: var(--text-color); text-decoration: none; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-body);">
+                    <i class="fas fa-download"></i> Download Report
+                </a>
             </div>
         </div>
         <div class="card-body p-0">
