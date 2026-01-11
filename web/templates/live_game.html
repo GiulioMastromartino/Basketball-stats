@@ -151,7 +151,7 @@
   </div>
 </div>
 
-<!-- Assist Modal -->
+<!-- Assist Modal (step 1 for made 2/3) -->
 <div class="modal fade" id="assistModal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
@@ -164,6 +164,27 @@
       <div class="modal-body">
         <p class="mb-2">Who assisted on <span class="font-weight-bold" id="assist-shot-label"></span>?</p>
         <div id="assist-list" class="list-group"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Shot Location Modal (step 2 for made 2/3) -->
+<div class="modal fade" id="shotLocModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Shot location</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Where did <span class="font-weight-bold" id="shotloc-player"></span> score?</p>
+        <div id="shotloc-list" class="list-group"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
@@ -200,9 +221,14 @@
     let stats = {}; 
     let opponentScore = 0;
 
+    // Shot chart counters (front-end only for now; included in payload on save)
+    // shape: shotChart[player]['2pt'|'3pt'][zone] = count
+    let shotChart = {};
+
     // Pending actions for popups
-    let pendingAssist = null; // { shooter, type, points }
-    let pendingOreb = null;   // { shooter, type }
+    // made flow: Assist -> Location -> apply stats
+    let pendingMadeShot = null; // { shooter, type, points, assister, location }
+    let pendingOreb = null;     // { shooter, type }
     
     // Timer State (Count UP)
     let timerInterval = null;
@@ -282,7 +308,7 @@
             return;
         }
 
-        // Initialize stats
+        // Initialize stats + shotChart
         fullRoster.forEach(p => {
             stats[p] = { 
                 points: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, 
@@ -290,6 +316,7 @@
                 minutes_seconds: 0,
                 last_sub_in: activeLineup.includes(p) ? Date.now() : null
             };
+            shotChart[p] = { '2pt': {}, '3pt': {} };
         });
 
         document.getElementById('lineup-panel').style.display = 'none';
@@ -349,7 +376,7 @@
                                     </div>
                                 </div>
 
-                                <!-- FT (no assist popup) -->
+                                <!-- FT (no assist/location popup) -->
                                 <div class="d-flex justify-content-between align-items-center">
                                     <span class="font-weight-bold small text-muted" style="width: 40px;">FT</span>
                                     <div class="btn-group btn-group-sm">
@@ -407,7 +434,7 @@
     // --- POPUPS ---
 
     function openAssistModal(shooter, type, points) {
-        pendingAssist = { shooter, type, points };
+        pendingMadeShot = { shooter, type, points, assister: null, location: null };
         document.getElementById('assist-shot-label').innerText = `${shooter} ${points}PT MADE`;
 
         const list = document.getElementById('assist-list');
@@ -418,7 +445,7 @@
         noneBtn.type = 'button';
         noneBtn.className = 'list-group-item list-group-item-action font-weight-bold';
         noneBtn.innerText = 'No assist';
-        noneBtn.onclick = () => confirmAssist(null);
+        noneBtn.onclick = () => pickAssister(null);
         list.appendChild(noneBtn);
 
         // Assist options (only on-court, excluding shooter)
@@ -428,16 +455,71 @@
             btn.type = 'button';
             btn.className = 'list-group-item list-group-item-action';
             btn.innerText = p;
-            btn.onclick = () => confirmAssist(p);
+            btn.onclick = () => pickAssister(p);
             list.appendChild(btn);
         });
 
         $('#assistModal').modal('show');
     }
 
-    function confirmAssist(assister) {
-        if (!pendingAssist) return;
-        const { shooter, type } = pendingAssist;
+    function pickAssister(assister) {
+        if (!pendingMadeShot) return;
+        pendingMadeShot.assister = assister;
+        $('#assistModal').modal('hide');
+        openShotLocModal();
+    }
+
+    function openShotLocModal() {
+        if (!pendingMadeShot) return;
+        const { shooter, type, points } = pendingMadeShot;
+
+        document.getElementById('shotloc-player').innerText = `${shooter} (${points}PT)`;
+
+        const list = document.getElementById('shotloc-list');
+        list.innerHTML = '';
+
+        // Configurable zones
+        const zones2 = [
+            { key: 'rim', label: 'Rim' },
+            { key: 'paint', label: 'Paint' },
+            { key: 'short_mid', label: 'Short mid-range' },
+            { key: 'mid_left', label: 'Mid-range (left)' },
+            { key: 'mid_center', label: 'Mid-range (center)' },
+            { key: 'mid_right', label: 'Mid-range (right)' }
+        ];
+        const zones3 = [
+            { key: 'corner_left', label: 'Corner (left)' },
+            { key: 'wing_left', label: 'Wing (left)' },
+            { key: 'top', label: 'Top / above the break' },
+            { key: 'wing_right', label: 'Wing (right)' },
+            { key: 'corner_right', label: 'Corner (right)' }
+        ];
+
+        const zones = (type === '2pt') ? zones2 : zones3;
+
+        // Allow skipping location
+        const skipBtn = document.createElement('button');
+        skipBtn.type = 'button';
+        skipBtn.className = 'list-group-item list-group-item-action font-weight-bold';
+        skipBtn.innerText = 'Skip / unknown';
+        skipBtn.onclick = () => confirmShotLocation('unknown');
+        list.appendChild(skipBtn);
+
+        zones.forEach(z => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action';
+            btn.innerText = z.label;
+            btn.onclick = () => confirmShotLocation(z.key);
+            list.appendChild(btn);
+        });
+
+        $('#shotLocModal').modal('show');
+    }
+
+    function confirmShotLocation(zoneKey) {
+        if (!pendingMadeShot) return;
+        const { shooter, type, assister } = pendingMadeShot;
 
         // Apply made shot
         updateShooting(shooter, type, 1, 1);
@@ -447,8 +529,17 @@
             updateStat(assister, 'ast', 1);
         }
 
-        pendingAssist = null;
-        $('#assistModal').modal('hide');
+        // Track shot location (front-end only)
+        if (!shotChart[shooter]) {
+            shotChart[shooter] = { '2pt': {}, '3pt': {} };
+        }
+        if (!shotChart[shooter][type]) {
+            shotChart[shooter][type] = {};
+        }
+        shotChart[shooter][type][zoneKey] = (shotChart[shooter][type][zoneKey] || 0) + 1;
+
+        pendingMadeShot = null;
+        $('#shotLocModal').modal('hide');
     }
 
     function openOrebModal(shooter, type) {
@@ -721,7 +812,8 @@
             date: document.getElementById('game-date').value,
             game_type: document.getElementById('game-type').value,
             team_score: total, 
-            opponent_score: opponentScore, 
+            opponent_score: opponentScore,
+            shot_chart: shotChart,
             player_stats: finalStats
         };
 
