@@ -68,34 +68,56 @@
         <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-dark text-white rounded shadow-sm">
             
             <!-- Scoreboard -->
-            <div class="text-center">
-                <h2 class="m-0 font-weight-bold" id="scoreboard" style="font-size: 2.5rem;">0 - 0</h2>
+            <div class="text-center" style="min-width: 200px;">
+                <h2 class="m-0 font-weight-bold" id="scoreboard" style="font-size: 3rem;">0 - 0</h2>
                 <small id="display-opponent" class="text-white-50">vs Opponent</small>
             </div>
 
-            <!-- Game Clock & Quarter -->
-            <div class="text-center mx-4">
-                 <div class="h3 mb-0 font-weight-bold font-monospace" id="game-clock">10:00</div>
-                 <div class="btn-group btn-group-sm mt-1">
-                     <button class="btn btn-success" id="btn-start-clock" onclick="toggleClock()">Start</button>
-                     <button class="btn btn-secondary" onclick="resetClock()">Reset</button>
+            <!-- Game Clock & Quarter (CENTERED & LARGE) -->
+            <div class="text-center mx-4 flex-grow-1">
+                 <!-- Quarter Display -->
+                 <div class="mb-1">
+                     <span class="badge badge-light" id="quarter-display" style="font-size: 1.2rem;">Q1</span>
+                     <button class="btn btn-outline-light btn-sm py-0 px-2 ml-2" onclick="nextQuarter()" title="Next Quarter" style="font-size: 0.8rem;">Next Q &raquo;</button>
                  </div>
-                 <div class="mt-2">
-                     <span class="badge badge-light" id="quarter-display">Q1</span>
-                     <button class="btn btn-outline-light btn-sm py-0 px-1 ml-1" onclick="nextQuarter()" title="Next Quarter">&raquo;</button>
+                 
+                 <!-- Large Clock -->
+                 <div class="h1 mb-2 font-weight-bold font-monospace bg-black rounded p-2 d-inline-block border border-secondary" id="game-clock" style="font-size: 4rem; min-width: 280px; letter-spacing: 2px;">00:00</div>
+                 
+                 <!-- Big Control Button -->
+                 <div>
+                     <button class="btn btn-success btn-lg px-5 font-weight-bold" id="btn-start-clock" onclick="toggleClock()" style="font-size: 1.5rem;">START</button>
                  </div>
             </div>
 
-            <!-- Controls -->
-            <div class="text-right">
-                 <div class="form-inline justify-content-end mb-2">
-                     <label class="mr-2 small">Opp Score:</label>
-                     <input type="number" id="opp-score-input" class="form-control form-control-sm bg-secondary text-white border-0" style="width: 60px;" value="0">
+            <!-- Controls (RIGHT SIDE) -->
+            <div class="text-right" style="min-width: 250px;">
+                 <!-- Opponent Score Controls -->
+                 <div class="mb-3 p-2 border border-secondary rounded bg-secondary">
+                     <div class="d-flex justify-content-between align-items-center mb-1">
+                         <label class="mb-0 text-white small font-weight-bold">Opponent Score:</label>
+                         <span id="opp-score-display" class="h4 m-0 font-weight-bold">0</span>
+                     </div>
+                     <div class="btn-group w-100">
+                         <button class="btn btn-sm btn-light font-weight-bold" onclick="updateOppScore(1)">+1</button>
+                         <button class="btn btn-sm btn-light font-weight-bold" onclick="updateOppScore(2)">+2</button>
+                         <button class="btn btn-sm btn-light font-weight-bold" onclick="updateOppScore(3)">+3</button>
+                         <button class="btn btn-sm btn-dark" onclick="updateOppScore(-1)" title="Undo">-1</button>
+                     </div>
                  </div>
-                 <button class="btn btn-warning btn-sm mb-1 w-100" onclick="showSubstitutionModal()">
-                    <i class="fas fa-exchange-alt"></i> Subs
-                 </button>
-                 <button class="btn btn-danger btn-sm w-100" onclick="finishGame()">Finish</button>
+
+                 <!-- Game Actions -->
+                 <div class="d-flex gap-2">
+                     <button class="btn btn-warning flex-fill mr-1" onclick="showSubstitutionModal()">
+                        <i class="fas fa-exchange-alt"></i> Subs
+                     </button>
+                     <button class="btn btn-danger flex-fill ml-1" onclick="finishGame()">Finish</button>
+                 </div>
+                 
+                 <!-- Hidden Reset (Small link) -->
+                 <div class="mt-2 text-right">
+                     <a href="#" class="text-muted small" onclick="if(confirm('Reset clock to 00:00?')) resetClock(); return false;">Reset Clock</a>
+                 </div>
             </div>
         </div>
 
@@ -132,23 +154,14 @@
 <script>
     // --- STATE MANAGEMENT ---
     let fullRoster = [];
-    let activeLineup = []; // Array of 5 player names currently on floor
+    let activeLineup = []; 
     let stats = {}; 
-    /* Stats structure: 
-       { 
-         "PlayerName": { 
-            pts: 0, reb: 0, ... 
-            minutes_seconds: 0, // Time tracked in seconds
-            last_sub_in: null   // Timestamp when they last entered game
-         } 
-       } 
-    */
+    let opponentScore = 0;
     
-    // Timer State
+    // Timer State (Count UP)
     let timerInterval = null;
     let quarter = 1;
-    let totalGameTime = 0; // In seconds
-    let clockSeconds = 600; // 10 minutes countdown per quarter
+    let clockSeconds = 0; // Starts at 0
     let isClockRunning = false;
 
     // --- SETUP PHASE ---
@@ -227,7 +240,7 @@
             return;
         }
 
-        // Initialize stats for ALL roster players
+        // Initialize stats
         fullRoster.forEach(p => {
             stats[p] = { 
                 points: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, 
@@ -250,7 +263,6 @@
         const grid = document.getElementById('player-grid');
         grid.innerHTML = '';
         
-        // Sort active lineup alphabetically or by some criteria if needed
         activeLineup.forEach(p => {
             const s = stats[p];
             grid.innerHTML += `
@@ -261,7 +273,6 @@
                             <span class="badge badge-light" id="pts-${p}" style="font-size: 0.9em;">${s.points} PTS</span>
                         </div>
                         <div class="card-body p-2">
-                            <!-- Shooting -->
                             <div class="row no-gutters mb-2">
                                 <div class="col-6 pr-1">
                                     <div class="btn-group w-100" role="group">
@@ -288,7 +299,6 @@
 
                             <hr class="my-2">
 
-                            <!-- Other Stats -->
                             <div class="d-flex justify-content-between mb-2">
                                 <button class="btn btn-sm btn-light border flex-fill mr-1" onclick="updateStat('${p}', 'oreb')">OREB</button>
                                 <button class="btn btn-sm btn-light border flex-fill ml-1" onclick="updateStat('${p}', 'dreb')">DREB</button>
@@ -348,25 +358,27 @@
                 stats[player][type]++;
             }
         }
-        
         updateUI(player);
     }
     
+    function updateOppScore(points) {
+        opponentScore += points;
+        if(opponentScore < 0) opponentScore = 0;
+        document.getElementById('opp-score-display').innerText = opponentScore;
+        updateScoreboard();
+    }
+
     function updateUI(player) {
          document.getElementById(`pts-${player}`).innerText = stats[player].points + ' PTS';
          document.getElementById(`fouls-${player}`).innerText = 'PF: ' + stats[player].pf;
-         
-         let total = 0;
-         Object.values(stats).forEach(s => total += s.points);
-         const currentOppScore = document.getElementById('opp-score-input').value; 
-         document.getElementById('scoreboard').innerText = `${total} - ${currentOppScore}`;
+         updateScoreboard();
     }
 
-    document.getElementById('opp-score-input').addEventListener('input', function(e) {
+    function updateScoreboard() {
          let total = 0;
          Object.values(stats).forEach(s => total += s.points);
-         document.getElementById('scoreboard').innerText = `${total} - ${this.value}`;
-    });
+         document.getElementById('scoreboard').innerText = `${total} - ${opponentScore}`;
+    }
 
     // --- CLOCK & SUBSTITUTIONS ---
 
@@ -376,11 +388,9 @@
             // Pause
             clearInterval(timerInterval);
             isClockRunning = false;
-            btn.innerText = "Start";
+            btn.innerText = "START";
             btn.classList.remove('btn-danger');
             btn.classList.add('btn-success');
-            
-            // Accumulate time for active players
             updatePlayerTimes();
         } else {
             // Start
@@ -390,16 +400,12 @@
             });
             
             timerInterval = setInterval(() => {
-                clockSeconds--;
-                if (clockSeconds <= 0) {
-                    toggleClock(); // Stop at 0
-                    clockSeconds = 0;
-                }
+                clockSeconds++; // Count UP
                 updateClockDisplay();
             }, 1000);
             
             isClockRunning = true;
-            btn.innerText = "Stop";
+            btn.innerText = "STOP";
             btn.classList.remove('btn-success');
             btn.classList.add('btn-danger');
         }
@@ -411,9 +417,8 @@
             if (stats[p].last_sub_in) {
                 const diffSeconds = Math.floor((now - stats[p].last_sub_in) / 1000);
                 stats[p].minutes_seconds += diffSeconds;
-                stats[p].last_sub_in = null; // Reset until started again or subbed back in
+                stats[p].last_sub_in = null; 
             }
-            // Update display
             const el = document.getElementById(`time-${p}`);
             if (el) el.innerText = 'MIN: ' + formatMinutes(stats[p].minutes_seconds);
         });
@@ -421,7 +426,7 @@
 
     function resetClock() {
         if(isClockRunning) toggleClock();
-        clockSeconds = 600; // Reset to 10 mins
+        clockSeconds = 0; // Reset to 0
         updateClockDisplay();
     }
 
@@ -429,7 +434,10 @@
         if(isClockRunning) toggleClock();
         quarter++;
         document.getElementById('quarter-display').innerText = 'Q' + quarter;
-        clockSeconds = 600;
+        // Don't auto-reset clock when counting up, unless desired. 
+        // User can click reset manually if they want per-quarter time.
+        // Or un-comment below to reset on Q change:
+        clockSeconds = 0;
         updateClockDisplay();
     }
 
@@ -444,7 +452,6 @@
     let tempLineup = [];
 
     function showSubstitutionModal() {
-        // If clock is running, pause it first to record stats accurately
         if (isClockRunning) toggleClock();
         
         tempLineup = [...activeLineup];
@@ -487,7 +494,6 @@
             alert("You must select exactly 5 players.");
             return;
         }
-        
         activeLineup = [...tempLineup];
         renderActivePlayers();
         $('#subModal').modal('hide');
@@ -502,17 +508,14 @@
     function finishGame() {
         if (!confirm("Are you sure you want to finish and save this game?")) return;
         
-        // Ensure final time is captured if clock was running
         if (isClockRunning) toggleClock(); 
 
         let total = 0;
         Object.values(stats).forEach(s => total += s.points);
 
-        // Format stats for backend (convert seconds to MM:SS string)
         const finalStats = {};
         Object.keys(stats).forEach(p => {
             const s = stats[p];
-            // Format minutes for backend
             s.minutes = formatMinutes(s.minutes_seconds);
             finalStats[p] = s;
         });
@@ -522,7 +525,7 @@
             date: document.getElementById('game-date').value,
             game_type: document.getElementById('game-type').value,
             team_score: total, 
-            opponent_score: document.getElementById('opp-score-input').value,
+            opponent_score: opponentScore, // Use numeric variable
             player_stats: finalStats
         };
 
