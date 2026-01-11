@@ -28,10 +28,10 @@
         </div>
         
         <div class="mb-3">
-            <label>Select Roster</label>
+            <label>Select Full Roster (At least 5 players)</label>
             <div id="roster-selection" class="d-flex flex-wrap gap-2">
                 {% for player in existing_players %}
-                <button class="btn btn-outline-secondary btn-sm player-select-btn" style="margin: 2px;" onclick="togglePlayer('{{ player }}', this)">
+                <button class="btn btn-outline-secondary btn-sm player-select-btn" style="margin: 2px;" onclick="toggleRosterPlayer('{{ player }}', this)">
                     {{ player }}
                 </button>
                 {% endfor %}
@@ -44,40 +44,120 @@
             </div>
         </div>
 
-        <button class="btn btn-success w-100" onclick="startGame()">Start Tracking</button>
+        <button class="btn btn-success w-100" onclick="goToLineupSelection()">Next: Select Starters</button>
     </div>
 
-    <!-- STEP 2: LIVE TRACKER (Hidden by default) -->
-    <div id="tracker-panel" style="display:none;">
-        <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-dark text-white rounded">
-            <div>
-                <h2 class="m-0" id="scoreboard">0 - 0</h2>
-                <small id="display-opponent">vs Opponent</small>
-            </div>
-            <div class="form-inline">
-                 <label class="mr-2">Opponent Score:</label>
-                 <input type="number" id="opp-score-input" class="form-control form-control-sm" style="width: 70px;" value="0">
-            </div>
-            <button class="btn btn-danger" onclick="finishGame()">Finish & Save</button>
+    <!-- STEP 2: LINEUP SELECTION (Hidden by default) -->
+    <div id="lineup-panel" class="card p-4" style="display:none;">
+        <h3>Select 5 Starters</h3>
+        <p class="text-muted">Select exactly 5 players to start the game.</p>
+        
+        <div id="starter-selection" class="d-flex flex-wrap gap-2 mb-3">
+            <!-- Populated by JS -->
         </div>
 
+        <button class="btn btn-primary w-100" onclick="startGame()">Start Game</button>
+    </div>
+
+    <!-- STEP 3: LIVE TRACKER (Hidden by default) -->
+    <div id="tracker-panel" style="display:none;">
+        
+        <!-- Game Info Bar -->
+        <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-dark text-white rounded shadow-sm">
+            
+            <!-- Scoreboard -->
+            <div class="text-center">
+                <h2 class="m-0 font-weight-bold" id="scoreboard" style="font-size: 2.5rem;">0 - 0</h2>
+                <small id="display-opponent" class="text-white-50">vs Opponent</small>
+            </div>
+
+            <!-- Game Clock & Quarter -->
+            <div class="text-center mx-4">
+                 <div class="h3 mb-0 font-weight-bold font-monospace" id="game-clock">10:00</div>
+                 <div class="btn-group btn-group-sm mt-1">
+                     <button class="btn btn-success" id="btn-start-clock" onclick="toggleClock()">Start</button>
+                     <button class="btn btn-secondary" onclick="resetClock()">Reset</button>
+                 </div>
+                 <div class="mt-2">
+                     <span class="badge badge-light" id="quarter-display">Q1</span>
+                     <button class="btn btn-outline-light btn-sm py-0 px-1 ml-1" onclick="nextQuarter()" title="Next Quarter">&raquo;</button>
+                 </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="text-right">
+                 <div class="form-inline justify-content-end mb-2">
+                     <label class="mr-2 small">Opp Score:</label>
+                     <input type="number" id="opp-score-input" class="form-control form-control-sm bg-secondary text-white border-0" style="width: 60px;" value="0">
+                 </div>
+                 <button class="btn btn-warning btn-sm mb-1 w-100" onclick="showSubstitutionModal()">
+                    <i class="fas fa-exchange-alt"></i> Subs
+                 </button>
+                 <button class="btn btn-danger btn-sm w-100" onclick="finishGame()">Finish</button>
+            </div>
+        </div>
+
+        <!-- Active Players Grid -->
         <div id="player-grid" class="row">
             <!-- Player Cards Generated via JS will go here -->
         </div>
     </div>
 </div>
 
-<script>
-    let activePlayers = [];
-    let stats = {}; // { "PlayerName": { pts: 0, reb: 0 ... } }
+<!-- Substitution Modal -->
+<div class="modal fade" id="subModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Substitutions</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>Select exactly 5 players to be on the floor.</p>
+        <div id="sub-roster-list" class="list-group">
+            <!-- Populated by JS -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" onclick="confirmSubs()">Confirm Lineup</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-    function togglePlayer(name, btn) {
-        if (activePlayers.includes(name)) {
-            activePlayers = activePlayers.filter(p => p !== name);
+<script>
+    // --- STATE MANAGEMENT ---
+    let fullRoster = [];
+    let activeLineup = []; // Array of 5 player names currently on floor
+    let stats = {}; 
+    /* Stats structure: 
+       { 
+         "PlayerName": { 
+            pts: 0, reb: 0, ... 
+            minutes_seconds: 0, // Time tracked in seconds
+            last_sub_in: null   // Timestamp when they last entered game
+         } 
+       } 
+    */
+    
+    // Timer State
+    let timerInterval = null;
+    let quarter = 1;
+    let totalGameTime = 0; // In seconds
+    let clockSeconds = 600; // 10 minutes countdown per quarter
+    let isClockRunning = false;
+
+    // --- SETUP PHASE ---
+
+    function toggleRosterPlayer(name, btn) {
+        if (fullRoster.includes(name)) {
+            fullRoster = fullRoster.filter(p => p !== name);
             btn.classList.remove('active', 'btn-primary');
             btn.classList.add('btn-outline-secondary');
         } else {
-            activePlayers.push(name);
+            fullRoster.push(name);
             btn.classList.remove('btn-outline-secondary');
             btn.classList.add('active', 'btn-primary');
         }
@@ -85,72 +165,120 @@
 
     function addNewPlayer() {
         const name = document.getElementById('new-player-name').value.trim();
-        if (name && !activePlayers.includes(name)) {
-            activePlayers.push(name);
-            // Add button to UI
+        if (name && !fullRoster.includes(name)) {
+            fullRoster.push(name);
             const container = document.getElementById('roster-selection');
             const btn = document.createElement('button');
             btn.className = 'btn btn-primary btn-sm active player-select-btn';
             btn.style.margin = '2px';
             btn.innerText = name;
-            btn.onclick = function() { togglePlayer(name, this); };
+            btn.onclick = function() { toggleRosterPlayer(name, this); };
             container.appendChild(btn);
             document.getElementById('new-player-name').value = '';
         }
     }
 
-    function startGame() {
-        if (activePlayers.length === 0 || !document.getElementById('opponent').value) {
-            alert("Please select players and opponent.");
+    function goToLineupSelection() {
+        if (fullRoster.length < 5) {
+            alert("Please select at least 5 players for the roster.");
             return;
         }
         
-        // Initialize Stats Object
-        activePlayers.forEach(p => {
+        document.getElementById('setup-panel').style.display = 'none';
+        document.getElementById('lineup-panel').style.display = 'block';
+        
+        const container = document.getElementById('starter-selection');
+        container.innerHTML = '';
+        
+        fullRoster.forEach(p => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-outline-secondary m-1';
+            btn.innerText = p;
+            btn.onclick = function() {
+                if (activeLineup.includes(p)) {
+                    activeLineup = activeLineup.filter(x => x !== p);
+                    this.classList.remove('btn-primary');
+                    this.classList.add('btn-outline-secondary');
+                } else {
+                    if (activeLineup.length >= 5) {
+                        alert("You can only select 5 starters.");
+                        return;
+                    }
+                    activeLineup.push(p);
+                    this.classList.remove('btn-outline-secondary');
+                    this.classList.add('btn-primary');
+                }
+            };
+            container.appendChild(btn);
+        });
+    }
+
+    function startGame() {
+        if (activeLineup.length !== 5) {
+            alert("Please select exactly 5 starters.");
+            return;
+        }
+
+        const opponent = document.getElementById('opponent').value;
+        if (!opponent) {
+            alert("Please enter an opponent name.");
+            return;
+        }
+
+        // Initialize stats for ALL roster players
+        fullRoster.forEach(p => {
             stats[p] = { 
                 points: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, 
-                oreb: 0, dreb: 0, ast: 0, tov: 0, stl: 0, blk: 0, pf: 0 
+                oreb: 0, dreb: 0, ast: 0, tov: 0, stl: 0, blk: 0, pf: 0,
+                minutes_seconds: 0,
+                last_sub_in: activeLineup.includes(p) ? Date.now() : null
             };
         });
 
-        document.getElementById('setup-panel').style.display = 'none';
+        document.getElementById('lineup-panel').style.display = 'none';
         document.getElementById('tracker-panel').style.display = 'block';
-        document.getElementById('display-opponent').innerText = "vs " + document.getElementById('opponent').value;
-        
-        renderPlayerCards();
+        document.getElementById('display-opponent').innerText = "vs " + opponent;
+
+        renderActivePlayers();
     }
 
-    function renderPlayerCards() {
+    // --- GAMEPLAY PHASE ---
+
+    function renderActivePlayers() {
         const grid = document.getElementById('player-grid');
         grid.innerHTML = '';
-        activePlayers.forEach(p => {
+        
+        // Sort active lineup alphabetically or by some criteria if needed
+        activeLineup.forEach(p => {
+            const s = stats[p];
             grid.innerHTML += `
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                            <span class="font-weight-bold">${p}</span>
-                            <span class="badge badge-primary" id="pts-${p}" style="font-size: 1em;">0 PTS</span>
+                <div class="col-md-4 col-sm-6 mb-3">
+                    <div class="card h-100 shadow-sm border-0">
+                        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
+                            <h5 class="mb-0 text-truncate" style="max-width: 65%;">${p}</h5>
+                            <span class="badge badge-light" id="pts-${p}" style="font-size: 0.9em;">${s.points} PTS</span>
                         </div>
                         <div class="card-body p-2">
+                            <!-- Shooting -->
                             <div class="row no-gutters mb-2">
                                 <div class="col-6 pr-1">
-                                    <div class="btn-group w-100">
-                                        <button class="btn btn-sm btn-success" onclick="updateStat('${p}', '2pt', 1)">+2</button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="updateStat('${p}', '2pt', 0)">Miss</button>
+                                    <div class="btn-group w-100" role="group">
+                                        <button class="btn btn-sm btn-outline-success font-weight-bold" onclick="updateStat('${p}', '2pt', 1)">+2</button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="updateStat('${p}', '2pt', 0)">X</button>
                                     </div>
                                 </div>
                                 <div class="col-6 pl-1">
-                                    <div class="btn-group w-100">
-                                        <button class="btn btn-sm btn-success" onclick="updateStat('${p}', '3pt', 1)">+3</button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="updateStat('${p}', '3pt', 0)">Miss</button>
+                                    <div class="btn-group w-100" role="group">
+                                        <button class="btn btn-sm btn-outline-success font-weight-bold" onclick="updateStat('${p}', '3pt', 1)">+3</button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="updateStat('${p}', '3pt', 0)">X</button>
                                     </div>
                                 </div>
                             </div>
                             
                             <div class="row no-gutters mb-2">
                                 <div class="col-12">
-                                    <div class="btn-group w-100">
-                                        <button class="btn btn-sm btn-success" onclick="updateStat('${p}', 'ft', 1)">+1 FT</button>
+                                    <div class="btn-group w-100" role="group">
+                                        <button class="btn btn-sm btn-outline-success font-weight-bold" onclick="updateStat('${p}', 'ft', 1)">+1 FT</button>
                                         <button class="btn btn-sm btn-outline-danger" onclick="updateStat('${p}', 'ft', 0)">Miss</button>
                                     </div>
                                 </div>
@@ -158,24 +286,26 @@
 
                             <hr class="my-2">
 
+                            <!-- Other Stats -->
                             <div class="d-flex justify-content-between mb-2">
-                                <button class="btn btn-sm btn-info flex-fill mr-1" onclick="updateStat('${p}', 'oreb')">OREB</button>
-                                <button class="btn btn-sm btn-info flex-fill ml-1" onclick="updateStat('${p}', 'dreb')">DREB</button>
+                                <button class="btn btn-sm btn-light border flex-fill mr-1" onclick="updateStat('${p}', 'oreb')">OREB</button>
+                                <button class="btn btn-sm btn-light border flex-fill ml-1" onclick="updateStat('${p}', 'dreb')">DREB</button>
                             </div>
                             
                             <div class="d-flex justify-content-between mb-2">
-                                <button class="btn btn-sm btn-warning flex-fill mr-1" onclick="updateStat('${p}', 'ast')">AST</button>
-                                <button class="btn btn-sm btn-secondary flex-fill ml-1" onclick="updateStat('${p}', 'stl')">STL</button>
+                                <button class="btn btn-sm btn-light border flex-fill mr-1" onclick="updateStat('${p}', 'ast')">AST</button>
+                                <button class="btn btn-sm btn-light border flex-fill ml-1" onclick="updateStat('${p}', 'stl')">STL</button>
                             </div>
 
                             <div class="d-flex justify-content-between">
-                                <button class="btn btn-sm btn-dark flex-fill mr-1" onclick="updateStat('${p}', 'blk')">BLK</button>
-                                <button class="btn btn-sm btn-danger flex-fill mx-1" onclick="updateStat('${p}', 'tov')">TOV</button>
-                                <button class="btn btn-sm btn-outline-dark flex-fill ml-1" onclick="updateStat('${p}', 'pf')">PF</button>
+                                <button class="btn btn-sm btn-light border flex-fill mr-1" onclick="updateStat('${p}', 'blk')">BLK</button>
+                                <button class="btn btn-sm btn-light border flex-fill mx-1" onclick="updateStat('${p}', 'tov')">TOV</button>
+                                <button class="btn btn-sm btn-outline-secondary flex-fill ml-1" onclick="updateStat('${p}', 'pf')">PF</button>
                             </div>
                             
-                            <div class="mt-2 text-center">
-                                <small class="text-muted" id="fouls-${p}">Fouls: 0</small>
+                            <div class="mt-2 text-center small text-muted d-flex justify-content-between px-2">
+                                <span id="fouls-${p}">PF: ${s.pf}</span>
+                                <span id="time-${p}">MIN: ${formatMinutes(s.minutes_seconds)}</span>
                             </div>
                         </div>
                     </div>
@@ -212,7 +342,6 @@
         } else if (type === 'dreb') {
             stats[player].dreb++;
         } else {
-            // ast, stl, blk, tov, pf
             if (stats[player][type] !== undefined) {
                 stats[player][type]++;
             }
@@ -223,27 +352,168 @@
     
     function updateUI(player) {
          document.getElementById(`pts-${player}`).innerText = stats[player].points + ' PTS';
-         document.getElementById(`fouls-${player}`).innerText = 'Fouls: ' + stats[player].pf;
+         document.getElementById(`fouls-${player}`).innerText = 'PF: ' + stats[player].pf;
          
-         // Update total team score
          let total = 0;
          Object.values(stats).forEach(s => total += s.points);
          const currentOppScore = document.getElementById('opp-score-input').value; 
          document.getElementById('scoreboard').innerText = `${total} - ${currentOppScore}`;
     }
 
-    // Listener for opponent score change to update scoreboard text
     document.getElementById('opp-score-input').addEventListener('input', function(e) {
          let total = 0;
          Object.values(stats).forEach(s => total += s.points);
          document.getElementById('scoreboard').innerText = `${total} - ${this.value}`;
     });
 
+    // --- CLOCK & SUBSTITUTIONS ---
+
+    function toggleClock() {
+        const btn = document.getElementById('btn-start-clock');
+        if (isClockRunning) {
+            // Pause
+            clearInterval(timerInterval);
+            isClockRunning = false;
+            btn.innerText = "Start";
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-success');
+            
+            // Accumulate time for active players
+            updatePlayerTimes();
+        } else {
+            // Start
+            const now = Date.now();
+            activeLineup.forEach(p => {
+                stats[p].last_sub_in = now;
+            });
+            
+            timerInterval = setInterval(() => {
+                clockSeconds--;
+                if (clockSeconds <= 0) {
+                    toggleClock(); // Stop at 0
+                    clockSeconds = 0;
+                }
+                updateClockDisplay();
+            }, 1000);
+            
+            isClockRunning = true;
+            btn.innerText = "Stop";
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-danger');
+        }
+    }
+
+    function updatePlayerTimes() {
+        const now = Date.now();
+        activeLineup.forEach(p => {
+            if (stats[p].last_sub_in) {
+                const diffSeconds = Math.floor((now - stats[p].last_sub_in) / 1000);
+                stats[p].minutes_seconds += diffSeconds;
+                stats[p].last_sub_in = null; // Reset until started again or subbed back in
+            }
+            // Update display
+            const el = document.getElementById(`time-${p}`);
+            if (el) el.innerText = 'MIN: ' + formatMinutes(stats[p].minutes_seconds);
+        });
+    }
+
+    function resetClock() {
+        if(isClockRunning) toggleClock();
+        clockSeconds = 600; // Reset to 10 mins
+        updateClockDisplay();
+    }
+
+    function nextQuarter() {
+        if(isClockRunning) toggleClock();
+        quarter++;
+        document.getElementById('quarter-display').innerText = 'Q' + quarter;
+        clockSeconds = 600;
+        updateClockDisplay();
+    }
+
+    function updateClockDisplay() {
+        const m = Math.floor(clockSeconds / 60);
+        const s = clockSeconds % 60;
+        document.getElementById('game-clock').innerText = 
+            `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    // Subs Modal Logic
+    let tempLineup = [];
+
+    function showSubstitutionModal() {
+        // If clock is running, pause it first to record stats accurately
+        if (isClockRunning) toggleClock();
+        
+        tempLineup = [...activeLineup];
+        const container = document.getElementById('sub-roster-list');
+        container.innerHTML = '';
+        
+        fullRoster.forEach(p => {
+            const isActive = tempLineup.includes(p);
+            const btn = document.createElement('button');
+            btn.className = `list-group-item list-group-item-action ${isActive ? 'active' : ''}`;
+            btn.style.cursor = 'pointer';
+            btn.innerHTML = `<div class="d-flex justify-content-between align-items-center">
+                                <span>${p}</span>
+                                <small>${isActive ? 'ON COURT' : 'BENCH'}</small>
+                             </div>`;
+            
+            btn.onclick = () => {
+                if (tempLineup.includes(p)) {
+                    tempLineup = tempLineup.filter(x => x !== p);
+                    btn.classList.remove('active');
+                    btn.querySelector('small').innerText = 'BENCH';
+                } else {
+                    if (tempLineup.length >= 5) {
+                        alert("Only 5 players allowed on court.");
+                        return;
+                    }
+                    tempLineup.push(p);
+                    btn.classList.add('active');
+                    btn.querySelector('small').innerText = 'ON COURT';
+                }
+            };
+            container.appendChild(btn);
+        });
+        
+        $('#subModal').modal('show');
+    }
+
+    function confirmSubs() {
+        if (tempLineup.length !== 5) {
+            alert("You must select exactly 5 players.");
+            return;
+        }
+        
+        activeLineup = [...tempLineup];
+        renderActivePlayers();
+        $('#subModal').modal('hide');
+    }
+
+    function formatMinutes(totalSeconds) {
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
     function finishGame() {
         if (!confirm("Are you sure you want to finish and save this game?")) return;
+        
+        // Ensure final time is captured if clock was running
+        if (isClockRunning) toggleClock(); 
 
         let total = 0;
         Object.values(stats).forEach(s => total += s.points);
+
+        // Format stats for backend (convert seconds to MM:SS string)
+        const finalStats = {};
+        Object.keys(stats).forEach(p => {
+            const s = stats[p];
+            // Format minutes for backend
+            s.minutes = formatMinutes(s.minutes_seconds);
+            finalStats[p] = s;
+        });
 
         const payload = {
             opponent: document.getElementById('opponent').value,
@@ -251,7 +521,7 @@
             game_type: document.getElementById('game-type').value,
             team_score: total, 
             opponent_score: document.getElementById('opp-score-input').value,
-            player_stats: stats
+            player_stats: finalStats
         };
 
         fetch('/live-game/save', {
