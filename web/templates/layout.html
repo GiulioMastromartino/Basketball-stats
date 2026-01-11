@@ -1,84 +1,178 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Basketball Stats Analyzer</title>
-        <link
-            rel="stylesheet"
-            href="{{ url_for('static', filename='css/style.css') }}"
-        />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
-            rel="stylesheet"
-        />
-        <link
-            rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-        />
-    </head>
-    <body>
-        <nav class="navbar">
-            <div class="navbar-container">
-                <a href="{{ url_for('main.index') }}" class="navbar-brand">
-                    <i class="fas fa-basketball-ball brand-icon"></i>
-                    HoopsStats
-                </a>
-                <div class="navbar-menu">
-                    <a
-                        href="{{ url_for('main.index') }}"
-                        class="nav-item {% if request.endpoint == 'main.index' %}active{% endif %}"
-                    >
-                        Dashboard
-                    </a>
-                    <a
-                        href="{{ url_for('main.games') }}"
-                        class="nav-item {% if request.endpoint == 'main.games' %}active{% endif %}"
-                    >
-                        Games
-                    </a>
-                    <a
-                        href="{{ url_for('main.players') }}"
-                        class="nav-item {% if request.endpoint == 'main.players' %}active{% endif %}"
-                    >
-                        Players
-                    </a>
-                    <a
-                        href="{{ url_for('analytics.dashboard') }}"
-                        class="nav-item {% if 'analytics' in request.endpoint %}active{% endif %}"
-                    >
-                        Analytics
-                    </a>
-                    <a
-                        href="{{ url_for('main.upload_game') }}"
-                        class="nav-item {% if request.endpoint == 'main.upload_game' %}active{% endif %}"
-                    >
-                        Upload
-                    </a>
-                    <a href="{{ url_for('auth.logout') }}" class="nav-item">
-                        Logout
-                    </a>
-                </div>
-            </div>
-        </nav>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}HoopsStats{% endblock %}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #1e3c72;
+            --primary-light: #e6f0ff;
+            --secondary: #2a5298;
+            --accent: #ff6b6b;
+            --bg-color: #f4f7f6;
+            --text-dark: #2c3e50;
+            --text-muted: #6c757d;
+            --border-color: #dee2e6;
+            --card-shadow: 0 4px 6px rgba(0,0,0,0.07);
+        }
 
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.2s;
+            margin-bottom: 20px;
+            background: white;
+        }
+
+        .btn-primary {
+            background-color: var(--secondary);
+            border-color: var(--secondary);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .main-content {
+            padding: 30px 0;
+            min-height: 80vh;
+        }
+        
+        /* Stats Table Styling */
+        .table-hover tbody tr:hover {
+            background-color: var(--primary-light);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
         <div class="container">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %} {% for category, message in messages %}
-            <div
-                class="alert alert-{{ category }}"
-                style="
-                    margin-bottom: 20px;
-                    padding: 15px;
-                    border-radius: 8px;
-                    background: {% if category=='error' or category=='danger' %}#f8d7da{% else %}#d4edda{% endif %};
-                    color: {% if category=='error' or category=='danger' %}#721c24{% else %}#155724{% endif %};
-                "
-            >
-                {{ message }}
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                <i class="fas fa-basketball-ball"></i> HoopsStats
+            </a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.index') }}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.players') }}">
+                            <i class="fas fa-users"></i> Players
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.games') }}">
+                            <i class="fas fa-flag"></i> Opponents
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.live_game') }}">
+                            <i class="fas fa-satellite-dish"></i> Live Game
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.upload_game') }}">
+                            <i class="fas fa-upload"></i> Upload
+                        </a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ml-auto">
+                    <li class="nav-item">
+                         <a class="nav-link" href="{{ url_for('main.glossary') }}">
+                            <i class="fas fa-book"></i> Glossary
+                        </a>
+                    </li>
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.login') }}">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
             </div>
-            {% endfor %} {% endif %} {% endwith %} {% block content %}{% endblock
-            %}
         </div>
-    </body>
+    </nav>
+
+    <div class="container main-content">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="bg-dark text-white py-4 mt-auto">
+        <div class="container text-center">
+            <p class="mb-0">&copy; 2025 HoopsStats. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    
+    <!-- Custom Scripts -->
+    <script>
+        // Make table rows clickable
+        document.addEventListener("DOMContentLoaded", () => {
+            const rows = document.querySelectorAll("tr[data-href]");
+            rows.forEach(row => {
+                row.addEventListener("click", () => {
+                    window.location.href = row.dataset.href;
+                });
+            });
+        });
+    </script>
+</body>
 </html>
