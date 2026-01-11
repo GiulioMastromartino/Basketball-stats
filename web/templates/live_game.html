@@ -4,7 +4,9 @@
 
 {% block content %}
 <div class="container" style="max-width: 1200px;">
-    
+    <!-- CSRF Token for Fetch Requests -->
+    <input type="hidden" id="csrf_token" value="{{ csrf_token() }}">
+
     <!-- STEP 1: GAME SETUP -->
     <div id="setup-panel" class="card p-4">
         <h3>Start New Game</h3>
@@ -524,9 +526,14 @@
             player_stats: finalStats
         };
 
+        const csrfToken = document.getElementById('csrf_token').value;
+
         fetch('/live-game/save', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
             body: JSON.stringify(payload)
         }).then(res => res.json()).then(data => {
             if(data.success) {
