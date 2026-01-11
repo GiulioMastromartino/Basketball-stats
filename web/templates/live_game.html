@@ -151,12 +151,58 @@
   </div>
 </div>
 
+<!-- Assist Modal -->
+<div class="modal fade" id="assistModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Assist</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Who assisted on <span class="font-weight-bold" id="assist-shot-label"></span>?</p>
+        <div id="assist-list" class="list-group"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Offensive Rebound Modal -->
+<div class="modal fade" id="orebModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Offensive Rebound</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Who got the offensive rebound after <span class="font-weight-bold" id="oreb-shot-label"></span>?</p>
+        <div id="oreb-list" class="list-group"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
     // --- STATE MANAGEMENT ---
     let fullRoster = [];
     let activeLineup = []; 
     let stats = {}; 
     let opponentScore = 0;
+
+    // Pending actions for popups
+    let pendingAssist = null; // { shooter, type, points }
+    let pendingOreb = null;   // { shooter, type }
     
     // Timer State (Count UP)
     let timerInterval = null;
@@ -284,8 +330,8 @@
                                     </div>
                                     <span class="mx-2 font-weight-bold" id="disp-2pt-${p}">${(s.fgm - s.tpm)}/${(s.fga - s.tpa)}</span>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', '2pt', 0, 1)">Miss</button>
-                                        <button class="btn btn-success font-weight-bold py-0" onclick="updateShooting('${p}', '2pt', 1, 1)">+2</button>
+                                        <button class="btn btn-outline-danger py-0" onclick="openOrebModal('${p}', '2pt')">Miss</button>
+                                        <button class="btn btn-success font-weight-bold py-0" onclick="openAssistModal('${p}', '2pt', 2)">+2</button>
                                     </div>
                                 </div>
 
@@ -298,12 +344,12 @@
                                     </div>
                                     <span class="mx-2 font-weight-bold" id="disp-3pt-${p}">${s.tpm}/${s.tpa}</span>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', '3pt', 0, 1)">Miss</button>
-                                        <button class="btn btn-success font-weight-bold py-0" onclick="updateShooting('${p}', '3pt', 1, 1)">+3</button>
+                                        <button class="btn btn-outline-danger py-0" onclick="openOrebModal('${p}', '3pt')">Miss</button>
+                                        <button class="btn btn-success font-weight-bold py-0" onclick="openAssistModal('${p}', '3pt', 3)">+3</button>
                                     </div>
                                 </div>
 
-                                <!-- FT -->
+                                <!-- FT (no assist popup) -->
                                 <div class="d-flex justify-content-between align-items-center">
                                     <span class="font-weight-bold small text-muted" style="width: 40px;">FT</span>
                                     <div class="btn-group btn-group-sm">
@@ -357,6 +403,99 @@
             </div>
         `;
     }
+
+    // --- POPUPS ---
+
+    function openAssistModal(shooter, type, points) {
+        pendingAssist = { shooter, type, points };
+        document.getElementById('assist-shot-label').innerText = `${shooter} ${points}PT MADE`;
+
+        const list = document.getElementById('assist-list');
+        list.innerHTML = '';
+
+        // No assist option
+        const noneBtn = document.createElement('button');
+        noneBtn.type = 'button';
+        noneBtn.className = 'list-group-item list-group-item-action font-weight-bold';
+        noneBtn.innerText = 'No assist';
+        noneBtn.onclick = () => confirmAssist(null);
+        list.appendChild(noneBtn);
+
+        // Assist options (only on-court, excluding shooter)
+        activeLineup.forEach(p => {
+            if (p === shooter) return;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action';
+            btn.innerText = p;
+            btn.onclick = () => confirmAssist(p);
+            list.appendChild(btn);
+        });
+
+        $('#assistModal').modal('show');
+    }
+
+    function confirmAssist(assister) {
+        if (!pendingAssist) return;
+        const { shooter, type } = pendingAssist;
+
+        // Apply made shot
+        updateShooting(shooter, type, 1, 1);
+
+        // Apply assist if selected
+        if (assister && stats[assister]) {
+            updateStat(assister, 'ast', 1);
+        }
+
+        pendingAssist = null;
+        $('#assistModal').modal('hide');
+    }
+
+    function openOrebModal(shooter, type) {
+        pendingOreb = { shooter, type };
+        document.getElementById('oreb-shot-label').innerText = `${shooter} ${type.toUpperCase()} MISS`;
+
+        const list = document.getElementById('oreb-list');
+        list.innerHTML = '';
+
+        // No oreb option
+        const noneBtn = document.createElement('button');
+        noneBtn.type = 'button';
+        noneBtn.className = 'list-group-item list-group-item-action font-weight-bold';
+        noneBtn.innerText = 'No offensive rebound';
+        noneBtn.onclick = () => confirmOreb(null);
+        list.appendChild(noneBtn);
+
+        // OREB options (only on-court)
+        activeLineup.forEach(p => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action';
+            btn.innerText = p;
+            btn.onclick = () => confirmOreb(p);
+            list.appendChild(btn);
+        });
+
+        $('#orebModal').modal('show');
+    }
+
+    function confirmOreb(rebounder) {
+        if (!pendingOreb) return;
+        const { shooter, type } = pendingOreb;
+
+        // Apply missed shot attempt
+        updateShooting(shooter, type, 0, 1);
+
+        // Apply offensive rebound if selected
+        if (rebounder && stats[rebounder]) {
+            updateStat(rebounder, 'oreb', 1);
+        }
+
+        pendingOreb = null;
+        $('#orebModal').modal('hide');
+    }
+
+    // --- CORE UPDATERS ---
 
     function updateShooting(player, type, makeDelta, attemptDelta) {
         if (!stats[player]) return;
