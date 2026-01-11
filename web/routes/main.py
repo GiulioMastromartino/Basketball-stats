@@ -3,7 +3,7 @@ import statistics
 from pathlib import Path
 from werkzeug.utils import secure_filename
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_required
 from sqlalchemy import func
 
@@ -87,6 +87,83 @@ def index():
 def glossary():
     """Stats glossary page"""
     return render_template("glossary.html")
+
+
+@main_bp.route("/live-game")
+@login_required
+def live_game():
+    """Interface for live game stat tracking"""
+    # Fetch existing player names for easy selection
+    existing_players = [r[0] for r in db.session.query(PlayerStat.player_name).distinct().order_by(PlayerStat.player_name).all()]
+    from datetime import datetime
+    now_date = datetime.now().strftime("%Y-%m-%d")
+    return render_template("live_game.html", existing_players=existing_players, now_date=now_date)
+
+
+@main_bp.route("/live-game/save", methods=["POST"])
+@login_required
+def save_live_game():
+    """Receive JSON data from live tracker and save to DB"""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"error": "No data received"}), 400
+
+    try:
+        # Create Game
+        game = Game(
+            date=normalize_date_to_display(data.get("date")),
+            opponent=data.get("opponent"),
+            team_score=int(data.get("team_score", 0)),
+            opponent_score=int(data.get("opponent_score", 0)),
+            result="W" if int(data.get("team_score", 0)) > int(data.get("opponent_score", 0)) else "L",
+            game_type=data.get("game_type", "Season"),
+            sort_date=data.get("date") # Assuming front-end sends YYYY-MM-DD
+        )
+        db.session.add(game)
+        db.session.flush()
+
+        # Create Player Stats
+        for p_name, stats in data.get("player_stats", {}).items():
+            if not p_name: continue
+            
+            # Calculate percentages
+            fg_pct = (stats["fgm"] / stats["fga"] * 100) if stats["fga"] > 0 else 0.0
+            tp_pct = (stats["tpm"] / stats["tpa"] * 100) if stats["tpa"] > 0 else 0.0
+            ft_pct = (stats["ftm"] / stats["fta"] * 100) if stats["fta"] > 0 else 0.0
+
+            new_stat = PlayerStat(
+                game_id=game.id,
+                player_name=p_name,
+                minutes=stats.get("minutes", "00:00"),
+                points=stats["points"],
+                fgm=stats["fgm"],
+                fga=stats["fga"],
+                fg_percent=fg_pct,
+                tpm=stats["tpm"],
+                tpa=stats["tpa"],
+                tp_percent=tp_pct,
+                ftm=stats["ftm"],
+                fta=stats["fta"],
+                ft_percent=ft_pct,
+                oreb=stats["oreb"],
+                dreb=stats["dreb"],
+                reb=stats["oreb"] + stats["dreb"],
+                ast=stats["ast"],
+                tov=stats["tov"],
+                stl=stats["stl"],
+                blk=stats["blk"],
+                pf=stats["pf"]
+            )
+            db.session.add(new_stat)
+
+        db.session.commit()
+        return jsonify({"success": True, "game_id": game.id})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Live game save error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 
 @main_bp.route("/upload-game", methods=["GET", "POST"])
