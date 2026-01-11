@@ -1,0 +1,273 @@
+{% extends "layout.html" %}
+
+{% block title %}Live Game Tracker{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px;">
+    
+    <!-- STEP 1: GAME SETUP -->
+    <div id="setup-panel" class="card p-4">
+        <h3>Start New Game</h3>
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label>Date</label>
+                <input type="date" id="game-date" class="form-control" value="{{ now_date }}">
+            </div>
+            <div class="col-md-4">
+                <label>Opponent</label>
+                <input type="text" id="opponent" class="form-control" placeholder="e.g. Lakers">
+            </div>
+            <div class="col-md-4">
+                <label>Type</label>
+                <select id="game-type" class="form-control">
+                    <option value="Season">Season</option>
+                    <option value="Friendly">Friendly</option>
+                    <option value="Playoff">Playoff</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <label>Select Roster</label>
+            <div id="roster-selection" class="d-flex flex-wrap gap-2">
+                {% for player in existing_players %}
+                <button class="btn btn-outline-secondary btn-sm player-select-btn" style="margin: 2px;" onclick="togglePlayer('{{ player }}', this)">
+                    {{ player }}
+                </button>
+                {% endfor %}
+            </div>
+            <div class="input-group mt-2" style="width: 300px;">
+                <input type="text" id="new-player-name" class="form-control form-control-sm" placeholder="Add New Player...">
+                <div class="input-group-append">
+                    <button class="btn btn-primary btn-sm" onclick="addNewPlayer()">+</button>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-success w-100" onclick="startGame()">Start Tracking</button>
+    </div>
+
+    <!-- STEP 2: LIVE TRACKER (Hidden by default) -->
+    <div id="tracker-panel" style="display:none;">
+        <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-dark text-white rounded">
+            <div>
+                <h2 class="m-0" id="scoreboard">0 - 0</h2>
+                <small id="display-opponent">vs Opponent</small>
+            </div>
+            <div class="form-inline">
+                 <label class="mr-2">Opponent Score:</label>
+                 <input type="number" id="opp-score-input" class="form-control form-control-sm" style="width: 70px;" value="0">
+            </div>
+            <button class="btn btn-danger" onclick="finishGame()">Finish & Save</button>
+        </div>
+
+        <div id="player-grid" class="row">
+            <!-- Player Cards Generated via JS will go here -->
+        </div>
+    </div>
+</div>
+
+<script>
+    let activePlayers = [];
+    let stats = {}; // { "PlayerName": { pts: 0, reb: 0 ... } }
+
+    function togglePlayer(name, btn) {
+        if (activePlayers.includes(name)) {
+            activePlayers = activePlayers.filter(p => p !== name);
+            btn.classList.remove('active', 'btn-primary');
+            btn.classList.add('btn-outline-secondary');
+        } else {
+            activePlayers.push(name);
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('active', 'btn-primary');
+        }
+    }
+
+    function addNewPlayer() {
+        const name = document.getElementById('new-player-name').value.trim();
+        if (name && !activePlayers.includes(name)) {
+            activePlayers.push(name);
+            // Add button to UI
+            const container = document.getElementById('roster-selection');
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-primary btn-sm active player-select-btn';
+            btn.style.margin = '2px';
+            btn.innerText = name;
+            btn.onclick = function() { togglePlayer(name, this); };
+            container.appendChild(btn);
+            document.getElementById('new-player-name').value = '';
+        }
+    }
+
+    function startGame() {
+        if (activePlayers.length === 0 || !document.getElementById('opponent').value) {
+            alert("Please select players and opponent.");
+            return;
+        }
+        
+        // Initialize Stats Object
+        activePlayers.forEach(p => {
+            stats[p] = { 
+                points: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, 
+                oreb: 0, dreb: 0, ast: 0, tov: 0, stl: 0, blk: 0, pf: 0 
+            };
+        });
+
+        document.getElementById('setup-panel').style.display = 'none';
+        document.getElementById('tracker-panel').style.display = 'block';
+        document.getElementById('display-opponent').innerText = "vs " + document.getElementById('opponent').value;
+        
+        renderPlayerCards();
+    }
+
+    function renderPlayerCards() {
+        const grid = document.getElementById('player-grid');
+        grid.innerHTML = '';
+        activePlayers.forEach(p => {
+            grid.innerHTML += `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <span class="font-weight-bold">${p}</span>
+                            <span class="badge badge-primary" id="pts-${p}" style="font-size: 1em;">0 PTS</span>
+                        </div>
+                        <div class="card-body p-2">
+                            <div class="row no-gutters mb-2">
+                                <div class="col-6 pr-1">
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-sm btn-success" onclick="updateStat('${p}', '2pt', 1)">+2</button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="updateStat('${p}', '2pt', 0)">Miss</button>
+                                    </div>
+                                </div>
+                                <div class="col-6 pl-1">
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-sm btn-success" onclick="updateStat('${p}', '3pt', 1)">+3</button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="updateStat('${p}', '3pt', 0)">Miss</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row no-gutters mb-2">
+                                <div class="col-12">
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-sm btn-success" onclick="updateStat('${p}', 'ft', 1)">+1 FT</button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="updateStat('${p}', 'ft', 0)">Miss</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <hr class="my-2">
+
+                            <div class="d-flex justify-content-between mb-2">
+                                <button class="btn btn-sm btn-info flex-fill mr-1" onclick="updateStat('${p}', 'oreb')">OREB</button>
+                                <button class="btn btn-sm btn-info flex-fill ml-1" onclick="updateStat('${p}', 'dreb')">DREB</button>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mb-2">
+                                <button class="btn btn-sm btn-warning flex-fill mr-1" onclick="updateStat('${p}', 'ast')">AST</button>
+                                <button class="btn btn-sm btn-secondary flex-fill ml-1" onclick="updateStat('${p}', 'stl')">STL</button>
+                            </div>
+
+                            <div class="d-flex justify-content-between">
+                                <button class="btn btn-sm btn-dark flex-fill mr-1" onclick="updateStat('${p}', 'blk')">BLK</button>
+                                <button class="btn btn-sm btn-danger flex-fill mx-1" onclick="updateStat('${p}', 'tov')">TOV</button>
+                                <button class="btn btn-sm btn-outline-dark flex-fill ml-1" onclick="updateStat('${p}', 'pf')">PF</button>
+                            </div>
+                            
+                            <div class="mt-2 text-center">
+                                <small class="text-muted" id="fouls-${p}">Fouls: 0</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    function updateStat(player, type, make=null) {
+        if (!stats[player]) return;
+        
+        if (type === '2pt') {
+            stats[player].fga++;
+            if (make) {
+                stats[player].points += 2;
+                stats[player].fgm++;
+            }
+        } else if (type === '3pt') {
+            stats[player].fga++;
+            stats[player].tpa++;
+            if (make) {
+                stats[player].points += 3;
+                stats[player].fgm++;
+                stats[player].tpm++;
+            }
+        } else if (type === 'ft') {
+            stats[player].fta++;
+            if (make) {
+                stats[player].points += 1;
+                stats[player].ftm++;
+            }
+        } else if (type === 'oreb') {
+            stats[player].oreb++;
+        } else if (type === 'dreb') {
+            stats[player].dreb++;
+        } else {
+            // ast, stl, blk, tov, pf
+            if (stats[player][type] !== undefined) {
+                stats[player][type]++;
+            }
+        }
+        
+        updateUI(player);
+    }
+    
+    function updateUI(player) {
+         document.getElementById(`pts-${player}`).innerText = stats[player].points + ' PTS';
+         document.getElementById(`fouls-${player}`).innerText = 'Fouls: ' + stats[player].pf;
+         
+         // Update total team score
+         let total = 0;
+         Object.values(stats).forEach(s => total += s.points);
+         const currentOppScore = document.getElementById('opp-score-input').value; 
+         document.getElementById('scoreboard').innerText = `${total} - ${currentOppScore}`;
+    }
+
+    // Listener for opponent score change to update scoreboard text
+    document.getElementById('opp-score-input').addEventListener('input', function(e) {
+         let total = 0;
+         Object.values(stats).forEach(s => total += s.points);
+         document.getElementById('scoreboard').innerText = `${total} - ${this.value}`;
+    });
+
+    function finishGame() {
+        if (!confirm("Are you sure you want to finish and save this game?")) return;
+
+        let total = 0;
+        Object.values(stats).forEach(s => total += s.points);
+
+        const payload = {
+            opponent: document.getElementById('opponent').value,
+            date: document.getElementById('game-date').value,
+            game_type: document.getElementById('game-type').value,
+            team_score: total, 
+            opponent_score: document.getElementById('opp-score-input').value,
+            player_stats: stats
+        };
+
+        fetch('/live-game/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(res => res.json()).then(data => {
+            if(data.success) {
+                window.location.href = `/game/${data.game_id}`;
+            } else {
+                alert("Error saving game: " + (data.error || "Unknown error"));
+            }
+        }).catch(err => {
+            alert("Network error occurred.");
+            console.error(err);
+        });
+    }
+</script>
+{% endblock %}
