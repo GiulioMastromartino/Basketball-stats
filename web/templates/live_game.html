@@ -165,7 +165,6 @@
     let isClockRunning = false;
 
     // --- SETUP PHASE ---
-
     function toggleRosterPlayer(name, btn) {
         if (fullRoster.includes(name)) {
             fullRoster = fullRoster.filter(p => p !== name);
@@ -198,13 +197,11 @@
             alert("Please select at least 5 players for the roster.");
             return;
         }
-        
         document.getElementById('setup-panel').style.display = 'none';
         document.getElementById('lineup-panel').style.display = 'block';
         
         const container = document.getElementById('starter-selection');
         container.innerHTML = '';
-        
         fullRoster.forEach(p => {
             const btn = document.createElement('button');
             btn.className = 'btn btn-outline-secondary m-1';
@@ -233,7 +230,6 @@
             alert("Please select exactly 5 starters.");
             return;
         }
-
         const opponent = document.getElementById('opponent').value;
         if (!opponent) {
             alert("Please enter an opponent name.");
@@ -266,58 +262,79 @@
         activeLineup.forEach(p => {
             const s = stats[p];
             grid.innerHTML += `
-                <div class="col-md-4 col-sm-6 mb-3">
+                <div class="col-md-6 col-lg-4 mb-3">
                     <div class="card h-100 shadow-sm border-0">
                         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
-                            <h5 class="mb-0 text-truncate" style="max-width: 65%;">${p}</h5>
-                            <span class="badge badge-light" id="pts-${p}" style="font-size: 0.9em;">${s.points} PTS</span>
+                            <h5 class="mb-0 text-truncate" style="max-width: 65%; font-weight: bold;">${p}</h5>
+                            <div>
+                                <span class="badge badge-light mr-1" id="pts-${p}" style="font-size: 0.9em;">${s.points} PTS</span>
+                                <span class="badge badge-warning" id="pf-badge-${p}" style="font-size: 0.9em;">${s.pf} PF</span>
+                            </div>
                         </div>
                         <div class="card-body p-2">
-                            <div class="row no-gutters mb-2">
-                                <div class="col-6 pr-1">
-                                    <div class="btn-group w-100" role="group">
-                                        <button class="btn btn-sm btn-outline-success font-weight-bold" onclick="updateStat('${p}', '2pt', 1)">+2</button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="updateStat('${p}', '2pt', 0)">X</button>
-                                    </div>
-                                </div>
-                                <div class="col-6 pl-1">
-                                    <div class="btn-group w-100" role="group">
-                                        <button class="btn btn-sm btn-outline-success font-weight-bold" onclick="updateStat('${p}', '3pt', 1)">+3</button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="updateStat('${p}', '3pt', 0)">X</button>
-                                    </div>
-                                </div>
-                            </div>
                             
-                            <div class="row no-gutters mb-2">
-                                <div class="col-12">
-                                    <div class="btn-group w-100" role="group">
-                                        <button class="btn btn-sm btn-outline-success font-weight-bold" onclick="updateStat('${p}', 'ft', 1)">+1 FT</button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="updateStat('${p}', 'ft', 0)">Miss</button>
+                            <!-- SHOOTING SECTION -->
+                            <div class="mb-2 border-bottom pb-2">
+                                <!-- 2PT -->
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="font-weight-bold small text-muted" style="width: 40px;">2PT</span>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', '2pt', -1, -1)">-M</button>
+                                        <button class="btn btn-outline-secondary py-0" onclick="updateShooting('${p}', '2pt', 0, -1)">-A</button>
+                                    </div>
+                                    <span class="mx-2 font-weight-bold" id="disp-2pt-${p}">${(s.fgm - s.tpm)}/${(s.fga - s.tpa)}</span>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', '2pt', 0, 1)">Miss</button>
+                                        <button class="btn btn-success font-weight-bold py-0" onclick="updateShooting('${p}', '2pt', 1, 1)">+2</button>
+                                    </div>
+                                </div>
+
+                                <!-- 3PT -->
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="font-weight-bold small text-muted" style="width: 40px;">3PT</span>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', '3pt', -1, -1)">-M</button>
+                                        <button class="btn btn-outline-secondary py-0" onclick="updateShooting('${p}', '3pt', 0, -1)">-A</button>
+                                    </div>
+                                    <span class="mx-2 font-weight-bold" id="disp-3pt-${p}">${s.tpm}/${s.tpa}</span>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', '3pt', 0, 1)">Miss</button>
+                                        <button class="btn btn-success font-weight-bold py-0" onclick="updateShooting('${p}', '3pt', 1, 1)">+3</button>
+                                    </div>
+                                </div>
+
+                                <!-- FT -->
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="font-weight-bold small text-muted" style="width: 40px;">FT</span>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', 'ft', -1, -1)">-M</button>
+                                        <button class="btn btn-outline-secondary py-0" onclick="updateShooting('${p}', 'ft', 0, -1)">-A</button>
+                                    </div>
+                                    <span class="mx-2 font-weight-bold" id="disp-ft-${p}">${s.ftm}/${s.fta}</span>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', 'ft', 0, 1)">Miss</button>
+                                        <button class="btn btn-success font-weight-bold py-0" onclick="updateShooting('${p}', 'ft', 1, 1)">+1</button>
                                     </div>
                                 </div>
                             </div>
 
-                            <hr class="my-2">
-
-                            <div class="d-flex justify-content-between mb-2">
-                                <button class="btn btn-sm btn-light border flex-fill mr-1" onclick="updateStat('${p}', 'oreb')">OREB</button>
-                                <button class="btn btn-sm btn-light border flex-fill ml-1" onclick="updateStat('${p}', 'dreb')">DREB</button>
+                            <!-- OTHER STATS GRID -->
+                            <div class="row no-gutters text-center">
+                                ${renderStatBox(p, 'OREB', 'oreb', s.oreb)}
+                                ${renderStatBox(p, 'DREB', 'dreb', s.dreb)}
+                                ${renderStatBox(p, 'AST', 'ast', s.ast)}
+                            </div>
+                            <div class="row no-gutters text-center mt-1">
+                                ${renderStatBox(p, 'STL', 'stl', s.stl)}
+                                ${renderStatBox(p, 'BLK', 'blk', s.blk)}
+                                ${renderStatBox(p, 'TOV', 'tov', s.tov)}
+                            </div>
+                            <div class="row no-gutters text-center mt-1">
+                                ${renderStatBox(p, 'PF', 'pf', s.pf, 'text-danger')}
                             </div>
                             
-                            <div class="d-flex justify-content-between mb-2">
-                                <button class="btn btn-sm btn-light border flex-fill mr-1" onclick="updateStat('${p}', 'ast')">AST</button>
-                                <button class="btn btn-sm btn-light border flex-fill ml-1" onclick="updateStat('${p}', 'stl')">STL</button>
-                            </div>
-
-                            <div class="d-flex justify-content-between">
-                                <button class="btn btn-sm btn-light border flex-fill mr-1" onclick="updateStat('${p}', 'blk')">BLK</button>
-                                <button class="btn btn-sm btn-light border flex-fill mx-1" onclick="updateStat('${p}', 'tov')">TOV</button>
-                                <button class="btn btn-sm btn-outline-secondary flex-fill ml-1" onclick="updateStat('${p}', 'pf')">PF</button>
-                            </div>
-                            
-                            <div class="mt-2 text-center small text-muted d-flex justify-content-between px-2">
-                                <span id="fouls-${p}">PF: ${s.pf}</span>
-                                <span id="time-${p}">MIN: ${formatMinutes(s.minutes_seconds)}</span>
+                            <div class="mt-2 text-center small text-muted">
+                                <span id="time-${p}" class="font-weight-bold">MIN: ${formatMinutes(s.minutes_seconds)}</span>
                             </div>
                         </div>
                     </div>
@@ -326,38 +343,64 @@
         });
     }
 
-    function updateStat(player, type, make=null) {
+    function renderStatBox(player, label, key, value, textClass='') {
+        return `
+            <div class="col-4 px-1">
+                <div class="bg-light rounded p-1 border">
+                    <div class="small text-muted font-weight-bold mb-1">${label}</div>
+                    <div class="d-flex justify-content-center align-items-center">
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.7rem; line-height:1;" onclick="updateStat('${player}', '${key}', -1)">-</button>
+                        <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
+                        <button class="btn btn-sm btn-outline-dark py-0 px-1" style="font-size: 0.8rem; line-height:1;" onclick="updateStat('${player}', '${key}', 1)">+</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function updateShooting(player, type, makeDelta, attemptDelta) {
         if (!stats[player]) return;
-        
+        const s = stats[player];
+
+        // Apply changes safely
         if (type === '2pt') {
-            stats[player].fga++;
-            if (make) {
-                stats[player].points += 2;
-                stats[player].fgm++;
-            }
+            const current2M = s.fgm - s.tpm;
+            const current2A = s.fga - s.tpa;
+            
+            if (current2M + makeDelta < 0 || current2A + attemptDelta < 0) return; 
+            if (current2A + attemptDelta < current2M + makeDelta) return;
+
+            s.fgm += makeDelta;
+            s.fga += attemptDelta;
+            s.points += (makeDelta * 2);
         } else if (type === '3pt') {
-            stats[player].fga++;
-            stats[player].tpa++;
-            if (make) {
-                stats[player].points += 3;
-                stats[player].fgm++;
-                stats[player].tpm++;
-            }
+             if (s.tpm + makeDelta < 0 || s.tpa + attemptDelta < 0) return;
+             if (s.tpa + attemptDelta < s.tpm + makeDelta) return;
+
+             s.tpm += makeDelta;
+             s.tpa += attemptDelta;
+             // Also update FGM/FGA for 3 pointers
+             s.fgm += makeDelta;
+             s.fga += attemptDelta;
+             
+             s.points += (makeDelta * 3);
         } else if (type === 'ft') {
-            stats[player].fta++;
-            if (make) {
-                stats[player].points += 1;
-                stats[player].ftm++;
-            }
-        } else if (type === 'oreb') {
-            stats[player].oreb++;
-        } else if (type === 'dreb') {
-            stats[player].dreb++;
-        } else {
-            if (stats[player][type] !== undefined) {
-                stats[player][type]++;
-            }
+             if (s.ftm + makeDelta < 0 || s.fta + attemptDelta < 0) return;
+             if (s.fta + attemptDelta < s.ftm + makeDelta) return;
+
+             s.ftm += makeDelta;
+             s.fta += attemptDelta;
+             s.points += (makeDelta * 1);
         }
+
+        updateUI(player);
+    }
+
+    function updateStat(player, key, delta) {
+        if (!stats[player]) return;
+        if (stats[player][key] + delta < 0) return;
+
+        stats[player][key] += delta;
         updateUI(player);
     }
     
@@ -369,8 +412,29 @@
     }
 
     function updateUI(player) {
-         document.getElementById(`pts-${player}`).innerText = stats[player].points + ' PTS';
-         document.getElementById(`fouls-${player}`).innerText = 'PF: ' + stats[player].pf;
+         const s = stats[player];
+         
+         document.getElementById(`pts-${player}`).innerText = s.points + ' PTS';
+         document.getElementById(`pf-badge-${player}`).innerText = s.pf + ' PF';
+         
+         if (document.getElementById(`disp-2pt-${player}`)) {
+             const two_m = s.fgm - s.tpm;
+             const two_a = s.fga - s.tpa;
+             document.getElementById(`disp-2pt-${player}`).innerText = `${two_m}/${two_a}`;
+         }
+         if (document.getElementById(`disp-3pt-${player}`)) {
+             document.getElementById(`disp-3pt-${player}`).innerText = `${s.tpm}/${s.tpa}`;
+         }
+         if (document.getElementById(`disp-ft-${player}`)) {
+             document.getElementById(`disp-ft-${player}`).innerText = `${s.ftm}/${s.fta}`;
+         }
+
+         const keys = ['oreb', 'dreb', 'ast', 'stl', 'blk', 'tov', 'pf'];
+         keys.forEach(k => {
+             const el = document.getElementById(`disp-${k}-${player}`);
+             if(el) el.innerText = s[k];
+         });
+
          updateScoreboard();
     }
 
@@ -380,12 +444,11 @@
          document.getElementById('scoreboard').innerText = `${total} - ${opponentScore}`;
     }
 
-    // --- CLOCK & SUBSTITUTIONS ---
-
+    // --- CLOCK & SUBSTITUTIONS --- (Same as before)
+    
     function toggleClock() {
         const btn = document.getElementById('btn-start-clock');
         if (isClockRunning) {
-            // Pause
             clearInterval(timerInterval);
             isClockRunning = false;
             btn.innerText = "START";
@@ -393,17 +456,14 @@
             btn.classList.add('btn-success');
             updatePlayerTimes();
         } else {
-            // Start
             const now = Date.now();
             activeLineup.forEach(p => {
                 stats[p].last_sub_in = now;
             });
-            
             timerInterval = setInterval(() => {
-                clockSeconds++; // Count UP
+                clockSeconds++; 
                 updateClockDisplay();
             }, 1000);
-            
             isClockRunning = true;
             btn.innerText = "STOP";
             btn.classList.remove('btn-success');
@@ -426,7 +486,7 @@
 
     function resetClock() {
         if(isClockRunning) toggleClock();
-        clockSeconds = 0; // Reset to 0
+        clockSeconds = 0; 
         updateClockDisplay();
     }
 
@@ -434,9 +494,6 @@
         if(isClockRunning) toggleClock();
         quarter++;
         document.getElementById('quarter-display').innerText = 'Q' + quarter;
-        // Don't auto-reset clock when counting up, unless desired. 
-        // User can click reset manually if they want per-quarter time.
-        // Or un-comment below to reset on Q change:
         clockSeconds = 0;
         updateClockDisplay();
     }
@@ -525,7 +582,7 @@
             date: document.getElementById('game-date').value,
             game_type: document.getElementById('game-type').value,
             team_score: total, 
-            opponent_score: opponentScore, // Use numeric variable
+            opponent_score: opponentScore, 
             player_stats: finalStats
         };
 
