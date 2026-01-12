@@ -13,6 +13,7 @@ from datetime import datetime
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from flask import Blueprint, jsonify, render_template, request, send_file, after_this_request, url_for
 from flask_login import login_required
 from sqlalchemy import desc, func
@@ -20,7 +21,7 @@ from sqlalchemy import desc, func
 # Standard WeasyPrint import - monkeypatch removed
 from weasyprint import HTML
 
-from core.models import Game, PlayerStat, db
+from core.models import Game, PlayerStat, ShotEvent, db
 from core.utils import (
     FT_ATTEMPT_WEIGHT,
     THREE_POINT_WEIGHT,
@@ -801,12 +802,12 @@ def team_report_pdf():
 def player_report_pdf(player_name):
     """
     Generate a multi-page PDF report with:
-    - Page 1: Summary & Season Totals
+    - Page 1: Summary & Season Totals with +/-
     - Page 2: Per-Game & Per-100 Stats  
-    - Page 3: Shooting Breakdown
+    - Page 3: Shooting Breakdown with Shot Chart
     - Page 4: Advanced Metrics with Team Rankings
     - Page 5-6: Performance Charts with 3-Game MA
-    - Page 7+: Game-by-Game Log
+    - Page 7+: Game-by-Game Log with +/-
     """
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
@@ -852,6 +853,9 @@ def player_report_pdf(player_name):
 
     # Generate charts
     charts = _generate_player_charts(stats, game_map, player_name)
+    
+    # Generate shot chart
+    shot_chart = _generate_shot_chart(player_name, game_ids)
 
     # Get current date
     generated_date = datetime.now().strftime("%B %d, %Y")
@@ -864,6 +868,7 @@ def player_report_pdf(player_name):
         generated_date=generated_date,
         team_avg=team_avg,
         team_rankings=team_rankings,
+        shot_chart=shot_chart,
         **report_data,
         **charts,
     )
@@ -959,6 +964,9 @@ def download_all_reports():
 
                 # Generate charts
                 charts = _generate_player_charts(stats, game_map, player_name)
+                
+                # Generate shot chart
+                shot_chart = _generate_shot_chart(player_name, game_ids)
 
                 # Render HTML
                 html = render_template(
@@ -968,6 +976,7 @@ def download_all_reports():
                     generated_date=generated_date,
                     team_avg=team_avg,
                     team_rankings=team_rankings,
+                    shot_chart=shot_chart,
                     **report_data,
                     **charts,
                 )
@@ -999,6 +1008,10 @@ def _calculate_player_metrics(stats, game_map, games_played):
     """Calculate comprehensive player metrics for the report"""
     # Averages
     avg_stats = get_player_stats_averages(stats)
+    
+    # Calculate +/- average
+    total_plus_minus = sum(s.plus_minus for s in stats)
+    avg_plus_minus = total_plus_minus / games_played if games_played > 0 else 0
 
     # Per 100 Possessions
     total_poss = 0
@@ -1045,7 +1058,8 @@ def _calculate_player_metrics(stats, game_map, games_played):
         'ortg': calculate_ortg(total_pts, total_poss),
         'ast_tov': avg_stats['ast'] / avg_stats['tov'] if avg_stats['tov'] > 0 else avg_stats['ast'],
         'usg_pct': 0, # Requires team context, calculated separately
-        'pie': 0 # Requires extensive team context
+        'pie': 0, # Requires extensive team context
+        'avg_plus_minus': round(avg_plus_minus, 1)
     }
 
     # Game Logs
@@ -1070,6 +1084,7 @@ def _calculate_player_metrics(stats, game_map, games_played):
             'blk': s.blk,
             'tov': s.tov,
             'pf': s.pf,
+            'plus_minus': s.plus_minus,
             'fgm': s.fgm, 'fga': s.fga, 'fg_pct': round(s.fg_percent * 100, 1),
             'tpm': s.tpm, 'tpa': s.tpa, 'tp_percent': round(s.tp_percent * 100, 1),
             'ftm': s.ftm, 'fta': s.fta, 'ft_percent': round(s.ft_percent * 100, 1),
@@ -1087,6 +1102,118 @@ def _calculate_player_metrics(stats, game_map, games_played):
     }
 
 
+def _generate_shot_chart(player_name, game_ids):
+    """
+    Generate a basketball shot chart showing make/miss locations
+    Returns base64 encoded PNG
+    """
+    # Query shot events for this player
+    shots = (
+        ShotEvent.query
+        .filter(ShotEvent.player_name == player_name)
+        .filter(ShotEvent.game_id.in_(game_ids))
+        .filter(ShotEvent.x_loc.isnot(None))
+        .filter(ShotEvent.y_loc.isnot(None))
+        .all()
+    )
+    
+    if not shots:
+        return ""
+    
+    # Create figure with half-court basketball court
+    fig, ax = plt.subplots(figsize=(8, 7.5))
+    
+    # Draw basketball court (half-court, normalized 0-500 width, 0-470 height)
+    # Outer boundary
+    ax.plot([0, 500], [0, 0], 'k-', linewidth=2)
+    ax.plot([0, 500], [470, 470], 'k-', linewidth=2)
+    ax.plot([0, 0], [0, 470], 'k-', linewidth=2)
+    ax.plot([500, 500], [0, 470], 'k-', linewidth=2)
+    
+    # Paint / Key
+    paint_width = 160
+    paint_x = (500 - paint_width) / 2
+    paint = patches.Rectangle((paint_x, 0), paint_width, 190, 
+                              linewidth=2, edgecolor='black', facecolor='none')
+    ax.add_patch(paint)
+    
+    # Free throw circle
+    ft_circle = patches.Circle((250, 190), 60, linewidth=2, 
+                               edgecolor='black', facecolor='none')
+    ax.add_patch(ft_circle)
+    
+    # 3-point arc (simplified)
+    three_pt_radius = 237.5
+    three_pt_arc = patches.Arc((250, 0), three_pt_radius*2, three_pt_radius*2, 
+                              theta1=22, theta2=158, linewidth=2, 
+                              edgecolor='black', facecolor='none')
+    ax.add_patch(three_pt_arc)
+    
+    # Hoop
+    hoop = patches.Circle((250, 41.25), 9, linewidth=2, 
+                         edgecolor='black', facecolor='none')
+    ax.add_patch(hoop)
+    
+    # Plot shots
+    makes = [s for s in shots if s.result == 'made']
+    misses = [s for s in shots if s.result == 'missed']
+    
+    # Made shots - green
+    if makes:
+        make_x = [s.x_loc for s in makes]
+        make_y = [s.y_loc for s in makes]
+        ax.scatter(make_x, make_y, c='#28a745', s=80, alpha=0.6, 
+                  edgecolors='darkgreen', linewidth=1.5, marker='o', label='Made')
+    
+    # Missed shots - red
+    if misses:
+        miss_x = [s.x_loc for s in misses]
+        miss_y = [s.y_loc for s in misses]
+        ax.scatter(miss_x, miss_y, c='#dc3545', s=80, alpha=0.6, 
+                  edgecolors='darkred', linewidth=1.5, marker='x', label='Missed')
+    
+    # Calculate shooting percentages by zone
+    total_shots = len(shots)
+    total_makes = len(makes)
+    fg_pct = (total_makes / total_shots * 100) if total_shots > 0 else 0
+    
+    # Count 2PT vs 3PT
+    three_pt_shots = [s for s in shots if s.shot_type == '3pt']
+    three_pt_makes = [s for s in three_pt_shots if s.result == 'made']
+    three_pct = (len(three_pt_makes) / len(three_pt_shots) * 100) if three_pt_shots else 0
+    
+    two_pt_shots = [s for s in shots if s.shot_type == '2pt']
+    two_pt_makes = [s for s in two_pt_shots if s.result == 'made']
+    two_pct = (len(two_pt_makes) / len(two_pt_shots) * 100) if two_pt_shots else 0
+    
+    # Add statistics text
+    stats_text = f"Overall: {total_makes}/{total_shots} ({fg_pct:.1f}%)\n"
+    stats_text += f"2PT: {len(two_pt_makes)}/{len(two_pt_shots)} ({two_pct:.1f}%)\n"
+    stats_text += f"3PT: {len(three_pt_makes)}/{len(three_pt_shots)} ({three_pct:.1f}%)"
+    
+    ax.text(250, 490, stats_text, ha='center', va='top', 
+           fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+    
+    # Set limits and formatting
+    ax.set_xlim(-10, 510)
+    ax.set_ylim(-10, 520)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    ax.legend(loc='upper left', fontsize=9)
+    ax.set_title(f"{player_name} - Shot Chart", fontsize=14, fontweight='bold', pad=10)
+    
+    plt.tight_layout()
+    
+    # Convert to base64
+    img_io = BytesIO()
+    plt.savefig(img_io, format='png', dpi=120, bbox_inches='tight')
+    img_io.seek(0)
+    img_base64 = base64.b64encode(img_io.read()).decode()
+    plt.close(fig)
+    
+    return img_base64
+
+
 def _generate_player_charts(stats, game_map, player_name):
     """Generate charts for player report"""
     if not stats:
@@ -1095,6 +1222,7 @@ def _generate_player_charts(stats, game_map, player_name):
     dates = []
     points = []
     ortgs = []
+    plus_minus_vals = []
     
     for s in stats:
         game = game_map.get(s.game_id)
@@ -1103,11 +1231,19 @@ def _generate_player_charts(stats, game_map, player_name):
             points.append(s.points)
             poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
             ortgs.append(calculate_ortg(s.points, poss))
+            plus_minus_vals.append(s.plus_minus)
             
-    # Scoring Chart
+    # Scoring Chart with +/-
     fig, ax1 = plt.subplots(figsize=(10, 4))
     ax1.bar(dates, points, color='#007bff', alpha=0.6, label='Points')
     ax1.set_ylabel('Points', color='#007bff')
+    
+    # Add +/- line on secondary axis
+    ax2 = ax1.twinx()
+    ax2.plot(dates, plus_minus_vals, color='#28a745', marker='o', 
+            linewidth=2, label='+/-', markersize=4)
+    ax2.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+    ax2.set_ylabel('+/-', color='#28a745')
     
     # Add trend line (MA 3)
     if len(points) >= 3:
@@ -1115,7 +1251,9 @@ def _generate_player_charts(stats, game_map, player_name):
         ax1.plot(dates, ma3, color='#0056b3', linestyle='--', linewidth=2, label='3-Game MA')
         
     ax1.tick_params(axis='x', rotation=45)
-    plt.title(f"{player_name} - Scoring Trend")
+    ax1.legend(loc='upper left')
+    ax2.legend(loc='upper right')
+    plt.title(f"{player_name} - Scoring & +/- Trend")
     plt.tight_layout()
     
     img_io = BytesIO()
@@ -1148,7 +1286,6 @@ def _calculate_game_stats(stats):
         s.usg_pct = (poss / (parse_minutes(s.minutes) / 40)) if parse_minutes(s.minutes) > 0 else 0
         
         # Game Score (GmSc) - Hollinger Formula
-        # GmSc = PTS + 0.4 * FGM - 0.7 * FGA - 0.4 * (FTA - FTM) + 0.7 * ORB + 0.3 * DRB + STL + 0.7 * AST + 0.7 * BLK - 0.4 * PF - TOV
         s.game_score = (
             s.points + 
             0.4 * s.fgm - 
