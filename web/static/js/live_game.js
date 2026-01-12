@@ -12,6 +12,7 @@ class GameTracker {
         this.pendingOreb = null;
         this.pendingMissShot = null;
         this.pendingPlaySelection = null; // Track pending play selection
+        this.pendingTurnover = null; // NEW: Track pending turnover
 
         // Timer State
         this.timerInterval = null;
@@ -29,6 +30,7 @@ class GameTracker {
         // Plays cache
         this.playsCache = [];
         this.playTypes = [];
+        this.recentPlays = []; // NEW: Track recently used plays
 
         // Play selector toggle state
         this.playSelectMode = true;  // Toggle state for play selector
@@ -42,7 +44,8 @@ class GameTracker {
             STORAGE_KEY: 'basketball_live_game_state',
             CACHE_KEY: 'basketball_live_game_cache',
             MAX_CACHED_GAMES: 3,
-            AUTO_CACHE_INTERVAL_MS: 30000 // 30 seconds
+            AUTO_CACHE_INTERVAL_MS: 30000, // 30 seconds
+            MAX_RECENT_PLAYS: 3 // Show top 3 recent plays
         };
 
         this.init();
@@ -150,6 +153,16 @@ class GameTracker {
         this.renderPlaysList(filterValue);
     }
 
+    // NEW: Track recently used plays
+    addToRecentPlays(play) {
+        // Remove if already in list
+        this.recentPlays = this.recentPlays.filter(p => p.id !== play.id);
+        // Add to front
+        this.recentPlays.unshift(play);
+        // Keep only top 3
+        this.recentPlays = this.recentPlays.slice(0, this.CONSTANTS.MAX_RECENT_PLAYS);
+    }
+
     renderPlaysList(filterType = 'All') {
         const list = document.getElementById('plays-list');
         if (!list) return;
@@ -166,29 +179,56 @@ class GameTracker {
             return;
         }
 
+        // NEW: Show recent plays section if available and filter is "All"
+        if (filterType === 'All' && this.recentPlays.length > 0) {
+            const recentHeader = document.createElement('div');
+            recentHeader.className = 'list-group-item bg-light';
+            recentHeader.innerHTML = '<strong class="text-primary"><i class="fas fa-history"></i> Recent Plays</strong>';
+            list.appendChild(recentHeader);
+
+            this.recentPlays.forEach(play => {
+                const btn = this.createPlayButton(play);
+                btn.classList.add('border-primary');
+                list.appendChild(btn);
+            });
+
+            const divider = document.createElement('div');
+            divider.className = 'list-group-item bg-light';
+            divider.innerHTML = '<strong class="text-secondary">All Plays</strong>';
+            list.appendChild(divider);
+        }
+
         filteredPlays.forEach(play => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'list-group-item list-group-item-action';
-            btn.style.cursor = 'pointer';
-            btn.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <div class="font-weight-bold">${play.name}</div>
-                        ${play.description ? `<small class="text-muted">${play.description}</small>` : ''}
-                    </div>
-                    <small class="badge badge-secondary">${play.type}</small>
-                </div>
-            `;
-            btn.onclick = () => this.selectPlay(play);
+            const btn = this.createPlayButton(play);
             list.appendChild(btn);
         });
+    }
+
+    // NEW: Helper to create play button
+    createPlayButton(play) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'list-group-item list-group-item-action';
+        btn.style.cursor = 'pointer';
+        btn.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="font-weight-bold">${play.name}</div>
+                    ${play.description ? `<small class="text-muted">${play.description}</small>` : ''}
+                </div>
+                <small class="badge badge-secondary">${play.type}</small>
+            </div>
+        `;
+        btn.onclick = () => this.selectPlay(play);
+        return btn;
     }
 
     openPlaySelector(eventType, shooter = null, shotType = null) {
         // Check if play selector toggle is ON
         if (!this.playSelectMode) {
             console.log('Play selector is OFF - skipping modal');
+            // IMPROVED: If skipped, finalize pending events
+            this.finalizePlaySelection(null);
             return;
         }
 
@@ -204,28 +244,89 @@ class GameTracker {
     }
 
     selectPlay(play) {
-        if (!this.pendingPlaySelection) {
+        if (!this.pendingPlaySelection && !this.pendingTurnover) {
             $('#playSelectorModal').modal('hide');
             return;
         }
 
-        // Store the selected play in gameEvents
-        const event = {
-            type: this.pendingPlaySelection.eventType,
-            player: this.pendingPlaySelection.shooter,
-            detail: {
-                play_id: play.id,
-                play_name: play.name
-            },
-            quarter: this.quarter,
-            clockSeconds: this.clockSeconds,
-            timestamp: Date.now()
-        };
+        // Add to recent plays
+        this.addToRecentPlays(play);
 
-        this.gameEvents.push(event);
-        this.pendingPlaySelection = null;
+        // Finalize with selected play
+        this.finalizePlaySelection(play);
         $('#playSelectorModal').modal('hide');
-        this.saveState();
+    }
+
+    // NEW: Skip play selection (from modal "Skip / None" button)
+    skipPlaySelection() {
+        this.finalizePlaySelection(null);
+        $('#playSelectorModal').modal('hide');
+    }
+
+    // NEW: Centralized method to finalize play selection
+    finalizePlaySelection(play) {
+        // Handle turnover case
+        if (this.pendingTurnover) {
+            const { player } = this.pendingTurnover;
+            
+            // Increment turnover stat
+            this.updateStat(player, 'tov', 1);
+
+            // Log turnover event with or without play
+            const event = {
+                type: 'TURNOVER',
+                player: player,
+                detail: play ? {
+                    play_id: play.id,
+                    play_name: play.name
+                } : null,
+                quarter: this.quarter,
+                clockSeconds: this.clockSeconds,
+                timestamp: Date.now()
+            };
+            this.gameEvents.push(event);
+
+            this.pendingTurnover = null;
+            this.saveState();
+            return;
+        }
+
+        // Handle shot case (already logged by confirmShotLocationFromMap)
+        if (this.pendingPlaySelection) {
+            const { eventType, shooter } = this.pendingPlaySelection;
+
+            // Only log event if play was selected
+            if (play) {
+                const event = {
+                    type: eventType,
+                    player: shooter,
+                    detail: {
+                        play_id: play.id,
+                        play_name: play.name
+                    },
+                    quarter: this.quarter,
+                    clockSeconds: this.clockSeconds,
+                    timestamp: Date.now()
+                };
+                this.gameEvents.push(event);
+            }
+
+            this.pendingPlaySelection = null;
+            this.saveState();
+        }
+    }
+
+    // NEW: Open turnover flow with play selector
+    recordTurnover(player) {
+        this.pendingTurnover = { player };
+        
+        // Open play selector if enabled
+        if (this.playSelectMode) {
+            this.openPlaySelector('TURNOVER', player);
+        } else {
+            // If play selector is off, just increment stat
+            this.finalizePlaySelection(null);
+        }
     }
 
     // --- AUTO-CACHE TIMER ---
@@ -666,11 +767,12 @@ class GameTracker {
     }
 
     renderStatBox(player, label, key, value, textClass = '', isToV = false) {
+        // UPDATED: Use recordTurnover method for TOV button
         const tovHtml = isToV ? `
             <div class="d-flex justify-content-center align-items-center">
                 <button class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.7rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">-</button>
                 <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
-                <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size: 0.8rem; line-height:1;" onclick="gameTracker.openPlaySelector('TURNOVER', '${player}')">+</button>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size: 0.8rem; line-height:1;" onclick="gameTracker.recordTurnover('${player}')">+</button>
             </div>
         ` : `
             <div class="d-flex justify-content-center align-items-center">
