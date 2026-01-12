@@ -172,9 +172,12 @@
       margin: 15px 0;
     }
 
+    /* UPDATED: Uses width:100% instead of max-width to allow upscaling while maintaining aspect ratio */
     .chart-container img {
-      max-width: 100%;
+      width: 100%;
       height: auto;
+      max-height: 16cm;
+      object-fit: contain;
     }
 
     .two-column {
