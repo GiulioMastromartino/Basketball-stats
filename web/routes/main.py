@@ -7,7 +7,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required
 from sqlalchemy import func
 
-from core.models import Game, PlayerStat, ShotEvent, db
+from core.models import Game, PlayerStat, ShotEvent, db, Play
 from core.csv_processor import CSVProcessor
 from core.parser import parse_game_pdf
 from core.services import create_game_from_live_data
@@ -82,9 +82,13 @@ def live_game():
     """Interface for live game stat tracking"""
     # Fetch existing player names for easy selection
     existing_players = [r[0] for r in db.session.query(PlayerStat.player_name).distinct().order_by(PlayerStat.player_name).all()]
+    
+    # Fetch available plays for selection
+    plays_list = Play.query.order_by(Play.play_type, Play.name).all()
+    
     from datetime import datetime
     now_date = datetime.now().strftime("%Y-%m-%d")
-    return render_template("live_game.html", existing_players=existing_players, now_date=now_date)
+    return render_template("live_game.html", existing_players=existing_players, now_date=now_date, plays=plays_list)
 
 
 @main_bp.route("/live-game/save", methods=["POST"])
