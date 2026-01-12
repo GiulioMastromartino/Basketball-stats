@@ -23,9 +23,27 @@ class CSVProcessor:
     def process_game(filepath, info):
         try:
             df = pd.read_csv(filepath)
+            
+            # Normalize column names to handle variations of +/-
+            df.columns = [c.strip() for c in df.columns]
+            pm_col = None
+            for col in ['+/-', 'Plus/Minus', 'PM', 'PlusMinus', 'PLUS_MINUS']:
+                if col in df.columns:
+                    pm_col = col
+                    break
+            
             players = []
             for _, row in df.iterrows():
                 if row['Name'] == 'Total': continue
+                
+                # Safe integer conversion for +/-
+                pm_val = 0
+                if pm_col and pd.notna(row[pm_col]):
+                    try:
+                        pm_val = int(row[pm_col])
+                    except:
+                        pm_val = 0
+
                 players.append({
                     'name': row['Name'],
                     'minutes': row['MIN'],
@@ -35,7 +53,8 @@ class CSVProcessor:
                     'ftm': int(row['FTM']), 'fta': int(row['FTA']), 'ft_percent': float(row['FT%']),
                     'oreb': int(row['OREB']), 'dreb': int(row['DREB']), 'reb': int(row['REB']),
                     'ast': int(row['AST']), 'tov': int(row['TOV']), 'stl': int(row['STL']),
-                    'blk': int(row['BLK']), 'pf': int(row['PF'])
+                    'blk': int(row['BLK']), 'pf': int(row['PF']),
+                    'plus_minus': pm_val
                 })
             return {**info, 'players': players}
         except Exception as e:
