@@ -178,9 +178,14 @@
                                 <small id="display-opponent" class="text-light">vs Opponent</small>
                             </div>
                             
-                            <div class="text-center bg-secondary rounded px-3 py-1 mx-2" style="min-width: 120px;">
+                            <div class="text-center bg-secondary rounded px-3 py-1 mx-2" style="min-width: 140px;">
+                                <!-- Total Game Time -->
                                 <div class="h2 mb-0 font-weight-bold font-monospace" id="game-clock">00:00</div>
-                                <div class="small font-weight-bold" id="quarter-display">Q1</div>
+                                <!-- Quarter Time + Quarter Label -->
+                                <div class="small font-weight-bold d-flex justify-content-center align-items-center">
+                                    <span id="quarter-display" class="mr-2 text-warning">Q1</span>
+                                    <span id="quarter-clock" class="text-light font-monospace">00:00</span>
+                                </div>
                             </div>
 
                             <div class="d-flex flex-column align-items-end">
