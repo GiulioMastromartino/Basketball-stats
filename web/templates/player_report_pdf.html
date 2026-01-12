@@ -286,7 +286,13 @@
       <p><strong>Report Type:</strong> {{ game_type }}</p>
       <p><strong>Games Played:</strong> {{ games_played }}</p>
       <p><strong>Total Minutes:</strong> {{ "%.1f"|format(avg_stats.minutes * games_played) }}</p>
-      <p><strong>Avg +/-:</strong> <span class="{% if advanced.avg_plus_minus > 0 %}positive{% elif advanced.avg_plus_minus < 0 %}negative{% endif %}">{{ "%+.1f"|format(advanced.avg_plus_minus) }}</span></p>
+      <p><strong>Avg +/-:</strong> 
+        {% if advanced.avg_plus_minus is not none %}
+          <span class="{% if advanced.avg_plus_minus > 0 %}positive{% elif advanced.avg_plus_minus < 0 %}negative{% endif %}">{{ "%+.1f"|format(advanced.avg_plus_minus) }}</span>
+        {% else %}
+          <span style="color: #666;">N/A</span>
+        {% endif %}
+      </p>
       <p><strong>Generated:</strong> {{ generated_date }}</p>
     </div>
 
@@ -315,7 +321,11 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">+/-</div>
-        <div class="stat-value" style="color: {% if advanced.avg_plus_minus > 0 %}#28a745{% elif advanced.avg_plus_minus < 0 %}#dc3545{% else %}#666{% endif %}">{{ "%+.1f"|format(advanced.avg_plus_minus) }}</div>
+        {% if advanced.avg_plus_minus is not none %}
+          <div class="stat-value" style="color: {% if advanced.avg_plus_minus > 0 %}#28a745{% elif advanced.avg_plus_minus < 0 %}#dc3545{% else %}#666{% endif %}">{{ "%+.1f"|format(advanced.avg_plus_minus) }}</div>
+        {% else %}
+          <div class="stat-value" style="color: #666;">N/A</div>
+        {% endif %}
         <div class="note">Per Game</div>
       </div>
       <div class="stat-card">
@@ -354,7 +364,11 @@
         <td>{{ "%.0f"|format(avg_stats.blk * games_played) }}</td>
         <td>{{ "%.0f"|format(avg_stats.tov * games_played) }}</td>
         <td>{{ "%.0f"|format(avg_stats.pf * games_played) }}</td>
-        <td class="{% if advanced.avg_plus_minus * games_played > 0 %}positive{% elif advanced.avg_plus_minus * games_played < 0 %}negative{% endif %}">{{ "%+.0f"|format(advanced.avg_plus_minus * games_played) }}</td>
+        {% if advanced.avg_plus_minus is not none %}
+          <td class="{% if advanced.avg_plus_minus * games_played > 0 %}positive{% elif advanced.avg_plus_minus * games_played < 0 %}negative{% endif %}">{{ "%+.0f"|format(advanced.avg_plus_minus * games_played) }}</td>
+        {% else %}
+          <td style="color: #666;">N/A</td>
+        {% endif %}
       </tr>
     </table>
 
@@ -596,7 +610,11 @@
         </tr>
         <tr>
           <td>Plus/Minus (+/-)</td>
-          <td class="highlight {% if advanced.avg_plus_minus > 0 %}positive{% elif advanced.avg_plus_minus < 0 %}negative{% endif %}">{{ "%+.1f"|format(advanced.avg_plus_minus) }}</td>
+          {% if advanced.avg_plus_minus is not none %}
+            <td class="highlight {% if advanced.avg_plus_minus > 0 %}positive{% elif advanced.avg_plus_minus < 0 %}negative{% endif %}">{{ "%+.1f"|format(advanced.avg_plus_minus) }}</td>
+          {% else %}
+            <td class="highlight" style="color: #666;">N/A</td>
+          {% endif %}
           <td>-</td>
           <td>&gt;+5</td>
           <td>Point differential when on court</td>
@@ -658,14 +676,18 @@
 
       <h3>Impact Metrics</h3>
       <p>
-        {% if advanced.avg_plus_minus >= 5 %}
-          ✅ <strong>Elite Impact</strong> - +/- of {{ "%+.1f"|format(advanced.avg_plus_minus) }} shows dominant on-court presence
-        {% elif advanced.avg_plus_minus >= 2 %}
-          ✅ <strong>Positive Impact</strong> - +/- of {{ "%+.1f"|format(advanced.avg_plus_minus) }} is valuable
-        {% elif advanced.avg_plus_minus >= -2 %}
-          ⚠️ <strong>Neutral</strong> - +/- of {{ "%+.1f"|format(advanced.avg_plus_minus) }} indicates balanced performance
+        {% if advanced.avg_plus_minus is not none %}
+          {% if advanced.avg_plus_minus >= 5 %}
+            ✅ <strong>Elite Impact</strong> - +/- of {{ "%+.1f"|format(advanced.avg_plus_minus) }} shows dominant on-court presence
+          {% elif advanced.avg_plus_minus >= 2 %}
+            ✅ <strong>Positive Impact</strong> - +/- of {{ "%+.1f"|format(advanced.avg_plus_minus) }} is valuable
+          {% elif advanced.avg_plus_minus >= -2 %}
+            ⚠️ <strong>Neutral</strong> - +/- of {{ "%+.1f"|format(advanced.avg_plus_minus) }} indicates balanced performance
+          {% else %}
+            ❌ <strong>Needs Improvement</strong> - +/- of {{ "%+.1f"|format(advanced.avg_plus_minus) }} suggests areas to work on
+          {% endif %}
         {% else %}
-          ❌ <strong>Needs Improvement</strong> - +/- of {{ "%+.1f"|format(advanced.avg_plus_minus) }} suggests areas to work on
+          <span style="color: #666;">ℹ️ <strong>Impact Metrics Unavailable</strong> - +/- data not available for this period</span>
         {% endif %}
       </p>
     </div>
@@ -742,7 +764,11 @@
           <td>{{ game.tp_percent }}%</td>
           <td>{{ game.ftm }}/{{ game.fta }}</td>
           <td>{{ game.ft_percent }}%</td>
-          <td class="{% if game.plus_minus > 0 %}positive{% elif game.plus_minus < 0 %}negative{% endif %}">{{ "%+d"|format(game.plus_minus) }}</td>
+          {% if game.plus_minus is not none %}
+            <td class="{% if game.plus_minus > 0 %}positive{% elif game.plus_minus < 0 %}negative{% endif %}">{{ "%+d"|format(game.plus_minus) }}</td>
+          {% else %}
+            <td style="color: #666;">N/A</td>
+          {% endif %}
         </tr>
         {% endfor %}
       </tbody>
