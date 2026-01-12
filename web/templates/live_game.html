@@ -7,6 +7,13 @@
     <!-- CSRF Token for Fetch Requests -->
     <input type="hidden" id="csrf_token" value="{{ csrf_token() }}">
 
+    <!-- CACHED GAMES SECTION (Always visible) -->
+    <div id="cached-games-panel" class="card p-3 mb-3 bg-light">
+        <div id="cached-games-list">
+            <!-- Populated by JS on load -->
+        </div>
+    </div>
+
     <!-- STEP 1: GAME SETUP -->
     <div id="setup-panel" class="card p-4">
         <h3>Start New Game</h3>
