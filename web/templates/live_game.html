@@ -1,0 +1,282 @@
+{% extends "layout.html" %}
+
+{% block title %}Live Game Tracker{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px;">
+    <!-- CSRF Token for Fetch Requests -->
+    <input type="hidden" id="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- CACHED GAMES SECTION (Always visible) -->
+    <div id="cached-games-panel" class="card p-3 mb-3 bg-light">
+        <div id="cached-games-list">
+            <!-- Populated by JS on load -->
+        </div>
+    </div>
+
+    <!-- STEP 1: GAME SETUP -->
+    <div id="setup-panel" class="card p-4">
+        <h3>Start New Game</h3>
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label>Date</label>
+                <input type="date" id="game-date" class="form-control" value="{{ now_date }}">
+            </div>
+            <div class="col-md-4">
+                <label>Opponent</label>
+                <input type="text" id="opponent" class="form-control" placeholder="e.g. Lakers">
+            </div>
+            <div class="col-md-4">
+                <label>Type</label>
+                <select id="game-type" class="form-control">
+                    <option value="Season">Season</option>
+                    <option value="Friendly">Friendly</option>
+                    <option value="Playoff">Playoff</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <label>Select Full Roster (At least 5 players)</label>
+            <div id="roster-selection" class="d-flex flex-wrap gap-2">
+                {% for player in existing_players %}
+                <button class="btn btn-outline-secondary btn-sm player-select-btn" style="margin: 2px;" onclick="gameTracker.toggleRosterPlayer('{{ player }}', this)">
+                    {{ player }}
+                </button>
+                {% endfor %}
+            </div>
+            <div class="input-group mt-2" style="width: 300px;">
+                <input type="text" id="new-player-name" class="form-control form-control-sm" placeholder="Add New Player...">
+                <div class="input-group-append">
+                    <button class="btn btn-primary btn-sm" onclick="gameTracker.addNewPlayer()">+</button>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-success w-100" onclick="gameTracker.goToLineupSelection()">Next: Select Starters</button>
+    </div>
+
+    <!-- STEP 2: LINEUP SELECTION (Hidden by default) -->
+    <div id="lineup-panel" class="card p-4" style="display:none;">
+        <h3>Select 5 Starters</h3>
+        <p class="text-muted">Select exactly 5 players to start the game.</p>
+        
+        <div id="starter-selection" class="d-flex flex-wrap gap-2 mb-3">
+            <!-- Populated by JS -->
+        </div>
+
+        <button class="btn btn-primary w-100" onclick="gameTracker.startGame()">Start Game</button>
+    </div>
+
+    <!-- STEP 3: LIVE TRACKER (Hidden by default) -->
+    <div id="tracker-panel" style="display:none;">
+        
+        <!-- Game Info Bar -->
+        <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-dark text-white rounded shadow-sm">
+            
+            <!-- Scoreboard -->
+            <div class="text-center" style="min-width: 200px;">
+                <h2 class="m-0 font-weight-bold" id="scoreboard" style="font-size: 3rem;">0 - 0</h2>
+                <small id="display-opponent" class="text-white-50">vs Opponent</small>
+            </div>
+
+            <!-- Game Clock & Quarter (CENTERED & LARGE) -->
+            <div class="text-center mx-4 flex-grow-1">
+                 <!-- Quarter Display -->
+                 <div class="mb-1">
+                     <span class="badge badge-light" id="quarter-display" style="font-size: 1.2rem;">Q1</span>
+                     <button class="btn btn-outline-light btn-sm py-0 px-2 ml-2" onclick="gameTracker.nextQuarter()" title="Next Quarter" style="font-size: 0.8rem;">Next Q &raquo;</button>
+                 </div>
+                 
+                 <!-- Large Clock -->
+                 <div class="h1 mb-2 font-weight-bold font-monospace bg-black rounded p-2 d-inline-block border border-secondary" id="game-clock" style="font-size: 4rem; min-width: 280px; letter-spacing: 2px;">00:00</div>
+                 
+                 <!-- Big Control Button -->
+                 <div>
+                     <button class="btn btn-success btn-lg px-5 font-weight-bold" id="btn-start-clock" onclick="gameTracker.toggleClock()" style="font-size: 1.5rem;">START</button>
+                 </div>
+            </div>
+
+            <!-- Controls (RIGHT SIDE) -->
+            <div class="text-right" style="min-width: 250px;">
+                 <!-- Opponent Score Controls -->
+                 <div class="mb-3 p-2 border border-secondary rounded bg-secondary">
+                     <div class="d-flex justify-content-between align-items-center mb-1">
+                         <label class="mb-0 text-white small font-weight-bold">Opponent Score:</label>
+                         <span id="opp-score-display" class="h4 m-0 font-weight-bold">0</span>
+                     </div>
+                     <div class="btn-group w-100">
+                         <button class="btn btn-sm btn-light font-weight-bold" onclick="gameTracker.updateOppScore(1)">+1</button>
+                         <button class="btn btn-sm btn-light font-weight-bold" onclick="gameTracker.updateOppScore(2)">+2</button>
+                         <button class="btn btn-sm btn-light font-weight-bold" onclick="gameTracker.updateOppScore(3)">+3</button>
+                         <button class="btn btn-sm btn-dark" onclick="gameTracker.updateOppScore(-1)" title="Undo">-1</button>
+                     </div>
+                 </div>
+
+                 <!-- Game Actions -->
+                 <div class="d-flex gap-2">
+                     <button class="btn btn-warning flex-fill mr-1" onclick="gameTracker.showSubstitutionModal()">
+                        <i class="fas fa-exchange-alt"></i> Subs
+                     </button>
+                     <button class="btn btn-danger flex-fill ml-1" onclick="gameTracker.finishGame()">Finish</button>
+                 </div>
+                 
+                 <!-- Hidden Reset (Small link) -->
+                 <div class="mt-2 text-right">
+                     <a href="#" class="text-muted small" onclick="if(confirm('Reset clock to 00:00?')) gameTracker.resetClock(); return false;">Reset Clock</a>
+                 </div>
+            </div>
+        </div>
+
+        <!-- Active Players Grid -->
+        <div id="player-grid" class="row">
+            <!-- Player Cards Generated via JS will go here -->
+        </div>
+    </div>
+</div>
+
+<!-- Substitution Modal -->
+<div class="modal fade" id="subModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Substitutions</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>Select exactly 5 players to be on the floor.</p>
+        <div id="sub-roster-list" class="list-group">
+            <!-- Populated by JS -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" onclick="gameTracker.confirmSubs()">Confirm Lineup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Assist Modal (step 1 for made 2/3) -->
+<div class="modal fade" id="assistModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Assist</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Who assisted on <span class="font-weight-bold" id="assist-shot-label"></span>?</p>
+        <div id="assist-list" class="list-group"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Shot Location Modal (step 2 for made 2/3) -->
+<div class="modal fade" id="shotLocModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Shot location</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Tap/click the half court to set the shot location for <span class="font-weight-bold" id="shotloc-player"></span>.</p>
+
+        <!-- 
+            FIBA COURT DIMENSIONS (Half Court)
+            - Width: 15m
+            - Height (half): 14m
+            - Scale: 1m = 33.33px => 15m = 500px, 14m = 466.6px
+        -->
+        <div class="border rounded bg-light" style="position: relative;">
+          <svg id="halfCourtSvg" viewBox="0 0 500 470" width="100%" style="max-height: 520px; cursor: crosshair; user-select: none; touch-action: none;">
+            
+            <!-- Transparent hitbox for reliable clicks -->
+            <rect id="court-hitbox" x="0" y="0" width="500" height="470" fill="transparent" />
+
+            <!-- Court background fill (white/light) inside boundaries -->
+            <rect x="0" y="0" width="500" height="470" fill="#fff" pointer-events="none" />
+
+            <!-- Outer Boundary Lines (15m x 14m) -->
+            <rect x="2" y="2" width="496" height="466" fill="none" stroke="#000" stroke-width="3" pointer-events="none" />
+
+            <!-- Key / Paint (4.9m wide = 163.3px) -->
+            <!-- x start = 250 - 81.65 = 168.35, width=163.3, height=5.8m=193.3px -->
+            <rect x="168.35" y="2" width="163.3" height="193.3" fill="none" stroke="#000" stroke-width="3" pointer-events="none" />
+
+            <!-- Free Throw Circle (top half) -->
+            <!-- center (250, 195.3), radius 1.8m = 60px -->
+            <path d="M 190 195.3 A 60 60 0 0 0 310 195.3" fill="none" stroke="#000" stroke-width="3" pointer-events="none" />
+
+            <!-- Restricted Area Arc (1.25m radius = 41.66px) -->
+            <!-- center (250, 52.5) -->
+            <path d="M 208.34 52.5 A 41.66 41.66 0 0 0 291.66 52.5" fill="none" stroke="#000" stroke-width="3" pointer-events="none" />
+
+            <!-- Backboard -->
+            <!-- 1.2m from baseline => 40px, width 1.8m => 60px -->
+            <!-- center x=250. x1=220, x2=280. y=40 -->
+            <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" pointer-events="none" />
+
+            <!-- Rim -->
+            <!-- center (250, 52.5), radius 0.45m/2 => ~7.5px -->
+            <circle cx="250" cy="52.5" r="7.5" fill="none" stroke="#000" stroke-width="3" pointer-events="none" />
+
+            <!-- 3PT Line (FIBA 6.75m = 225px radius) -->
+            <!-- Straight lines 0.9m from sideline => 30px from edge. -->
+            <path d="M 30 2 L 30 99.7 A 225 225 0 0 0 470 99.7 L 470 2" fill="none" stroke="#000" stroke-width="3" pointer-events="none" />
+
+            <!-- Center Circle (at bottom, y=466) -->
+            <!-- radius 1.8m = 60px -->
+            <path d="M 190 466 A 60 60 0 0 0 310 466" fill="none" stroke="#000" stroke-width="3" pointer-events="none" />
+
+            <!-- Marker (starts hidden) -->
+            <circle id="shotloc-marker" cx="-20" cy="-20" r="8" fill="#d9534f" stroke="#fff" stroke-width="2" pointer-events="none" />
+          </svg>
+        </div>
+
+        <div class="mt-2 small text-muted">
+            Selected point: <span id="shotloc-coords">(none)</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" onclick="gameTracker.skipShotLocation()">Skip / unknown</button>
+        <button type="button" class="btn btn-primary" id="btn-confirm-shotloc" onclick="gameTracker.confirmShotLocationFromMap()" disabled>Confirm point</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Offensive Rebound Modal -->
+<div class="modal fade" id="orebModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Offensive Rebound</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Who got the offensive rebound after <span class="font-weight-bold" id="oreb-shot-label"></span>?</p>
+        <div id="oreb-list" class="list-group"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- External JS -->
+<script src="{{ url_for('static', filename='js/live_game.js') }}"></script>
+{% endblock %}

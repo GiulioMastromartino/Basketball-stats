@@ -2,298 +2,245 @@
 
 {% block content %}
 <style>
-    /* Tooltip styles matching players_table */
-    th {
-        cursor: help; /* Indicate tooltip availability */
+    .game-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px 0;
+        margin-bottom: 30px;
+        border-radius: 0 0 20px 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
+    .score-board {
+        font-size: 3.5rem;
+        font-weight: 800;
+        line-height: 1;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .game-meta {
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+    .nav-pills .nav-link {
+        color: #4a5568;
+        font-weight: 600;
+        padding: 10px 20px;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+    .nav-pills .nav-link.active {
+        background-color: #667eea;
+        color: white;
+        box-shadow: 0 4px 6px rgba(102, 126, 234, 0.25);
+    }
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        height: 100%;
+        border: 1px solid #e2e8f0;
+    }
+    .table-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        overflow: hidden;
+    }
+    .table thead th {
+        background-color: #f7fafc;
+        border-bottom: 2px solid #e2e8f0;
+        font-weight: 600;
+        color: #4a5568;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.05em;
+    }
+    /* Shot Chart Styles */
+    .shot-chart-wrapper {
+        position: relative;
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .shot-point {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        border: 2px solid rgba(255,255,255,0.8);
+        cursor: pointer;
+        transition: transform 0.2s, z-index 0.2s;
+        z-index: 10;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .shot-point:hover {
+        transform: translate(-50%, -50%) scale(1.5);
+        z-index: 20;
+    }
+    .shot-made { background-color: #28a745; } /* Green */
+    .shot-missed { background-color: #dc3545; } /* Red */
     
-    /* Fixed Tooltip */
-    #global-tooltip {
-        position: fixed;
-        background: #1a202c;
-        color: #fff;
-        padding: 12px 14px;
-        border-radius: 10px;
-        font-size: 12px;
-        z-index: 100000;
-        pointer-events: none;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-        max-width: 300px;
-        min-width: 200px;
-        opacity: 0;
-        transition: opacity 0.15s ease;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    }
-    
-    #global-tooltip.visible {
-        opacity: 1;
-    }
-
-    #global-tooltip .tt-title {
-        font-weight: 700;
-        margin-bottom: 4px;
-        color: #fff;
-        font-size: 13px;
-        border-bottom: 1px solid rgba(255,255,255,0.1);
-        padding-bottom: 4px;
-    }
-
-    #global-tooltip .tt-desc {
-        color: rgba(255,255,255,0.85);
-        margin-bottom: 8px;
-        line-height: 1.4;
-    }
-
-    #global-tooltip .tt-formula {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        color: #63b3ed;
-        background: rgba(255,255,255,0.08);
-        border: 1px solid rgba(255,255,255,0.10);
-        padding: 6px 8px;
+    .shot-tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.85);
+        color: white;
+        padding: 6px 10px;
         border-radius: 6px;
-        font-size: 11px;
+        font-size: 12px;
+        pointer-events: none;
+        display: none;
+        z-index: 100;
+        white-space: nowrap;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
+
+    .pm-badge {
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+    }
+    .pm-pos { color: #15803d; background: #dcfce7; }
+    .pm-neg { color: #b91c1c; background: #fee2e2; }
+    .pm-neu { color: #6b7280; background: #f3f4f6; }
+
 </style>
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1><i class="fas fa-chart-bar"></i> Box Score</h1>
-            <p class="text-muted">{{ game.date }} vs {{ game.opponent }}</p>
+<!-- Game Header -->
+<div class="game-header text-center">
+    <div class="container">
+        <h5 class="text-uppercase letter-spacing-2 mb-3" style="letter-spacing: 2px; opacity: 0.8;">{{ game.date }} • {{ game.game_type }}</h5>
+        
+        <div class="d-flex align-items-center justify-content-center gap-5">
+            <div class="text-end">
+                <div class="h3 mb-0">US</div>
+                <div class="small opacity-75">Home Team</div>
+            </div>
+            
+            <div class="score-board mx-4">
+                {{ game.team_score }} - {{ game.opponent_score }}
+            </div>
+            
+            <div class="text-start">
+                <div class="h3 mb-0">{{ game.opponent[:3]|upper }}</div>
+                <div class="small opacity-75">{{ game.opponent }}</div>
+            </div>
         </div>
-        <div style="display: flex; gap: 10px;">
-            <a href="{{ url_for('main.index') }}" class="btn btn-outline">
-                <i class="fas fa-arrow-left"></i> Back to Dashboard
-            </a>
+        
+        <div class="mt-3 badge bg-white text-dark px-3 py-2 rounded-pill shadow-sm">
+            <i class="fas fa-{% if game.result == 'W' %}trophy text-warning{% else %}times-circle text-danger{% endif %} me-2"></i>
+            {{ 'VICTORY' if game.result == 'W' else 'DEFEAT' }}
+        </div>
+    </div>
+</div>
 
-            <form method="POST" action="{{ url_for('main.delete_game', game_id=game.id) }}" onsubmit="return confirm('Delete this game? This will remove all player stats for this game.');" style="margin: 0;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <button type="submit" class="btn btn-danger">
-                    <i class="fas fa-trash"></i> Delete Game
+<div class="container pb-5">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-pills" id="gameTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="boxscore-tab" data-bs-toggle="pill" data-bs-target="#boxscore" type="button" role="tab">
+                    <i class="fas fa-list-alt me-2"></i>Box Score
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="advanced-tab" data-bs-toggle="pill" data-bs-target="#advanced" type="button" role="tab">
+                    <i class="fas fa-chart-line me-2"></i>Advanced Stats
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="analytics-tab" data-bs-toggle="pill" data-bs-target="#analytics" type="button" role="tab">
+                    <i class="fas fa-chart-pie me-2"></i>Team Analytics
+                </button>
+            </li>
+            {% if shot_events %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="shots-tab" data-bs-toggle="pill" data-bs-target="#shots" type="button" role="tab">
+                    <i class="fas fa-crosshairs me-2"></i>Shot Chart
+                </button>
+            </li>
+            {% endif %}
+        </ul>
+
+        <!-- Action Buttons -->
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-dark shadow-sm">
+                <i class="fas fa-download me-2"></i>Download Report
+            </a>
+            
+            <form method="POST" action="{{ url_for('main.delete_game', game_id=game.id) }}" 
+                  onsubmit="return confirm('Are you sure you want to delete this game? This action cannot be undone.');" 
+                  class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-danger shadow-sm">
+                    <i class="fas fa-trash me-2"></i>Delete Game
                 </button>
             </form>
         </div>
     </div>
 
-    <!-- Game Hero Card -->
-    <div class="card mb-4" style="background: linear-gradient(135deg, var(--secondary) 0%, #1a252f 100%); color: white; border: none;">
-        <div class="card-body text-center p-5">
-            <div class="d-flex justify-content-center align-items-center gap-5 flex-wrap">
-                <!-- Date/Type -->
-                <div class="text-center">
-                    <div style="font-size: 0.9rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px;">Date</div>
-                    <div style="font-size: 1.2rem; font-weight: 600;">{{ game.date }}</div>
-                    <span class="badge" style="background: rgba(255,255,255,0.2); margin-top: 5px;">{{ game.game_type }}</span>
-                </div>
-
-                <!-- Score -->
-                <div class="d-flex align-items-center gap-4">
-                    <div style="font-size: 4rem; font-weight: 800; line-height: 1;">
-                        {{ game.team_score }}
-                    </div>
-                    <div style="font-size: 1.5rem; opacity: 0.5;">-</div>
-                    <div style="font-size: 4rem; font-weight: 800; line-height: 1; opacity: 0.9;">
-                        {{ game.opponent_score }}
-                    </div>
-                </div>
-
-                <!-- Result Badge -->
-                <div class="text-center">
-                    <div style="font-size: 0.9rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px;">Result</div>
-                    <span class="badge" style="background: {{ 'var(--success)' if game.result == 'W' else 'var(--danger)' }}; font-size: 1.2rem; padding: 8px 16px; margin-top: 5px;">
-                        {{ 'VICTORY' if game.result == 'W' else 'DEFEAT' }}
-                    </span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Top Performers & Alerts Grid -->
-    <div class="row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px;">
+    <div class="tab-content" id="gameTabsContent">
         
-        <!-- Top Performers -->
-        <div class="card">
-            <div class="card-header">
-                <h3><i class="fas fa-trophy" style="color: var(--warning);"></i> Top Performers</h3>
-            </div>
-            <div class="card-body">
-                <div class="d-flex gap-3 justify-content-between">
-                    {% set top_scorer = stats|sort(attribute='points', reverse=True)|first %}
-                    {% set top_eff = stats|sort(attribute='eff', reverse=True)|first %}
-                    
-                    <div class="text-center p-3" style="background: var(--bg-body); border-radius: 8px; flex: 1;">
-                        <div class="text-muted small text-uppercase">Points</div>
-                        <div style="font-weight: 700; font-size: 1.1rem; margin: 4px 0;">{{ top_scorer.player_name }}</div>
-                        <div style="color: var(--primary); font-weight: 800;">{{ top_scorer.points }}</div>
-                    </div>
-
-                    <div class="text-center p-3" style="background: var(--bg-body); border-radius: 8px; flex: 1;">
-                        <div class="text-muted small text-uppercase">Efficiency</div>
-                        <div style="font-weight: 700; font-size: 1.1rem; margin: 4px 0;">{{ top_eff.player_name }}</div>
-                        <div style="color: var(--info); font-weight: 800;">{{ top_eff.eff }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Alerts -->
-        {% set foul_trouble = stats|selectattr('foul_trouble', 'equalto', True)|list %}
-        {% set inefficient = stats|selectattr('ppp', 'lt', 0.8)|selectattr('fga', 'gt', 5)|list %}
-        
-        <div class="card">
-            <div class="card-header">
-                <h3><i class="fas fa-bell"></i> Game Notes</h3>
-            </div>
-            <div class="card-body">
-                {% if not foul_trouble and not inefficient %}
-                    <div class="text-center text-muted" style="padding: 20px;">
-                        <i class="fas fa-check-circle" style="color: var(--success); font-size: 2rem; margin-bottom: 10px;"></i>
-                        <p>Clean game! No major warnings.</p>
-                    </div>
-                {% else %}
-                    <ul style="list-style: none; padding: 0;">
-                        {% if foul_trouble %}
-                        <li style="margin-bottom: 10px; padding: 10px; background: #fff3cd; border-radius: 6px; color: #856404; font-size: 0.9rem;">
-                            <i class="fas fa-exclamation-circle"></i> <strong>Foul Trouble:</strong> 
-                            {% for p in foul_trouble %}{{ p.player_name }} ({{ p.pf }}){% if not loop.last %}, {% endif %}{% endfor %}
-                        </li>
-                        {% endif %}
-                        {% if inefficient %}
-                        <li style="padding: 10px; background: #f8d7da; border-radius: 6px; color: #721c24; font-size: 0.9rem;">
-                            <i class="fas fa-chart-down"></i> <strong>Low Efficiency:</strong>
-                            {% for p in inefficient %}{{ p.player_name }}{% if not loop.last %}, {% endif %}{% endfor %}
-                        </li>
-                        {% endif %}
-                    </ul>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- Stats Tabs -->
-    <div class="card">
-        <div class="card-header" style="padding-bottom: 0; border-bottom: none;">
-            <div class="tab-buttons" style="display: flex; gap: 20px; align-items: center; justify-content: space-between;">
-                <div style="display: flex; gap: 20px;">
-                    <button class="tab-btn active" onclick="switchTab('basic')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: 600; cursor: pointer;">Basic Stats</button>
-                    <button class="tab-btn" onclick="switchTab('advanced')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid transparent; color: var(--text-muted); font-weight: 600; cursor: pointer;">Advanced</button>
-                    <button class="tab-btn" onclick="switchTab('shooting')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid transparent; color: var(--text-muted); font-weight: 600; cursor: pointer;">Shooting</button>
-                </div>
-
-                <!-- Download button -->
-                <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" 
-                   class="btn btn-sm btn-outline" 
-                   style="margin-left: auto; padding: 8px 15px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; color: var(--text-color); text-decoration: none; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-body);">
-                    <i class="fas fa-download"></i> Download Report
-                </a>
-            </div>
-        </div>
-        <div class="card-body p-0">
-            <!-- Basic Tab -->
-            <div id="basic" class="tab-content active" style="display: block;">
+        <!-- Tab 1: Box Score -->
+        <div class="tab-pane fade show active" id="boxscore" role="tabpanel">
+            <div class="table-container">
                 <div class="table-responsive">
-                    <table class="table" style="width: 100%; border-collapse: collapse;">
+                    <table class="table table-hover align-middle mb-0">
                         <thead>
-                            <tr style="background: var(--bg-body);">
-                                <th style="padding: 15px; text-align: left;">Player</th>
-                                <th style="text-align: center;" data-title="MIN" data-desc="Minutes Played">MIN</th>
-                                <th style="text-align: center;" data-title="PTS" data-desc="Points Scored">PTS</th>
-                                <th style="text-align: center;" data-title="OREB" data-desc="Offensive Rebounds">OREB</th>
-                                <th style="text-align: center;" data-title="DREB" data-desc="Defensive Rebounds">DREB</th>
-                                <th style="text-align: center;" data-title="REB" data-desc="Total Rebounds">REB</th>
-                                <th style="text-align: center;" data-title="AST" data-desc="Assists">AST</th>
-                                <th style="text-align: center;" data-title="STL" data-desc="Steals">STL</th>
-                                <th style="text-align: center;" data-title="BLK" data-desc="Blocks">BLK</th>
-                                <th style="text-align: center;" data-title="TOV" data-desc="Turnovers">TOV</th>
-                                <th style="text-align: center;" data-title="PF" data-desc="Personal Fouls">PF</th>
-                                <th style="text-align: center;" data-title="EFF" data-desc="Efficiency" data-formula="EFF = (PTS+REB+AST+STL+BLK) − ((FGA−FGM)+(FTA−FTM)+TOV)">EFF</th>
+                            <tr>
+                                <th class="ps-4">Player</th>
+                                <th class="text-center">MIN</th>
+                                <th class="text-center bg-light">PTS</th>
+                                <th class="text-center">+/-</th>
+                                <th class="text-center">FG</th>
+                                <th class="text-center">3PT</th>
+                                <th class="text-center">FT</th>
+                                <th class="text-center">OREB</th>
+                                <th class="text-center">DREB</th>
+                                <th class="text-center">REB</th>
+                                <th class="text-center">AST</th>
+                                <th class="text-center">STL</th>
+                                <th class="text-center">BLK</th>
+                                <th class="text-center">TOV</th>
+                                <th class="text-center">PF</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for p in stats %}
-                            <tr style="border-bottom: 1px solid var(--border-color);">
-                                <td style="padding: 15px; font-weight: 600;">{{ p.player_name }}</td>
-                                <td style="text-align: center;">{{ p.minutes }}</td>
-                                <td style="text-align: center; font-weight: 700; color: var(--primary);">{{ p.points }}</td>
-                                <td style="text-align: center;">{{ p.oreb }}</td>
-                                <td style="text-align: center;">{{ p.dreb }}</td>
-                                <td style="text-align: center;">{{ p.reb }}</td>
-                                <td style="text-align: center;">{{ p.ast }}</td>
-                                <td style="text-align: center;">{{ p.stl }}</td>
-                                <td style="text-align: center;">{{ p.blk }}</td>
-                                <td style="text-align: center;">{{ p.tov }}</td>
-                                <td style="text-align: center;" class="{% if p.foul_trouble %}text-danger font-weight-bold{% endif %}">{{ p.pf }}</td>
-                                <td style="text-align: center; font-weight: 600;">{{ p.eff }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Advanced Tab -->
-            <div id="advanced" class="tab-content" style="display: none;">
-                <div class="table-responsive">
-                    <table class="table" style="width: 100%; border-collapse: collapse;">
-                        <thead>
-                            <tr style="background: var(--bg-body);">
-                                <th style="padding: 15px; text-align: left;">Player</th>
-                                <th style="text-align: center;" data-title="USG%" data-desc="Usage Percentage" data-formula="USG% ≈ (FGA + 0.44×FTA + TOV) / Poss × 100">USG%</th>
-                                <th style="text-align: center;" data-title="ORtg" data-desc="Offensive Rating" data-formula="ORtg = (Points / Possessions) × 100">ORtg</th>
-                                <th style="text-align: center;" data-title="PPP" data-desc="Points Per Possession" data-formula="PPP = Points / Possessions">PPP</th>
-                                <th style="text-align: center;" data-title="TS%" data-desc="True Shooting %" data-formula="TS% = PTS / (2×(FGA+0.44×FTA)) × 100">TS%</th>
-                                <th style="text-align: center;" data-title="eFG%" data-desc="Effective FG%" data-formula="eFG% = (FGM+0.5×3PM) / FGA × 100">eFG%</th>
-                                <th style="text-align: center;" data-title="A/TO" data-desc="Assist to Turnover Ratio" data-formula="A/TO = AST / TOV">AST/TOV</th>
-                                <th style="text-align: center;" data-title="GmSc" data-desc="Game Score" data-formula="GmSc = PTS + 0.4×FGM... (Hollinger)">GmSc</th>
-                                <th style="text-align: center;" data-title="FTA/FGA" data-desc="Free Throw Rate" data-formula="FTA/FGA = FTA / FGA">FTA/FGA</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for p in stats %}
-                            <tr style="border-bottom: 1px solid var(--border-color);">
-                                <td style="padding: 15px; font-weight: 600;">{{ p.player_name }}</td>
-                                <td style="text-align: center;">{{ p.usg_pct|round(1) }}%</td>
-                                <td style="text-align: center; color: var(--success); font-weight: 600;">{{ p.ortg|round(0) }}</td>
-                                <td style="text-align: center;">{{ p.ppp|round(2) }}</td>
-                                <td style="text-align: center; color: var(--info);">{{ p.ts_pct|round(1) }}%</td>
-                                <td style="text-align: center;">{{ p.efg_pct|round(1) }}%</td>
-                                <td style="text-align: center;">{{ p.ast_tov_ratio|round(2) }}</td>
-                                <td style="text-align: center;">{{ p.game_score|default(0)|round(1) }}</td>
-                                <td style="text-align: center;">
-                                    {% if p.fga > 0 %}
-                                        {{ (p.fta / p.fga * 100)|round(1) }}%
+                            <tr>
+                                <td class="ps-4 fw-bold">
+                                    <a href="{{ url_for('main.player_detail', player_name=p.player_name) }}" class="text-decoration-none text-dark">
+                                        {{ p.player_name }}
+                                    </a>
+                                </td>
+                                <td class="text-center text-muted font-monospace">{{ p.minutes }}</td>
+                                <td class="text-center fw-bold bg-light fs-5">{{ p.points }}</td>
+                                <td class="text-center">
+                                    {% if p.plus_minus > 0 %}
+                                    <span class="pm-badge pm-pos">+{{ p.plus_minus }}</span>
+                                    {% elif p.plus_minus < 0 %}
+                                    <span class="pm-badge pm-neg">{{ p.plus_minus }}</span>
                                     {% else %}
-                                        0.0%
+                                    <span class="pm-badge pm-neu">0</span>
                                     {% endif %}
                                 </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Shooting Tab -->
-            <div id="shooting" class="tab-content" style="display: none;">
-                <div class="table-responsive">
-                    <table class="table" style="width: 100%; border-collapse: collapse;">
-                        <thead>
-                            <tr style="background: var(--bg-body);">
-                                <th style="padding: 15px; text-align: left;">Player</th>
-                                <th style="text-align: center;" data-title="FG" data-desc="Field Goals Made/Attempted">FG</th>
-                                <th style="text-align: center;" data-title="2PT" data-desc="2-Pointers Made/Attempted">2PT</th>
-                                <th style="text-align: center;" data-title="3PT" data-desc="3-Pointers Made/Attempted">3PT</th>
-                                <th style="text-align: center;" data-title="FT" data-desc="Free Throws Made/Attempted">FT</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for p in stats %}
-                            <tr style="border-bottom: 1px solid var(--border-color);">
-                                <td style="padding: 15px; font-weight: 600;">{{ p.player_name }}</td>
-                                <td style="text-align: center;">{{ p.fgm }}/{{ p.fga }} ({{ p.fg_percent|int }}%)</td>
-                                <td style="text-align: center;">{{ p.two_pt_made }}/{{ p.two_pt_att }} ({{ p.two_pt_pct|round(0)|int }}%)</td>
-                                <td style="text-align: center;">{{ p.tpm }}/{{ p.tpa }} ({{ p.tp_percent|int }}%)</td>
-                                <td style="text-align: center;">{{ p.ftm }}/{{ p.fta }} ({{ p.ft_percent|int }}%)</td>
+                                <td class="text-center">{{ p.fgm }}-{{ p.fga }}</td>
+                                <td class="text-center">{{ p.tpm }}-{{ p.tpa }}</td>
+                                <td class="text-center">{{ p.ftm }}-{{ p.fta }}</td>
+                                <td class="text-center text-muted">{{ p.oreb }}</td>
+                                <td class="text-center text-muted">{{ p.dreb }}</td>
+                                <td class="text-center fw-bold">{{ p.reb }}</td>
+                                <td class="text-center fw-bold">{{ p.ast }}</td>
+                                <td class="text-center">{{ p.stl }}</td>
+                                <td class="text-center">{{ p.blk }}</td>
+                                <td class="text-center text-danger">{{ p.tov }}</td>
+                                <td class="text-center text-muted">{{ p.pf }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -301,80 +248,220 @@
                 </div>
             </div>
         </div>
+
+        <!-- Tab 2: Advanced Stats -->
+        <div class="tab-pane fade" id="advanced" role="tabpanel">
+            <div class="table-container">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">PLAYER</th>
+                                <th class="text-center">+/-</th>
+                                <th class="text-center">USG%</th>
+                                <th class="text-center">ORTG</th>
+                                <th class="text-center">PPP</th>
+                                <th class="text-center">TS%</th>
+                                <th class="text-center">EFG%</th>
+                                <th class="text-center">AST/TOV</th>
+                                <th class="text-center">GMSC</th>
+                                <th class="text-center">FTA/FGA</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in stats %}
+                            <tr>
+                                <td class="ps-4 fw-bold">{{ p.player_name }}</td>
+                                <td class="text-center">
+                                    {% if p.plus_minus > 0 %}
+                                    <span class="pm-badge pm-pos">+{{ p.plus_minus }}</span>
+                                    {% elif p.plus_minus < 0 %}
+                                    <span class="pm-badge pm-neg">{{ p.plus_minus }}</span>
+                                    {% else %}
+                                    <span class="pm-badge pm-neu">0</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">{{ "%.1f"|format(p.usg_pct) }}%</td>
+                                <td class="text-center fw-bold {% if p.ortg >= 110 %}text-success{% elif p.ortg <= 90 %}text-danger{% endif %}">{{ "%.1f"|format(p.ortg) }}</td>
+                                <td class="text-center">{{ "%.2f"|format(p.ppp) }}</td>
+                                <td class="text-center text-info">{{ "%.1f"|format(p.ts_pct) }}%</td>
+                                <td class="text-center">{{ "%.1f"|format(p.efg_pct) }}%</td>
+                                <td class="text-center">{{ "%.1f"|format(p.ast_tov_ratio) }}</td>
+                                <td class="text-center">{{ "%.1f"|format(p.game_score) }}</td>
+                                <td class="text-center">{{ "%.1f"|format(p.fta_pct) }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Analytics -->
+        <div class="tab-pane fade" id="analytics" role="tabpanel">
+            <div class="row g-4">
+                <!-- Four Factors -->
+                <div class="col-md-6">
+                    <div class="stat-card">
+                        <h6 class="text-uppercase text-muted mb-4 fw-bold letter-spacing-1">Four Factors</h6>
+                        <div class="row text-center g-3">
+                            <div class="col-6">
+                                <div class="h2 mb-0 fw-bold text-primary">{{ "%.1f"|format(advanced.efg_pct) }}%</div>
+                                <div class="small text-muted">eFG%</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="h2 mb-0 fw-bold text-success">{{ "%.1f"|format(advanced.tov_pct) }}%</div>
+                                <div class="small text-muted">TOV%</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="h2 mb-0 fw-bold text-info">{{ "%.1f"|format(advanced.oreb_pct) }}%</div>
+                                <div class="small text-muted">OREB%</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="h2 mb-0 fw-bold text-warning">{{ "%.1f"|format(advanced.ft_rate) }}</div>
+                                <div class="small text-muted">FT Rate</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Possession Stats -->
+                <div class="col-md-6">
+                    <div class="stat-card">
+                        <h6 class="text-uppercase text-muted mb-4 fw-bold letter-spacing-1">Possession Metrics</h6>
+                        <div class="d-flex justify-content-between align-items-end mb-3 border-bottom pb-3">
+                            <div>
+                                <div class="small text-muted text-uppercase">Pace</div>
+                                <div class="h3 mb-0 fw-bold">{{ "%.1f"|format(advanced.pace|default(0)) }}</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted text-uppercase">Possessions</div>
+                                <div class="h3 mb-0 fw-bold">{{ "%.1f"|format(advanced.possessions) }}</div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-end">
+                            <div>
+                                <div class="small text-muted text-uppercase">Off Rating</div>
+                                <div class="h3 mb-0 fw-bold text-success">{{ "%.1f"|format(advanced.ortg) }}</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted text-uppercase">Def Rating</div>
+                                <div class="h3 mb-0 fw-bold text-danger">{{ "%.1f"|format(advanced.drtg) }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shot Distribution -->
+                <div class="col-12">
+                    <div class="stat-card">
+                        <h6 class="text-uppercase text-muted mb-4 fw-bold letter-spacing-1">Scoring Distribution</h6>
+                        <div class="progress" style="height: 30px; border-radius: 8px;">
+                            {% set total_pts = game.team_score %}
+                            {% set p2 = (team_stats.fgm - team_stats.tpm) * 2 %}
+                            {% set p3 = team_stats.tpm * 3 %}
+                            {% set ft = team_stats.ftm %}
+                            
+                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ (p2/total_pts*100)|round }}%">
+                                2PT ({{ (p2/total_pts*100)|round }}%)
+                            </div>
+                            <div class="progress-bar bg-info" role="progressbar" style="width: {{ (p3/total_pts*100)|round }}%">
+                                3PT ({{ (p3/total_pts*100)|round }}%)
+                            </div>
+                            <div class="progress-bar bg-warning text-dark" role="progressbar" style="width: {{ (ft/total_pts*100)|round }}%">
+                                FT ({{ (ft/total_pts*100)|round }}%)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 4: Shot Chart -->
+        {% if shot_events %}
+        <div class="tab-pane fade" id="shots" role="tabpanel">
+            <div class="text-center py-3">
+                <h6 class="text-uppercase text-muted fw-bold mb-3">Field Goal Locations</h6>
+                
+                <div class="shot-chart-wrapper">
+                    <!-- Half Court SVG Background -->
+                    <!-- Aspect ratio roughly 500:470 -->
+                    <svg viewBox="0 0 500 470" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; background: #e0d4c5; display: block;">
+                         <!-- Key Area -->
+                         <rect x="170" y="0" width="160" height="190" fill="none" stroke="#fff" stroke-width="2"/>
+                         <!-- Hoop -->
+                         <circle cx="250" cy="47.5" r="7.5" fill="none" stroke="#ec9c3d" stroke-width="2"/>
+                         <!-- Backboard -->
+                         <line x1="220" y1="40" x2="280" y2="40" stroke="#fff" stroke-width="2"/>
+                         <!-- 3PT Line (simplified arc for viz) -->
+                         <!-- For visualization, a simple path is enough to give context -->
+                         <path d="M 30,0 L 30,140 A 237.5 237.5 0 0 0 470 140 L 470,0" fill="none" stroke="#fff" stroke-width="2"/>
+                         <!-- Center Circle -->
+                         <circle cx="250" cy="470" r="60" fill="none" stroke="#fff" stroke-width="2"/>
+                         <!-- Free Throw Circle -->
+                         <circle cx="250" cy="190" r="60" fill="none" stroke="#fff" stroke-width="2"/>
+                    </svg>
+                    
+                    <!-- Shot Layer -->
+                    <div id="shot-layer">
+                        {% for shot in shot_events %}
+                            {% if shot.x_loc is not none and shot.y_loc is not none %}
+                            <div class="shot-point {{ 'shot-made' if shot.result == 'made' else 'shot-missed' }}"
+                                 style="left: {{ shot.x_loc }}%; top: {{ shot.y_loc }}%;"
+                                 data-player="{{ shot.player_name }}"
+                                 data-type="{{ shot.shot_type }}"
+                                 data-pts="{{ shot.points }}"
+                                 data-res="{{ shot.result }}">
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <span class="badge bg-success me-2">● Made</span>
+                    <span class="badge bg-danger">● Missed</span>
+                </div>
+            </div>
+            
+            <!-- Shot Tooltip -->
+            <div id="shot-tooltip" class="shot-tooltip"></div>
+        </div>
+        {% endif %}
+
     </div>
 </div>
 
-<!-- Global Fixed Tooltip -->
-<div id="global-tooltip"></div>
-
 <script>
-    function switchTab(tabName) {
-        // Hide all tabs
-        document.querySelectorAll(".tab-content").forEach((tab) => {
-            tab.style.display = "none";
-        });
-        // Deactivate all buttons
-        document.querySelectorAll(".tab-btn").forEach((btn) => {
-            btn.style.borderBottomColor = "transparent";
-            btn.style.color = "var(--text-muted)";
-            btn.classList.remove("active");
-        });
-
-        // Show selected tab
-        document.getElementById(tabName).style.display = "block";
+    document.addEventListener('DOMContentLoaded', function() {
+        // Simple JS for Shot Tooltip
+        const tooltip = document.getElementById('shot-tooltip');
+        const points = document.querySelectorAll('.shot-point');
         
-        // Activate button
-        const btn = event.target;
-        btn.classList.add("active");
-        btn.style.borderBottomColor = "var(--primary)";
-        btn.style.color = "var(--primary)";
-    }
-
-    /* JavaScript-based Fixed Tooltip Logic */
-    document.addEventListener("DOMContentLoaded", () => {
-        const tooltip = document.getElementById('global-tooltip');
-        const headers = document.querySelectorAll('th[data-title]');
-
-        headers.forEach(header => {
-            header.addEventListener('mouseenter', (e) => {
-                const title = header.getAttribute('data-title');
-                const desc = header.getAttribute('data-desc');
-                const formula = header.getAttribute('data-formula');
-
-                let html = `<div class="tt-title">${title}</div><div class="tt-desc">${desc}</div>`;
-                if (formula) {
-                    html += `<div class="tt-formula">${formula}</div>`;
-                }
-                tooltip.innerHTML = html;
-                tooltip.classList.add('visible');
-
-                positionTooltip(e, tooltip);
+        points.forEach(pt => {
+            pt.addEventListener('mouseenter', (e) => {
+                const player = pt.getAttribute('data-player');
+                const type = pt.getAttribute('data-type');
+                const res = pt.getAttribute('data-res');
+                
+                tooltip.innerHTML = `<strong>${player}</strong><br>${type.toUpperCase()} - ${res.toUpperCase()}`;
+                tooltip.style.display = 'block';
+                
+                // Position relative to viewport or parent? 
+                // Simple follow mouse
+                moveTooltip(e);
             });
-
-            header.addEventListener('mousemove', (e) => {
-                positionTooltip(e, tooltip);
-            });
-
-            header.addEventListener('mouseleave', () => {
-                tooltip.classList.remove('visible');
+            
+            pt.addEventListener('mousemove', moveTooltip);
+            
+            pt.addEventListener('mouseleave', () => {
+                tooltip.style.display = 'none';
             });
         });
-
-        function positionTooltip(e, tooltipEl) {
-            const offset = 15;
-            let left = e.clientX + offset;
-            let top = e.clientY + offset;
-
-            const ttRect = tooltipEl.getBoundingClientRect();
-            if (left + ttRect.width > window.innerWidth) {
-                left = e.clientX - ttRect.width - offset;
-            }
-            if (top + ttRect.height > window.innerHeight) {
-                top = e.clientY - ttRect.height - offset;
-            }
-
-            tooltipEl.style.left = left + 'px';
-            tooltipEl.style.top = top + 'px';
+        
+        function moveTooltip(e) {
+            tooltip.style.left = (e.pageX + 10) + 'px';
+            tooltip.style.top = (e.pageY + 10) + 'px';
         }
     });
 </script>

@@ -33,6 +33,7 @@ class Game(db.Model):
     result = db.Column(db.String(1), nullable=False)
     game_type = db.Column(db.String(20), nullable=False)
     sort_date = db.Column(db.String(10), nullable=False)
+    source = db.Column(db.String(20), default="IMPORT") # LIVE, IMPORT, MANUAL
 
     @property
     def score_display(self):
@@ -63,6 +64,34 @@ class PlayerStat(db.Model):
     blk = db.Column(db.Integer, default=0)
     tov = db.Column(db.Integer, default=0)
     pf = db.Column(db.Integer, default=0)
+    plus_minus = db.Column(db.Integer, default=0) # +/- Stat
     
     # Relationship to Game
     game = db.relationship("Game", backref=db.backref("stats", lazy=True))
+
+
+class ShotEvent(db.Model):
+    __tablename__ = "shot_events"
+    id = db.Column(db.Integer, primary_key=True)
+    game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=False)
+    player_name = db.Column(db.String(100))
+    shot_type = db.Column(db.String(10)) # 2pt, 3pt, ft
+    result = db.Column(db.String(10)) # made, missed
+    points = db.Column(db.Integer, default=0)
+    x_loc = db.Column(db.Float, nullable=True) # Normalized 0-500
+    y_loc = db.Column(db.Float, nullable=True) # Normalized 0-470
+    quarter = db.Column(db.Integer)
+    
+    game = db.relationship("Game", backref=db.backref("shots", lazy=True))
+
+
+class GameEvent(db.Model):
+    __tablename__ = "game_events"
+    id = db.Column(db.Integer, primary_key=True)
+    game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=False)
+    event_type = db.Column(db.String(50)) # SUB_IN, SUB_OUT, OPP_SCORE
+    player_name = db.Column(db.String(100), nullable=True)
+    detail = db.Column(db.String(255), nullable=True) # e.g. amount of points for opp score
+    timestamp = db.Column(db.Integer, default=0) # generic ordering index
+    
+    game = db.relationship("Game", backref=db.backref("events", lazy=True))

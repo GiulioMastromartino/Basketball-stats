@@ -3,13 +3,14 @@ import statistics
 from pathlib import Path
 from werkzeug.utils import secure_filename
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_required
 from sqlalchemy import func
 
-from core.models import Game, PlayerStat, db
+from core.models import Game, PlayerStat, ShotEvent, db
 from core.csv_processor import CSVProcessor
 from core.parser import parse_game_pdf
+from core.services import create_game_from_live_data
 from core.utils import (
     FT_ATTEMPT_WEIGHT,
     THREE_POINT_WEIGHT,
@@ -24,6 +25,7 @@ from core.utils import (
     calculate_two_point_stats,
     parse_minutes,
     safe_percentage,
+    normalize_date_to_display,
 )
 
 main_bp = Blueprint("main", __name__)
@@ -34,21 +36,6 @@ ALLOWED_EXTENSIONS = {"csv", "pdf"}
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-def normalize_date_to_display(date_str: str) -> str:
-    """Return DD/MM/YYYY."""
-    if not date_str:
-        return ""
-    date_str = date_str.strip()
-    date_str = date_str.replace("-", "/")
-    parts = date_str.split("/")
-    if len(parts) != 3:
-        return ""
-    day, month, year = parts
-    if len(year) == 2:
-        year = f"20{year}"
-    return f"{int(day):02d}/{int(month):02d}/{int(year):04d}"
 
 
 def normalize_date_to_sort(date_str: str) -> str:
@@ -87,6 +74,36 @@ def index():
 def glossary():
     """Stats glossary page"""
     return render_template("glossary.html")
+
+
+@main_bp.route("/live-game")
+@login_required
+def live_game():
+    """Interface for live game stat tracking"""
+    # Fetch existing player names for easy selection
+    existing_players = [r[0] for r in db.session.query(PlayerStat.player_name).distinct().order_by(PlayerStat.player_name).all()]
+    from datetime import datetime
+    now_date = datetime.now().strftime("%Y-%m-%d")
+    return render_template("live_game.html", existing_players=existing_players, now_date=now_date)
+
+
+@main_bp.route("/live-game/save", methods=["POST"])
+@login_required
+def save_live_game():
+    """Receive JSON data from live tracker and save to DB"""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"error": "No data received"}), 400
+
+    try:
+        game = create_game_from_live_data(data)
+        return jsonify({"success": True, "game_id": game.id})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Live game save error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 
 @main_bp.route("/upload-game", methods=["GET", "POST"])
@@ -148,6 +165,7 @@ def upload_game():
                     result=game_data["result"],
                     game_type=game_data["game_type"],
                     sort_date=game_data["sort_date"],
+                    source="IMPORT",
                 )
                 db.session.add(game)
                 db.session.flush()
@@ -178,6 +196,7 @@ def upload_game():
                         stl=player["stl"],
                         blk=player["blk"],
                         pf=player["pf"],
+                        plus_minus=int(player.get("plus_minus", 0) or 0),
                     )
                     db.session.add(stat)
 
@@ -260,6 +279,7 @@ def upload_game():
                 result=result,
                 game_type=game_type,
                 sort_date=sort_date,
+                source="IMPORT",
             )
             db.session.add(game)
             db.session.flush()
@@ -290,6 +310,7 @@ def upload_game():
                     stl=int(player.get("stl", 0) or 0),
                     blk=int(player.get("blk", 0) or 0),
                     pf=int(player.get("pf", 0) or 0),
+                    plus_minus=int(player.get("plus_minus", 0) or 0),
                 )
                 db.session.add(stat)
 
@@ -323,6 +344,9 @@ def game_detail(game_id):
         .order_by(PlayerStat.points.desc())
         .all()
     )
+
+    # Fetch shot events for this game if available
+    shot_events = ShotEvent.query.filter_by(game_id=game.id).all()
 
     team_possessions = sum(
         calculate_possessions(p.fga, p.fta, p.oreb, p.tov) for p in stats
@@ -379,7 +403,53 @@ def game_detail(game_id):
         p.oreb_pct = safe_percentage(p.oreb, p.reb)
         p.foul_trouble = p.pf >= 3
 
-    return render_template("game_detail.html", game=game, stats=stats)
+    # --- Team totals + advanced ---
+    team_stats = {
+        "points": sum(p.points for p in stats),
+        "fgm": sum(p.fgm for p in stats),
+        "fga": sum(p.fga for p in stats),
+        "tpm": sum(p.tpm for p in stats),
+        "tpa": sum(p.tpa for p in stats),
+        "ftm": sum(p.ftm for p in stats),
+        "fta": sum(p.fta for p in stats),
+        "oreb": sum(p.oreb for p in stats),
+        "dreb": sum(p.dreb for p in stats),
+        "reb": sum(p.reb for p in stats),
+        "ast": sum(p.ast for p in stats),
+        "tov": sum(p.tov for p in stats),
+        "stl": sum(p.stl for p in stats),
+        "blk": sum(p.blk for p in stats),
+        "pf": sum(p.pf for p in stats),
+    }
+
+    team_poss = calculate_possessions(team_stats["fga"], team_stats["fta"], team_stats["oreb"], team_stats["tov"])
+    if team_poss <= 0:
+        # fallback to summed player possessions if the team formula yields 0
+        team_poss = team_possessions
+
+    efg = calculate_efg_percent(team_stats["fgm"], team_stats["tpm"], team_stats["fga"])
+    ortg = calculate_ortg(game.team_score, team_poss)
+    drtg = calculate_ortg(game.opponent_score, team_poss)
+
+    advanced = {
+        "possessions": round(team_poss, 1),
+        "efg_pct": round(efg, 1),
+        "ts_pct": round(calculate_ts_percent(team_stats["points"], team_stats["fga"], team_stats["fta"]), 1),
+        "tov_pct": round(safe_percentage(team_stats["tov"], team_poss), 1),
+        "ft_rate": round(safe_percentage(team_stats["fta"], team_stats["fga"]), 1),
+        "oreb_pct": round(safe_percentage(team_stats["oreb"], team_stats["reb"]), 1),
+        "ortg": round(ortg, 0),
+        "drtg": round(drtg, 0),
+    }
+
+    return render_template(
+        "game_detail.html",
+        game=game,
+        stats=stats,
+        shot_events=shot_events,
+        team_stats=team_stats,
+        advanced=advanced,
+    )
 
 
 @main_bp.route("/game/<int:game_id>/delete", methods=["POST"])
@@ -391,6 +461,12 @@ def delete_game(game_id):
     try:
         # Delete player stats first (avoid FK issues)
         PlayerStat.query.filter_by(game_id=game.id).delete()
+        # Delete shot events
+        ShotEvent.query.filter_by(game_id=game.id).delete()
+        # Delete game events (future proof)
+        from core.models import GameEvent
+        GameEvent.query.filter_by(game_id=game.id).delete()
+        
         db.session.delete(game)
         db.session.commit()
         flash(f"Deleted game: {game.opponent} on {game.date}", "success")
@@ -441,6 +517,13 @@ def player_detail(player_name):
         flash(f"No stats found for {player_name}", "warning")
         return redirect(url_for("main.players"))
 
+    # Get shot events for this player in these games
+    shot_events = (
+        ShotEvent.query.filter(ShotEvent.player_name == player_name)
+        .filter(ShotEvent.game_id.in_(target_game_ids))
+        .all()
+    )
+
     # Calculate aggregate stats
     gp = len(player_stats)
     total_minutes = sum(parse_minutes(s.minutes) for s in player_stats)
@@ -461,6 +544,7 @@ def player_detail(player_name):
         "tpa": sum(s.tpa for s in player_stats),
         "ftm": sum(s.ftm for s in player_stats),
         "fta": sum(s.fta for s in player_stats),
+        "plus_minus": sum((s.plus_minus or 0) for s in player_stats),
     }
 
     # Calculate advanced metrics
@@ -491,6 +575,7 @@ def player_detail(player_name):
         "bpg": totals["blk"] / gp,
         "topg": totals["tov"] / gp,
         "pfpg": totals["pf"] / gp,
+        "pm": totals["plus_minus"] / gp if gp > 0 else 0,  # Changed from plus_minus to pm
         "eff": calculate_efficiency(
             totals["points"],
             totals["reb"],
@@ -588,6 +673,7 @@ def player_detail(player_name):
         game_type=game_type,
         two_pt_made=two_pt_stats["two_pt_made"],
         two_pt_att=two_pt_stats["two_pt_att"],
+        shot_events=shot_events,
     )
 
 
@@ -639,6 +725,7 @@ def players():
         db.session.query(
             PlayerStat.player_name,
             func.count(PlayerStat.id).label("games_played"),
+            func.sum(PlayerStat.id).label("total_id"),
             func.sum(PlayerStat.points).label("total_points"),
             func.sum(PlayerStat.reb).label("total_reb"),
             func.sum(PlayerStat.oreb).label("total_oreb"),
@@ -654,6 +741,7 @@ def players():
             func.sum(PlayerStat.tpa).label("total_tpa"),
             func.sum(PlayerStat.ftm).label("total_ftm"),
             func.sum(PlayerStat.fta).label("total_fta"),
+            func.sum(PlayerStat.plus_minus).label("total_plus_minus"),
         )
         .filter(PlayerStat.game_id.in_(target_game_ids))
         .filter(PlayerStat.minutes != "00:00")
@@ -711,12 +799,16 @@ def players():
             mean_ppg = statistics.mean(game_ppgs)
             consistency = (std_dev / mean_ppg) if mean_ppg > 0 else 0
 
+        total_pm = row.total_plus_minus or 0
+
         players_data.append(
             {
                 "player_name": row.player_name,
                 "games_played": gp,
                 "mpg": total_minutes / gp if gp > 0 else 0,
                 "ppg": row.total_points / gp if gp > 0 else 0,
+                "plus_minus_avg": (total_pm / gp) if gp > 0 else 0,
+                "plus_minus_total": total_pm,
                 "rpg": row.total_reb / gp if gp > 0 else 0,
                 "orebpg": row.total_oreb / gp if gp > 0 else 0,
                 "drebpg": row.total_dreb / gp if gp > 0 else 0,

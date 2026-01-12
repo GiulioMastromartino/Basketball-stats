@@ -172,9 +172,12 @@
       margin: 15px 0;
     }
 
+    /* UPDATED: Uses width:100% instead of max-width to allow upscaling while maintaining aspect ratio */
     .chart-container img {
-      max-width: 100%;
+      width: 100%;
       height: auto;
+      max-height: 16cm;
+      object-fit: contain;
     }
 
     .two-column {
@@ -182,6 +185,16 @@
       grid-template-columns: 1fr 1fr;
       gap: 10px;
       margin: 10px 0;
+    }
+
+    .pm-pos {
+      color: #28a745;
+      font-weight: bold;
+    }
+
+    .pm-neg {
+      color: #dc3545;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -370,7 +383,125 @@
 
   <div class="page-break"></div>
 
-  <!-- PAGE 3: OPPONENT ANALYSIS -->
+  <!-- PAGE 3: SHOOTING ANALYSIS & CHART -->
+  <div class="page">
+    <h1>🎯 Team Shooting Analysis</h1>
+
+    <h2>Season Shooting Averages</h2>
+    {% if team_shooting %}
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">FG%</div>
+        <div class="stat-value">{{ "%.1f"|format(team_shooting.fg_pct) }}%</div>
+        <div class="note">{{ team_shooting.fgm }}-{{ team_shooting.fga }} per game</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">2PT%</div>
+        <div class="stat-value">{{ "%.1f"|format(team_shooting.two_pt_pct) }}%</div>
+        <div class="note">{{ team_shooting.two_pt_made }}-{{ team_shooting.two_pt_att }} per game</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">3PT%</div>
+        <div class="stat-value">{{ "%.1f"|format(team_shooting.three_pt_pct) }}%</div>
+        <div class="note">{{ team_shooting.tpm }}-{{ team_shooting.tpa }} per game</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">FT%</div>
+        <div class="stat-value">{{ "%.1f"|format(team_shooting.ft_pct) }}%</div>
+        <div class="note">{{ team_shooting.ftm }}-{{ team_shooting.fta }} per game</div>
+      </div>
+    </div>
+
+    <div class="two-column" style="margin-top: 15px;">
+      <div class="stat-card">
+        <div class="stat-label">True Shooting %</div>
+        <div class="stat-value" style="font-size: 22px;">{{ "%.1f"|format(team_shooting.ts_pct) }}%</div>
+        <div class="note">Accounts for 2PT, 3PT, and FT efficiency</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Effective FG%</div>
+        <div class="stat-value" style="font-size: 22px;">{{ "%.1f"|format(team_shooting.efg_pct) }}%</div>
+        <div class="note">Adjusted for 3PT value</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if chart_shooting %}
+    <h2 style="margin-top: 25px;">Team Shot Chart</h2>
+    <div class="chart-container">
+      <img src="data:image/png;base64,{{ chart_shooting }}" alt="Team Shot Chart">
+    </div>
+    <p class="note" style="text-align: center; margin-top: 8px;">
+      * Chart shows all team field goal attempts across the season with location data.
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- PAGE 4: PLUS/MINUS ANALYSIS -->
+  <div class="page">
+    <h1>📈 Plus/Minus Analysis</h1>
+
+    {% if plus_minus_leaders %}
+    <h2>Season +/- Leaders (LIVE Games Only)</h2>
+    <table>
+      <tr>
+        <th>Rank</th>
+        <th>Player</th>
+        <th>Games (LIVE)</th>
+        <th>Total +/-</th>
+        <th>Avg +/-</th>
+        <th>Impact</th>
+      </tr>
+      {% for player in plus_minus_leaders %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ player.player }}</td>
+        <td>{{ player.games }}</td>
+        <td class="{% if player.total_pm > 0 %}pm-pos{% elif player.total_pm < 0 %}pm-neg{% endif %}">
+          {{ "%+d"|format(player.total_pm) }}
+        </td>
+        <td class="{% if player.avg_pm > 0 %}pm-pos{% elif player.avg_pm < 0 %}pm-neg{% endif %}">
+          {{ "%+.1f"|format(player.avg_pm) }}
+        </td>
+        <td>
+          {% if player.avg_pm >= 5 %}
+            ⭐ Elite Impact
+          {% elif player.avg_pm >= 2 %}
+            ✅ Positive
+          {% elif player.avg_pm >= -2 %}
+            ➡️ Neutral
+          {% else %}
+            ⚠️ Negative
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <div class="section-box" style="margin-top: 15px;">
+      <h3>Understanding Plus/Minus</h3>
+      <p style="margin: 8px 0; line-height: 1.6;">
+        <strong>Plus/Minus (+/-)</strong> measures the point differential when a player is on the court. 
+        A positive number indicates the team outscored opponents, while a negative number shows the team was outscored.
+      </p>
+      <p class="note" style="margin-top: 8px;">
+        * Only includes data from LIVE games where +/- tracking was active. CSV-imported games are excluded to ensure accuracy.
+      </p>
+    </div>
+    {% else %}
+    <div class="section-box">
+      <p style="text-align: center; color: #666; font-style: italic; padding: 20px;">
+        No Plus/Minus data available. This metric is only tracked for LIVE games.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- PAGE 5: OPPONENT ANALYSIS -->
   <div class="page">
     <h1>Opponent Analysis</h1>
 
@@ -388,10 +519,16 @@
       <tr>
         <td>{{ opp.opponent }}</td>
         <td>{{ opp.games }}</td>
-        <td class="{% if opp.win_pct > 50 %}win{% else %}loss{% endif %}">{{ opp.record }}</td>
-        <td>{{ "%.1f"|format(opp.win_pct) }}%</td>
-        <td>{{ "%.1f"|format(opp.ppg) }}</td>
-        <td>{{ "%.1f"|format(opp.opp_ppg) }}</td>
+        <td class="{% if opp.wins and opp.games and (opp.wins / opp.games * 100) > 50 %}win{% else %}loss{% endif %}">{{ opp.wins }}-{{ opp.losses }}</td>
+        <td>
+          {% if opp.games and opp.games > 0 %}
+             {{ "%.1f"|format((opp.wins / opp.games) * 100) }}%
+          {% else %}
+             0.0%
+          {% endif %}
+        </td>
+        <td>{{ "%.1f"|format(opp.pf / opp.games if opp.games > 0 else 0) }}</td>
+        <td>{{ "%.1f"|format(opp.pa / opp.games if opp.games > 0 else 0) }}</td>
       </tr>
       {% endfor %}
     </table>
@@ -403,134 +540,7 @@
 
   <div class="page-break"></div>
 
-  <!-- PAGE 4: HOME/AWAY SPLITS -->
-  <div class="page">
-    <h1>Home/Away Analysis</h1>
-
-    <h2>Location-Based Performance</h2>
-    
-    {% if home_away_splits.home %}
-    <div class="section-box">
-      <h3>🏠 Home Games</h3>
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-label">Record</div>
-          <div class="stat-value" style="font-size: 16px;">{{ home_away_splits.home.record }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Win %</div>
-          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.home.win_pct) }}%</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Team PPG</div>
-          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.home.ppg) }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Opp PPG</div>
-          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.home.opp_ppg) }}</div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if home_away_splits.away %}
-    <div class="section-box">
-      <h3>✈️ Away Games</h3>
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-label">Record</div>
-          <div class="stat-value" style="font-size: 16px;">{{ home_away_splits.away.record }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Win %</div>
-          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.away.win_pct) }}%</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Team PPG</div>
-          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.away.ppg) }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Opp PPG</div>
-          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.away.opp_ppg) }}</div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if home_away_splits.neutral %}
-    <div class="section-box">
-      <h3>🏟️ Neutral Site Games</h3>
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-label">Record</div>
-          <div class="stat-value" style="font-size: 16px;">{{ home_away_splits.neutral.record }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Win %</div>
-          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.neutral.win_pct) }}%</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Team PPG</div>
-          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.neutral.ppg) }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Opp PPG</div>
-          <div class="stat-value" style="font-size: 16px;">{{ "%.1f"|format(home_away_splits.neutral.opp_ppg) }}</div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    <h2>Comparison Table</h2>
-    <table>
-      <tr>
-        <th>Location</th>
-        <th>Record</th>
-        <th>Win %</th>
-        <th>Team PPG</th>
-        <th>Opp PPG</th>
-        <th>Differential</th>
-      </tr>
-      {% if home_away_splits.home %}
-      <tr>
-        <td>Home</td>
-        <td class="{% if home_away_splits.home.win_pct > 50 %}win{% endif %}">{{ home_away_splits.home.record }}</td>
-        <td>{{ "%.1f"|format(home_away_splits.home.win_pct) }}%</td>
-        <td>{{ "%.1f"|format(home_away_splits.home.ppg) }}</td>
-        <td>{{ "%.1f"|format(home_away_splits.home.opp_ppg) }}</td>
-        <td class="{% if home_away_splits.home.diff > 0 %}win{% else %}loss{% endif %}">{{ "%+.1f"|format(home_away_splits.home.diff) }}</td>
-      </tr>
-      {% endif %}
-      {% if home_away_splits.away %}
-      <tr>
-        <td>Away</td>
-        <td class="{% if home_away_splits.away.win_pct > 50 %}win{% endif %}">{{ home_away_splits.away.record }}</td>
-        <td>{{ "%.1f"|format(home_away_splits.away.win_pct) }}%</td>
-        <td>{{ "%.1f"|format(home_away_splits.away.ppg) }}</td>
-        <td>{{ "%.1f"|format(home_away_splits.away.opp_ppg) }}</td>
-        <td class="{% if home_away_splits.away.diff > 0 %}win{% else %}loss{% endif %}">{{ "%+.1f"|format(home_away_splits.away.diff) }}</td>
-      </tr>
-      {% endif %}
-      {% if home_away_splits.neutral %}
-      <tr>
-        <td>Neutral</td>
-        <td class="{% if home_away_splits.neutral.win_pct > 50 %}win{% endif %}">{{ home_away_splits.neutral.record }}</td>
-        <td>{{ "%.1f"|format(home_away_splits.neutral.win_pct) }}%</td>
-        <td>{{ "%.1f"|format(home_away_splits.neutral.ppg) }}</td>
-        <td>{{ "%.1f"|format(home_away_splits.neutral.opp_ppg) }}</td>
-        <td class="{% if home_away_splits.neutral.diff > 0 %}win{% else %}loss{% endif %}">{{ "%+.1f"|format(home_away_splits.neutral.diff) }}</td>
-      </tr>
-      {% endif %}
-    </table>
-
-    <p class="note" style="margin-top: 10px;">
-      * Differential shows average point margin per game at each location.
-    </p>
-  </div>
-
-  <div class="page-break"></div>
-
-  <!-- PAGE 5: GAME-BY-GAME RESULTS -->
+  <!-- PAGE 6: GAME-BY-GAME RESULTS -->
   <div class="page">
     <h1>Game-by-Game Results</h1>
 
@@ -546,7 +556,6 @@
           <th>Team Score</th>
           <th>Opp Score</th>
           <th>Diff</th>
-          <th>Location</th>
         </tr>
       </thead>
       <tbody>
@@ -562,7 +571,6 @@
           <td class="{% if game.team_score > game.opponent_score %}win{% else %}loss{% endif %}">
             {{ "%+d"|format(game.team_score - game.opponent_score) }}
           </td>
-          <td>{{ game.location }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -575,7 +583,7 @@
 
   <div class="page-break"></div>
 
-  <!-- PAGE 6: TRENDS & INSIGHTS -->
+  <!-- PAGE 7: TRENDS & INSIGHTS -->
   <div class="page">
     <h1>Season Trends & Insights</h1>
 

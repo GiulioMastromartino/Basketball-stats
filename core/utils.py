@@ -1,6 +1,7 @@
 """
 Shared utility functions for basketball statistics calculations
 """
+from statistics import mean
 
 FT_ATTEMPT_WEIGHT = 0.44
 THREE_POINT_WEIGHT = 0.5
@@ -130,3 +131,104 @@ def normalize_per_100_possessions(value, possessions):
 def calculate_per_100_minutes(value, minutes):
     """Normalize stat to per 100 minutes"""
     return safe_divide(value * 100, minutes)
+
+
+def normalize_date_to_display(date_str: str) -> str:
+    """Return DD/MM/YYYY."""
+    if not date_str:
+        return ""
+    date_str = date_str.strip()
+    date_str = date_str.replace("-", "/")
+    parts = date_str.split("/")
+    if len(parts) != 3:
+        return ""
+    day, month, year = parts
+    if len(year) == 2:
+        year = f"20{year}"
+    return f"{int(day):02d}/{int(month):02d}/{int(year):04d}"
+
+def get_player_stats_averages(stats):
+    """
+    Calculate average statistics for a list of PlayerStat objects.
+    Returns a dictionary of averages with per-game naming (ppg, rpg, apg, etc.).
+    """
+    if not stats:
+        return {
+            "points": 0, "ppg": 0, "minutes": 0, "mpg": 0,
+            "reb": 0, "rpg": 0, "ast": 0, "apg": 0,
+            "fgm": 0, "fga": 0, "fg_percent": 0,
+            "tpm": 0, "tpa": 0, "tp_percent": 0,
+            "ftm": 0, "fta": 0, "ft_percent": 0,
+            "oreb": 0, "dreb": 0,
+            "stl": 0, "spg": 0, "blk": 0, "bpg": 0, 
+            "tov": 0, "topg": 0, "pf": 0, "pfpg": 0,
+            "pm": 0, "games_played": 0
+        }
+    
+    count = len(stats)
+    
+    # Calculate simple totals
+    total_points = sum(s.points for s in stats)
+    total_minutes = sum(parse_minutes(s.minutes) for s in stats)
+    total_reb = sum(s.reb for s in stats)
+    total_ast = sum(s.ast for s in stats)
+    total_fgm = sum(s.fgm for s in stats)
+    total_fga = sum(s.fga for s in stats)
+    total_tpm = sum(s.tpm for s in stats)
+    total_tpa = sum(s.tpa for s in stats)
+    total_ftm = sum(s.ftm for s in stats)
+    total_fta = sum(s.fta for s in stats)
+    total_oreb = sum(s.oreb for s in stats)
+    total_dreb = sum(s.dreb for s in stats)
+    total_stl = sum(s.stl for s in stats)
+    total_blk = sum(s.blk for s in stats)
+    total_tov = sum(s.tov for s in stats)
+    total_pf = sum(s.pf for s in stats)
+    # Handle potentially missing plus_minus attribute safely
+    total_pm = sum(getattr(s, 'plus_minus', 0) for s in stats)
+
+    avg_points = round(total_points / count, 1)
+    avg_minutes = round(total_minutes / count, 1)
+    avg_reb = round(total_reb / count, 1)
+    avg_ast = round(total_ast / count, 1)
+    avg_stl = round(total_stl / count, 1)
+    avg_blk = round(total_blk / count, 1)
+    avg_tov = round(total_tov / count, 1)
+    avg_pf = round(total_pf / count, 1)
+    avg_pm = round(total_pm / count, 1)
+
+    return {
+        # Totals (used for calculations)
+        "points": avg_points,
+        "minutes": avg_minutes,
+        "reb": avg_reb,
+        "ast": avg_ast,
+        "fgm": round(total_fgm / count, 1),
+        "fga": round(total_fga / count, 1),
+        "fg_percent": safe_percentage(total_fgm, total_fga),
+        "tpm": round(total_tpm / count, 1),
+        "tpa": round(total_tpa / count, 1),
+        "tp_percent": safe_percentage(total_tpm, total_tpa),
+        "ftm": round(total_ftm / count, 1),
+        "fta": round(total_fta / count, 1),
+        "ft_percent": safe_percentage(total_ftm, total_fta),
+        "oreb": round(total_oreb / count, 1),
+        "dreb": round(total_dreb / count, 1),
+        "stl": avg_stl,
+        "blk": avg_blk,
+        "tov": avg_tov,
+        "pf": avg_pf,
+        "pm": avg_pm,
+        
+        # Per-game aliases (for template compatibility)
+        "ppg": avg_points,
+        "mpg": avg_minutes,
+        "rpg": avg_reb,
+        "apg": avg_ast,
+        "spg": avg_stl,
+        "bpg": avg_blk,
+        "topg": avg_tov,
+        "pfpg": avg_pf,
+        
+        "games_played": count
+    }

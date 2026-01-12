@@ -719,13 +719,12 @@ tr:hover td {
   border-bottom-color: var(--primary);
 }
 
+/* IMPORTANT:
+   Bootstrap uses `.tab-content` as a visible container. Hiding it makes pages look blank.
+   Keep it visible; Bootstrap controls visibility via `.tab-pane`.
+*/
 .tab-content {
-  display: none;
-}
-
-.tab-content.active {
   display: block;
-  animation: fadeIn 0.3s ease;
 }
 
 @keyframes fadeIn {
