@@ -388,10 +388,16 @@
       <tr>
         <td>{{ opp.opponent }}</td>
         <td>{{ opp.games }}</td>
-        <td class="{% if opp.win_pct > 50 %}win{% else %}loss{% endif %}">{{ opp.record }}</td>
-        <td>{{ "%.1f"|format(opp.win_pct) }}%</td>
-        <td>{{ "%.1f"|format(opp.ppg) }}</td>
-        <td>{{ "%.1f"|format(opp.opp_ppg) }}</td>
+        <td class="{% if opp.wins and opp.games and (opp.wins / opp.games * 100) > 50 %}win{% else %}loss{% endif %}">{{ opp.wins }}-{{ opp.losses }}</td>
+        <td>
+          {% if opp.games and opp.games > 0 %}
+             {{ "%.1f"|format((opp.wins / opp.games) * 100) }}%
+          {% else %}
+             0.0%
+          {% endif %}
+        </td>
+        <td>{{ "%.1f"|format(opp.pf / opp.games if opp.games > 0 else 0) }}</td>
+        <td>{{ "%.1f"|format(opp.pa / opp.games if opp.games > 0 else 0) }}</td>
       </tr>
       {% endfor %}
     </table>
