@@ -17,8 +17,8 @@ class GameTracker {
         // Timer State
         this.timerInterval = null;
         this.quarter = 1;
-        this.clockSeconds = 0; // Quarter timer
-        this.gameSeconds = 0;  // Total game timer
+        this.quarterSeconds = 0; // NEW: Track quarter time separately
+        this.gameSeconds = 0;    // NEW: Track total game time
         this.isClockRunning = false;
 
         // Auto-cache timer
@@ -176,6 +176,10 @@ class GameTracker {
         // Default to Offense unless Special is toggled
         let targetType = 'Offense';
         if (this.showSpecial) {
+            // When Special is ON, we show Special plays. 
+            // The requirement says "toggle button not list to show special", 
+            // likely meaning toggle replaces the list or adds to it.
+            // We'll show Special plays INSTEAD of Offense for clarity, or filter for them.
             targetType = 'Special';
         }
 
@@ -183,12 +187,16 @@ class GameTracker {
         let filteredPlays = this.playsCache.filter(p => p.type === targetType);
         
         // MACRO GROUPING LOGIC
+        // "DueBasso-1" -> Macro "DueBasso"
+        // We will group by the part of the name before the first hyphen
         const macroMap = new Map();
 
         filteredPlays.forEach(play => {
+            // Check if name has a hyphen (e.g. "DueBasso-1")
             const parts = play.name.split('-');
             let macroName = play.name;
             
+            // If it looks like a variation (e.g. ends in number or single char after hyphen)
             if (parts.length > 1) {
                 macroName = parts[0].trim();
             }
@@ -214,6 +222,8 @@ class GameTracker {
             list.appendChild(recentHeader);
 
             this.recentPlays.forEach(play => {
+                // Determine if recent play is a variation, display its full name or macro?
+                // Usually recents are specific. We'll show the specific one clicked.
                 const btn = this.createPlayButton(play, false); 
                 btn.classList.add('border-primary');
                 list.appendChild(btn);
@@ -226,17 +236,26 @@ class GameTracker {
         }
 
         // Render Macro Groups
+        // Convert map to array and sort alpha
         const macros = Array.from(macroMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
         macros.forEach(([name, variations]) => {
+            // If only 1 variation, just show it as a play
             if (variations.length === 1) {
                 list.appendChild(this.createPlayButton(variations[0], false));
             } else {
+                // Multiple variations: Show the MACRO name.
+                // Clicking it selects the FIRST variation (or could expand, but user said "not both")
+                // We'll assume clicking the macro selects the "base" or first variation.
+                // Better yet: Pass the first one, but label it with the Macro Name.
                 list.appendChild(this.createPlayButton(variations[0], true, name));
             }
         });
     }
 
+    // NEW: Helper to create play button
+    // isMacro: true if this represents a group
+    // customLabel: override the play name (e.g. "DueBasso" instead of "DueBasso-1")
     createPlayButton(play, isMacro = false, customLabel = null) {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -251,25 +270,28 @@ class GameTracker {
                 ${isMacro ? '<small class="badge badge-light border text-muted">Group</small>' : ''}
             </div>
         `;
-        btn.onclick = () => this.selectPlay(play);
+        btn.onclick = () => this.selectPlay(play); // If macro, this selects the first variation (play object passed in)
         return btn;
     }
 
     openPlaySelector(eventType, shooter = null, shotType = null) {
+        // Check if play selector toggle is ON
         if (!this.playSelectMode) {
             this.finalizePlaySelection(null);
             return;
         }
 
         this.pendingPlaySelection = {
-            eventType,
+            eventType,  // 'SHOT_2PT', 'SHOT_3PT', 'TURNOVER'
             shooter,
             shotType
         };
 
+        // Reset to Offense view by default
         this.showSpecial = false;
-        this.updateSpecialToggleBtn();
+        this.updateSpecialToggleBtn(); // helper to reset button style
 
+        // Render
         this.renderPlaysList();
         $('#playSelectorModal').modal('show');
     }
@@ -289,23 +311,30 @@ class GameTracker {
             return;
         }
 
+        // Add to recent plays
         this.addToRecentPlays(play);
 
+        // Finalize with selected play
         this.finalizePlaySelection(play);
         $('#playSelectorModal').modal('hide');
     }
 
+    // NEW: Skip play selection (from modal "Skip / None" button)
     skipPlaySelection() {
         this.finalizePlaySelection(null);
         $('#playSelectorModal').modal('hide');
     }
 
+    // NEW: Centralized method to finalize play selection
     finalizePlaySelection(play) {
+        // Handle turnover case
         if (this.pendingTurnover) {
             const { player } = this.pendingTurnover;
             
+            // Increment turnover stat
             this.updateStat(player, 'tov', 1);
 
+            // Log turnover event with or without play
             const event = {
                 type: 'TURNOVER',
                 player: player,
@@ -314,7 +343,7 @@ class GameTracker {
                     play_name: play.name
                 } : null,
                 quarter: this.quarter,
-                clockSeconds: this.clockSeconds,
+                clockSeconds: this.quarterSeconds, // Use quarterSeconds
                 timestamp: Date.now()
             };
             this.gameEvents.push(event);
@@ -324,9 +353,11 @@ class GameTracker {
             return;
         }
 
+        // Handle shot case (already logged by confirmShotLocationFromMap)
         if (this.pendingPlaySelection) {
             const { eventType, shooter } = this.pendingPlaySelection;
 
+            // Only log event if play was selected
             if (play) {
                 const event = {
                     type: eventType,
@@ -336,7 +367,7 @@ class GameTracker {
                         play_name: play.name
                     },
                     quarter: this.quarter,
-                    clockSeconds: this.clockSeconds,
+                    clockSeconds: this.quarterSeconds, // Use quarterSeconds
                     timestamp: Date.now()
                 };
                 this.gameEvents.push(event);
@@ -347,28 +378,34 @@ class GameTracker {
         }
     }
 
+    // NEW: Open turnover flow with play selector
     recordTurnover(player) {
         this.pendingTurnover = { player };
         
+        // Open play selector if enabled
         if (this.playSelectMode) {
             this.openPlaySelector('TURNOVER', player);
         } else {
+            // If play selector is off, just increment stat
             this.finalizePlaySelection(null);
         }
     }
 
     // --- AUTO-CACHE TIMER ---
     startAutoCacheTimer() {
+        // Clear any existing timer
         if (this.autoCacheInterval) {
             clearInterval(this.autoCacheInterval);
         }
 
+        // Start new timer
         this.autoCacheInterval = setInterval(() => {
             const now = Date.now();
             const timeSinceLastCache = now - this.lastCacheTimestamp;
 
+            // Only auto-cache if 30s have passed since last cache
             if (timeSinceLastCache >= this.CONSTANTS.AUTO_CACHE_INTERVAL_MS) {
-                this.addToCache(this.getCurrentState(), true);
+                this.addToCache(this.getCurrentState(), true); // true = auto-cache
             }
         }, this.CONSTANTS.AUTO_CACHE_INTERVAL_MS);
     }
@@ -395,21 +432,26 @@ class GameTracker {
     addToCache(state, isAutoCache = false) {
         const cache = this.getCachedGames();
 
+        // Create a snapshot with timestamp
         const snapshot = {
             ...state,
             timestamp: Date.now(),
-            id: Date.now() + Math.random()
+            id: Date.now() + Math.random() // unique ID
         };
 
+        // Update last cache timestamp
         this.lastCacheTimestamp = snapshot.timestamp;
 
+        // Add to front of array
         cache.unshift(snapshot);
 
+        // Keep only the most recent MAX_CACHED_GAMES
         const trimmed = cache.slice(0, this.CONSTANTS.MAX_CACHED_GAMES);
 
         localStorage.setItem(this.CONSTANTS.CACHE_KEY, JSON.stringify(trimmed));
         this.renderCachedGamesUI();
 
+        // Optional: Log auto-cache events for debugging
         if (isAutoCache) {
             console.log('[Auto-cache] Game state saved at', new Date(snapshot.timestamp).toLocaleTimeString());
         }
@@ -434,6 +476,7 @@ class GameTracker {
             return;
         }
 
+        // Restore state from snapshot
         this.fullRoster = snapshot.fullRoster || [];
         this.activeLineup = snapshot.activeLineup || [];
         this.stats = snapshot.stats || {};
@@ -441,15 +484,18 @@ class GameTracker {
         this.shotLocations = snapshot.shotLocations || [];
         this.gameEvents = snapshot.gameEvents || [];
         this.quarter = snapshot.quarter || 1;
-        this.clockSeconds = snapshot.clockSeconds || 0;
-        this.gameSeconds = snapshot.gameSeconds || 0;
+        this.quarterSeconds = snapshot.quarterSeconds || 0; // Restore quarter time
+        this.gameSeconds = snapshot.gameSeconds || 0;       // Restore game time
 
+        // Restore inputs
         if (snapshot.gameDate) document.getElementById('game-date').value = snapshot.gameDate;
         if (snapshot.opponentName) document.getElementById('opponent').value = snapshot.opponentName;
         if (snapshot.gameType) document.getElementById('game-type').value = snapshot.gameType;
 
+        // Save to current state and show tracker
         this.saveState();
 
+        // Navigate to tracker
         if (Object.keys(this.stats).length > 0) {
             document.getElementById('setup-panel').style.display = 'none';
             document.getElementById('lineup-panel').style.display = 'none';
@@ -465,6 +511,7 @@ class GameTracker {
             this.renderActivePlayers();
             this.updateScoreboard();
 
+            // Restart auto-cache timer
             this.startAutoCacheTimer();
         }
     }
@@ -539,8 +586,8 @@ class GameTracker {
             shotLocations: this.shotLocations,
             gameEvents: this.gameEvents,
             quarter: this.quarter,
-            clockSeconds: this.clockSeconds,
-            gameSeconds: this.gameSeconds,
+            quarterSeconds: this.quarterSeconds, // Updated
+            gameSeconds: this.gameSeconds,       // Updated
             // Inputs
             gameDate: document.getElementById('game-date').value,
             opponentName: document.getElementById('opponent').value,
@@ -561,9 +608,10 @@ class GameTracker {
                 this.shotLocations = state.shotLocations || [];
                 this.gameEvents = state.gameEvents || [];
                 this.quarter = state.quarter || 1;
-                this.clockSeconds = state.clockSeconds || 0;
-                this.gameSeconds = state.gameSeconds || 0;
+                this.quarterSeconds = state.quarterSeconds || 0; // Updated
+                this.gameSeconds = state.gameSeconds || 0;       // Updated
 
+                // Restore inputs
                 if (state.gameDate) document.getElementById('game-date').value = state.gameDate;
                 if (state.opponentName) document.getElementById('opponent').value = state.opponentName;
                 if (state.gameType) document.getElementById('game-type').value = state.gameType;
@@ -638,8 +686,9 @@ class GameTracker {
                     e.target.classList.remove('btn-outline-secondary');
                     e.target.classList.add('btn-primary');
                 }
-                this.saveState();
+                this.saveState(); // Save selection progress
             };
+            // Pre-select if already in activeLineup (from reload)
             if (this.activeLineup.includes(p)) {
                 btn.classList.remove('btn-outline-secondary');
                 btn.classList.add('btn-primary');
@@ -660,16 +709,7 @@ class GameTracker {
             return;
         }
 
-        // Reset timers for a new game
-        this.quarter = 1;
-        this.clockSeconds = 0;
-        this.gameSeconds = 0;
-        this.isClockRunning = false;
-        if (this.timerInterval) {
-            clearInterval(this.timerInterval);
-            this.timerInterval = null;
-        }
-
+        // Initialize stats only if empty (preserve on reload)
         if (Object.keys(this.stats).length === 0) {
             this.fullRoster.forEach(p => {
                 this.stats[p] = {
@@ -681,6 +721,7 @@ class GameTracker {
                 };
             });
         } else {
+            // Ensure last_sub_in is reset for starters if resuming
             this.activeLineup.forEach(p => {
                 if (!this.stats[p].last_sub_in) this.stats[p].last_sub_in = Date.now();
             });
@@ -689,33 +730,12 @@ class GameTracker {
         document.getElementById('lineup-panel').style.display = 'none';
         document.getElementById('tracker-panel').style.display = 'block';
         document.getElementById('display-opponent').innerText = "vs " + opponent;
-        document.getElementById('quarter-display').innerText = 'Q' + this.quarter;
-        this.updateClockDisplay();
 
         this.renderActivePlayers();
         this.saveState();
 
+        // Start auto-cache timer when game starts
         this.startAutoCacheTimer();
-    }
-
-    // --- REAL-TIME PLAYER TIME ---
-    getDisplayedPlayerSeconds(player) {
-        const s = this.stats[player];
-        if (!s) return 0;
-
-        let total = s.minutes_seconds || 0;
-        if (this.isClockRunning && s.last_sub_in) {
-            total += Math.floor((Date.now() - s.last_sub_in) / 1000);
-        }
-        return total;
-    }
-
-    updatePlayerTimeDisplays() {
-        this.activeLineup.forEach(p => {
-            const el = document.getElementById(`time-${p}`);
-            if (!el) return;
-            el.innerText = 'MIN: ' + this.formatMinutes(this.getDisplayedPlayerSeconds(p));
-        });
     }
 
     // --- GAMEPLAY ---
@@ -727,6 +747,13 @@ class GameTracker {
             const s = this.stats[p];
             const pmClass = s.plus_minus > 0 ? 'badge-success' : (s.plus_minus < 0 ? 'badge-danger' : 'badge-secondary');
             const pmSign = s.plus_minus > 0 ? '+' : '';
+
+            // Calculate display minutes
+            let displayedSeconds = s.minutes_seconds;
+            if (this.isClockRunning && s.last_sub_in) {
+                const diffSeconds = Math.floor((Date.now() - s.last_sub_in) / 1000);
+                displayedSeconds += diffSeconds;
+            }
 
             grid.innerHTML += `
                 <div class="col-md-6 col-lg-4 mb-3">
@@ -802,7 +829,7 @@ class GameTracker {
                             </div>
 
                             <div class="mt-2 text-center small text-muted">
-                                <span id="time-${p}" class="font-weight-bold">MIN: ${this.formatMinutes(this.getDisplayedPlayerSeconds(p))}</span>
+                                <span id="time-${p}" class="font-weight-bold">MIN: ${this.formatMinutes(displayedSeconds)}</span>
                             </div>
                         </div>
                     </div>
@@ -812,6 +839,7 @@ class GameTracker {
     }
 
     renderStatBox(player, label, key, value, textClass = '', isToV = false) {
+        // UPDATED: Use recordTurnover method for TOV button
         const tovHtml = isToV ? `
             <div class="d-flex justify-content-center align-items-center">
                 <button class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.7rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">-</button>
@@ -842,6 +870,7 @@ class GameTracker {
         document.getElementById(`pts-${player}`).innerText = s.points + ' PTS';
         document.getElementById(`pf-badge-${player}`).innerText = s.pf + ' PF';
 
+        // Update +/- Badge
         const pmEl = document.getElementById(`pm-${player}`);
         if (pmEl) {
             const pmSign = s.plus_minus > 0 ? '+' : '';
@@ -872,9 +901,6 @@ class GameTracker {
         });
 
         this.updateScoreboard();
-
-        // Keep player time display fresh when other actions occur
-        this.updatePlayerTimeDisplays();
     }
 
     updateScoreboard() {
@@ -884,7 +910,6 @@ class GameTracker {
     }
 
     // --- MODALS (Assist, ShotLoc, Oreb, PlaySelector) ---
-    // (unchanged below...)
 
     openAssistModal(shooter, type, points) {
         this.pendingMadeShot = { shooter, type, points, assister: null, location: null };
@@ -893,6 +918,7 @@ class GameTracker {
         const list = document.getElementById('assist-list');
         list.innerHTML = '';
 
+        // No assist
         const noneBtn = document.createElement('button');
         noneBtn.type = 'button';
         noneBtn.className = 'list-group-item list-group-item-action font-weight-bold';
@@ -900,6 +926,7 @@ class GameTracker {
         noneBtn.onclick = () => this.pickAssister(null);
         list.appendChild(noneBtn);
 
+        // Assist options
         this.activeLineup.forEach(p => {
             if (p === shooter) return;
             const btn = document.createElement('button');
@@ -939,6 +966,7 @@ class GameTracker {
     }
 
     openMissShotLocModal(shooter, type, points) {
+        // A missed shot always has 0 points, but keep signature consistent
         this.pendingMissShot = { shooter, type, points, location: null };
         document.getElementById('shotloc-player').innerText = `${shooter} (${type.toUpperCase()} MISS)`;
 
@@ -1011,6 +1039,7 @@ class GameTracker {
     }
 
     confirmShotLocationFromMap(skipped = false) {
+        // Handle made shots
         if (this.pendingMadeShot) {
             const { shooter, type, points, assister, location } = this.pendingMadeShot;
 
@@ -1028,10 +1057,12 @@ class GameTracker {
                     x: location.x, y: location.y,
                     nx: location.nx, ny: location.ny,
                     quarter: this.quarter,
-                    clockSeconds: this.clockSeconds
+                    clockSeconds: this.quarterSeconds, // Updated to quarterSeconds
+                    timestamp: Date.now()
                 });
             }
 
+            // Open play selector after made shot (only if toggle is ON)
             this.openPlaySelector('SHOT_' + type.toUpperCase(), shooter, type);
 
             this.pendingMadeShot = null;
@@ -1040,9 +1071,11 @@ class GameTracker {
             return;
         }
 
+        // Handle missed shots
         if (this.pendingMissShot) {
             const { shooter, type, location } = this.pendingMissShot;
 
+            // Count the miss as an attempt
             this.updateShooting(shooter, type, 0, 1);
 
             if (!skipped && location) {
@@ -1055,10 +1088,12 @@ class GameTracker {
                     x: location.x, y: location.y,
                     nx: location.nx, ny: location.ny,
                     quarter: this.quarter,
-                    clockSeconds: this.clockSeconds
+                    clockSeconds: this.quarterSeconds, // Updated to quarterSeconds
+                    timestamp: Date.now()
                 });
             }
 
+            // Open play selector after missed shot (only if toggle is ON)
             this.openPlaySelector('SHOT_' + type.toUpperCase(), shooter, type);
 
             this.pendingMissShot = null;
@@ -1166,7 +1201,7 @@ class GameTracker {
             player,
             detail,
             quarter: this.quarter,
-            clockSeconds: this.clockSeconds,
+            clockSeconds: this.quarterSeconds, // Updated to quarterSeconds
             timestamp: Date.now()
         });
     }
@@ -1197,25 +1232,25 @@ class GameTracker {
             btn.innerText = "START";
             btn.classList.remove('btn-danger');
             btn.classList.add('btn-success');
+            
+            // "Commit" the time when stopping
+            this.commitPlayerTimes();
 
-            // Commit player time for the segment that just ended
-            this.updatePlayerTimes();
-
-            // Save to cache when clock is stopped (event-based cache)
+            // Save to cache when clock is stopped
             this.addToCache(this.getCurrentState());
         } else {
             const now = Date.now();
             this.activeLineup.forEach(p => {
-                if (this.stats[p]) this.stats[p].last_sub_in = now;
+                this.stats[p].last_sub_in = now;
             });
-
+            
             this.timerInterval = setInterval(() => {
-                this.clockSeconds++;
-                this.gameSeconds++;
+                this.quarterSeconds++; // Increment quarter time
+                this.gameSeconds++;    // Increment total game time
                 this.updateClockDisplay();
-                this.updatePlayerTimeDisplays();
+                this.updatePlayerTimeDisplays(); // Update player minutes UI in real-time
             }, 1000);
-
+            
             this.isClockRunning = true;
             btn.innerText = "STOP";
             btn.classList.remove('btn-success');
@@ -1228,20 +1263,35 @@ class GameTracker {
         return {
             fullRoster: this.fullRoster,
             activeLineup: this.activeLineup,
-            stats: JSON.parse(JSON.stringify(this.stats)),
+            stats: JSON.parse(JSON.stringify(this.stats)), // deep copy
             opponentScore: this.opponentScore,
             shotLocations: JSON.parse(JSON.stringify(this.shotLocations)),
             gameEvents: JSON.parse(JSON.stringify(this.gameEvents)),
             quarter: this.quarter,
-            clockSeconds: this.clockSeconds,
-            gameSeconds: this.gameSeconds,
+            quarterSeconds: this.quarterSeconds, // Updated
+            gameSeconds: this.gameSeconds,       // Updated
             gameDate: document.getElementById('game-date').value,
             opponentName: document.getElementById('opponent').value,
             gameType: document.getElementById('game-type').value
         };
     }
 
-    updatePlayerTimes() {
+    // NEW: Updates the UI every second without modifying the permanent state
+    updatePlayerTimeDisplays() {
+        const now = Date.now();
+        this.activeLineup.forEach(p => {
+            if (this.stats[p].last_sub_in) {
+                const diffSeconds = Math.floor((now - this.stats[p].last_sub_in) / 1000);
+                const totalDisplayed = this.stats[p].minutes_seconds + diffSeconds;
+                
+                const el = document.getElementById(`time-${p}`);
+                if (el) el.innerText = 'MIN: ' + this.formatMinutes(totalDisplayed);
+            }
+        });
+    }
+
+    // Commit elapsed time to permanent storage (on stop/sub)
+    commitPlayerTimes() {
         const now = Date.now();
         this.activeLineup.forEach(p => {
             if (this.stats[p].last_sub_in) {
@@ -1249,16 +1299,22 @@ class GameTracker {
                 this.stats[p].minutes_seconds += diffSeconds;
                 this.stats[p].last_sub_in = null;
             }
+            // Update UI with finalized time
+            const el = document.getElementById(`time-${p}`);
+            if (el) el.innerText = 'MIN: ' + this.formatMinutes(this.stats[p].minutes_seconds);
         });
+    }
 
-        // Ensure UI displays the committed time
-        this.updatePlayerTimeDisplays();
+    updatePlayerTimes() {
+        // Legacy alias for compatibility if called elsewhere, now points to commit
+        this.commitPlayerTimes();
     }
 
     resetClock() {
         if (this.isClockRunning) this.toggleClock();
-        // Reset only the quarter timer
-        this.clockSeconds = 0;
+        this.quarterSeconds = 0; // Reset quarter time only
+        // Do NOT reset gameSeconds here usually, unless full reset intended. 
+        // Logic implies "Reset Quarter Clock".
         this.updateClockDisplay();
         this.saveState();
     }
@@ -1267,29 +1323,29 @@ class GameTracker {
         if (this.isClockRunning) this.toggleClock();
         this.quarter++;
         document.getElementById('quarter-display').innerText = 'Q' + this.quarter;
-        this.clockSeconds = 0;
+        this.quarterSeconds = 0; // Reset quarter time
         this.updateClockDisplay();
 
         this.logEvent('NEXT_QUARTER', null, { quarter: this.quarter });
 
+        // Cache at quarter boundaries
         this.addToCache(this.getCurrentState());
         this.saveState();
     }
 
     updateClockDisplay() {
-        const totalM = Math.floor(this.gameSeconds / 60);
-        const totalS = this.gameSeconds % 60;
-        const quarterM = Math.floor(this.clockSeconds / 60);
-        const quarterS = this.clockSeconds % 60;
+        // Update Game Clock (Total)
+        const gm = Math.floor(this.gameSeconds / 60);
+        const gs = this.gameSeconds % 60;
+        document.getElementById('game-clock').innerText =
+            `${gm.toString().padStart(2, '0')}:${gs.toString().padStart(2, '0')}`;
 
-        const gameClockEl = document.getElementById('game-clock');
-        if (gameClockEl) {
-            gameClockEl.innerText = `${totalM.toString().padStart(2, '0')}:${totalS.toString().padStart(2, '0')}`;
-        }
-
-        const quarterClockEl = document.getElementById('quarter-clock');
-        if (quarterClockEl) {
-            quarterClockEl.innerText = `${quarterM.toString().padStart(2, '0')}:${quarterS.toString().padStart(2, '0')}`;
+        // Update Quarter Clock (if element exists)
+        const qm = Math.floor(this.quarterSeconds / 60);
+        const qs = this.quarterSeconds % 60;
+        const qEl = document.getElementById('quarter-clock');
+        if (qEl) {
+            qEl.innerText = `${qm.toString().padStart(2, '0')}:${qs.toString().padStart(2, '0')}`;
         }
     }
 
@@ -1297,6 +1353,7 @@ class GameTracker {
     showSubstitutionModal() {
         if (this.isClockRunning) this.toggleClock();
 
+        // Use a temporary list for substitution selection
         this._tempLineup = [...this.activeLineup];
         const container = document.getElementById('sub-roster-list');
         container.innerHTML = '';
@@ -1345,6 +1402,7 @@ class GameTracker {
         const prevLineup = new Set(this.activeLineup);
         const newLineup = new Set(this._tempLineup);
 
+        // Log outs and ins
         [...prevLineup].filter(p => !newLineup.has(p)).forEach(p => this.logEvent('SUB_OUT', p));
         [...newLineup].filter(p => !prevLineup.has(p)).forEach(p => this.logEvent('SUB_IN', p));
 
@@ -1352,6 +1410,7 @@ class GameTracker {
         this.renderActivePlayers();
         $('#subModal').modal('hide');
 
+        // Cache after substitutions (event-based cache)
         this.addToCache(this.getCurrentState());
         this.saveState();
     }
@@ -1374,7 +1433,6 @@ class GameTracker {
         const finalStats = {};
         Object.keys(this.stats).forEach(p => {
             const s = this.stats[p];
-            // Ensure any running segment is committed (should already be stopped)
             s.minutes = this.formatMinutes(s.minutes_seconds);
             finalStats[p] = s;
         });
@@ -1413,4 +1471,5 @@ class GameTracker {
     }
 }
 
+// Instantiate global tracker
 const gameTracker = new GameTracker();
