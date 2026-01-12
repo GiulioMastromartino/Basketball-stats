@@ -59,21 +59,42 @@
     .shot-chart-wrapper {
         position: relative;
         width: 100%;
-        max-width: 600px;
+        max-width: 500px; /* Fixed max-width to match SVG coordinate system visual */
         margin: 0 auto;
         background: white;
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
+    
+    /* Overlay container that sits exactly on top of the SVG */
+    #shot-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none; /* Let clicks pass through to SVG if needed */
+    }
+
     .shot-point {
         position: absolute;
         width: 12px;
         height: 12px;
         border-radius: 50%;
+        /* 
+           Coordinates are stored as raw SVG units (0-500 width, 0-470 height).
+           We need to convert them to percentages for CSS positioning.
+           
+           CSS Left = (x_loc / 500) * 100 %
+           CSS Top  = (y_loc / 470) * 100 %
+           
+           The inline style in the loop below handles this calculation.
+        */
         transform: translate(-50%, -50%);
         border: 2px solid rgba(255,255,255,0.8);
         cursor: pointer;
+        pointer-events: auto; /* Re-enable pointer events for tooltips */
         transition: transform 0.2s, z-index 0.2s;
         z-index: 10;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -407,7 +428,7 @@
                         {% for shot in shot_events %}
                             {% if shot.x_loc is not none and shot.y_loc is not none %}
                             <div class="shot-point {{ 'shot-made' if shot.result == 'made' else 'shot-missed' }}"
-                                 style="left: {{ shot.x_loc }}%; top: {{ shot.y_loc }}%;"
+                                 style="left: {{ (shot.x_loc / 500 * 100) }}%; top: {{ (shot.y_loc / 470 * 100) }}%;"
                                  data-player="{{ shot.player_name }}"
                                  data-type="{{ shot.shot_type }}"
                                  data-pts="{{ shot.points }}"
