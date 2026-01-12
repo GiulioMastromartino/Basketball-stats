@@ -1821,7 +1821,7 @@ def _calculate_team_shooting(game_ids):
 def _generate_team_shot_chart(game_ids):
     """
     Generate team-wide shot chart showing all team shots
-    Returns base64 encoded PNG
+    Returns base64 encoded PNG - FIXED DIMENSIONS
     """
     shots = (
         ShotEvent.query
@@ -1834,10 +1834,13 @@ def _generate_team_shot_chart(game_ids):
     if not shots:
         return ""
     
-    # Create figure with half-court basketball court
-    fig, ax = plt.subplots(figsize=(8, 7.5))
+    # Create figure with CORRECT basketball court proportions
+    # Basketball half-court is taller than it is wide (94ft x 50ft, half = 47ft x 50ft)
+    # Use aspect ratio of approximately 1:1.06 (width:height)
+    fig, ax = plt.subplots(figsize=(7, 7.5))
     
-    # Draw basketball court (same as player shot chart)
+    # Draw basketball court (half-court, normalized 0-500 width, 0-470 height)
+    # Outer boundary
     ax.plot([0, 500], [0, 0], 'k-', linewidth=2)
     ax.plot([0, 500], [470, 470], 'k-', linewidth=2)
     ax.plot([0, 0], [0, 470], 'k-', linewidth=2)
@@ -1893,9 +1896,10 @@ def _generate_team_shot_chart(game_ids):
            fontsize=11, fontweight='bold',
            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.9))
     
+    # CRITICAL: Set proper limits and aspect ratio
     ax.set_xlim(-10, 510)
     ax.set_ylim(-10, 520)
-    ax.set_aspect('equal')
+    ax.set_aspect('equal')  # This ensures court is not stretched
     ax.axis('off')
     ax.legend(loc='upper left', fontsize=10)
     ax.set_title("Team Shot Chart - All Games", fontsize=14, fontweight='bold', pad=10)
