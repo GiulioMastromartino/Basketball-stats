@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_required
-from sqlalchemy import func
+from sqlalchemy import case, func
 
 from core.models import Game, PlayerStat, ShotEvent, db, Play
 from core.csv_processor import CSVProcessor
@@ -378,6 +378,47 @@ def game_detail(game_id):
     # Fetch shot events for this game if available
     shot_events = ShotEvent.query.filter_by(game_id=game.id).all()
 
+    # --- Plays dashboard (offense only) ---
+    plays_agg = (
+        db.session.query(
+            Play.id.label("id"),
+            Play.name.label("name"),
+            func.count(ShotEvent.id).label("runs"),
+            func.sum(case((ShotEvent.result == "made", 1), else_=0)).label("made"),
+            func.sum(ShotEvent.points).label("points"),
+        )
+        .join(Play, Play.id == ShotEvent.play_id)
+        .filter(
+            ShotEvent.game_id == game.id,
+            ShotEvent.play_id.isnot(None),
+            Play.play_type == "Offense",
+        )
+        .group_by(Play.id, Play.name)
+        .order_by(func.count(ShotEvent.id).desc())
+        .all()
+    )
+
+    plays_data = []
+    for row in plays_agg:
+        runs = int(row.runs or 0)
+        made = int(row.made or 0)
+        points = int(row.points or 0)
+
+        fg_pct = round((made / runs * 100), 1) if runs > 0 else 0
+        ppp = round((points / runs), 2) if runs > 0 else 0
+
+        plays_data.append(
+            {
+                "id": row.id,
+                "name": row.name,
+                "runs": runs,
+                "made": made,
+                "fg_pct": fg_pct,
+                "points": points,
+                "ppp": ppp,
+            }
+        )
+
     team_possessions = sum(
         calculate_possessions(p.fga, p.fta, p.oreb, p.tov) for p in stats
     )
@@ -477,6 +518,7 @@ def game_detail(game_id):
         game=game,
         stats=stats,
         shot_events=shot_events,
+        plays_data=plays_data,
         team_stats=team_stats,
         advanced=advanced,
     )
