@@ -14,6 +14,10 @@ class GameTracker {
         this.pendingPlaySelection = null;
         this.pendingTurnover = null;
 
+        // **NEW: Track currently selected play for event tagging**
+        this.currentPlayId = null;
+        this.currentPlayName = null;
+
         // Timer State
         this.timerInterval = null;
         this.quarter = 1;
@@ -265,11 +269,17 @@ class GameTracker {
         }
     }
 
+    // **CRITICAL FIX: Capture play ID and store in currentPlayId**
     selectPlay(play) {
         if (!this.pendingPlaySelection && !this.pendingTurnover) {
             $('#playSelectorModal').modal('hide');
             return;
         }
+
+        // **NEW: Store selected play ID globally for event tagging**
+        this.currentPlayId = play.id;
+        this.currentPlayName = play.name;
+        console.log(`Play selected: ID ${this.currentPlayId} (${this.currentPlayName})`);
 
         this.addToRecentPlays(play);
         this.finalizePlaySelection(play);
@@ -277,6 +287,9 @@ class GameTracker {
     }
 
     skipPlaySelection() {
+        // **NEW: Clear play ID if skipped**
+        this.currentPlayId = null;
+        this.currentPlayName = null;
         this.finalizePlaySelection(null);
         $('#playSelectorModal').modal('hide');
     }
@@ -296,7 +309,8 @@ class GameTracker {
                 } : null,
                 quarter: this.quarter,
                 clockSeconds: this.quarterSeconds,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                play_id: play ? play.id : null  // **NEW: Include play_id at event level**
             };
             this.gameEvents.push(event);
 
@@ -318,7 +332,8 @@ class GameTracker {
                     },
                     quarter: this.quarter,
                     clockSeconds: this.quarterSeconds,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    play_id: play.id  // **NEW: Include play_id at event level**
                 };
                 this.gameEvents.push(event);
             }
@@ -1007,7 +1022,8 @@ class GameTracker {
                     nx: location.nx, ny: location.ny,
                     quarter: this.quarter,
                     clockSeconds: this.quarterSeconds,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    play_id: this.currentPlayId  // **NEW: Include captured play_id**
                 });
             }
 
@@ -1035,7 +1051,8 @@ class GameTracker {
                     nx: location.nx, ny: location.ny,
                     quarter: this.quarter,
                     clockSeconds: this.quarterSeconds,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    play_id: this.currentPlayId  // **NEW: Include captured play_id**
                 });
             }
 
@@ -1300,10 +1317,10 @@ class GameTracker {
         document.getElementById('game-clock').innerText =
             `${gm.toString().padStart(2, '0')}:${gs.toString().padStart(2, '0')}`;
 
-        const qm = Math.floor(this.quarterSeconds / 60);
-        const qs = this.quarterSeconds % 60;
         const qEl = document.getElementById('quarter-clock');
         if (qEl) {
+            const qm = Math.floor(this.quarterSeconds / 60);
+            const qs = this.quarterSeconds % 60;
             qEl.innerText = `${qm.toString().padStart(2, '0')}:${qs.toString().padStart(2, '0')}`;
         }
     }
@@ -1444,7 +1461,7 @@ class GameTracker {
                 this.clearState();
                 window.location.href = `/game/${data.game_id}`;
             } else {
-                alert("Error saving game: " + (data.error || "Unknown error"));
+                alert("Error saving game: " + (data.error || "Unknown error") + (data.details ? ` (${data.details})` : ''));
             }
         }).catch(err => {
             alert("Network error occurred.");
