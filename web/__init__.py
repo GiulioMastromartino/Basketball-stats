@@ -15,6 +15,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
+from sqlalchemy import text
 
 from config import get_config
 from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, bcrypt, db
@@ -65,7 +66,38 @@ def create_app(config_name: str = None) -> Flask:
     # Register CLI commands
     register_commands(app)
 
+    # Auto-migrate database schema on startup
+    with app.app_context():
+        auto_migrate_schema()
+
     return app
+
+
+def auto_migrate_schema():
+    """
+    Automatically detect and add missing columns to existing tables.
+    This prevents OperationalError when the code expects columns that don't exist.
+    """
+    try:
+        with db.engine.connect() as conn:
+            # Check 'games' table for 'source' column
+            result = conn.execute(text("PRAGMA table_info(games)"))
+            columns = [row[1] for row in result.fetchall()]
+            
+            if 'source' not in columns:
+                print("[AUTO-MIGRATION] Adding 'source' column to 'games' table...")
+                conn.execute(text("ALTER TABLE games ADD COLUMN source VARCHAR(20) DEFAULT 'IMPORT'"))
+                conn.commit()
+                print("[AUTO-MIGRATION] Successfully added 'source' column.")
+            
+            # Future migrations can be added here following the same pattern
+            # Example:
+            # if 'new_column' not in columns:
+            #     conn.execute(text("ALTER TABLE games ADD COLUMN new_column ..."))
+            #     conn.commit()
+            
+    except Exception as e:
+        print(f"[AUTO-MIGRATION] Warning: {e}")
 
 
 def setup_logging(app: Flask, config):
