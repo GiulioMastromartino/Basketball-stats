@@ -141,26 +141,38 @@
 
 <div class="container pb-5">
     
-    <!-- Navigation Tabs -->
-    <ul class="nav nav-pills justify-content-center mb-4" id="gameTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="boxscore-tab" data-bs-toggle="pill" data-bs-target="#boxscore" type="button" role="tab">
-                <i class="fas fa-list-alt me-2"></i>Box Score
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="analytics-tab" data-bs-toggle="pill" data-bs-target="#analytics" type="button" role="tab">
-                <i class="fas fa-chart-pie me-2"></i>Team Analytics
-            </button>
-        </li>
-        {% if shot_events %}
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="shots-tab" data-bs-toggle="pill" data-bs-target="#shots" type="button" role="tab">
-                <i class="fas fa-crosshairs me-2"></i>Shot Chart
-            </button>
-        </li>
-        {% endif %}
-    </ul>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-pills" id="gameTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="boxscore-tab" data-bs-toggle="pill" data-bs-target="#boxscore" type="button" role="tab">
+                    <i class="fas fa-list-alt me-2"></i>Box Score
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="advanced-tab" data-bs-toggle="pill" data-bs-target="#advanced" type="button" role="tab">
+                    <i class="fas fa-chart-line me-2"></i>Advanced Stats
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="analytics-tab" data-bs-toggle="pill" data-bs-target="#analytics" type="button" role="tab">
+                    <i class="fas fa-chart-pie me-2"></i>Team Analytics
+                </button>
+            </li>
+            {% if shot_events %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="shots-tab" data-bs-toggle="pill" data-bs-target="#shots" type="button" role="tab">
+                    <i class="fas fa-crosshairs me-2"></i>Shot Chart
+                </button>
+            </li>
+            {% endif %}
+        </ul>
+
+        <!-- Download Button (right-aligned) -->
+        <a href="{{ url_for('analytics.download_game_pdf', game_id=game.id) }}" class="btn btn-outline-dark shadow-sm">
+            <i class="fas fa-download me-2"></i>Download Report
+        </a>
+    </div>
 
     <div class="tab-content" id="gameTabsContent">
         
@@ -226,7 +238,45 @@
             </div>
         </div>
 
-        <!-- Tab 2: Analytics -->
+        <!-- Tab 2: Advanced Stats -->
+        <div class="tab-pane fade" id="advanced" role="tabpanel">
+            <div class="table-container">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">PLAYER</th>
+                                <th class="text-center">USG%</th>
+                                <th class="text-center">ORTG</th>
+                                <th class="text-center">PPP</th>
+                                <th class="text-center">TS%</th>
+                                <th class="text-center">EFG%</th>
+                                <th class="text-center">AST/TOV</th>
+                                <th class="text-center">GMSC</th>
+                                <th class="text-center">FTA/FGA</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in stats %}
+                            <tr>
+                                <td class="ps-4 fw-bold">{{ p.player_name }}</td>
+                                <td class="text-center">{{ p.usg_pct }}%</td>
+                                <td class="text-center fw-bold {% if p.ortg >= 110 %}text-success{% elif p.ortg <= 90 %}text-danger{% endif %}">{{ p.ortg }}</td>
+                                <td class="text-center">{{ p.ppp }}</td>
+                                <td class="text-center text-info">{{ p.ts_pct }}%</td>
+                                <td class="text-center">{{ p.efg_pct }}%</td>
+                                <td class="text-center">{{ p.ast_tov_ratio }}</td>
+                                <td class="text-center">{{ p.game_score }}</td>
+                                <td class="text-center">{{ p.fta_pct }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Analytics -->
         <div class="tab-pane fade" id="analytics" role="tabpanel">
             <div class="row g-4">
                 <!-- Four Factors -->
@@ -259,8 +309,11 @@
                     <div class="stat-card">
                         <h6 class="text-uppercase text-muted mb-4 fw-bold letter-spacing-1">Possession Metrics</h6>
                         <div class="d-flex justify-content-between align-items-end mb-3 border-bottom pb-3">
-                            <!-- Removed 'Pace' as it requires game duration which isn't robustly tracked yet -->
-                            <div class="text-start">
+                            <div>
+                                <div class="small text-muted text-uppercase">Pace</div>
+                                <div class="h3 mb-0 fw-bold">{{ advanced.pace }}</div>
+                            </div>
+                            <div class="text-end">
                                 <div class="small text-muted text-uppercase">Possessions</div>
                                 <div class="h3 mb-0 fw-bold">{{ advanced.possessions }}</div>
                             </div>
@@ -303,7 +356,7 @@
             </div>
         </div>
         
-        <!-- Tab 3: Shot Chart -->
+        <!-- Tab 4: Shot Chart -->
         {% if shot_events %}
         <div class="tab-pane fade" id="shots" role="tabpanel">
             <div class="text-center py-3">
