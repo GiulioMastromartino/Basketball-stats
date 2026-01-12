@@ -430,6 +430,9 @@ def game_detail(game_id):
         .all()
     )
 
+    # Fetch shot events for this game if available
+    shot_events = ShotEvent.query.filter_by(game_id=game.id).all()
+
     team_possessions = sum(
         calculate_possessions(p.fga, p.fta, p.oreb, p.tov) for p in stats
     )
@@ -485,7 +488,7 @@ def game_detail(game_id):
         p.oreb_pct = safe_percentage(p.oreb, p.reb)
         p.foul_trouble = p.pf >= 3
 
-    return render_template("game_detail.html", game=game, stats=stats)
+    return render_template("game_detail.html", game=game, stats=stats, shot_events=shot_events)
 
 
 @main_bp.route("/game/<int:game_id>/delete", methods=["POST"])
@@ -497,6 +500,12 @@ def delete_game(game_id):
     try:
         # Delete player stats first (avoid FK issues)
         PlayerStat.query.filter_by(game_id=game.id).delete()
+        # Delete shot events
+        ShotEvent.query.filter_by(game_id=game.id).delete()
+        # Delete game events (future proof)
+        from core.models import GameEvent
+        GameEvent.query.filter_by(game_id=game.id).delete()
+        
         db.session.delete(game)
         db.session.commit()
         flash(f"Deleted game: {game.opponent} on {game.date}", "success")
@@ -546,6 +555,13 @@ def player_detail(player_name):
     if not player_stats:
         flash(f"No stats found for {player_name}", "warning")
         return redirect(url_for("main.players"))
+
+    # Get shot events for this player in these games
+    shot_events = (
+        ShotEvent.query.filter(ShotEvent.player_name == player_name)
+        .filter(ShotEvent.game_id.in_(target_game_ids))
+        .all()
+    )
 
     # Calculate aggregate stats
     gp = len(player_stats)
@@ -694,6 +710,7 @@ def player_detail(player_name):
         game_type=game_type,
         two_pt_made=two_pt_stats["two_pt_made"],
         two_pt_att=two_pt_stats["two_pt_att"],
+        shot_events=shot_events,
     )
 
 
