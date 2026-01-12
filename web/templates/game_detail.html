@@ -259,11 +259,8 @@
                     <div class="stat-card">
                         <h6 class="text-uppercase text-muted mb-4 fw-bold letter-spacing-1">Possession Metrics</h6>
                         <div class="d-flex justify-content-between align-items-end mb-3 border-bottom pb-3">
-                            <div>
-                                <div class="small text-muted text-uppercase">Pace</div>
-                                <div class="h3 mb-0 fw-bold">{{ advanced.pace }}</div>
-                            </div>
-                            <div class="text-end">
+                            <!-- Removed 'Pace' as it requires game duration which isn't robustly tracked yet -->
+                            <div class="text-start">
                                 <div class="small text-muted text-uppercase">Possessions</div>
                                 <div class="h3 mb-0 fw-bold">{{ advanced.possessions }}</div>
                             </div>
