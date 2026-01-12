@@ -53,6 +53,51 @@
         border-radius: 6px;
         font-size: 11px;
     }
+
+    /* Shot Chart Styles */
+    .shot-chart-container {
+        position: relative;
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .shot-point {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        border: 1px solid rgba(0,0,0,0.2);
+        cursor: pointer;
+        transition: transform 0.2s;
+        z-index: 10;
+    }
+    .shot-point:hover {
+        transform: translate(-50%, -50%) scale(1.5);
+        z-index: 20;
+    }
+    .shot-made {
+        background-color: #28a745; /* Green */
+    }
+    .shot-missed {
+        background-color: #dc3545; /* Red */
+    }
+    .shot-tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        pointer-events: none;
+        display: none;
+        z-index: 100;
+        white-space: nowrap;
+    }
 </style>
 
 <div class="container-fluid">
@@ -178,6 +223,9 @@
                     <button class="tab-btn active" onclick="switchTab('basic')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: 600; cursor: pointer;">Basic Stats</button>
                     <button class="tab-btn" onclick="switchTab('advanced')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid transparent; color: var(--text-muted); font-weight: 600; cursor: pointer;">Advanced</button>
                     <button class="tab-btn" onclick="switchTab('shooting')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid transparent; color: var(--text-muted); font-weight: 600; cursor: pointer;">Shooting</button>
+                    {% if shot_events %}
+                    <button class="tab-btn" onclick="switchTab('shotchart')" style="padding: 15px 0; border: none; background: none; border-bottom: 3px solid transparent; color: var(--text-muted); font-weight: 600; cursor: pointer;">Shot Chart</button>
+                    {% endif %}
                 </div>
 
                 <!-- Download button -->
@@ -300,12 +348,40 @@
                     </table>
                 </div>
             </div>
+            
+            <!-- Shot Chart Tab -->
+             {% if shot_events %}
+            <div id="shotchart" class="tab-content" style="display: none;">
+                <div class="p-4 text-center">
+                    <div class="shot-chart-container" id="shotChartContainer">
+                         <!-- Half Court SVG -->
+                         <svg viewBox="0 0 500 470" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; background: #e0d4c5; display: block;">
+                            <!-- Key Area -->
+                            <rect x="170" y="0" width="160" height="190" fill="none" stroke="#fff" stroke-width="2"/>
+                            <!-- Hoop -->
+                            <circle cx="250" cy="47.5" r="7.5" fill="none" stroke="#ec9c3d" stroke-width="2"/>
+                            <!-- Backboard -->
+                            <line x1="220" y1="40" x2="280" y2="40" stroke="#fff" stroke-width="2"/>
+                            <!-- 3PT Line (simplified arc) -->
+                            <path d="M 30,0 L 30,140 A 237.5 237.5 0 0 0 470 140 L 470,0" fill="none" stroke="#fff" stroke-width="2"/>
+                             <!-- Center Circle -->
+                             <circle cx="250" cy="470" r="60" fill="none" stroke="#fff" stroke-width="2"/>
+                             <!-- Free Throw Circle -->
+                             <circle cx="250" cy="190" r="60" fill="none" stroke="#fff" stroke-width="2"/>
+                        </svg>
+                        <div id="shotLayer"></div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
         </div>
     </div>
 </div>
 
 <!-- Global Fixed Tooltip -->
 <div id="global-tooltip"></div>
+<div id="shot-tooltip" class="shot-tooltip"></div>
 
 <script>
     function switchTab(tabName) {
@@ -376,6 +452,55 @@
             tooltipEl.style.left = left + 'px';
             tooltipEl.style.top = top + 'px';
         }
+
+        /* Render Shot Chart Points */
+        {% if shot_events %}
+        const shots = [
+            {% for s in shot_events %}
+            {
+                player: "{{ s.player_name }}",
+                x: {{ s.x_loc }},
+                y: {{ s.y_loc }},
+                result: "{{ s.result }}",
+                type: "{{ s.shot_type }}",
+                points: {{ s.points }}
+            },
+            {% endfor %}
+        ];
+
+        const shotLayer = document.getElementById('shotLayer');
+        const shotTooltip = document.getElementById('shot-tooltip');
+
+        if (shotLayer) {
+            shots.forEach(shot => {
+                if (shot.x === null || shot.y === null) return;
+                
+                // Coordinates in DB are saved as percentage 0-100 (from tracker)
+                // Need to map to 0-100% of container
+                const dot = document.createElement('div');
+                dot.classList.add('shot-point');
+                dot.classList.add(shot.result === 'made' ? 'shot-made' : 'shot-missed');
+                
+                // Position
+                dot.style.left = shot.x + '%';
+                dot.style.top = shot.y + '%';
+                
+                // Tooltip
+                dot.addEventListener('mouseenter', (e) => {
+                    shotTooltip.innerHTML = `<strong>${shot.player}</strong><br>${shot.type} (${shot.points} pts)<br>${shot.result.toUpperCase()}`;
+                    shotTooltip.style.display = 'block';
+                    shotTooltip.style.left = e.pageX + 10 + 'px';
+                    shotTooltip.style.top = e.pageY + 10 + 'px';
+                });
+                
+                dot.addEventListener('mouseleave', () => {
+                    shotTooltip.style.display = 'none';
+                });
+
+                shotLayer.appendChild(dot);
+            });
+        }
+        {% endif %}
     });
 </script>
 {% endblock %}
