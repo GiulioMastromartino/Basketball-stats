@@ -83,21 +83,25 @@ def auto_migrate_schema():
     """
     try:
         with db.engine.connect() as conn:
-            # Check 'games' table for 'source' column
-            result = conn.execute(text("PRAGMA table_info(games)"))
-            columns = [row[1] for row in result.fetchall()]
+            # --- Check 'games' table ---
+            result_games = conn.execute(text("PRAGMA table_info(games)"))
+            games_columns = [row[1] for row in result_games.fetchall()]
             
-            if 'source' not in columns:
+            if 'source' not in games_columns:
                 print("[AUTO-MIGRATION] Adding 'source' column to 'games' table...")
                 conn.execute(text("ALTER TABLE games ADD COLUMN source VARCHAR(20) DEFAULT 'IMPORT'"))
                 conn.commit()
                 print("[AUTO-MIGRATION] Successfully added 'source' column.")
+
+            # --- Check 'player_stats' table ---
+            result_stats = conn.execute(text("PRAGMA table_info(player_stats)"))
+            stats_columns = [row[1] for row in result_stats.fetchall()]
             
-            # Future migrations can be added here following the same pattern
-            # Example:
-            # if 'new_column' not in columns:
-            #     conn.execute(text("ALTER TABLE games ADD COLUMN new_column ..."))
-            #     conn.commit()
+            if 'plus_minus' not in stats_columns:
+                print("[AUTO-MIGRATION] Adding 'plus_minus' column to 'player_stats' table...")
+                conn.execute(text("ALTER TABLE player_stats ADD COLUMN plus_minus INTEGER DEFAULT 0"))
+                conn.commit()
+                print("[AUTO-MIGRATION] Successfully added 'plus_minus' column.")
             
     except Exception as e:
         print(f"[AUTO-MIGRATION] Warning: {e}")
