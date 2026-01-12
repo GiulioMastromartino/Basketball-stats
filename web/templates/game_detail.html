@@ -245,6 +245,7 @@
                             <tr style="background: var(--bg-body);">
                                 <th style="padding: 15px; text-align: left;">Player</th>
                                 <th style="text-align: center;" data-title="MIN" data-desc="Minutes Played">MIN</th>
+                                <th style="text-align: center;" data-title="+/-" data-desc="Plus/Minus: point differential while player was on court (LIVE games)">+/-</th>
                                 <th style="text-align: center;" data-title="PTS" data-desc="Points Scored">PTS</th>
                                 <th style="text-align: center;" data-title="OREB" data-desc="Offensive Rebounds">OREB</th>
                                 <th style="text-align: center;" data-title="DREB" data-desc="Defensive Rebounds">DREB</th>
@@ -262,6 +263,9 @@
                             <tr style="border-bottom: 1px solid var(--border-color);">
                                 <td style="padding: 15px; font-weight: 600;">{{ p.player_name }}</td>
                                 <td style="text-align: center;">{{ p.minutes }}</td>
+                                <td style="text-align: center; font-weight: 700;" class="{% if p.plus_minus > 0 %}text-success{% elif p.plus_minus < 0 %}text-danger{% else %}text-muted{% endif %}">
+                                    {% if p.plus_minus > 0 %}+{% endif %}{{ p.plus_minus }}
+                                </td>
                                 <td style="text-align: center; font-weight: 700; color: var(--primary);">{{ p.points }}</td>
                                 <td style="text-align: center;">{{ p.oreb }}</td>
                                 <td style="text-align: center;">{{ p.dreb }}</td>

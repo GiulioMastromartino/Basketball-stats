@@ -369,6 +369,10 @@
             <div class="stat-card-value">{{ averages.ts_pct|round(1) }}%</div>
             <div class="stat-card-label">True Shooting</div>
         </div>
+        <div class="stat-card">
+            <div class="stat-card-value {% if averages.plus_minus > 0 %}text-success{% elif averages.plus_minus < 0 %}text-danger{% else %}text-muted{% endif %}">{% if averages.plus_minus > 0 %}+{% endif %}{{ averages.plus_minus|round(1) }}</div>
+            <div class="stat-card-label">+/- per game</div>
+        </div>
     </div>
 
     <div class="row">
@@ -578,6 +582,7 @@
                     <th>Opponent</th>
                     <th>Result</th>
                     <th>MIN</th>
+                    <th>+/-</th>
                     <th>PTS</th>
                     <th>REB</th>
                     <th>AST</th>
@@ -603,6 +608,7 @@
                         </span>
                     </td>
                     <td>{{ log.stat.minutes }}</td>
+                    <td class="{% if log.stat.plus_minus > 0 %}text-success{% elif log.stat.plus_minus < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-weight: 700;">{% if log.stat.plus_minus > 0 %}+{% endif %}{{ log.stat.plus_minus }}</td>
                     <td><strong>{{ log.stat.points }}</strong></td>
                     <td>{{ log.stat.reb }}</td>
                     <td>{{ log.stat.ast }}</td>

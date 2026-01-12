@@ -229,7 +229,7 @@
                         <th class="sticky-col" style="min-width: 180px;"></th>
                         <th></th>
                         <th></th>
-                        <th class="section-header section-off" colspan="9">OFFENSIVE</th>
+                        <th class="section-header section-off" colspan="10">OFFENSIVE</th>
                         <th class="section-header section-eff" colspan="5">EFFICIENCY</th>
                         <th class="section-header section-sho" colspan="6">SHOOTING</th>
                         <th class="section-header section-def" colspan="3">DEFENSE & OTHER</th>
@@ -279,6 +279,7 @@
                         <!-- OFFENSIVE -->
                         {% for col in [
                             ('ppg', 'PTS', 'Points per game.', ''),
+                            ('plus_minus_avg', '+/-', 'Average plus/minus per game (LIVE games).', ''),
                             ('ortg', 'ORtg', 'Points produced per 100 possessions.', 'Formula: ORtg = (Points / Possessions) × 100'),
                             ('ppp', 'PPP', 'Scoring efficiency per possession.', 'Formula: PPP = Points / Possessions'),
                             ('usg_pct', 'USG', 'How many possessions a player finishes.', 'Formula: USG% ≈ (FGA + 0.44×FTA + TOV) / Poss × 100'),
@@ -401,6 +402,7 @@
 
                         <!-- OFFENSIVE -->
                         <td class="text-center fw-bold" style="color: var(--primary);">{{ p.ppg|round(1) }}</td>
+                        <td class="text-center fw-bold {% if p.plus_minus_avg > 0 %}flag-excellent{% elif p.plus_minus_avg < 0 %}flag-poor{% endif %}">{% if p.plus_minus_avg > 0 %}+{% endif %}{{ p.plus_minus_avg|round(1) }}</td>
                         <td class="text-center fw-bold" style="color: var(--success);">{{ p.ortg|round(0) }}</td>
                         <td class="text-center fw-bold {% if p.ppp > 1.1 %}flag-excellent{% elif p.ppp < 0.8 %}flag-poor{% endif %}">{{ p.ppp|round(2) }}</td>
                         <td class="text-center">{{ p.usg_pct|round(1) }}</td>

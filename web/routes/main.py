@@ -156,7 +156,7 @@ def save_live_game():
                 stl=stats["stl"],
                 blk=stats["blk"],
                 pf=stats["pf"],
-                # plus_minus will be calculated once we add event timeline logging
+                plus_minus=int(stats.get("plus_minus", 0) or 0),
             )
             db.session.add(new_stat)
 
@@ -583,6 +583,7 @@ def player_detail(player_name):
         "tpa": sum(s.tpa for s in player_stats),
         "ftm": sum(s.ftm for s in player_stats),
         "fta": sum(s.fta for s in player_stats),
+        "plus_minus": sum((s.plus_minus or 0) for s in player_stats),
     }
 
     # Calculate advanced metrics
@@ -613,6 +614,7 @@ def player_detail(player_name):
         "bpg": totals["blk"] / gp,
         "topg": totals["tov"] / gp,
         "pfpg": totals["pf"] / gp,
+        "plus_minus": totals["plus_minus"] / gp if gp > 0 else 0,
         "eff": calculate_efficiency(
             totals["points"],
             totals["reb"],
@@ -777,6 +779,7 @@ def players():
             func.sum(PlayerStat.tpa).label("total_tpa"),
             func.sum(PlayerStat.ftm).label("total_ftm"),
             func.sum(PlayerStat.fta).label("total_fta"),
+            func.sum(PlayerStat.plus_minus).label("total_plus_minus"),
         )
         .filter(PlayerStat.game_id.in_(target_game_ids))
         .filter(PlayerStat.minutes != "00:00")
@@ -834,12 +837,16 @@ def players():
             mean_ppg = statistics.mean(game_ppgs)
             consistency = (std_dev / mean_ppg) if mean_ppg > 0 else 0
 
+        total_pm = row.total_plus_minus or 0
+
         players_data.append(
             {
                 "player_name": row.player_name,
                 "games_played": gp,
                 "mpg": total_minutes / gp if gp > 0 else 0,
                 "ppg": row.total_points / gp if gp > 0 else 0,
+                "plus_minus_avg": (total_pm / gp) if gp > 0 else 0,
+                "plus_minus_total": total_pm,
                 "rpg": row.total_reb / gp if gp > 0 else 0,
                 "orebpg": row.total_oreb / gp if gp > 0 else 0,
                 "drebpg": row.total_dreb / gp if gp > 0 else 0,
