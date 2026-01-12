@@ -5,24 +5,26 @@ class GameTracker {
         this.stats = {};
         this.opponentScore = 0;
         this.shotLocations = [];
-        
+        this.gameEvents = [];
+
         // Pending actions
         this.pendingMadeShot = null;
         this.pendingOreb = null;
+        this.pendingMissShot = null;
 
         // Timer State
         this.timerInterval = null;
         this.quarter = 1;
         this.clockSeconds = 0;
         this.isClockRunning = false;
-        
+
         // Auto-cache timer
         this.autoCacheInterval = null;
         this.lastCacheTimestamp = 0;
-        
+
         // UI Helpers
         this.shotLocListenerAttached = false;
-        
+
         // Constants
         this.CONSTANTS = {
             SVG_WIDTH: 500,
@@ -42,27 +44,27 @@ class GameTracker {
         this.loadState();
         this.bindEvents();
         this.renderCachedGamesUI();
-        
+
         // If we loaded a state where game was started, show tracker
         if (Object.keys(this.stats).length > 0) {
-             document.getElementById('setup-panel').style.display = 'none';
-             document.getElementById('lineup-panel').style.display = 'none';
-             document.getElementById('tracker-panel').style.display = 'block';
-             
-             // Restore opponent name display
-             const oppName = document.getElementById('opponent').value || "Opponent";
-             document.getElementById('display-opponent').innerText = "vs " + oppName;
-             
-             // Restore quarter and clock display
-             document.getElementById('quarter-display').innerText = 'Q' + this.quarter;
-             this.updateClockDisplay();
-             document.getElementById('opp-score-display').innerText = this.opponentScore;
+            document.getElementById('setup-panel').style.display = 'none';
+            document.getElementById('lineup-panel').style.display = 'none';
+            document.getElementById('tracker-panel').style.display = 'block';
 
-             this.renderActivePlayers();
-             this.updateScoreboard();
-             
-             // Start auto-cache timer for active game
-             this.startAutoCacheTimer();
+            // Restore opponent name display
+            const oppName = document.getElementById('opponent').value || "Opponent";
+            document.getElementById('display-opponent').innerText = "vs " + oppName;
+
+            // Restore quarter and clock display
+            document.getElementById('quarter-display').innerText = 'Q' + this.quarter;
+            this.updateClockDisplay();
+            document.getElementById('opp-score-display').innerText = this.opponentScore;
+
+            this.renderActivePlayers();
+            this.updateScoreboard();
+
+            // Start auto-cache timer for active game
+            this.startAutoCacheTimer();
         }
     }
 
@@ -80,12 +82,12 @@ class GameTracker {
         if (this.autoCacheInterval) {
             clearInterval(this.autoCacheInterval);
         }
-        
+
         // Start new timer
         this.autoCacheInterval = setInterval(() => {
             const now = Date.now();
             const timeSinceLastCache = now - this.lastCacheTimestamp;
-            
+
             // Only auto-cache if 30s have passed since last cache
             if (timeSinceLastCache >= this.CONSTANTS.AUTO_CACHE_INTERVAL_MS) {
                 this.addToCache(this.getCurrentState(), true); // true = auto-cache
@@ -114,26 +116,26 @@ class GameTracker {
 
     addToCache(state, isAutoCache = false) {
         const cache = this.getCachedGames();
-        
+
         // Create a snapshot with timestamp
         const snapshot = {
             ...state,
             timestamp: Date.now(),
             id: Date.now() + Math.random() // unique ID
         };
-        
+
         // Update last cache timestamp
         this.lastCacheTimestamp = snapshot.timestamp;
-        
+
         // Add to front of array
         cache.unshift(snapshot);
-        
+
         // Keep only the most recent MAX_CACHED_GAMES
         const trimmed = cache.slice(0, this.CONSTANTS.MAX_CACHED_GAMES);
-        
+
         localStorage.setItem(this.CONSTANTS.CACHE_KEY, JSON.stringify(trimmed));
         this.renderCachedGamesUI();
-        
+
         // Optional: Log auto-cache events for debugging
         if (isAutoCache) {
             console.log('[Auto-cache] Game state saved at', new Date(snapshot.timestamp).toLocaleTimeString());
@@ -154,44 +156,45 @@ class GameTracker {
             alert("Cached game not found.");
             return;
         }
-        
+
         if (!confirm(`Restore game vs ${snapshot.opponentName || 'Unknown'} from ${this.formatTimestamp(snapshot.timestamp)}? Current progress will be lost.`)) {
             return;
         }
-        
+
         // Restore state from snapshot
         this.fullRoster = snapshot.fullRoster || [];
         this.activeLineup = snapshot.activeLineup || [];
         this.stats = snapshot.stats || {};
         this.opponentScore = snapshot.opponentScore || 0;
         this.shotLocations = snapshot.shotLocations || [];
+        this.gameEvents = snapshot.gameEvents || [];
         this.quarter = snapshot.quarter || 1;
         this.clockSeconds = snapshot.clockSeconds || 0;
-        
+
         // Restore inputs
-        if(snapshot.gameDate) document.getElementById('game-date').value = snapshot.gameDate;
-        if(snapshot.opponentName) document.getElementById('opponent').value = snapshot.opponentName;
-        if(snapshot.gameType) document.getElementById('game-type').value = snapshot.gameType;
-        
+        if (snapshot.gameDate) document.getElementById('game-date').value = snapshot.gameDate;
+        if (snapshot.opponentName) document.getElementById('opponent').value = snapshot.opponentName;
+        if (snapshot.gameType) document.getElementById('game-type').value = snapshot.gameType;
+
         // Save to current state and show tracker
         this.saveState();
-        
+
         // Navigate to tracker
         if (Object.keys(this.stats).length > 0) {
             document.getElementById('setup-panel').style.display = 'none';
             document.getElementById('lineup-panel').style.display = 'none';
             document.getElementById('tracker-panel').style.display = 'block';
-            
+
             const oppName = document.getElementById('opponent').value || "Opponent";
             document.getElementById('display-opponent').innerText = "vs " + oppName;
-            
+
             document.getElementById('quarter-display').innerText = 'Q' + this.quarter;
             this.updateClockDisplay();
             document.getElementById('opp-score-display').innerText = this.opponentScore;
 
             this.renderActivePlayers();
             this.updateScoreboard();
-            
+
             // Restart auto-cache timer
             this.startAutoCacheTimer();
         }
@@ -200,22 +203,22 @@ class GameTracker {
     renderCachedGamesUI() {
         const container = document.getElementById('cached-games-list');
         if (!container) return;
-        
+
         const cache = this.getCachedGames();
-        
+
         if (cache.length === 0) {
             container.innerHTML = '<p class="text-muted small">No saved games in cache.</p>';
             return;
         }
-        
+
         container.innerHTML = '<h6 class="mb-2">Recent Games (Last 3)</h6>';
-        
+
         cache.forEach(game => {
             let totalPoints = 0;
             if (game.stats) {
                 Object.values(game.stats).forEach(s => totalPoints += (s.points || 0));
             }
-            
+
             const div = document.createElement('div');
             div.className = 'card mb-2 shadow-sm';
             div.innerHTML = `
@@ -248,12 +251,12 @@ class GameTracker {
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);
         const diffDays = Math.floor(diffMs / 86400000);
-        
+
         if (diffMins < 1) return 'Just now';
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;
         if (diffDays < 7) return `${diffDays}d ago`;
-        
+
         return date.toLocaleDateString();
     }
 
@@ -265,6 +268,7 @@ class GameTracker {
             stats: this.stats,
             opponentScore: this.opponentScore,
             shotLocations: this.shotLocations,
+            gameEvents: this.gameEvents,
             quarter: this.quarter,
             clockSeconds: this.clockSeconds,
             // Inputs
@@ -285,14 +289,15 @@ class GameTracker {
                 this.stats = state.stats || {};
                 this.opponentScore = state.opponentScore || 0;
                 this.shotLocations = state.shotLocations || [];
+                this.gameEvents = state.gameEvents || [];
                 this.quarter = state.quarter || 1;
                 this.clockSeconds = state.clockSeconds || 0;
-                
+
                 // Restore inputs
-                if(state.gameDate) document.getElementById('game-date').value = state.gameDate;
-                if(state.opponentName) document.getElementById('opponent').value = state.opponentName;
-                if(state.gameType) document.getElementById('game-type').value = state.gameType;
-                
+                if (state.gameDate) document.getElementById('game-date').value = state.gameDate;
+                if (state.opponentName) document.getElementById('opponent').value = state.opponentName;
+                if (state.gameType) document.getElementById('game-type').value = state.gameType;
+
             } catch (e) {
                 console.error("Failed to load state", e);
             }
@@ -342,7 +347,7 @@ class GameTracker {
         }
         document.getElementById('setup-panel').style.display = 'none';
         document.getElementById('lineup-panel').style.display = 'block';
-        
+
         const container = document.getElementById('starter-selection');
         container.innerHTML = '';
         this.fullRoster.forEach(p => {
@@ -367,8 +372,8 @@ class GameTracker {
             };
             // Pre-select if already in activeLineup (from reload)
             if (this.activeLineup.includes(p)) {
-                 btn.classList.remove('btn-outline-secondary');
-                 btn.classList.add('btn-primary');
+                btn.classList.remove('btn-outline-secondary');
+                btn.classList.add('btn-primary');
             }
             container.appendChild(btn);
         });
@@ -389,10 +394,10 @@ class GameTracker {
         // Initialize stats only if empty (preserve on reload)
         if (Object.keys(this.stats).length === 0) {
             this.fullRoster.forEach(p => {
-                this.stats[p] = { 
-                    points: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, 
+                this.stats[p] = {
+                    points: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0,
                     oreb: 0, dreb: 0, ast: 0, tov: 0, stl: 0, blk: 0, pf: 0,
-                    plus_minus: 0, 
+                    plus_minus: 0,
                     minutes_seconds: 0,
                     last_sub_in: this.activeLineup.includes(p) ? Date.now() : null
                 };
@@ -400,7 +405,7 @@ class GameTracker {
         } else {
             // Ensure last_sub_in is reset for starters if resuming
             this.activeLineup.forEach(p => {
-                 if (!this.stats[p].last_sub_in) this.stats[p].last_sub_in = Date.now();
+                if (!this.stats[p].last_sub_in) this.stats[p].last_sub_in = Date.now();
             });
         }
 
@@ -410,7 +415,7 @@ class GameTracker {
 
         this.renderActivePlayers();
         this.saveState();
-        
+
         // Start auto-cache timer when game starts
         this.startAutoCacheTimer();
     }
@@ -419,7 +424,7 @@ class GameTracker {
     renderActivePlayers() {
         const grid = document.getElementById('player-grid');
         grid.innerHTML = '';
-        
+
         this.activeLineup.forEach(p => {
             const s = this.stats[p];
             const pmClass = s.plus_minus > 0 ? 'badge-success' : (s.plus_minus < 0 ? 'badge-danger' : 'badge-secondary');
@@ -437,7 +442,7 @@ class GameTracker {
                             </div>
                         </div>
                         <div class="card-body p-2">
-                            
+
                             <!-- SHOOTING SECTION -->
                             <div class="mb-2 border-bottom pb-2">
                                 <!-- 2PT -->
@@ -449,7 +454,7 @@ class GameTracker {
                                     </div>
                                     <span class="mx-2 font-weight-bold" id="disp-2pt-${p}">${(s.fgm - s.tpm)}/${(s.fga - s.tpa)}</span>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="gameTracker.openOrebModal('${p}', '2pt')">Miss</button>
+                                        <button class="btn btn-outline-danger py-0" onclick="gameTracker.openMissShotLocModal('${p}', '2pt', 0)">Miss</button>
                                         <button class="btn btn-success font-weight-bold py-0" onclick="gameTracker.openAssistModal('${p}', '2pt', 2)">+2</button>
                                     </div>
                                 </div>
@@ -463,7 +468,7 @@ class GameTracker {
                                     </div>
                                     <span class="mx-2 font-weight-bold" id="disp-3pt-${p}">${s.tpm}/${s.tpa}</span>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="gameTracker.openOrebModal('${p}', '3pt')">Miss</button>
+                                        <button class="btn btn-outline-danger py-0" onclick="gameTracker.openMissShotLocModal('${p}', '3pt', 0)">Miss</button>
                                         <button class="btn btn-success font-weight-bold py-0" onclick="gameTracker.openAssistModal('${p}', '3pt', 3)">+3</button>
                                     </div>
                                 </div>
@@ -497,7 +502,7 @@ class GameTracker {
                             <div class="row no-gutters text-center mt-1">
                                 ${this.renderStatBox(p, 'PF', 'pf', s.pf, 'text-danger')}
                             </div>
-                            
+
                             <div class="mt-2 text-center small text-muted">
                                 <span id="time-${p}" class="font-weight-bold">MIN: ${this.formatMinutes(s.minutes_seconds)}</span>
                             </div>
@@ -508,7 +513,7 @@ class GameTracker {
         });
     }
 
-    renderStatBox(player, label, key, value, textClass='') {
+    renderStatBox(player, label, key, value, textClass = '') {
         return `
             <div class="col-4 px-1">
                 <div class="bg-light rounded p-1 border">
@@ -524,52 +529,52 @@ class GameTracker {
     }
 
     updateUI(player) {
-         const s = this.stats[player];
-         
-         document.getElementById(`pts-${player}`).innerText = s.points + ' PTS';
-         document.getElementById(`pf-badge-${player}`).innerText = s.pf + ' PF';
-         
-         // Update +/- Badge
-         const pmEl = document.getElementById(`pm-${player}`);
-         if (pmEl) {
-             const pmSign = s.plus_minus > 0 ? '+' : '';
-             pmEl.innerText = `${pmSign}${s.plus_minus}`;
-             
-             pmEl.className = 'badge mr-1';
-             if (s.plus_minus > 0) pmEl.classList.add('badge-success');
-             else if (s.plus_minus < 0) pmEl.classList.add('badge-danger');
-             else pmEl.classList.add('badge-secondary');
-         }
-         
-         if (document.getElementById(`disp-2pt-${player}`)) {
-             const two_m = s.fgm - s.tpm;
-             const two_a = s.fga - s.tpa;
-             document.getElementById(`disp-2pt-${player}`).innerText = `${two_m}/${two_a}`;
-         }
-         if (document.getElementById(`disp-3pt-${player}`)) {
-             document.getElementById(`disp-3pt-${player}`).innerText = `${s.tpm}/${s.tpa}`;
-         }
-         if (document.getElementById(`disp-ft-${player}`)) {
-             document.getElementById(`disp-ft-${player}`).innerText = `${s.ftm}/${s.fta}`;
-         }
+        const s = this.stats[player];
 
-         const keys = ['oreb', 'dreb', 'ast', 'stl', 'blk', 'tov', 'pf'];
-         keys.forEach(k => {
-             const el = document.getElementById(`disp-${k}-${player}`);
-             if(el) el.innerText = s[k];
-         });
+        document.getElementById(`pts-${player}`).innerText = s.points + ' PTS';
+        document.getElementById(`pf-badge-${player}`).innerText = s.pf + ' PF';
 
-         this.updateScoreboard();
+        // Update +/- Badge
+        const pmEl = document.getElementById(`pm-${player}`);
+        if (pmEl) {
+            const pmSign = s.plus_minus > 0 ? '+' : '';
+            pmEl.innerText = `${pmSign}${s.plus_minus}`;
+
+            pmEl.className = 'badge mr-1';
+            if (s.plus_minus > 0) pmEl.classList.add('badge-success');
+            else if (s.plus_minus < 0) pmEl.classList.add('badge-danger');
+            else pmEl.classList.add('badge-secondary');
+        }
+
+        if (document.getElementById(`disp-2pt-${player}`)) {
+            const two_m = s.fgm - s.tpm;
+            const two_a = s.fga - s.tpa;
+            document.getElementById(`disp-2pt-${player}`).innerText = `${two_m}/${two_a}`;
+        }
+        if (document.getElementById(`disp-3pt-${player}`)) {
+            document.getElementById(`disp-3pt-${player}`).innerText = `${s.tpm}/${s.tpa}`;
+        }
+        if (document.getElementById(`disp-ft-${player}`)) {
+            document.getElementById(`disp-ft-${player}`).innerText = `${s.ftm}/${s.fta}`;
+        }
+
+        const keys = ['oreb', 'dreb', 'ast', 'stl', 'blk', 'tov', 'pf'];
+        keys.forEach(k => {
+            const el = document.getElementById(`disp-${k}-${player}`);
+            if (el) el.innerText = s[k];
+        });
+
+        this.updateScoreboard();
     }
 
     updateScoreboard() {
-         let total = 0;
-         Object.values(this.stats).forEach(s => total += s.points);
-         document.getElementById('scoreboard').innerText = `${total} - ${this.opponentScore}`;
+        let total = 0;
+        Object.values(this.stats).forEach(s => total += s.points);
+        document.getElementById('scoreboard').innerText = `${total} - ${this.opponentScore}`;
     }
 
     // --- MODALS (Assist, ShotLoc, Oreb) ---
-    
+
     openAssistModal(shooter, type, points) {
         this.pendingMadeShot = { shooter, type, points, assister: null, location: null };
         document.getElementById('assist-shot-label').innerText = `${shooter} ${points}PT MADE`;
@@ -610,8 +615,26 @@ class GameTracker {
         if (!this.pendingMadeShot) return;
         const { shooter, points } = this.pendingMadeShot;
         document.getElementById('shotloc-player').innerText = `${shooter} (${points}PT)`;
-        
+
         this.pendingMadeShot.location = null;
+        document.getElementById('shotloc-coords').innerText = '(none)';
+        document.getElementById('btn-confirm-shotloc').disabled = true;
+        const marker = document.getElementById('shotloc-marker');
+        if (marker) {
+            marker.setAttribute('cx', -20);
+            marker.setAttribute('cy', -20);
+        }
+
+        this.attachShotLocListenerOnce();
+        $('#shotLocModal').modal('show');
+    }
+
+    openMissShotLocModal(shooter, type, points) {
+        // A missed shot always has 0 points, but keep signature consistent
+        this.pendingMissShot = { shooter, type, points, location: null };
+        document.getElementById('shotloc-player').innerText = `${shooter} (${type.toUpperCase()} MISS)`;
+
+        this.pendingMissShot.location = null;
         document.getElementById('shotloc-coords').innerText = '(none)';
         document.getElementById('btn-confirm-shotloc').disabled = true;
         const marker = document.getElementById('shotloc-marker');
@@ -626,31 +649,35 @@ class GameTracker {
 
     attachShotLocListenerOnce() {
         if (this.shotLocListenerAttached) return;
-        
+
         const hitbox = document.getElementById(this.CONSTANTS.COURT_HITBOX_ID);
         const svg = document.getElementById(this.CONSTANTS.SVG_ID);
-        
+
         if (!hitbox || !svg) return;
 
         hitbox.addEventListener('pointerdown', (evt) => {
-            if (!this.pendingMadeShot) return;
+            const pending = this.pendingMadeShot || this.pendingMissShot;
+            if (!pending) return;
             evt.preventDefault();
-            
+
             const pt = svg.createSVGPoint();
             pt.x = evt.clientX;
             pt.y = evt.clientY;
             const ctm = svg.getScreenCTM();
             if (!ctm) return;
             const cursor = pt.matrixTransform(ctm.inverse());
-            
+
             let x = Math.max(0, Math.min(this.CONSTANTS.SVG_WIDTH, cursor.x));
             let y = Math.max(0, Math.min(this.CONSTANTS.SVG_HEIGHT, cursor.y));
 
-            this.pendingMadeShot.location = {
+            const loc = {
                 x, y,
                 nx: x / this.CONSTANTS.SVG_WIDTH,
                 ny: y / this.CONSTANTS.SVG_HEIGHT
             };
+
+            if (this.pendingMadeShot) this.pendingMadeShot.location = loc;
+            if (this.pendingMissShot) this.pendingMissShot.location = loc;
 
             const marker = document.getElementById('shotloc-marker');
             if (marker) {
@@ -665,35 +692,72 @@ class GameTracker {
     }
 
     skipShotLocation() {
+        if (this.pendingMissShot) {
+            this.pendingMissShot.location = null;
+            this.confirmShotLocationFromMap(true);
+            return;
+        }
         if (!this.pendingMadeShot) return;
         this.pendingMadeShot.location = null;
         this.confirmShotLocationFromMap(true);
     }
 
-    confirmShotLocationFromMap(skipped=false) {
-        if (!this.pendingMadeShot) return;
-        const { shooter, type, points, assister, location } = this.pendingMadeShot;
+    confirmShotLocationFromMap(skipped = false) {
+        // Handle made shots
+        if (this.pendingMadeShot) {
+            const { shooter, type, points, assister, location } = this.pendingMadeShot;
 
-        this.updateShooting(shooter, type, 1, 1);
-        
-        if (assister && this.stats[assister]) {
-            this.updateStat(assister, 'ast', 1);
+            this.updateShooting(shooter, type, 1, 1);
+
+            if (assister && this.stats[assister]) {
+                this.updateStat(assister, 'ast', 1);
+            }
+
+            if (!skipped && location) {
+                this.shotLocations.push({
+                    shooter, type, points,
+                    assister: assister || null,
+                    result: 'made',
+                    x: location.x, y: location.y,
+                    nx: location.nx, ny: location.ny,
+                    quarter: this.quarter,
+                    clockSeconds: this.clockSeconds
+                });
+            }
+
+            this.pendingMadeShot = null;
+            $('#shotLocModal').modal('hide');
+            this.saveState();
+            return;
         }
 
-        if (!skipped && location) {
-            this.shotLocations.push({
-                shooter, type, points,
-                assister: assister || null,
-                x: location.x, y: location.y,
-                nx: location.nx, ny: location.ny,
-                quarter: this.quarter,
-                clockSeconds: this.clockSeconds
-            });
-        }
+        // Handle missed shots
+        if (this.pendingMissShot) {
+            const { shooter, type, location } = this.pendingMissShot;
 
-        this.pendingMadeShot = null;
-        $('#shotLocModal').modal('hide');
-        this.saveState();
+            // Count the miss as an attempt
+            this.updateShooting(shooter, type, 0, 1);
+
+            if (!skipped && location) {
+                this.shotLocations.push({
+                    shooter,
+                    type,
+                    points: 0,
+                    assister: null,
+                    result: 'missed',
+                    x: location.x, y: location.y,
+                    nx: location.nx, ny: location.ny,
+                    quarter: this.quarter,
+                    clockSeconds: this.clockSeconds
+                });
+            }
+
+            // Then prompt for offensive rebound as before
+            this.pendingMissShot = null;
+            $('#shotLocModal').modal('hide');
+            this.openOrebModal(shooter, type);
+            this.saveState();
+        }
     }
 
     openOrebModal(shooter, type) {
@@ -725,7 +789,9 @@ class GameTracker {
         if (!this.pendingOreb) return;
         const { shooter, type } = this.pendingOreb;
 
-        this.updateShooting(shooter, type, 0, 1);
+        // Do NOT increment attempts here anymore; it is already counted in confirmShotLocationFromMap for misses.
+        // Keep old behavior for legacy flows (if any): if a miss comes from somewhere else, count it.
+        // But the typical flow now is: Miss -> shotLoc -> attempt counted -> oreb modal.
 
         if (rebounder && this.stats[rebounder]) {
             this.updateStat(rebounder, 'oreb', 1);
@@ -745,39 +811,39 @@ class GameTracker {
         if (type === '2pt') {
             const current2M = s.fgm - s.tpm;
             const current2A = s.fga - s.tpa;
-            if (current2M + makeDelta < 0 || current2A + attemptDelta < 0) return; 
+            if (current2M + makeDelta < 0 || current2A + attemptDelta < 0) return;
             if (current2A + attemptDelta < current2M + makeDelta) return;
             s.fgm += makeDelta;
             s.fga += attemptDelta;
             pointsAdded = (makeDelta * 2);
             s.points += pointsAdded;
         } else if (type === '3pt') {
-             if (s.tpm + makeDelta < 0 || s.tpa + attemptDelta < 0) return;
-             if (s.tpa + attemptDelta < s.tpm + makeDelta) return;
-             s.tpm += makeDelta;
-             s.tpa += attemptDelta;
-             s.fgm += makeDelta;
-             s.fga += attemptDelta;
-             pointsAdded = (makeDelta * 3);
-             s.points += pointsAdded;
+            if (s.tpm + makeDelta < 0 || s.tpa + attemptDelta < 0) return;
+            if (s.tpa + attemptDelta < s.tpm + makeDelta) return;
+            s.tpm += makeDelta;
+            s.tpa += attemptDelta;
+            s.fgm += makeDelta;
+            s.fga += attemptDelta;
+            pointsAdded = (makeDelta * 3);
+            s.points += pointsAdded;
         } else if (type === 'ft') {
-             if (s.ftm + makeDelta < 0 || s.fta + attemptDelta < 0) return;
-             if (s.fta + attemptDelta < s.ftm + makeDelta) return;
-             s.ftm += makeDelta;
-             s.fta += attemptDelta;
-             pointsAdded = (makeDelta * 1);
-             s.points += pointsAdded;
+            if (s.ftm + makeDelta < 0 || s.fta + attemptDelta < 0) return;
+            if (s.fta + attemptDelta < s.ftm + makeDelta) return;
+            s.ftm += makeDelta;
+            s.fta += attemptDelta;
+            pointsAdded = (makeDelta * 1);
+            s.points += pointsAdded;
         }
 
         if (makeDelta !== 0) {
             this.activeLineup.forEach(pName => {
                 if (this.stats[pName]) {
-                    this.stats[pName].plus_minus += pointsAdded; 
+                    this.stats[pName].plus_minus += pointsAdded;
                 }
             });
             this.activeLineup.forEach(pName => this.updateUI(pName));
         } else {
-             this.updateUI(player);
+            this.updateUI(player);
         }
         this.saveState();
     }
@@ -790,14 +856,27 @@ class GameTracker {
         this.saveState();
     }
 
+    logEvent(type, player = null, detail = null) {
+        this.gameEvents.push({
+            type,
+            player,
+            detail,
+            quarter: this.quarter,
+            clockSeconds: this.clockSeconds,
+            timestamp: Date.now()
+        });
+    }
+
     updateOppScore(points) {
         this.opponentScore += points;
-        if(this.opponentScore < 0) this.opponentScore = 0;
+        if (this.opponentScore < 0) this.opponentScore = 0;
         document.getElementById('opp-score-display').innerText = this.opponentScore;
-        
+
+        this.logEvent('OPP_SCORE', null, { points });
+
         this.activeLineup.forEach(pName => {
             if (this.stats[pName]) {
-                this.stats[pName].plus_minus -= points; 
+                this.stats[pName].plus_minus -= points;
             }
             this.updateUI(pName);
         });
@@ -815,7 +894,7 @@ class GameTracker {
             btn.classList.remove('btn-danger');
             btn.classList.add('btn-success');
             this.updatePlayerTimes();
-            
+
             // Save to cache when clock is stopped (event-based cache)
             this.addToCache(this.getCurrentState());
         } else {
@@ -824,7 +903,7 @@ class GameTracker {
                 this.stats[p].last_sub_in = now;
             });
             this.timerInterval = setInterval(() => {
-                this.clockSeconds++; 
+                this.clockSeconds++;
                 this.updateClockDisplay();
             }, 1000);
             this.isClockRunning = true;
@@ -842,6 +921,7 @@ class GameTracker {
             stats: JSON.parse(JSON.stringify(this.stats)), // deep copy
             opponentScore: this.opponentScore,
             shotLocations: JSON.parse(JSON.stringify(this.shotLocations)),
+            gameEvents: JSON.parse(JSON.stringify(this.gameEvents)),
             quarter: this.quarter,
             clockSeconds: this.clockSeconds,
             gameDate: document.getElementById('game-date').value,
@@ -856,7 +936,7 @@ class GameTracker {
             if (this.stats[p].last_sub_in) {
                 const diffSeconds = Math.floor((now - this.stats[p].last_sub_in) / 1000);
                 this.stats[p].minutes_seconds += diffSeconds;
-                this.stats[p].last_sub_in = null; 
+                this.stats[p].last_sub_in = null;
             }
             const el = document.getElementById(`time-${p}`);
             if (el) el.innerText = 'MIN: ' + this.formatMinutes(this.stats[p].minutes_seconds);
@@ -864,19 +944,21 @@ class GameTracker {
     }
 
     resetClock() {
-        if(this.isClockRunning) this.toggleClock();
-        this.clockSeconds = 0; 
+        if (this.isClockRunning) this.toggleClock();
+        this.clockSeconds = 0;
         this.updateClockDisplay();
         this.saveState();
     }
 
     nextQuarter() {
-        if(this.isClockRunning) this.toggleClock();
+        if (this.isClockRunning) this.toggleClock();
         this.quarter++;
         document.getElementById('quarter-display').innerText = 'Q' + this.quarter;
         this.clockSeconds = 0;
         this.updateClockDisplay();
-        
+
+        this.logEvent('NEXT_QUARTER', null, { quarter: this.quarter });
+
         // Cache at quarter boundaries (event-based cache)
         this.addToCache(this.getCurrentState());
         this.saveState();
@@ -885,19 +967,19 @@ class GameTracker {
     updateClockDisplay() {
         const m = Math.floor(this.clockSeconds / 60);
         const s = this.clockSeconds % 60;
-        document.getElementById('game-clock').innerText = 
+        document.getElementById('game-clock').innerText =
             `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     }
 
     // --- SUBS ---
     showSubstitutionModal() {
         if (this.isClockRunning) this.toggleClock();
-        
+
         // Use a temporary list for substitution selection
         this._tempLineup = [...this.activeLineup];
         const container = document.getElementById('sub-roster-list');
         container.innerHTML = '';
-        
+
         this.fullRoster.forEach(p => {
             const isActive = this._tempLineup.includes(p);
             const pmVal = this.stats[p] ? this.stats[p].plus_minus : 0;
@@ -911,7 +993,7 @@ class GameTracker {
                                 <span>${p} <small class="${pmClass} font-weight-bold">(${pmSign}${pmVal})</small></span>
                                 <small>${isActive ? 'ON COURT' : 'BENCH'}</small>
                              </div>`;
-            
+
             btn.onclick = () => {
                 if (this._tempLineup.includes(p)) {
                     this._tempLineup = this._tempLineup.filter(x => x !== p);
@@ -929,7 +1011,7 @@ class GameTracker {
             };
             container.appendChild(btn);
         });
-        
+
         $('#subModal').modal('show');
     }
 
@@ -938,10 +1020,18 @@ class GameTracker {
             alert("You must select exactly 5 players.");
             return;
         }
+
+        const prevLineup = new Set(this.activeLineup);
+        const newLineup = new Set(this._tempLineup);
+
+        // Log outs and ins
+        [...prevLineup].filter(p => !newLineup.has(p)).forEach(p => this.logEvent('SUB_OUT', p));
+        [...newLineup].filter(p => !prevLineup.has(p)).forEach(p => this.logEvent('SUB_IN', p));
+
         this.activeLineup = [...this._tempLineup];
         this.renderActivePlayers();
         $('#subModal').modal('hide');
-        
+
         // Cache after substitutions (event-based cache)
         this.addToCache(this.getCurrentState());
         this.saveState();
@@ -956,8 +1046,8 @@ class GameTracker {
 
     finishGame() {
         if (!confirm("Are you sure you want to finish and save this game?")) return;
-        
-        if (this.isClockRunning) this.toggleClock(); 
+
+        if (this.isClockRunning) this.toggleClock();
 
         let total = 0;
         Object.values(this.stats).forEach(s => total += s.points);
@@ -973,9 +1063,10 @@ class GameTracker {
             opponent: document.getElementById('opponent').value,
             date: document.getElementById('game-date').value,
             game_type: document.getElementById('game-type').value,
-            team_score: total, 
+            team_score: total,
             opponent_score: this.opponentScore,
             shot_locations: this.shotLocations,
+            game_events: this.gameEvents,
             player_stats: finalStats
         };
 
@@ -989,9 +1080,8 @@ class GameTracker {
             },
             body: JSON.stringify(payload)
         }).then(res => res.json()).then(data => {
-            if(data.success) {
-                this.clearState(); // Clear local storage on success + stop timer
-                // Don't remove from cache - let user keep historical snapshots
+            if (data.success) {
+                this.clearState();
                 window.location.href = `/game/${data.game_id}`;
             } else {
                 alert("Error saving game: " + (data.error || "Unknown error"));
