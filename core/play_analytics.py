@@ -1,5 +1,5 @@
 
-from sqlalchemy import func, case
+from sqlalchemy import func, case, and_
 from core.models import db, Play, ShotEvent, GameEvent
 
 def get_play_stats(game_id, play_type="Offense"):
@@ -23,7 +23,7 @@ def get_play_stats(game_id, play_type="Offense"):
             func.sum(case((ShotEvent.result == "made", 1), else_=0)).label("made_shots"),
             func.sum(ShotEvent.points).label("points_scored"),
             func.sum(case((ShotEvent.shot_type == "3pt", 1), else_=0)).label("three_attempts"),
-            func.sum(case((ShotEvent.shot_type == "3pt", ShotEvent.result == "made"), 1), else_=0).label("three_made")
+            func.sum(case((and_(ShotEvent.shot_type == "3pt", ShotEvent.result == "made"), 1), else_=0)).label("three_made")
         )
         .filter(ShotEvent.game_id == game_id, ShotEvent.play_id.isnot(None))
         .group_by(ShotEvent.play_id)
