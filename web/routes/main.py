@@ -121,20 +121,56 @@ def api_plays():
 @main_bp.route("/live-game/save", methods=["POST"])
 @login_required
 def save_live_game():
-    """Receive JSON data from live tracker and save to DB"""
+    """Receive JSON data from live tracker and save to DB
+    
+    Returns JSON response:
+    - Success: {"success": true, "game_id": <id>}
+    - Error: {"error": "error message", "details": "optional details"}
+    """
     data = request.get_json()
 
     if not data:
-        return jsonify({"error": "No data received"}), 400
+        return jsonify({
+            "error": "No data received",
+            "details": "Request body is empty or not valid JSON"
+        }), 400
 
     try:
         game = create_game_from_live_data(data)
-        return jsonify({"success": True, "game_id": game.id})
+        current_app.logger.info(f"Live game saved successfully: Game ID {game.id}")
+        return jsonify({
+            "success": True,
+            "game_id": game.id,
+            "message": f"Game saved: {game.opponent} ({game.result})"
+        }), 201
+
+    except ValueError as e:
+        # Validation errors (invalid play IDs, missing required fields, etc.)
+        db.session.rollback()
+        error_msg = str(e)
+        current_app.logger.warning(f"Live game validation error: {error_msg}")
+        return jsonify({
+            "error": "Validation Error",
+            "details": error_msg
+        }), 400
 
     except Exception as e:
+        # Unexpected errors (database errors, FK violations, etc.)
         db.session.rollback()
-        current_app.logger.error(f"Live game save error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        error_msg = str(e)
+        current_app.logger.error(f"Live game save error: {error_msg}", exc_info=True)
+        
+        # Provide user-friendly error message
+        user_msg = "An unexpected error occurred while saving the game."
+        if "foreign key" in error_msg.lower():
+            user_msg = "Database integrity error: Invalid reference to play or other data."
+        elif "constraint" in error_msg.lower():
+            user_msg = "Data constraint violation: Check that all required fields are valid."
+        
+        return jsonify({
+            "error": user_msg,
+            "details": error_msg if current_app.debug else None
+        }), 500
 
 
 @main_bp.route("/upload-game", methods=["GET", "POST"])
