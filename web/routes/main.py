@@ -575,7 +575,7 @@ def player_detail(player_name):
         "bpg": totals["blk"] / gp,
         "topg": totals["tov"] / gp,
         "pfpg": totals["pf"] / gp,
-        "plus_minus": totals["plus_minus"] / gp if gp > 0 else 0,
+        "pm": totals["plus_minus"] / gp if gp > 0 else 0,  # Changed from plus_minus to pm
         "eff": calculate_efficiency(
             totals["points"],
             totals["reb"],
