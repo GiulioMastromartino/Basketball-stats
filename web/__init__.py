@@ -8,6 +8,7 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
+import click
 from flask import Flask
 from flask_caching import Cache
 from flask_limiter import Limiter
@@ -16,7 +17,7 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 
 from config import get_config
-from core.models import User, bcrypt, db
+from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, bcrypt, db
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -61,6 +62,9 @@ def create_app(config_name: str = None) -> Flask:
     # Register blueprints
     register_blueprints(app)
 
+    # Register CLI commands
+    register_commands(app)
+
     return app
 
 
@@ -86,7 +90,7 @@ def setup_logging(app: Flask, config):
 def register_blueprints(app: Flask):
     """Register all blueprints"""
     # Import blueprints here to avoid circular imports
-    from web.routes.analytics import analytics_bp  # <--- NEW IMPORT
+    from web.routes.analytics import analytics_bp
     from web.routes.api import api_bp
     from web.routes.auth import auth_bp
     from web.routes.main import main_bp
@@ -94,4 +98,41 @@ def register_blueprints(app: Flask):
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api/v1")
-    app.register_blueprint(analytics_bp)  # <--- NEW REGISTRATION
+    app.register_blueprint(analytics_bp)
+
+
+def register_commands(app: Flask):
+    """Register custom CLI commands"""
+    
+    @app.cli.command("reset-stats-db")
+    def reset_stats_db():
+        """
+        Drops Game, PlayerStat, ShotEvent, GameEvent tables 
+        to apply new schema changes, but PRESERVES the User table.
+        """
+        click.echo("WARNING: This will delete all GAMES and STATS.")
+        if not click.confirm("Are you sure you want to continue? Users will be preserved."):
+            return
+
+        with app.app_context():
+            # Drop tables in dependency order (children first)
+            # ShotEvent/GameEvent/PlayerStat depend on Game
+            try:
+                click.echo("Dropping ShotEvent...")
+                ShotEvent.__table__.drop(db.engine, checkfirst=True)
+                
+                click.echo("Dropping GameEvent...")
+                GameEvent.__table__.drop(db.engine, checkfirst=True)
+                
+                click.echo("Dropping PlayerStat...")
+                PlayerStat.__table__.drop(db.engine, checkfirst=True)
+                
+                click.echo("Dropping Game...")
+                Game.__table__.drop(db.engine, checkfirst=True)
+                
+                click.echo("Recreating all tables (including new schema)...")
+                db.create_all()
+                
+                click.echo("Done! Stats DB reset. User table preserved.")
+            except Exception as e:
+                click.echo(f"Error resetting DB: {e}")
