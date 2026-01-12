@@ -728,8 +728,13 @@ def game_summary_pdf(game_id):
     )
     
     # Convert to PDF
+    # Explicitly creating an HTML object to avoid implicit caching issues
     html_doc = HTML(string=html)
+    
+    # Use write_pdf without arguments to use default settings
+    # This avoids potential issues if underlying library versions mismatch on arguments
     pdf_bytes = html_doc.write_pdf()
+    
     pdf_io = BytesIO(pdf_bytes)
     pdf_io.seek(0)
     
