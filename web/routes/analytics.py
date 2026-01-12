@@ -16,6 +16,28 @@ import matplotlib.pyplot as plt
 from flask import Blueprint, jsonify, render_template, request, send_file, after_this_request, url_for
 from flask_login import login_required
 from sqlalchemy import desc, func
+
+# FIX: Monkeypatch pydyf.PDF before importing weasyprint
+# This handles version incompatibility where weasyprint passes args that pydyf doesn't accept
+import pydyf
+
+_original_pdf_init = pydyf.PDF.__init__
+
+def _patched_pdf_init(self, *args, **kwargs):
+    """Wrapper that handles both old and new pydyf.PDF API signatures"""
+    try:
+        # Try with arguments (old API)
+        _original_pdf_init(self, *args, **kwargs)
+    except TypeError as e:
+        # If that fails, try without arguments (new API)
+        if "positional argument" in str(e):
+            _original_pdf_init(self)
+        else:
+            raise
+
+pydyf.PDF.__init__ = _patched_pdf_init
+
+# Now safe to import weasyprint
 from weasyprint import HTML
 
 from core.models import Game, PlayerStat, db
@@ -728,11 +750,7 @@ def game_summary_pdf(game_id):
     )
     
     # Convert to PDF
-    # Explicitly creating an HTML object to avoid implicit caching issues
     html_doc = HTML(string=html)
-    
-    # Use write_pdf without arguments to use default settings
-    # This avoids potential issues if underlying library versions mismatch on arguments
     pdf_bytes = html_doc.write_pdf()
     
     pdf_io = BytesIO(pdf_bytes)
