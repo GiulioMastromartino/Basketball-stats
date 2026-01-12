@@ -33,7 +33,7 @@
             <label>Select Full Roster (At least 5 players)</label>
             <div id="roster-selection" class="d-flex flex-wrap gap-2">
                 {% for player in existing_players %}
-                <button class="btn btn-outline-secondary btn-sm player-select-btn" style="margin: 2px;" onclick="toggleRosterPlayer('{{ player }}', this)">
+                <button class="btn btn-outline-secondary btn-sm player-select-btn" style="margin: 2px;" onclick="gameTracker.toggleRosterPlayer('{{ player }}', this)">
                     {{ player }}
                 </button>
                 {% endfor %}
@@ -41,12 +41,12 @@
             <div class="input-group mt-2" style="width: 300px;">
                 <input type="text" id="new-player-name" class="form-control form-control-sm" placeholder="Add New Player...">
                 <div class="input-group-append">
-                    <button class="btn btn-primary btn-sm" onclick="addNewPlayer()">+</button>
+                    <button class="btn btn-primary btn-sm" onclick="gameTracker.addNewPlayer()">+</button>
                 </div>
             </div>
         </div>
 
-        <button class="btn btn-success w-100" onclick="goToLineupSelection()">Next: Select Starters</button>
+        <button class="btn btn-success w-100" onclick="gameTracker.goToLineupSelection()">Next: Select Starters</button>
     </div>
 
     <!-- STEP 2: LINEUP SELECTION (Hidden by default) -->
@@ -58,7 +58,7 @@
             <!-- Populated by JS -->
         </div>
 
-        <button class="btn btn-primary w-100" onclick="startGame()">Start Game</button>
+        <button class="btn btn-primary w-100" onclick="gameTracker.startGame()">Start Game</button>
     </div>
 
     <!-- STEP 3: LIVE TRACKER (Hidden by default) -->
@@ -78,7 +78,7 @@
                  <!-- Quarter Display -->
                  <div class="mb-1">
                      <span class="badge badge-light" id="quarter-display" style="font-size: 1.2rem;">Q1</span>
-                     <button class="btn btn-outline-light btn-sm py-0 px-2 ml-2" onclick="nextQuarter()" title="Next Quarter" style="font-size: 0.8rem;">Next Q &raquo;</button>
+                     <button class="btn btn-outline-light btn-sm py-0 px-2 ml-2" onclick="gameTracker.nextQuarter()" title="Next Quarter" style="font-size: 0.8rem;">Next Q &raquo;</button>
                  </div>
                  
                  <!-- Large Clock -->
@@ -86,7 +86,7 @@
                  
                  <!-- Big Control Button -->
                  <div>
-                     <button class="btn btn-success btn-lg px-5 font-weight-bold" id="btn-start-clock" onclick="toggleClock()" style="font-size: 1.5rem;">START</button>
+                     <button class="btn btn-success btn-lg px-5 font-weight-bold" id="btn-start-clock" onclick="gameTracker.toggleClock()" style="font-size: 1.5rem;">START</button>
                  </div>
             </div>
 
@@ -99,24 +99,24 @@
                          <span id="opp-score-display" class="h4 m-0 font-weight-bold">0</span>
                      </div>
                      <div class="btn-group w-100">
-                         <button class="btn btn-sm btn-light font-weight-bold" onclick="updateOppScore(1)">+1</button>
-                         <button class="btn btn-sm btn-light font-weight-bold" onclick="updateOppScore(2)">+2</button>
-                         <button class="btn btn-sm btn-light font-weight-bold" onclick="updateOppScore(3)">+3</button>
-                         <button class="btn btn-sm btn-dark" onclick="updateOppScore(-1)" title="Undo">-1</button>
+                         <button class="btn btn-sm btn-light font-weight-bold" onclick="gameTracker.updateOppScore(1)">+1</button>
+                         <button class="btn btn-sm btn-light font-weight-bold" onclick="gameTracker.updateOppScore(2)">+2</button>
+                         <button class="btn btn-sm btn-light font-weight-bold" onclick="gameTracker.updateOppScore(3)">+3</button>
+                         <button class="btn btn-sm btn-dark" onclick="gameTracker.updateOppScore(-1)" title="Undo">-1</button>
                      </div>
                  </div>
 
                  <!-- Game Actions -->
                  <div class="d-flex gap-2">
-                     <button class="btn btn-warning flex-fill mr-1" onclick="showSubstitutionModal()">
+                     <button class="btn btn-warning flex-fill mr-1" onclick="gameTracker.showSubstitutionModal()">
                         <i class="fas fa-exchange-alt"></i> Subs
                      </button>
-                     <button class="btn btn-danger flex-fill ml-1" onclick="finishGame()">Finish</button>
+                     <button class="btn btn-danger flex-fill ml-1" onclick="gameTracker.finishGame()">Finish</button>
                  </div>
                  
                  <!-- Hidden Reset (Small link) -->
                  <div class="mt-2 text-right">
-                     <a href="#" class="text-muted small" onclick="if(confirm('Reset clock to 00:00?')) resetClock(); return false;">Reset Clock</a>
+                     <a href="#" class="text-muted small" onclick="if(confirm('Reset clock to 00:00?')) gameTracker.resetClock(); return false;">Reset Clock</a>
                  </div>
             </div>
         </div>
@@ -145,7 +145,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-primary" onclick="confirmSubs()">Confirm Lineup</button>
+        <button type="button" class="btn btn-primary" onclick="gameTracker.confirmSubs()">Confirm Lineup</button>
       </div>
     </div>
   </div>
@@ -186,17 +186,10 @@
         <p class="mb-2">Tap/click the half court to set the shot location for <span class="font-weight-bold" id="shotloc-player"></span>.</p>
 
         <!-- 
-            FIBA COURT DIMENSIONS (Half Court):
+            FIBA COURT DIMENSIONS (Half Court)
             - Width: 15m
             - Height (half): 14m
             - Scale: 1m = 33.33px => 15m = 500px, 14m = 466.6px
-            - Rim center from baseline: 1.575m => ~52.5px
-            - Rim center x: 250px
-            - Key width: 4.9m => ~163.3px (81.65px each side)
-            - 3PT radius: 6.75m => ~225px
-            - 3PT straight lines distance from sideline: 0.9m => ~30px
-            - Free throw line distance: 5.8m => ~193.3px
-            - Restricted area radius: 1.25m => ~41.6px
         -->
         <div class="border rounded bg-light" style="position: relative;">
           <svg id="halfCourtSvg" viewBox="0 0 500 470" width="100%" style="max-height: 520px; cursor: crosshair; user-select: none; touch-action: none;">
@@ -208,7 +201,6 @@
             <rect x="0" y="0" width="500" height="470" fill="#fff" pointer-events="none" />
 
             <!-- Outer Boundary Lines (15m x 14m) -->
-            <!-- We add a small margin of 2px for stroke -->
             <rect x="2" y="2" width="496" height="466" fill="none" stroke="#000" stroke-width="3" pointer-events="none" />
 
             <!-- Key / Paint (4.9m wide = 163.3px) -->
@@ -222,7 +214,6 @@
             <!-- Restricted Area Arc (1.25m radius = 41.66px) -->
             <!-- center (250, 52.5) -->
             <path d="M 208.34 52.5 A 41.66 41.66 0 0 0 291.66 52.5" fill="none" stroke="#000" stroke-width="3" pointer-events="none" />
-            <!-- little lines for restricted area base? usually simplified as arc -->
 
             <!-- Backboard -->
             <!-- 1.2m from baseline => 40px, width 1.8m => 60px -->
@@ -234,40 +225,7 @@
             <circle cx="250" cy="52.5" r="7.5" fill="none" stroke="#000" stroke-width="3" pointer-events="none" />
 
             <!-- 3PT Line (FIBA 6.75m = 225px radius) -->
-            <!-- Straight lines 0.9m from sideline => 30px from edge. x=30 and x=470 -->
-            <!-- 3pt line goes straight until it intersects the arc. -->
-            <!-- Arc center (250, 52.5). Radius 225. -->
-            <!-- We can draw arc from x=30 to x=470 intersecting y? -->
-            <!-- Actually simpler: Path is line from (30, 2) down to intersect, arc around, then line up to (470, 2) -->
-            <!-- Intersect point calculation:
-                 x = 30. center x=250. dx = 220.
-                 r = 225.
-                 dy = sqrt(r^2 - dx^2) = sqrt(225^2 - 220^2) = sqrt(50625 - 48400) = sqrt(2225) ~= 47.17
-                 y = center_y + dy = 52.5 + 47.17 = 99.67 (Wait, baseline is y=2? No, baseline is top of SVG or bottom? 
-                 Usually basketball diagrams have baseline at bottom for full court, but half court usually baseline at bottom or top.
-                 Here we drew Rim at y=52.5, so Baseline is Top (y=0 approx).
-                 So we want y = 52.5 + 47.17 = 99.67.
-                 Wait, standard diagrams usually show hoop at bottom if attacking up, or top if attacking down.
-                 Let's assume baseline is Top (y=0) based on previous rects.
-                 So 3pt line starts at baseline (y=0) x=30, goes to y=99.67?? 
-                 No, straight lines are in corners. 
-                 Distance from baseline to start of arc?
-                 Actually, straight line length is roughly 3m in NBA, different in FIBA.
-                 FIBA: 0.9m from sideline.
-                 Intersection y:
-                 sqrt(6.75^2 - (7.5 - 0.9)^2) + 1.575 = ...
-                 Let's stick to pixel logic:
-                 Center (250, 52.5). Radius 225.
-                 Sideline distance 30px (0.9m). x=30 and x=470.
-                 dx = 250 - 30 = 220.
-                 dy = sqrt(225^2 - 220^2) = 47.17.
-                 So intersection point is relative to center y (52.5). 
-                 Wait, the arc must go further from the basket.
-                 y_intersect = 52.5 + 47.17 = 99.7.
-                 So lines are from (30, 0) to (30, 99.7) and (470, 0) to (470, 99.7).
-                 Then Arc from (30, 99.7) to (470, 99.7) with radius 225. large-arc=0, sweep=1.
-                 Wait, direction...
-            -->
+            <!-- Straight lines 0.9m from sideline => 30px from edge. -->
             <path d="M 30 2 L 30 99.7 A 225 225 0 0 0 470 99.7 L 470 2" fill="none" stroke="#000" stroke-width="3" pointer-events="none" />
 
             <!-- Center Circle (at bottom, y=466) -->
@@ -284,8 +242,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" onclick="skipShotLocation()">Skip / unknown</button>
-        <button type="button" class="btn btn-primary" id="btn-confirm-shotloc" onclick="confirmShotLocationFromMap()" disabled>Confirm point</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="gameTracker.skipShotLocation()">Skip / unknown</button>
+        <button type="button" class="btn btn-primary" id="btn-confirm-shotloc" onclick="gameTracker.confirmShotLocationFromMap()" disabled>Confirm point</button>
       </div>
     </div>
   </div>
@@ -312,713 +270,6 @@
   </div>
 </div>
 
-<script>
-    // --- STATE MANAGEMENT ---
-    let fullRoster = [];
-    let activeLineup = []; 
-    let stats = {}; 
-    let opponentScore = 0;
-
-    // Front-end shot events (NOT persisted yet)
-    let shotLocations = []; // [{shooter,type,points,assister,x,y,nx,ny,quarter,clockSeconds}]
-
-    // Pending actions for popups
-    // made flow: Assist -> Location -> apply stats
-    let pendingMadeShot = null; // { shooter, type, points, assister, location }
-    let pendingOreb = null;     // { shooter, type }
-
-    // Timer State (Count UP)
-    let timerInterval = null;
-    let quarter = 1;
-    let clockSeconds = 0; // Starts at 0
-    let isClockRunning = false;
-
-    // Shot location svg helpers
-    let shotLocListenerAttached = false;
-
-    // --- SETUP PHASE ---
-    function toggleRosterPlayer(name, btn) {
-        if (fullRoster.includes(name)) {
-            fullRoster = fullRoster.filter(p => p !== name);
-            btn.classList.remove('active', 'btn-primary');
-            btn.classList.add('btn-outline-secondary');
-        } else {
-            fullRoster.push(name);
-            btn.classList.remove('btn-outline-secondary');
-            btn.classList.add('active', 'btn-primary');
-        }
-    }
-
-    function addNewPlayer() {
-        const name = document.getElementById('new-player-name').value.trim();
-        if (name && !fullRoster.includes(name)) {
-            fullRoster.push(name);
-            const container = document.getElementById('roster-selection');
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-primary btn-sm active player-select-btn';
-            btn.style.margin = '2px';
-            btn.innerText = name;
-            btn.onclick = function() { toggleRosterPlayer(name, this); };
-            container.appendChild(btn);
-            document.getElementById('new-player-name').value = '';
-        }
-    }
-
-    function goToLineupSelection() {
-        if (fullRoster.length < 5) {
-            alert("Please select at least 5 players for the roster.");
-            return;
-        }
-        document.getElementById('setup-panel').style.display = 'none';
-        document.getElementById('lineup-panel').style.display = 'block';
-        
-        const container = document.getElementById('starter-selection');
-        container.innerHTML = '';
-        fullRoster.forEach(p => {
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-outline-secondary m-1';
-            btn.innerText = p;
-            btn.onclick = function() {
-                if (activeLineup.includes(p)) {
-                    activeLineup = activeLineup.filter(x => x !== p);
-                    this.classList.remove('btn-primary');
-                    this.classList.add('btn-outline-secondary');
-                } else {
-                    if (activeLineup.length >= 5) {
-                        alert("You can only select 5 starters.");
-                        return;
-                    }
-                    activeLineup.push(p);
-                    this.classList.remove('btn-outline-secondary');
-                    this.classList.add('btn-primary');
-                }
-            };
-            container.appendChild(btn);
-        });
-    }
-
-    function startGame() {
-        if (activeLineup.length !== 5) {
-            alert("Please select exactly 5 starters.");
-            return;
-        }
-        const opponent = document.getElementById('opponent').value;
-        if (!opponent) {
-            alert("Please enter an opponent name.");
-            return;
-        }
-
-        // Initialize stats
-        fullRoster.forEach(p => {
-            stats[p] = { 
-                points: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, 
-                oreb: 0, dreb: 0, ast: 0, tov: 0, stl: 0, blk: 0, pf: 0,
-                plus_minus: 0, // NEW: Init +/-
-                minutes_seconds: 0,
-                last_sub_in: activeLineup.includes(p) ? Date.now() : null
-            };
-        });
-
-        document.getElementById('lineup-panel').style.display = 'none';
-        document.getElementById('tracker-panel').style.display = 'block';
-        document.getElementById('display-opponent').innerText = "vs " + opponent;
-
-        renderActivePlayers();
-    }
-
-    // --- GAMEPLAY PHASE ---
-
-    function renderActivePlayers() {
-        const grid = document.getElementById('player-grid');
-        grid.innerHTML = '';
-        
-        activeLineup.forEach(p => {
-            const s = stats[p];
-            // Color code +/- 
-            const pmClass = s.plus_minus > 0 ? 'badge-success' : (s.plus_minus < 0 ? 'badge-danger' : 'badge-secondary');
-            const pmSign = s.plus_minus > 0 ? '+' : '';
-
-            grid.innerHTML += `
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card h-100 shadow-sm border-0">
-                        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
-                            <h5 class="mb-0 text-truncate" style="max-width: 50%; font-weight: bold;">${p}</h5>
-                            <div>
-                                <span class="badge ${pmClass} mr-1" id="pm-${p}" style="font-size: 0.9em;" title="Plus/Minus">${pmSign}${s.plus_minus}</span>
-                                <span class="badge badge-light mr-1" id="pts-${p}" style="font-size: 0.9em;">${s.points} PTS</span>
-                                <span class="badge badge-warning" id="pf-badge-${p}" style="font-size: 0.9em;">${s.pf} PF</span>
-                            </div>
-                        </div>
-                        <div class="card-body p-2">
-                            
-                            <!-- SHOOTING SECTION -->
-                            <div class="mb-2 border-bottom pb-2">
-                                <!-- 2PT -->
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="font-weight-bold small text-muted" style="width: 40px;">2PT</span>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', '2pt', -1, -1)">-M</button>
-                                        <button class="btn btn-outline-secondary py-0" onclick="updateShooting('${p}', '2pt', 0, -1)">-A</button>
-                                    </div>
-                                    <span class="mx-2 font-weight-bold" id="disp-2pt-${p}">${(s.fgm - s.tpm)}/${(s.fga - s.tpa)}</span>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="openOrebModal('${p}', '2pt')">Miss</button>
-                                        <button class="btn btn-success font-weight-bold py-0" onclick="openAssistModal('${p}', '2pt', 2)">+2</button>
-                                    </div>
-                                </div>
-
-                                <!-- 3PT -->
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="font-weight-bold small text-muted" style="width: 40px;">3PT</span>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', '3pt', -1, -1)">-M</button>
-                                        <button class="btn btn-outline-secondary py-0" onclick="updateShooting('${p}', '3pt', 0, -1)">-A</button>
-                                    </div>
-                                    <span class="mx-2 font-weight-bold" id="disp-3pt-${p}">${s.tpm}/${s.tpa}</span>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="openOrebModal('${p}', '3pt')">Miss</button>
-                                        <button class="btn btn-success font-weight-bold py-0" onclick="openAssistModal('${p}', '3pt', 3)">+3</button>
-                                    </div>
-                                </div>
-
-                                <!-- FT (no assist/location popup) -->
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="font-weight-bold small text-muted" style="width: 40px;">FT</span>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', 'ft', -1, -1)">-M</button>
-                                        <button class="btn btn-outline-secondary py-0" onclick="updateShooting('${p}', 'ft', 0, -1)">-A</button>
-                                    </div>
-                                    <span class="mx-2 font-weight-bold" id="disp-ft-${p}">${s.ftm}/${s.fta}</span>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="updateShooting('${p}', 'ft', 0, 1)">Miss</button>
-                                        <button class="btn btn-success font-weight-bold py-0" onclick="updateShooting('${p}', 'ft', 1, 1)">+1</button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- OTHER STATS GRID -->
-                            <div class="row no-gutters text-center">
-                                ${renderStatBox(p, 'OREB', 'oreb', s.oreb)}
-                                ${renderStatBox(p, 'DREB', 'dreb', s.dreb)}
-                                ${renderStatBox(p, 'AST', 'ast', s.ast)}
-                            </div>
-                            <div class="row no-gutters text-center mt-1">
-                                ${renderStatBox(p, 'STL', 'stl', s.stl)}
-                                ${renderStatBox(p, 'BLK', 'blk', s.blk)}
-                                ${renderStatBox(p, 'TOV', 'tov', s.tov)}
-                            </div>
-                            <div class="row no-gutters text-center mt-1">
-                                ${renderStatBox(p, 'PF', 'pf', s.pf, 'text-danger')}
-                            </div>
-                            
-                            <div class="mt-2 text-center small text-muted">
-                                <span id="time-${p}" class="font-weight-bold">MIN: ${formatMinutes(s.minutes_seconds)}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-    }
-
-    function renderStatBox(player, label, key, value, textClass='') {
-        return `
-            <div class="col-4 px-1">
-                <div class="bg-light rounded p-1 border">
-                    <div class="small text-muted font-weight-bold mb-1">${label}</div>
-                    <div class="d-flex justify-content-center align-items-center">
-                        <button class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.7rem; line-height:1;" onclick="updateStat('${player}', '${key}', -1)">-</button>
-                        <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
-                        <button class="btn btn-sm btn-outline-dark py-0 px-1" style="font-size: 0.8rem; line-height:1;" onclick="updateStat('${player}', '${key}', 1)">+</button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    // --- POPUPS ---
-
-    function openAssistModal(shooter, type, points) {
-        pendingMadeShot = { shooter, type, points, assister: null, location: null };
-        document.getElementById('assist-shot-label').innerText = `${shooter} ${points}PT MADE`;
-
-        const list = document.getElementById('assist-list');
-        list.innerHTML = '';
-
-        // No assist option
-        const noneBtn = document.createElement('button');
-        noneBtn.type = 'button';
-        noneBtn.className = 'list-group-item list-group-item-action font-weight-bold';
-        noneBtn.innerText = 'No assist';
-        noneBtn.onclick = () => pickAssister(null);
-        list.appendChild(noneBtn);
-
-        // Assist options (only on-court, excluding shooter)
-        activeLineup.forEach(p => {
-            if (p === shooter) return;
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'list-group-item list-group-item-action';
-            btn.innerText = p;
-            btn.onclick = () => pickAssister(p);
-            list.appendChild(btn);
-        });
-
-        $('#assistModal').modal('show');
-    }
-
-    function pickAssister(assister) {
-        if (!pendingMadeShot) return;
-        pendingMadeShot.assister = assister;
-        $('#assistModal').modal('hide');
-        openShotLocModal();
-    }
-
-    function openShotLocModal() {
-        if (!pendingMadeShot) return;
-
-        const { shooter, points } = pendingMadeShot;
-        document.getElementById('shotloc-player').innerText = `${shooter} (${points}PT)`;
-
-        // reset marker + ui
-        pendingMadeShot.location = null;
-        document.getElementById('shotloc-coords').innerText = '(none)';
-        document.getElementById('btn-confirm-shotloc').disabled = true;
-        const marker = document.getElementById('shotloc-marker');
-        if (marker) {
-            marker.setAttribute('cx', -20);
-            marker.setAttribute('cy', -20);
-        }
-
-        attachShotLocListenerOnce();
-        $('#shotLocModal').modal('show');
-    }
-
-    function attachShotLocListenerOnce() {
-        if (shotLocListenerAttached) return;
-        
-        // Listener now on hitbox, using pointerdown for reliability
-        const hitbox = document.getElementById('court-hitbox');
-        const svg = document.getElementById('halfCourtSvg');
-        
-        if (!hitbox || !svg) return;
-
-        hitbox.addEventListener('pointerdown', (evt) => {
-            if (!pendingMadeShot) return;
-            evt.preventDefault(); // prevent scroll/mouse behaviors
-            
-            // Convert screen coords to SVG coords
-            const pt = svg.createSVGPoint();
-            pt.x = evt.clientX;
-            pt.y = evt.clientY;
-
-            const ctm = svg.getScreenCTM();
-            if (!ctm) return;
-
-            const cursor = pt.matrixTransform(ctm.inverse());
-            
-            // Clamp to court area (approx 2..496, 2..466) to avoid out of bounds
-            let x = Math.max(0, Math.min(500, cursor.x));
-            let y = Math.max(0, Math.min(470, cursor.y));
-
-            pendingMadeShot.location = {
-                x,
-                y,
-                nx: x / 500,
-                ny: y / 470
-            };
-
-            const marker = document.getElementById('shotloc-marker');
-            if (marker) {
-                marker.setAttribute('cx', x);
-                marker.setAttribute('cy', y);
-            }
-            document.getElementById('shotloc-coords').innerText = `(${x.toFixed(0)}, ${y.toFixed(0)})`;
-            document.getElementById('btn-confirm-shotloc').disabled = false;
-        });
-
-        shotLocListenerAttached = true;
-    }
-
-    function skipShotLocation() {
-        if (!pendingMadeShot) return;
-        pendingMadeShot.location = null;
-        confirmShotLocationFromMap(true);
-    }
-
-    function confirmShotLocationFromMap(skipped=false) {
-        if (!pendingMadeShot) return;
-
-        const { shooter, type, points, assister, location } = pendingMadeShot;
-
-        // Apply made shot
-        updateShooting(shooter, type, 1, 1);
-
-        // Apply assist if selected
-        if (assister && stats[assister]) {
-            updateStat(assister, 'ast', 1);
-        }
-
-        // Track click point (front-end only)
-        if (!skipped && location) {
-            shotLocations.push({
-                shooter,
-                type,
-                points,
-                assister: assister || null,
-                x: location.x,
-                y: location.y,
-                nx: location.nx,
-                ny: location.ny,
-                quarter,
-                clockSeconds
-            });
-        }
-
-        pendingMadeShot = null;
-        $('#shotLocModal').modal('hide');
-    }
-
-    function openOrebModal(shooter, type) {
-        pendingOreb = { shooter, type };
-        document.getElementById('oreb-shot-label').innerText = `${shooter} ${type.toUpperCase()} MISS`;
-
-        const list = document.getElementById('oreb-list');
-        list.innerHTML = '';
-
-        // No oreb option
-        const noneBtn = document.createElement('button');
-        noneBtn.type = 'button';
-        noneBtn.className = 'list-group-item list-group-item-action font-weight-bold';
-        noneBtn.innerText = 'No offensive rebound';
-        noneBtn.onclick = () => confirmOreb(null);
-        list.appendChild(noneBtn);
-
-        // OREB options (only on-court)
-        activeLineup.forEach(p => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'list-group-item list-group-item-action';
-            btn.innerText = p;
-            btn.onclick = () => confirmOreb(p);
-            list.appendChild(btn);
-        });
-
-        $('#orebModal').modal('show');
-    }
-
-    function confirmOreb(rebounder) {
-        if (!pendingOreb) return;
-        const { shooter, type } = pendingOreb;
-
-        // Apply missed shot attempt
-        updateShooting(shooter, type, 0, 1);
-
-        // Apply offensive rebound if selected
-        if (rebounder && stats[rebounder]) {
-            updateStat(rebounder, 'oreb', 1);
-        }
-
-        pendingOreb = null;
-        $('#orebModal').modal('hide');
-    }
-
-    // --- CORE UPDATERS ---
-
-    function updateShooting(player, type, makeDelta, attemptDelta) {
-        if (!stats[player]) return;
-        const s = stats[player];
-        let pointsAdded = 0;
-
-        // Apply changes safely
-        if (type === '2pt') {
-            const current2M = s.fgm - s.tpm;
-            const current2A = s.fga - s.tpa;
-            
-            if (current2M + makeDelta < 0 || current2A + attemptDelta < 0) return; 
-            if (current2A + attemptDelta < current2M + makeDelta) return;
-
-            s.fgm += makeDelta;
-            s.fga += attemptDelta;
-            
-            pointsAdded = (makeDelta * 2);
-            s.points += pointsAdded;
-        } else if (type === '3pt') {
-             if (s.tpm + makeDelta < 0 || s.tpa + attemptDelta < 0) return;
-             if (s.tpa + attemptDelta < s.tpm + makeDelta) return;
-
-             s.tpm += makeDelta;
-             s.tpa += attemptDelta;
-             // Also update FGM/FGA for 3 pointers
-             s.fgm += makeDelta;
-             s.fga += attemptDelta;
-             
-             pointsAdded = (makeDelta * 3);
-             s.points += pointsAdded;
-        } else if (type === 'ft') {
-             if (s.ftm + makeDelta < 0 || s.fta + attemptDelta < 0) return;
-             if (s.fta + attemptDelta < s.ftm + makeDelta) return;
-
-             s.ftm += makeDelta;
-             s.fta += attemptDelta;
-             pointsAdded = (makeDelta * 1);
-             s.points += pointsAdded;
-        }
-
-        // --- UPDATE PLUS/MINUS ---
-        // If it's a make (makeDelta > 0), all players currently ON COURT get +Points
-        // If it's an undo make (makeDelta < 0), all players currently ON COURT get -Points
-        if (makeDelta !== 0) {
-            activeLineup.forEach(pName => {
-                if (stats[pName]) {
-                    stats[pName].plus_minus += pointsAdded; 
-                }
-            });
-            // Update UI for all active players because their +/- changed
-            activeLineup.forEach(pName => updateUI(pName));
-        } else {
-             updateUI(player);
-        }
-    }
-
-    function updateStat(player, key, delta) {
-        if (!stats[player]) return;
-        if (stats[player][key] + delta < 0) return;
-
-        stats[player][key] += delta;
-        updateUI(player);
-    }
-    
-    function updateOppScore(points) {
-        opponentScore += points;
-        if(opponentScore < 0) opponentScore = 0;
-        document.getElementById('opp-score-display').innerText = opponentScore;
-        
-        // --- UPDATE PLUS/MINUS (Negative for Opponent Score) ---
-        // All active players get minus points
-        activeLineup.forEach(pName => {
-            if (stats[pName]) {
-                stats[pName].plus_minus -= points; 
-            }
-            updateUI(pName); // Refresh +/- badge
-        });
-
-        updateScoreboard();
-    }
-
-    function updateUI(player) {
-         const s = stats[player];
-         
-         document.getElementById(`pts-${player}`).innerText = s.points + ' PTS';
-         document.getElementById(`pf-badge-${player}`).innerText = s.pf + ' PF';
-         
-         // Update +/- Badge
-         const pmEl = document.getElementById(`pm-${player}`);
-         if (pmEl) {
-             const pmSign = s.plus_minus > 0 ? '+' : '';
-             pmEl.innerText = `${pmSign}${s.plus_minus}`;
-             
-             // Update color
-             pmEl.className = 'badge mr-1';
-             if (s.plus_minus > 0) pmEl.classList.add('badge-success');
-             else if (s.plus_minus < 0) pmEl.classList.add('badge-danger');
-             else pmEl.classList.add('badge-secondary');
-         }
-         
-         if (document.getElementById(`disp-2pt-${player}`)) {
-             const two_m = s.fgm - s.tpm;
-             const two_a = s.fga - s.tpa;
-             document.getElementById(`disp-2pt-${player}`).innerText = `${two_m}/${two_a}`;
-         }
-         if (document.getElementById(`disp-3pt-${player}`)) {
-             document.getElementById(`disp-3pt-${player}`).innerText = `${s.tpm}/${s.tpa}`;
-         }
-         if (document.getElementById(`disp-ft-${player}`)) {
-             document.getElementById(`disp-ft-${player}`).innerText = `${s.ftm}/${s.fta}`;
-         }
-
-         const keys = ['oreb', 'dreb', 'ast', 'stl', 'blk', 'tov', 'pf'];
-         keys.forEach(k => {
-             const el = document.getElementById(`disp-${k}-${player}`);
-             if(el) el.innerText = s[k];
-         });
-
-         updateScoreboard();
-    }
-
-    function updateScoreboard() {
-         let total = 0;
-         Object.values(stats).forEach(s => total += s.points);
-         document.getElementById('scoreboard').innerText = `${total} - ${opponentScore}`;
-    }
-
-    // --- CLOCK & SUBSTITUTIONS ---
-    
-    function toggleClock() {
-        const btn = document.getElementById('btn-start-clock');
-        if (isClockRunning) {
-            clearInterval(timerInterval);
-            isClockRunning = false;
-            btn.innerText = "START";
-            btn.classList.remove('btn-danger');
-            btn.classList.add('btn-success');
-            updatePlayerTimes();
-        } else {
-            const now = Date.now();
-            activeLineup.forEach(p => {
-                stats[p].last_sub_in = now;
-            });
-            timerInterval = setInterval(() => {
-                clockSeconds++; 
-                updateClockDisplay();
-            }, 1000);
-            isClockRunning = true;
-            btn.innerText = "STOP";
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-danger');
-        }
-    }
-
-    function updatePlayerTimes() {
-        const now = Date.now();
-        activeLineup.forEach(p => {
-            if (stats[p].last_sub_in) {
-                const diffSeconds = Math.floor((now - stats[p].last_sub_in) / 1000);
-                stats[p].minutes_seconds += diffSeconds;
-                stats[p].last_sub_in = null; 
-            }
-            const el = document.getElementById(`time-${p}`);
-            if (el) el.innerText = 'MIN: ' + formatMinutes(stats[p].minutes_seconds);
-        });
-    }
-
-    function resetClock() {
-        if(isClockRunning) toggleClock();
-        clockSeconds = 0; 
-        updateClockDisplay();
-    }
-
-    function nextQuarter() {
-        if(isClockRunning) toggleClock();
-        quarter++;
-        document.getElementById('quarter-display').innerText = 'Q' + quarter;
-        clockSeconds = 0;
-        updateClockDisplay();
-    }
-
-    function updateClockDisplay() {
-        const m = Math.floor(clockSeconds / 60);
-        const s = clockSeconds % 60;
-        document.getElementById('game-clock').innerText = 
-            `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    }
-
-    // Subs Modal Logic
-    let tempLineup = [];
-
-    function showSubstitutionModal() {
-        if (isClockRunning) toggleClock();
-        
-        tempLineup = [...activeLineup];
-        const container = document.getElementById('sub-roster-list');
-        container.innerHTML = '';
-        
-        fullRoster.forEach(p => {
-            const isActive = tempLineup.includes(p);
-            // Get current +/- for display in subs list
-            const pmVal = stats[p] ? stats[p].plus_minus : 0;
-            const pmSign = pmVal > 0 ? '+' : '';
-            const pmClass = pmVal > 0 ? 'text-success' : (pmVal < 0 ? 'text-danger' : 'text-muted');
-
-            const btn = document.createElement('button');
-            btn.className = `list-group-item list-group-item-action ${isActive ? 'active' : ''}`;
-            btn.style.cursor = 'pointer';
-            btn.innerHTML = `<div class="d-flex justify-content-between align-items-center">
-                                <span>${p} <small class="${pmClass} font-weight-bold">(${pmSign}${pmVal})</small></span>
-                                <small>${isActive ? 'ON COURT' : 'BENCH'}</small>
-                             </div>`;
-            
-            btn.onclick = () => {
-                if (tempLineup.includes(p)) {
-                    tempLineup = tempLineup.filter(x => x !== p);
-                    btn.classList.remove('active');
-                    btn.querySelector('small:last-child').innerText = 'BENCH';
-                } else {
-                    if (tempLineup.length >= 5) {
-                        alert("Only 5 players allowed on court.");
-                        return;
-                    }
-                    tempLineup.push(p);
-                    btn.classList.add('active');
-                    btn.querySelector('small:last-child').innerText = 'ON COURT';
-                }
-            };
-            container.appendChild(btn);
-        });
-        
-        $('#subModal').modal('show');
-    }
-
-    function confirmSubs() {
-        if (tempLineup.length !== 5) {
-            alert("You must select exactly 5 players.");
-            return;
-        }
-        activeLineup = [...tempLineup];
-        renderActivePlayers();
-        $('#subModal').modal('hide');
-    }
-
-    function formatMinutes(totalSeconds) {
-        const m = Math.floor(totalSeconds / 60);
-        const s = totalSeconds % 60;
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    }
-
-    function finishGame() {
-        if (!confirm("Are you sure you want to finish and save this game?")) return;
-        
-        if (isClockRunning) toggleClock(); 
-
-        let total = 0;
-        Object.values(stats).forEach(s => total += s.points);
-
-        const finalStats = {};
-        Object.keys(stats).forEach(p => {
-            const s = stats[p];
-            s.minutes = formatMinutes(s.minutes_seconds);
-            finalStats[p] = s;
-        });
-
-        const payload = {
-            opponent: document.getElementById('opponent').value,
-            date: document.getElementById('game-date').value,
-            game_type: document.getElementById('game-type').value,
-            team_score: total, 
-            opponent_score: opponentScore,
-            shot_locations: shotLocations,
-            player_stats: finalStats
-        };
-
-        const csrfToken = document.getElementById('csrf_token').value;
-
-        fetch('/live-game/save', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify(payload)
-        }).then(res => res.json()).then(data => {
-            if(data.success) {
-                window.location.href = `/game/${data.game_id}`;
-            } else {
-                alert("Error saving game: " + (data.error || "Unknown error"));
-            }
-        }).catch(err => {
-            alert("Network error occurred.");
-            console.error(err);
-        });
-    }
-</script>
+<!-- External JS -->
+<script src="{{ url_for('static', filename='js/live_game.js') }}"></script>
 {% endblock %}
