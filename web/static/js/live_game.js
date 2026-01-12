@@ -11,6 +11,7 @@ class GameTracker {
         this.pendingMadeShot = null;
         this.pendingOreb = null;
         this.pendingMissShot = null;
+        this.pendingPlaySelection = null; // Track pending play selection
 
         // Timer State
         this.timerInterval = null;
@@ -24,6 +25,10 @@ class GameTracker {
 
         // UI Helpers
         this.shotLocListenerAttached = false;
+
+        // Plays cache
+        this.playsCache = [];
+        this.playTypes = [];
 
         // Constants
         this.CONSTANTS = {
@@ -44,6 +49,7 @@ class GameTracker {
         this.loadState();
         this.bindEvents();
         this.renderCachedGamesUI();
+        this.loadPlays(); // Load plays on init
 
         // If we loaded a state where game was started, show tracker
         if (Object.keys(this.stats).length > 0) {
@@ -74,6 +80,123 @@ class GameTracker {
         window.onbeforeunload = () => {
             if (this.isClockRunning) return "Game is in progress. Are you sure?";
         };
+    }
+
+    // --- PLAYS LOADING ---
+    loadPlays() {
+        const csrfToken = document.getElementById('csrf_token')?.value || '';
+        
+        fetch('/api/plays', {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(res => res.json())
+        .then(plays => {
+            this.playsCache = plays;
+            // Extract unique play types
+            const types = [...new Set(plays.map(p => p.type))];
+            this.playTypes = types.sort();
+            this.populatePlayFilter();
+        })
+        .catch(err => console.error('Failed to load plays:', err));
+    }
+
+    populatePlayFilter() {
+        const filterSelect = document.getElementById('play-filter');
+        if (!filterSelect) return;
+
+        // Clear and rebuild
+        const currentValue = filterSelect.value;
+        filterSelect.innerHTML = '<option value="All">All Plays</option>';
+        
+        this.playTypes.forEach(type => {
+            const opt = document.createElement('option');
+            opt.value = type;
+            opt.innerText = type;
+            filterSelect.appendChild(opt);
+        });
+        
+        // Restore selection
+        filterSelect.value = currentValue || 'All';
+    }
+
+    filterPlays() {
+        const filterValue = document.getElementById('play-filter')?.value || 'All';
+        this.renderPlaysList(filterValue);
+    }
+
+    renderPlaysList(filterType = 'All') {
+        const list = document.getElementById('plays-list');
+        if (!list) return;
+
+        let filteredPlays = this.playsCache;
+        if (filterType !== 'All') {
+            filteredPlays = this.playsCache.filter(p => p.type === filterType);
+        }
+
+        list.innerHTML = '';
+
+        if (filteredPlays.length === 0) {
+            list.innerHTML = '<div class="list-group-item text-muted text-center">No plays found</div>';
+            return;
+        }
+
+        filteredPlays.forEach(play => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action';
+            btn.style.cursor = 'pointer';
+            btn.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="font-weight-bold">${play.name}</div>
+                        ${play.description ? `<small class="text-muted">${play.description}</small>` : ''}
+                    </div>
+                    <small class="badge badge-secondary">${play.type}</small>
+                </div>
+            `;
+            btn.onclick = () => this.selectPlay(play);
+            list.appendChild(btn);
+        });
+    }
+
+    openPlaySelector(eventType, shooter = null, shotType = null) {
+        this.pendingPlaySelection = {
+            eventType,  // 'SHOT_2PT', 'SHOT_3PT', 'TURNOVER'
+            shooter,
+            shotType
+        };
+
+        // Render the plays list
+        this.renderPlaysList('All');
+        $('#playSelectorModal').modal('show');
+    }
+
+    selectPlay(play) {
+        if (!this.pendingPlaySelection) {
+            $('#playSelectorModal').modal('hide');
+            return;
+        }
+
+        // Store the selected play in gameEvents
+        const event = {
+            type: this.pendingPlaySelection.eventType,
+            player: this.pendingPlaySelection.shooter,
+            detail: {
+                play_id: play.id,
+                play_name: play.name
+            },
+            quarter: this.quarter,
+            clockSeconds: this.clockSeconds,
+            timestamp: Date.now()
+        };
+
+        this.gameEvents.push(event);
+        this.pendingPlaySelection = null;
+        $('#playSelectorModal').modal('hide');
+        this.saveState();
     }
 
     // --- AUTO-CACHE TIMER ---
@@ -497,7 +620,7 @@ class GameTracker {
                             <div class="row no-gutters text-center mt-1">
                                 ${this.renderStatBox(p, 'STL', 'stl', s.stl)}
                                 ${this.renderStatBox(p, 'BLK', 'blk', s.blk)}
-                                ${this.renderStatBox(p, 'TOV', 'tov', s.tov)}
+                                ${this.renderStatBox(p, 'TOV', 'tov', s.tov, '', true)}
                             </div>
                             <div class="row no-gutters text-center mt-1">
                                 ${this.renderStatBox(p, 'PF', 'pf', s.pf, 'text-danger')}
@@ -513,16 +636,26 @@ class GameTracker {
         });
     }
 
-    renderStatBox(player, label, key, value, textClass = '') {
+    renderStatBox(player, label, key, value, textClass = '', isToV = false) {
+        const tovHtml = isToV ? `
+            <div class="d-flex justify-content-center align-items-center">
+                <button class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.7rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">-</button>
+                <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size: 0.8rem; line-height:1;" onclick="gameTracker.openPlaySelector('TURNOVER', '${player}')">+</button>
+            </div>
+        ` : `
+            <div class="d-flex justify-content-center align-items-center">
+                <button class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.7rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">-</button>
+                <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
+                <button class="btn btn-sm btn-outline-dark py-0 px-1" style="font-size: 0.8rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', 1)">+</button>
+            </div>
+        `;
+        
         return `
             <div class="col-4 px-1">
                 <div class="bg-light rounded p-1 border">
                     <div class="small text-muted font-weight-bold mb-1">${label}</div>
-                    <div class="d-flex justify-content-center align-items-center">
-                        <button class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.7rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">-</button>
-                        <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
-                        <button class="btn btn-sm btn-outline-dark py-0 px-1" style="font-size: 0.8rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', 1)">+</button>
-                    </div>
+                    ${tovHtml}
                 </div>
             </div>
         `;
@@ -573,7 +706,7 @@ class GameTracker {
         document.getElementById('scoreboard').innerText = `${total} - ${this.opponentScore}`;
     }
 
-    // --- MODALS (Assist, ShotLoc, Oreb) ---
+    // --- MODALS (Assist, ShotLoc, Oreb, PlaySelector) ---
 
     openAssistModal(shooter, type, points) {
         this.pendingMadeShot = { shooter, type, points, assister: null, location: null };
@@ -725,6 +858,9 @@ class GameTracker {
                 });
             }
 
+            // Open play selector after made shot
+            this.openPlaySelector('SHOT_' + type.toUpperCase(), shooter, type);
+
             this.pendingMadeShot = null;
             $('#shotLocModal').modal('hide');
             this.saveState();
@@ -752,7 +888,9 @@ class GameTracker {
                 });
             }
 
-            // Then prompt for offensive rebound as before
+            // Open play selector after missed shot
+            this.openPlaySelector('SHOT_' + type.toUpperCase(), shooter, type);
+
             this.pendingMissShot = null;
             $('#shotLocModal').modal('hide');
             this.openOrebModal(shooter, type);
@@ -788,10 +926,6 @@ class GameTracker {
     confirmOreb(rebounder) {
         if (!this.pendingOreb) return;
         const { shooter, type } = this.pendingOreb;
-
-        // Do NOT increment attempts here anymore; it is already counted in confirmShotLocationFromMap for misses.
-        // Keep old behavior for legacy flows (if any): if a miss comes from somewhere else, count it.
-        // But the typical flow now is: Miss -> shotLoc -> attempt counted -> oreb modal.
 
         if (rebounder && this.stats[rebounder]) {
             this.updateStat(rebounder, 'oreb', 1);
