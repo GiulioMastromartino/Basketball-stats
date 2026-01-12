@@ -10,6 +10,7 @@ from sqlalchemy import func
 from core.models import Game, PlayerStat, ShotEvent, db
 from core.csv_processor import CSVProcessor
 from core.parser import parse_game_pdf
+from core.services import create_game_from_live_data
 from core.utils import (
     FT_ATTEMPT_WEIGHT,
     THREE_POINT_WEIGHT,
@@ -24,6 +25,7 @@ from core.utils import (
     calculate_two_point_stats,
     parse_minutes,
     safe_percentage,
+    normalize_date_to_display,
 )
 
 main_bp = Blueprint("main", __name__)
@@ -34,21 +36,6 @@ ALLOWED_EXTENSIONS = {"csv", "pdf"}
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-def normalize_date_to_display(date_str: str) -> str:
-    """Return DD/MM/YYYY."""
-    if not date_str:
-        return ""
-    date_str = date_str.strip()
-    date_str = date_str.replace("-", "/")
-    parts = date_str.split("/")
-    if len(parts) != 3:
-        return ""
-    day, month, year = parts
-    if len(year) == 2:
-        year = f"20{year}"
-    return f"{int(day):02d}/{int(month):02d}/{int(year):04d}"
 
 
 def normalize_date_to_sort(date_str: str) -> str:
@@ -110,81 +97,7 @@ def save_live_game():
         return jsonify({"error": "No data received"}), 400
 
     try:
-        # Create Game
-        game = Game(
-            date=normalize_date_to_display(data.get("date")),
-            opponent=data.get("opponent"),
-            team_score=int(data.get("team_score", 0)),
-            opponent_score=int(data.get("opponent_score", 0)),
-            result="W" if int(data.get("team_score", 0)) > int(data.get("opponent_score", 0)) else "L",
-            game_type=data.get("game_type", "Season"),
-            sort_date=data.get("date"), # Assuming front-end sends YYYY-MM-DD
-            source="LIVE",
-        )
-        db.session.add(game)
-        db.session.flush()
-
-        # Create Player Stats
-        for p_name, stats in data.get("player_stats", {}).items():
-            if not p_name:
-                continue
-            
-            # Calculate percentages
-            fg_pct = (stats["fgm"] / stats["fga"] * 100) if stats["fga"] > 0 else 0.0
-            tp_pct = (stats["tpm"] / stats["tpa"] * 100) if stats["tpa"] > 0 else 0.0
-            ft_pct = (stats["ftm"] / stats["fta"] * 100) if stats["fta"] > 0 else 0.0
-
-            new_stat = PlayerStat(
-                game_id=game.id,
-                player_name=p_name,
-                minutes=stats.get("minutes", "00:00"),
-                points=stats["points"],
-                fgm=stats["fgm"],
-                fga=stats["fga"],
-                fg_percent=fg_pct,
-                tpm=stats["tpm"],
-                tpa=stats["tpa"],
-                tp_percent=tp_pct,
-                ftm=stats["ftm"],
-                fta=stats["fta"],
-                ft_percent=ft_pct,
-                oreb=stats["oreb"],
-                dreb=stats["dreb"],
-                reb=stats["oreb"] + stats["dreb"],
-                ast=stats["ast"],
-                tov=stats["tov"],
-                stl=stats["stl"],
-                blk=stats["blk"],
-                pf=stats["pf"],
-                plus_minus=int(stats.get("plus_minus", 0) or 0),
-            )
-            db.session.add(new_stat)
-
-        # Create Shot Events (made shots only, from click-map)
-        # NOTE: current frontend only logs location for made 2pt/3pt.
-        for ev in data.get("shot_locations", []) or []:
-            shooter = (ev.get("shooter") or "").strip()
-            shot_type = (ev.get("type") or "").strip()   # 2pt / 3pt
-            points = int(ev.get("points") or 0)
-
-            # store the raw SVG coords (x,y) as floats; can be normalized later
-            x = ev.get("x")
-            y = ev.get("y")
-            q = ev.get("quarter")
-
-            shot = ShotEvent(
-                game_id=game.id,
-                player_name=shooter,
-                shot_type=shot_type,
-                result="made",
-                points=points,
-                x_loc=float(x) if x is not None else None,
-                y_loc=float(y) if y is not None else None,
-                quarter=int(q) if q is not None else None,
-            )
-            db.session.add(shot)
-
-        db.session.commit()
+        game = create_game_from_live_data(data)
         return jsonify({"success": True, "game_id": game.id})
 
     except Exception as e:
