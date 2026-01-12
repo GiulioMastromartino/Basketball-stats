@@ -1220,7 +1220,7 @@ def _generate_shot_chart(player_name, game_ids):
     ax.set_aspect('equal')
     ax.axis('off')
     ax.legend(loc='upper left', fontsize=9)
-    ax.set_title(f"{player_name} - Shot Chart", fontsize=14, fontweight='bold', pad=10)
+    # ax.set_title(f"{player_name} - Shot Chart", fontsize=14, fontweight='bold', pad=10) # Removed per user request
     
     plt.tight_layout()
     
@@ -1841,32 +1841,35 @@ def _generate_team_shot_chart(game_ids):
     
     # Draw basketball court (half-court, normalized 0-500 width, 0-470 height)
     # Outer boundary
-    ax.plot([0, 500], [0, 0], 'k-', linewidth=2)
-    ax.plot([0, 500], [470, 470], 'k-', linewidth=2)
-    ax.plot([0, 0], [0, 470], 'k-', linewidth=2)
-    ax.plot([500, 500], [0, 470], 'k-', linewidth=2)
+    # INCREASED line width to match screenshot style
+    line_width = 2.5 
+    
+    ax.plot([0, 500], [0, 0], 'k-', linewidth=line_width)
+    ax.plot([0, 500], [470, 470], 'k-', linewidth=line_width)
+    ax.plot([0, 0], [0, 470], 'k-', linewidth=line_width)
+    ax.plot([500, 500], [0, 470], 'k-', linewidth=line_width)
     
     # Paint / Key
     paint_width = 160
     paint_x = (500 - paint_width) / 2
     paint = patches.Rectangle((paint_x, 0), paint_width, 190, 
-                              linewidth=2, edgecolor='black', facecolor='none')
+                              linewidth=line_width, edgecolor='black', facecolor='none')
     ax.add_patch(paint)
     
     # Free throw circle
-    ft_circle = patches.Circle((250, 190), 60, linewidth=2, 
+    ft_circle = patches.Circle((250, 190), 60, linewidth=line_width, 
                                edgecolor='black', facecolor='none')
     ax.add_patch(ft_circle)
     
     # 3-point arc
     three_pt_radius = 237.5
     three_pt_arc = patches.Arc((250, 0), three_pt_radius*2, three_pt_radius*2, 
-                              theta1=22, theta2=158, linewidth=2, 
+                              theta1=22, theta2=158, linewidth=line_width, 
                               edgecolor='black', facecolor='none')
     ax.add_patch(three_pt_arc)
     
     # Hoop
-    hoop = patches.Circle((250, 41.25), 9, linewidth=2, 
+    hoop = patches.Circle((250, 41.25), 9, linewidth=line_width, 
                          edgecolor='black', facecolor='none')
     ax.add_patch(hoop)
     
@@ -1901,8 +1904,12 @@ def _generate_team_shot_chart(game_ids):
     ax.set_ylim(-10, 520)
     ax.set_aspect('equal')  # This ensures court is not stretched
     ax.axis('off')
+    
+    # REMOVED: Title is now redundant with HTML header
+    # ax.set_title("Team Shot Chart - All Games", fontsize=14, fontweight='bold', pad=10)
+    
+    # Keep legend
     ax.legend(loc='upper left', fontsize=10)
-    ax.set_title("Team Shot Chart - All Games", fontsize=14, fontweight='bold', pad=10)
     
     plt.tight_layout()
     
