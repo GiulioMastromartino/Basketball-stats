@@ -130,3 +130,18 @@ def normalize_per_100_possessions(value, possessions):
 def calculate_per_100_minutes(value, minutes):
     """Normalize stat to per 100 minutes"""
     return safe_divide(value * 100, minutes)
+
+
+def normalize_date_to_display(date_str: str) -> str:
+    """Return DD/MM/YYYY."""
+    if not date_str:
+        return ""
+    date_str = date_str.strip()
+    date_str = date_str.replace("-", "/")
+    parts = date_str.split("/")
+    if len(parts) != 3:
+        return ""
+    day, month, year = parts
+    if len(year) == 2:
+        year = f"20{year}"
+    return f"{int(day):02d}/{int(month):02d}/{int(year):04d}"
