@@ -168,10 +168,20 @@
             {% endif %}
         </ul>
 
-        <!-- Download Button (right-aligned) -->
-        <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-dark shadow-sm">
-            <i class="fas fa-download me-2"></i>Download Report
-        </a>
+        <!-- Action Buttons -->
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-dark shadow-sm">
+                <i class="fas fa-download me-2"></i>Download Report
+            </a>
+            
+            <form method="POST" action="{{ url_for('main.delete_game', game_id=game.id) }}" 
+                  onsubmit="return confirm('Are you sure you want to delete this game? This action cannot be undone.');" 
+                  class="d-inline">
+                <button type="submit" class="btn btn-outline-danger shadow-sm">
+                    <i class="fas fa-trash me-2"></i>Delete Game
+                </button>
+            </form>
+        </div>
     </div>
 
     <div class="tab-content" id="gameTabsContent">
