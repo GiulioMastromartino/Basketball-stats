@@ -6,6 +6,19 @@
 <div class="container" style="max-width: 1200px;">
     <!-- CSRF Token for Fetch Requests -->
     <input type="hidden" id="csrf_token" value="{{ csrf_token() }}">
+    
+    <!-- Inject Plays Data for JS -->
+    <script>
+        window.AVAILABLE_PLAYS = [
+            {% for play in plays %}
+            {
+                id: {{ play.id }},
+                name: "{{ play.name }}",
+                type: "{{ play.play_type }}"
+            },
+            {% endfor %}
+        ];
+    </script>
 
     <!-- CACHED GAMES SECTION (Always visible) -->
     <div id="cached-games-panel" class="card p-3 mb-3 bg-light">
