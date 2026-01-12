@@ -1604,12 +1604,14 @@ def _calculate_enhanced_team_metrics(games, game_ids):
     # Opponent analysis
     opponent_stats = _analyze_opponents(games)
     
-    # Home/Away splits - REMOVED since location field doesn't exist
-    home_away_splits = {
-        'home': None,
-        'away': None,
-        'neutral': None
-    }
+    # Calculate team shooting stats
+    team_shooting = _calculate_team_shooting(game_ids)
+    
+    # Generate team shot chart
+    chart_shooting = _generate_team_shot_chart(game_ids)
+    
+    # Calculate plus/minus leaders (LIVE games only)
+    plus_minus_leaders = _calculate_plus_minus_leaders(game_ids, games)
     
     return {
         "total_games": total_games,
@@ -1622,7 +1624,9 @@ def _calculate_enhanced_team_metrics(games, game_ids):
         "chart_trend": chart_trend,
         "top_contributors": top_contributors,
         "opponent_stats": opponent_stats,
-        "home_away_splits": home_away_splits,
+        "team_shooting": team_shooting,
+        "chart_shooting": chart_shooting,
+        "plus_minus_leaders": plus_minus_leaders,
     }
 
 
@@ -1673,37 +1677,77 @@ def _generate_team_scoring_chart(games):
 
 def _get_top_contributors(game_ids):
     """
-    Find top contributors for key stats across all games
+    Find top contributors across all games
+    Returns dict with top players for points, rebounds, assists
     """
-    stats_map = {
-        'Points': func.sum(PlayerStat.points),
-        'Rebounds': func.sum(PlayerStat.reb),
-        'Assists': func.sum(PlayerStat.ast),
-        'Steals': func.sum(PlayerStat.stl),
-        'Blocks': func.sum(PlayerStat.blk)
-    }
-    
-    contributors = {}
-    
-    for category, stat_func in stats_map.items():
-        top = (
-            db.session.query(
-                PlayerStat.player_name,
-                stat_func.label('total')
-            )
-            .filter(PlayerStat.game_id.in_(game_ids))
-            .group_by(PlayerStat.player_name)
-            .order_by(desc('total'))
-            .first()
+    # Points leaders
+    points_leaders = (
+        db.session.query(
+            PlayerStat.player_name,
+            func.sum(PlayerStat.points).label('total'),
+            func.avg(PlayerStat.points).label('avg'),
+            func.count(PlayerStat.id).label('games')
         )
-        
-        if top:
-            contributors[category] = {
-                'name': top.player_name,
-                'value': int(top.total)
-            }
-            
-    return contributors
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .group_by(PlayerStat.player_name)
+        .order_by(desc('total'))
+        .limit(5)
+        .all()
+    )
+    
+    # Rebounds leaders
+    rebounds_leaders = (
+        db.session.query(
+            PlayerStat.player_name,
+            func.sum(PlayerStat.reb).label('total'),
+            func.avg(PlayerStat.reb).label('avg')
+        )
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .group_by(PlayerStat.player_name)
+        .order_by(desc('total'))
+        .limit(5)
+        .all()
+    )
+    
+    # Assists leaders
+    assists_leaders = (
+        db.session.query(
+            PlayerStat.player_name,
+            func.sum(PlayerStat.ast).label('total'),
+            func.avg(PlayerStat.ast).label('avg')
+        )
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .group_by(PlayerStat.player_name)
+        .order_by(desc('total'))
+        .limit(5)
+        .all()
+    )
+    
+    return {
+        'points': [{
+            'player': p.player_name,
+            'total': int(p.total),
+            'avg': round(p.avg, 1),
+            'games': p.games
+        } for p in points_leaders],
+        'rebounds': [{
+            'player': p.player_name,
+            'total': int(p.total),
+            'avg': round(p.avg, 1)
+        } for p in rebounds_leaders],
+        'assists': [{
+            'player': p.player_name,
+            'total': int(p.total),
+            'avg': round(p.avg, 1)
+        } for p in assists_leaders]
+    }
+
 
 def _analyze_opponents(games):
     """
@@ -1730,3 +1774,174 @@ def _analyze_opponents(games):
         
     # Sort by point differential
     return sorted(results, key=lambda x: x['diff'], reverse=True)
+
+
+def _calculate_team_shooting(game_ids):
+    """
+    Calculate team-wide shooting statistics averaged across all games
+    """
+    stats = PlayerStat.query.filter(PlayerStat.game_id.in_(game_ids)).all()
+    
+    if not stats:
+        return None
+    
+    # Get unique game count
+    num_games = len(set(s.game_id for s in stats))
+    
+    total_fgm = sum(s.fgm for s in stats)
+    total_fga = sum(s.fga for s in stats)
+    total_tpm = sum(s.tpm for s in stats)
+    total_tpa = sum(s.tpa for s in stats)
+    total_ftm = sum(s.ftm for s in stats)
+    total_fta = sum(s.fta for s in stats)
+    total_pts = sum(s.points for s in stats)
+    
+    # 2PT calculations
+    two_pt_made = total_fgm - total_tpm
+    two_pt_att = total_fga - total_tpa
+    
+    return {
+        'fgm': round(total_fgm / num_games, 1),
+        'fga': round(total_fga / num_games, 1),
+        'fg_pct': (total_fgm / total_fga * 100) if total_fga > 0 else 0,
+        'two_pt_made': round(two_pt_made / num_games, 1),
+        'two_pt_att': round(two_pt_att / num_games, 1),
+        'two_pt_pct': (two_pt_made / two_pt_att * 100) if two_pt_att > 0 else 0,
+        'tpm': round(total_tpm / num_games, 1),
+        'tpa': round(total_tpa / num_games, 1),
+        'three_pt_pct': (total_tpm / total_tpa * 100) if total_tpa > 0 else 0,
+        'ftm': round(total_ftm / num_games, 1),
+        'fta': round(total_fta / num_games, 1),
+        'ft_pct': (total_ftm / total_fta * 100) if total_fta > 0 else 0,
+        'ts_pct': calculate_ts_percent(total_pts, total_fga, total_fta),
+        'efg_pct': calculate_efg_percent(total_fgm, total_tpm, total_fga)
+    }
+
+
+def _generate_team_shot_chart(game_ids):
+    """
+    Generate team-wide shot chart showing all team shots
+    Returns base64 encoded PNG
+    """
+    shots = (
+        ShotEvent.query
+        .filter(ShotEvent.game_id.in_(game_ids))
+        .filter(ShotEvent.x_loc.isnot(None))
+        .filter(ShotEvent.y_loc.isnot(None))
+        .all()
+    )
+    
+    if not shots:
+        return ""
+    
+    # Create figure with half-court basketball court
+    fig, ax = plt.subplots(figsize=(8, 7.5))
+    
+    # Draw basketball court (same as player shot chart)
+    ax.plot([0, 500], [0, 0], 'k-', linewidth=2)
+    ax.plot([0, 500], [470, 470], 'k-', linewidth=2)
+    ax.plot([0, 0], [0, 470], 'k-', linewidth=2)
+    ax.plot([500, 500], [0, 470], 'k-', linewidth=2)
+    
+    # Paint / Key
+    paint_width = 160
+    paint_x = (500 - paint_width) / 2
+    paint = patches.Rectangle((paint_x, 0), paint_width, 190, 
+                              linewidth=2, edgecolor='black', facecolor='none')
+    ax.add_patch(paint)
+    
+    # Free throw circle
+    ft_circle = patches.Circle((250, 190), 60, linewidth=2, 
+                               edgecolor='black', facecolor='none')
+    ax.add_patch(ft_circle)
+    
+    # 3-point arc
+    three_pt_radius = 237.5
+    three_pt_arc = patches.Arc((250, 0), three_pt_radius*2, three_pt_radius*2, 
+                              theta1=22, theta2=158, linewidth=2, 
+                              edgecolor='black', facecolor='none')
+    ax.add_patch(three_pt_arc)
+    
+    # Hoop
+    hoop = patches.Circle((250, 41.25), 9, linewidth=2, 
+                         edgecolor='black', facecolor='none')
+    ax.add_patch(hoop)
+    
+    # Plot all team shots
+    makes = [s for s in shots if s.result == 'made']
+    misses = [s for s in shots if s.result == 'missed']
+    
+    if makes:
+        make_x = [s.x_loc for s in makes]
+        make_y = [s.y_loc for s in makes]
+        ax.scatter(make_x, make_y, c='#28a745', s=60, alpha=0.5, 
+                  edgecolors='darkgreen', linewidth=1, marker='o', label='Made')
+    
+    if misses:
+        miss_x = [s.x_loc for s in misses]
+        miss_y = [s.y_loc for s in misses]
+        ax.scatter(miss_x, miss_y, c='#dc3545', s=60, alpha=0.5, 
+                  edgecolors='darkred', linewidth=1, marker='x', label='Missed')
+    
+    # Add statistics
+    total_shots = len(shots)
+    total_makes = len(makes)
+    fg_pct = (total_makes / total_shots * 100) if total_shots > 0 else 0
+    
+    stats_text = f"Team Total: {total_makes}/{total_shots} ({fg_pct:.1f}%)"
+    ax.text(250, 490, stats_text, ha='center', va='top', 
+           fontsize=11, fontweight='bold',
+           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.9))
+    
+    ax.set_xlim(-10, 510)
+    ax.set_ylim(-10, 520)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    ax.legend(loc='upper left', fontsize=10)
+    ax.set_title("Team Shot Chart - All Games", fontsize=14, fontweight='bold', pad=10)
+    
+    plt.tight_layout()
+    
+    img_io = BytesIO()
+    plt.savefig(img_io, format='png', dpi=120, bbox_inches='tight')
+    img_io.seek(0)
+    img_base64 = base64.b64encode(img_io.read()).decode()
+    plt.close(fig)
+    
+    return img_base64
+
+
+def _calculate_plus_minus_leaders(game_ids, games):
+    """
+    Calculate plus/minus leaders (LIVE games only)
+    Only includes data from games with source='LIVE' to ensure accuracy
+    """
+    # Filter for LIVE games only
+    live_game_ids = [g.id for g in games if g.source == 'LIVE']
+    
+    if not live_game_ids:
+        return []
+    
+    # Get all players with stats in LIVE games
+    player_pm_data = (
+        db.session.query(
+            PlayerStat.player_name,
+            func.count(PlayerStat.id).label('games'),
+            func.sum(PlayerStat.plus_minus).label('total_pm'),
+            func.avg(PlayerStat.plus_minus).label('avg_pm')
+        )
+        .filter(PlayerStat.game_id.in_(live_game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .group_by(PlayerStat.player_name)
+        .order_by(desc('avg_pm'))
+        .limit(10)
+        .all()
+    )
+    
+    return [{
+        'player': p.player_name,
+        'games': p.games,
+        'total_pm': int(p.total_pm or 0),
+        'avg_pm': round(p.avg_pm or 0, 1)
+    } for p in player_pm_data]
