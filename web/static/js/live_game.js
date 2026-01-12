@@ -25,7 +25,9 @@ class GameTracker {
             SVG_HEIGHT: 470,
             COURT_HITBOX_ID: 'court-hitbox',
             SVG_ID: 'halfCourtSvg',
-            STORAGE_KEY: 'basketball_live_game_state'
+            STORAGE_KEY: 'basketball_live_game_state',
+            CACHE_KEY: 'basketball_live_game_cache',
+            MAX_CACHED_GAMES: 3
         };
 
         this.init();
@@ -34,6 +36,8 @@ class GameTracker {
     init() {
         this.loadState();
         this.bindEvents();
+        this.renderCachedGamesUI();
+        
         // If we loaded a state where game was started, show tracker
         if (Object.keys(this.stats).length > 0) {
              document.getElementById('setup-panel').style.display = 'none';
@@ -60,6 +64,152 @@ class GameTracker {
         window.onbeforeunload = () => {
             if (this.isClockRunning) return "Game is in progress. Are you sure?";
         };
+    }
+
+    // --- CACHE MANAGEMENT ---
+    getCachedGames() {
+        const cached = localStorage.getItem(this.CONSTANTS.CACHE_KEY);
+        if (!cached) return [];
+        try {
+            return JSON.parse(cached);
+        } catch (e) {
+            console.error("Failed to parse cached games", e);
+            return [];
+        }
+    }
+
+    addToCache(state) {
+        const cache = this.getCachedGames();
+        
+        // Create a snapshot with timestamp
+        const snapshot = {
+            ...state,
+            timestamp: Date.now(),
+            id: Date.now() + Math.random() // unique ID
+        };
+        
+        // Add to front of array
+        cache.unshift(snapshot);
+        
+        // Keep only the most recent MAX_CACHED_GAMES
+        const trimmed = cache.slice(0, this.CONSTANTS.MAX_CACHED_GAMES);
+        
+        localStorage.setItem(this.CONSTANTS.CACHE_KEY, JSON.stringify(trimmed));
+        this.renderCachedGamesUI();
+    }
+
+    removeFromCache(id) {
+        let cache = this.getCachedGames();
+        cache = cache.filter(g => g.id !== id);
+        localStorage.setItem(this.CONSTANTS.CACHE_KEY, JSON.stringify(cache));
+        this.renderCachedGamesUI();
+    }
+
+    restoreFromCache(id) {
+        const cache = this.getCachedGames();
+        const snapshot = cache.find(g => g.id === id);
+        if (!snapshot) {
+            alert("Cached game not found.");
+            return;
+        }
+        
+        if (!confirm(`Restore game vs ${snapshot.opponentName || 'Unknown'} from ${this.formatTimestamp(snapshot.timestamp)}? Current progress will be lost.`)) {
+            return;
+        }
+        
+        // Restore state from snapshot
+        this.fullRoster = snapshot.fullRoster || [];
+        this.activeLineup = snapshot.activeLineup || [];
+        this.stats = snapshot.stats || {};
+        this.opponentScore = snapshot.opponentScore || 0;
+        this.shotLocations = snapshot.shotLocations || [];
+        this.quarter = snapshot.quarter || 1;
+        this.clockSeconds = snapshot.clockSeconds || 0;
+        
+        // Restore inputs
+        if(snapshot.gameDate) document.getElementById('game-date').value = snapshot.gameDate;
+        if(snapshot.opponentName) document.getElementById('opponent').value = snapshot.opponentName;
+        if(snapshot.gameType) document.getElementById('game-type').value = snapshot.gameType;
+        
+        // Save to current state and show tracker
+        this.saveState();
+        
+        // Navigate to tracker
+        if (Object.keys(this.stats).length > 0) {
+            document.getElementById('setup-panel').style.display = 'none';
+            document.getElementById('lineup-panel').style.display = 'none';
+            document.getElementById('tracker-panel').style.display = 'block';
+            
+            const oppName = document.getElementById('opponent').value || "Opponent";
+            document.getElementById('display-opponent').innerText = "vs " + oppName;
+            
+            document.getElementById('quarter-display').innerText = 'Q' + this.quarter;
+            this.updateClockDisplay();
+            document.getElementById('opp-score-display').innerText = this.opponentScore;
+
+            this.renderActivePlayers();
+            this.updateScoreboard();
+        }
+    }
+
+    renderCachedGamesUI() {
+        const container = document.getElementById('cached-games-list');
+        if (!container) return;
+        
+        const cache = this.getCachedGames();
+        
+        if (cache.length === 0) {
+            container.innerHTML = '<p class="text-muted small">No saved games in cache.</p>';
+            return;
+        }
+        
+        container.innerHTML = '<h6 class="mb-2">Recent Games (Last 3)</h6>';
+        
+        cache.forEach(game => {
+            let totalPoints = 0;
+            if (game.stats) {
+                Object.values(game.stats).forEach(s => totalPoints += (s.points || 0));
+            }
+            
+            const div = document.createElement('div');
+            div.className = 'card mb-2 shadow-sm';
+            div.innerHTML = `
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${game.opponentName || 'Unknown'}</strong>
+                            <small class="text-muted d-block">${this.formatTimestamp(game.timestamp)}</small>
+                            <small class="text-muted">Score: ${totalPoints}-${game.opponentScore || 0} | Q${game.quarter || 1}</small>
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="gameTracker.restoreFromCache(${game.id})" title="Restore this game">
+                                <i class="fas fa-undo"></i> Restore
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="gameTracker.removeFromCache(${game.id})" title="Delete from cache">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    formatTimestamp(timestamp) {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        
+        return date.toLocaleDateString();
     }
 
     // --- PERSISTENCE ---
@@ -616,6 +766,9 @@ class GameTracker {
             btn.classList.remove('btn-danger');
             btn.classList.add('btn-success');
             this.updatePlayerTimes();
+            
+            // Save to cache when clock is stopped (potential manual save point)
+            this.addToCache(this.getCurrentState());
         } else {
             const now = Date.now();
             this.activeLineup.forEach(p => {
@@ -624,10 +777,6 @@ class GameTracker {
             this.timerInterval = setInterval(() => {
                 this.clockSeconds++; 
                 this.updateClockDisplay();
-                // Save occasionally or on every tick? Every tick is too much IO.
-                // We rely on other actions to save state, but maybe save every 10s?
-                // For now, save only on actions. But user might lose clock time on refresh.
-                // Let's save on stop.
             }, 1000);
             this.isClockRunning = true;
             btn.innerText = "STOP";
@@ -635,6 +784,21 @@ class GameTracker {
             btn.classList.add('btn-danger');
         }
         this.saveState();
+    }
+
+    getCurrentState() {
+        return {
+            fullRoster: this.fullRoster,
+            activeLineup: this.activeLineup,
+            stats: JSON.parse(JSON.stringify(this.stats)), // deep copy
+            opponentScore: this.opponentScore,
+            shotLocations: JSON.parse(JSON.stringify(this.shotLocations)),
+            quarter: this.quarter,
+            clockSeconds: this.clockSeconds,
+            gameDate: document.getElementById('game-date').value,
+            opponentName: document.getElementById('opponent').value,
+            gameType: document.getElementById('game-type').value
+        };
     }
 
     updatePlayerTimes() {
@@ -663,6 +827,9 @@ class GameTracker {
         document.getElementById('quarter-display').innerText = 'Q' + this.quarter;
         this.clockSeconds = 0;
         this.updateClockDisplay();
+        
+        // Cache at quarter boundaries
+        this.addToCache(this.getCurrentState());
         this.saveState();
     }
 
@@ -725,6 +892,9 @@ class GameTracker {
         this.activeLineup = [...this._tempLineup];
         this.renderActivePlayers();
         $('#subModal').modal('hide');
+        
+        // Cache after substitutions
+        this.addToCache(this.getCurrentState());
         this.saveState();
     }
 
@@ -772,6 +942,7 @@ class GameTracker {
         }).then(res => res.json()).then(data => {
             if(data.success) {
                 this.clearState(); // Clear local storage on success
+                // Don't remove from cache - let user keep historical snapshots
                 window.location.href = `/game/${data.game_id}`;
             } else {
                 alert("Error saving game: " + (data.error || "Unknown error"));
