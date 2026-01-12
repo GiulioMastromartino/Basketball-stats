@@ -413,6 +413,7 @@
             stats[p] = { 
                 points: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, 
                 oreb: 0, dreb: 0, ast: 0, tov: 0, stl: 0, blk: 0, pf: 0,
+                plus_minus: 0, // NEW: Init +/-
                 minutes_seconds: 0,
                 last_sub_in: activeLineup.includes(p) ? Date.now() : null
             };
@@ -433,12 +434,17 @@
         
         activeLineup.forEach(p => {
             const s = stats[p];
+            // Color code +/- 
+            const pmClass = s.plus_minus > 0 ? 'badge-success' : (s.plus_minus < 0 ? 'badge-danger' : 'badge-secondary');
+            const pmSign = s.plus_minus > 0 ? '+' : '';
+
             grid.innerHTML += `
                 <div class="col-md-6 col-lg-4 mb-3">
                     <div class="card h-100 shadow-sm border-0">
                         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
-                            <h5 class="mb-0 text-truncate" style="max-width: 65%; font-weight: bold;">${p}</h5>
+                            <h5 class="mb-0 text-truncate" style="max-width: 50%; font-weight: bold;">${p}</h5>
                             <div>
+                                <span class="badge ${pmClass} mr-1" id="pm-${p}" style="font-size: 0.9em;" title="Plus/Minus">${pmSign}${s.plus_minus}</span>
                                 <span class="badge badge-light mr-1" id="pts-${p}" style="font-size: 0.9em;">${s.points} PTS</span>
                                 <span class="badge badge-warning" id="pf-badge-${p}" style="font-size: 0.9em;">${s.pf} PF</span>
                             </div>
@@ -722,6 +728,7 @@
     function updateShooting(player, type, makeDelta, attemptDelta) {
         if (!stats[player]) return;
         const s = stats[player];
+        let pointsAdded = 0;
 
         // Apply changes safely
         if (type === '2pt') {
@@ -733,7 +740,9 @@
 
             s.fgm += makeDelta;
             s.fga += attemptDelta;
-            s.points += (makeDelta * 2);
+            
+            pointsAdded = (makeDelta * 2);
+            s.points += pointsAdded;
         } else if (type === '3pt') {
              if (s.tpm + makeDelta < 0 || s.tpa + attemptDelta < 0) return;
              if (s.tpa + attemptDelta < s.tpm + makeDelta) return;
@@ -744,17 +753,32 @@
              s.fgm += makeDelta;
              s.fga += attemptDelta;
              
-             s.points += (makeDelta * 3);
+             pointsAdded = (makeDelta * 3);
+             s.points += pointsAdded;
         } else if (type === 'ft') {
              if (s.ftm + makeDelta < 0 || s.fta + attemptDelta < 0) return;
              if (s.fta + attemptDelta < s.ftm + makeDelta) return;
 
              s.ftm += makeDelta;
              s.fta += attemptDelta;
-             s.points += (makeDelta * 1);
+             pointsAdded = (makeDelta * 1);
+             s.points += pointsAdded;
         }
 
-        updateUI(player);
+        // --- UPDATE PLUS/MINUS ---
+        // If it's a make (makeDelta > 0), all players currently ON COURT get +Points
+        // If it's an undo make (makeDelta < 0), all players currently ON COURT get -Points
+        if (makeDelta !== 0) {
+            activeLineup.forEach(pName => {
+                if (stats[pName]) {
+                    stats[pName].plus_minus += pointsAdded; 
+                }
+            });
+            // Update UI for all active players because their +/- changed
+            activeLineup.forEach(pName => updateUI(pName));
+        } else {
+             updateUI(player);
+        }
     }
 
     function updateStat(player, key, delta) {
@@ -769,6 +793,16 @@
         opponentScore += points;
         if(opponentScore < 0) opponentScore = 0;
         document.getElementById('opp-score-display').innerText = opponentScore;
+        
+        // --- UPDATE PLUS/MINUS (Negative for Opponent Score) ---
+        // All active players get minus points
+        activeLineup.forEach(pName => {
+            if (stats[pName]) {
+                stats[pName].plus_minus -= points; 
+            }
+            updateUI(pName); // Refresh +/- badge
+        });
+
         updateScoreboard();
     }
 
@@ -777,6 +811,19 @@
          
          document.getElementById(`pts-${player}`).innerText = s.points + ' PTS';
          document.getElementById(`pf-badge-${player}`).innerText = s.pf + ' PF';
+         
+         // Update +/- Badge
+         const pmEl = document.getElementById(`pm-${player}`);
+         if (pmEl) {
+             const pmSign = s.plus_minus > 0 ? '+' : '';
+             pmEl.innerText = `${pmSign}${s.plus_minus}`;
+             
+             // Update color
+             pmEl.className = 'badge mr-1';
+             if (s.plus_minus > 0) pmEl.classList.add('badge-success');
+             else if (s.plus_minus < 0) pmEl.classList.add('badge-danger');
+             else pmEl.classList.add('badge-secondary');
+         }
          
          if (document.getElementById(`disp-2pt-${player}`)) {
              const two_m = s.fgm - s.tpm;
@@ -878,11 +925,16 @@
         
         fullRoster.forEach(p => {
             const isActive = tempLineup.includes(p);
+            // Get current +/- for display in subs list
+            const pmVal = stats[p] ? stats[p].plus_minus : 0;
+            const pmSign = pmVal > 0 ? '+' : '';
+            const pmClass = pmVal > 0 ? 'text-success' : (pmVal < 0 ? 'text-danger' : 'text-muted');
+
             const btn = document.createElement('button');
             btn.className = `list-group-item list-group-item-action ${isActive ? 'active' : ''}`;
             btn.style.cursor = 'pointer';
             btn.innerHTML = `<div class="d-flex justify-content-between align-items-center">
-                                <span>${p}</span>
+                                <span>${p} <small class="${pmClass} font-weight-bold">(${pmSign}${pmVal})</small></span>
                                 <small>${isActive ? 'ON COURT' : 'BENCH'}</small>
                              </div>`;
             
@@ -890,7 +942,7 @@
                 if (tempLineup.includes(p)) {
                     tempLineup = tempLineup.filter(x => x !== p);
                     btn.classList.remove('active');
-                    btn.querySelector('small').innerText = 'BENCH';
+                    btn.querySelector('small:last-child').innerText = 'BENCH';
                 } else {
                     if (tempLineup.length >= 5) {
                         alert("Only 5 players allowed on court.");
@@ -898,7 +950,7 @@
                     }
                     tempLineup.push(p);
                     btn.classList.add('active');
-                    btn.querySelector('small').innerText = 'ON COURT';
+                    btn.querySelector('small:last-child').innerText = 'ON COURT';
                 }
             };
             container.appendChild(btn);
