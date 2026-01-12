@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_migrate import Migrate
+from sqlalchemy import text
 from core.models import db, User  # Import your models
 from config import Config
 
@@ -25,10 +26,26 @@ def create_app():
         app.register_blueprint(api_bp, url_prefix='/api')
 
         # Create database tables if they don't exist
-        # db.create_all()  <-- Commented out to use migrations instead
+        db.create_all()
+        
+        # Auto-migration fix for existing databases
+        # Check if 'source' column exists in 'games' table
+        try:
+            with db.engine.connect() as conn:
+                # SQLite specific check
+                result = conn.execute(text("PRAGMA table_info(games)"))
+                columns = [row[1] for row in result.fetchall()]
+                
+                if 'source' not in columns:
+                    print("Migrating database: Adding 'source' column to 'games' table...")
+                    conn.execute(text("ALTER TABLE games ADD COLUMN source VARCHAR(20) DEFAULT 'IMPORT'"))
+                    conn.commit()
+                    print("Migration successful.")
+        except Exception as e:
+            print(f"Auto-migration warning: {e}")
 
     return app
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=8080)
