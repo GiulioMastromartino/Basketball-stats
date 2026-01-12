@@ -150,18 +150,19 @@ def normalize_date_to_display(date_str: str) -> str:
 def get_player_stats_averages(stats):
     """
     Calculate average statistics for a list of PlayerStat objects.
-    Returns a dictionary of averages.
+    Returns a dictionary of averages with per-game naming (ppg, rpg, apg, etc.).
     """
     if not stats:
         return {
-            "points": 0, "minutes": 0, "reb": 0, "ast": 0,
+            "points": 0, "ppg": 0, "minutes": 0, "mpg": 0,
+            "reb": 0, "rpg": 0, "ast": 0, "apg": 0,
             "fgm": 0, "fga": 0, "fg_percent": 0,
             "tpm": 0, "tpa": 0, "tp_percent": 0,
             "ftm": 0, "fta": 0, "ft_percent": 0,
             "oreb": 0, "dreb": 0,
-            "stl": 0, "blk": 0, "tov": 0, "pf": 0,
-            "pm": 0, # Added pm (plus_minus)
-            "games_played": 0
+            "stl": 0, "spg": 0, "blk": 0, "bpg": 0, 
+            "tov": 0, "topg": 0, "pf": 0, "pfpg": 0,
+            "pm": 0, "games_played": 0
         }
     
     count = len(stats)
@@ -186,11 +187,22 @@ def get_player_stats_averages(stats):
     # Handle potentially missing plus_minus attribute safely
     total_pm = sum(getattr(s, 'plus_minus', 0) for s in stats)
 
+    avg_points = round(total_points / count, 1)
+    avg_minutes = round(total_minutes / count, 1)
+    avg_reb = round(total_reb / count, 1)
+    avg_ast = round(total_ast / count, 1)
+    avg_stl = round(total_stl / count, 1)
+    avg_blk = round(total_blk / count, 1)
+    avg_tov = round(total_tov / count, 1)
+    avg_pf = round(total_pf / count, 1)
+    avg_pm = round(total_pm / count, 1)
+
     return {
-        "points": round(total_points / count, 1),
-        "minutes": round(total_minutes / count, 1),
-        "reb": round(total_reb / count, 1),
-        "ast": round(total_ast / count, 1),
+        # Totals (used for calculations)
+        "points": avg_points,
+        "minutes": avg_minutes,
+        "reb": avg_reb,
+        "ast": avg_ast,
         "fgm": round(total_fgm / count, 1),
         "fga": round(total_fga / count, 1),
         "fg_percent": safe_percentage(total_fgm, total_fga),
@@ -202,10 +214,21 @@ def get_player_stats_averages(stats):
         "ft_percent": safe_percentage(total_ftm, total_fta),
         "oreb": round(total_oreb / count, 1),
         "dreb": round(total_dreb / count, 1),
-        "stl": round(total_stl / count, 1),
-        "blk": round(total_blk / count, 1),
-        "tov": round(total_tov / count, 1),
-        "pf": round(total_pf / count, 1),
-        "pm": round(total_pm / count, 1), # Added pm
+        "stl": avg_stl,
+        "blk": avg_blk,
+        "tov": avg_tov,
+        "pf": avg_pf,
+        "pm": avg_pm,
+        
+        # Per-game aliases (for template compatibility)
+        "ppg": avg_points,
+        "mpg": avg_minutes,
+        "rpg": avg_reb,
+        "apg": avg_ast,
+        "spg": avg_stl,
+        "bpg": avg_blk,
+        "topg": avg_tov,
+        "pfpg": avg_pf,
+        
         "games_played": count
     }
