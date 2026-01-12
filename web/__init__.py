@@ -20,6 +20,7 @@ from sqlalchemy import text
 
 from config import get_config
 from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, Play, bcrypt, db
+from core.seed_plays import seed_plays
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -148,6 +149,12 @@ def register_blueprints(app: Flask):
 def register_commands(app: Flask):
     """Register custom CLI commands"""
     
+    @app.cli.command("seed")
+    def seed():
+        """Seed the database with initial data."""
+        seed_plays()
+        click.echo("[CLI] Database seeded successfully.")
+
     @app.cli.command("reset-stats-db")
     def reset_stats_db():
         """
