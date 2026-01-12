@@ -1,9 +1,9 @@
-from core.models import Game, PlayerStat, ShotEvent, db
+from core.models import Game, PlayerStat, ShotEvent, GameEvent, db
 from core.utils import normalize_date_to_display
 
 def create_game_from_live_data(data):
     """
-    Creates a new Game, PlayerStats, and ShotEvents from the JSON data payload.
+    Creates a new Game, PlayerStats, ShotEvents, and GameEvents from the JSON data payload.
     """
     if not data:
         raise ValueError("No data received")
@@ -58,14 +58,14 @@ def create_game_from_live_data(data):
         )
         db.session.add(new_stat)
 
-    # Create Shot Events (made shots only, from click-map)
-    # NOTE: current frontend only logs location for made 2pt/3pt.
+    # Create Shot Events (made and missed shots from click-map)
     for ev in data.get("shot_locations", []) or []:
         shooter = (ev.get("shooter") or "").strip()
         shot_type = (ev.get("type") or "").strip()   # 2pt / 3pt
         points = int(ev.get("points") or 0)
+        result = ev.get("result", "made") # Default to made for backward compatibility
 
-        # store the raw SVG coords (x,y) as floats; can be normalized later
+        # store the raw SVG coords (x,y) as floats
         x = ev.get("x")
         y = ev.get("y")
         q = ev.get("quarter")
@@ -74,13 +74,29 @@ def create_game_from_live_data(data):
             game_id=game.id,
             player_name=shooter,
             shot_type=shot_type,
-            result="made",
+            result=result,
             points=points,
             x_loc=float(x) if x is not None else None,
             y_loc=float(y) if y is not None else None,
             quarter=int(q) if q is not None else None,
         )
         db.session.add(shot)
+
+    # Create Game Events (Play-by-play log)
+    for ev in data.get("game_events", []) or []:
+        event_type = ev.get("type")
+        player_name = ev.get("player")
+        detail = ev.get("detail")
+        timestamp = ev.get("timestamp", 0)
+
+        game_event = GameEvent(
+            game_id=game.id,
+            event_type=event_type,
+            player_name=player_name,
+            detail=str(detail) if detail is not None else "",
+            timestamp=int(timestamp)
+        )
+        db.session.add(game_event)
 
     db.session.commit()
     return game
