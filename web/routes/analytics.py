@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 from flask import Blueprint, jsonify, render_template, request, send_file, after_this_request, url_for
 from flask_login import login_required
 from sqlalchemy import desc, func
+
+# Standard WeasyPrint import - monkeypatch removed
 from weasyprint import HTML
 
 from core.models import Game, PlayerStat, db
