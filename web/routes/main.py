@@ -488,7 +488,53 @@ def game_detail(game_id):
         p.oreb_pct = safe_percentage(p.oreb, p.reb)
         p.foul_trouble = p.pf >= 3
 
-    return render_template("game_detail.html", game=game, stats=stats, shot_events=shot_events)
+    # --- Team totals + advanced ---
+    team_stats = {
+        "points": sum(p.points for p in stats),
+        "fgm": sum(p.fgm for p in stats),
+        "fga": sum(p.fga for p in stats),
+        "tpm": sum(p.tpm for p in stats),
+        "tpa": sum(p.tpa for p in stats),
+        "ftm": sum(p.ftm for p in stats),
+        "fta": sum(p.fta for p in stats),
+        "oreb": sum(p.oreb for p in stats),
+        "dreb": sum(p.dreb for p in stats),
+        "reb": sum(p.reb for p in stats),
+        "ast": sum(p.ast for p in stats),
+        "tov": sum(p.tov for p in stats),
+        "stl": sum(p.stl for p in stats),
+        "blk": sum(p.blk for p in stats),
+        "pf": sum(p.pf for p in stats),
+    }
+
+    team_poss = calculate_possessions(team_stats["fga"], team_stats["fta"], team_stats["oreb"], team_stats["tov"])
+    if team_poss <= 0:
+        # fallback to summed player possessions if the team formula yields 0
+        team_poss = team_possessions
+
+    efg = calculate_efg_percent(team_stats["fgm"], team_stats["tpm"], team_stats["fga"])
+    ortg = calculate_ortg(game.team_score, team_poss)
+    drtg = calculate_ortg(game.opponent_score, team_poss)
+
+    advanced = {
+        "possessions": round(team_poss, 1),
+        "efg_pct": round(efg, 1),
+        "ts_pct": round(calculate_ts_percent(team_stats["points"], team_stats["fga"], team_stats["fta"]), 1),
+        "tov_pct": round(safe_percentage(team_stats["tov"], team_poss), 1),
+        "ft_rate": round(safe_percentage(team_stats["fta"], team_stats["fga"]), 1),
+        "oreb_pct": round(safe_percentage(team_stats["oreb"], team_stats["reb"]), 1),
+        "ortg": round(ortg, 0),
+        "drtg": round(drtg, 0),
+    }
+
+    return render_template(
+        "game_detail.html",
+        game=game,
+        stats=stats,
+        shot_events=shot_events,
+        team_stats=team_stats,
+        advanced=advanced,
+    )
 
 
 @main_bp.route("/game/<int:game_id>/delete", methods=["POST"])
@@ -764,6 +810,7 @@ def players():
         db.session.query(
             PlayerStat.player_name,
             func.count(PlayerStat.id).label("games_played"),
+            func.sum(PlayerStat.id).label("total_id"),
             func.sum(PlayerStat.points).label("total_points"),
             func.sum(PlayerStat.reb).label("total_reb"),
             func.sum(PlayerStat.oreb).label("total_oreb"),
