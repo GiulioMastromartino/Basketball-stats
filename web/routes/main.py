@@ -84,7 +84,17 @@ def live_game():
     existing_players = [r[0] for r in db.session.query(PlayerStat.player_name).distinct().order_by(PlayerStat.player_name).all()]
     
     # Fetch available plays for selection (also injected, but JS fetches from API)
-    plays_list = Play.query.order_by(Play.play_type, Play.name).all()
+    # Convert SQLAlchemy objects to dicts for JSON serialization in template
+    plays_query = Play.query.order_by(Play.play_type, Play.name).all()
+    plays_list = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "type": p.play_type,
+            "description": p.description,
+        }
+        for p in plays_query
+    ]
     
     from datetime import datetime
     now_date = datetime.now().strftime("%Y-%m-%d")
