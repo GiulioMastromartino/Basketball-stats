@@ -64,6 +64,7 @@ def create_game_from_live_data(data):
         shot_type = (ev.get("type") or "").strip()   # 2pt / 3pt
         points = int(ev.get("points") or 0)
         result = ev.get("result", "made") # Default to made for backward compatibility
+        play_id = ev.get("play_id")
 
         # store the raw SVG coords (x,y) as floats
         x = ev.get("x")
@@ -79,6 +80,7 @@ def create_game_from_live_data(data):
             x_loc=float(x) if x is not None else None,
             y_loc=float(y) if y is not None else None,
             quarter=int(q) if q is not None else None,
+            play_id=int(play_id) if play_id else None
         )
         db.session.add(shot)
 
@@ -88,13 +90,19 @@ def create_game_from_live_data(data):
         player_name = ev.get("player")
         detail = ev.get("detail")
         timestamp = ev.get("timestamp", 0)
+        
+        # New fields for Play Selector
+        shot_attempt = ev.get("shot_attempt")
+        play_id = ev.get("play_id")
 
         game_event = GameEvent(
             game_id=game.id,
             event_type=event_type,
             player_name=player_name,
             detail=str(detail) if detail is not None else "",
-            timestamp=int(timestamp)
+            timestamp=int(timestamp),
+            shot_attempt=shot_attempt,
+            play_id=int(play_id) if play_id else None
         )
         db.session.add(game_event)
 
