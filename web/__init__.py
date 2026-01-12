@@ -68,6 +68,9 @@ def create_app(config_name: str = None) -> Flask:
 
     # Auto-migrate database schema on startup
     with app.app_context():
+        # Ensure all tables exist (creates new tables like game_events if missing)
+        db.create_all()
+        # Perform schema migrations for existing tables
         auto_migrate_schema()
 
     return app
