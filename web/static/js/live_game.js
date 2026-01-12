@@ -31,6 +31,7 @@ class GameTracker {
         this.playsCache = [];
         this.playTypes = [];
         this.recentPlays = []; // NEW: Track recently used plays
+        this.showSpecial = false; // Toggle for special plays
 
         // Play selector toggle state
         this.playSelectMode = true;  // Toggle state for play selector
@@ -110,8 +111,17 @@ class GameTracker {
 
     // --- PLAYS LOADING ---
     loadPlays() {
+        // First try to load from injected variable
+        if (window.AVAILABLE_PLAYS && window.AVAILABLE_PLAYS.length > 0) {
+            console.log("Loading plays from injected data...");
+            this.playsCache = window.AVAILABLE_PLAYS;
+            this.processPlayTypes();
+            return;
+        }
+
         const csrfToken = document.getElementById('csrf_token')?.value || '';
         
+        // Fallback to API fetch
         fetch('/api/plays', {
             method: 'GET',
             headers: {
@@ -120,37 +130,32 @@ class GameTracker {
         })
         .then(res => res.json())
         .then(plays => {
+            console.log("Loaded plays from API:", plays.length);
             this.playsCache = plays;
-            // Extract unique play types
-            const types = [...new Set(plays.map(p => p.type))];
-            this.playTypes = types.sort();
-            this.populatePlayFilter();
+            this.processPlayTypes();
         })
         .catch(err => console.error('Failed to load plays:', err));
     }
 
-    populatePlayFilter() {
-        const filterSelect = document.getElementById('play-filter');
-        if (!filterSelect) return;
-
-        // Clear and rebuild
-        const currentValue = filterSelect.value;
-        filterSelect.innerHTML = '<option value="All">All Plays</option>';
-        
-        this.playTypes.forEach(type => {
-            const opt = document.createElement('option');
-            opt.value = type;
-            opt.innerText = type;
-            filterSelect.appendChild(opt);
-        });
-        
-        // Restore selection
-        filterSelect.value = currentValue || 'All';
+    processPlayTypes() {
+        const types = [...new Set(this.playsCache.map(p => p.type))];
+        this.playTypes = types.sort();
+        // We no longer populate a dropdown filter, as UI is now toggle-based
     }
 
-    filterPlays() {
-        const filterValue = document.getElementById('play-filter')?.value || 'All';
-        this.renderPlaysList(filterValue);
+    toggleSpecialPlays() {
+        this.showSpecial = !this.showSpecial;
+        const btn = document.getElementById('btn-toggle-special');
+        if (this.showSpecial) {
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-warning');
+            btn.innerHTML = '<i class="fas fa-star"></i> Hide Special';
+        } else {
+            btn.classList.remove('btn-warning');
+            btn.classList.add('btn-outline-secondary');
+            btn.innerHTML = '<i class="fas fa-star"></i> Show Special';
+        }
+        this.renderPlaysList(); // Re-render with new filter
     }
 
     // NEW: Track recently used plays
@@ -163,71 +168,114 @@ class GameTracker {
         this.recentPlays = this.recentPlays.slice(0, this.CONSTANTS.MAX_RECENT_PLAYS);
     }
 
-    renderPlaysList(filterType = 'All') {
+    renderPlaysList() {
         const list = document.getElementById('plays-list');
         if (!list) return;
 
-        let filteredPlays = this.playsCache;
-        if (filterType !== 'All') {
-            filteredPlays = this.playsCache.filter(p => p.type === filterType);
+        // Default to Offense unless Special is toggled
+        let targetType = 'Offense';
+        if (this.showSpecial) {
+            // When Special is ON, we show Special plays. 
+            // The requirement says "toggle button not list to show special", 
+            // likely meaning toggle replaces the list or adds to it.
+            // We'll show Special plays INSTEAD of Offense for clarity, or filter for them.
+            targetType = 'Special';
         }
+
+        // Filter by type
+        let filteredPlays = this.playsCache.filter(p => p.type === targetType);
+        
+        // MACRO GROUPING LOGIC
+        // "DueBasso-1" -> Macro "DueBasso"
+        // We will group by the part of the name before the first hyphen
+        const macroMap = new Map();
+
+        filteredPlays.forEach(play => {
+            // Check if name has a hyphen (e.g. "DueBasso-1")
+            const parts = play.name.split('-');
+            let macroName = play.name;
+            
+            // If it looks like a variation (e.g. ends in number or single char after hyphen)
+            if (parts.length > 1) {
+                macroName = parts[0].trim();
+            }
+
+            if (!macroMap.has(macroName)) {
+                macroMap.set(macroName, []);
+            }
+            macroMap.get(macroName).push(play);
+        });
 
         list.innerHTML = '';
 
         if (filteredPlays.length === 0) {
-            list.innerHTML = '<div class="list-group-item text-muted text-center">No plays found</div>';
+            list.innerHTML = `<div class="list-group-item text-muted text-center">No ${targetType} plays found</div>`;
             return;
         }
 
-        // NEW: Show recent plays section if available and filter is "All"
-        if (filterType === 'All' && this.recentPlays.length > 0) {
+        // Show recent plays ONLY if in standard Offense mode
+        if (targetType === 'Offense' && this.recentPlays.length > 0) {
             const recentHeader = document.createElement('div');
-            recentHeader.className = 'list-group-item bg-light';
-            recentHeader.innerHTML = '<strong class="text-primary"><i class="fas fa-history"></i> Recent Plays</strong>';
+            recentHeader.className = 'list-group-item bg-light py-1';
+            recentHeader.innerHTML = '<small class="text-primary font-weight-bold">RECENT</small>';
             list.appendChild(recentHeader);
 
             this.recentPlays.forEach(play => {
-                const btn = this.createPlayButton(play);
+                // Determine if recent play is a variation, display its full name or macro?
+                // Usually recents are specific. We'll show the specific one clicked.
+                const btn = this.createPlayButton(play, false); 
                 btn.classList.add('border-primary');
                 list.appendChild(btn);
             });
-
+            
             const divider = document.createElement('div');
-            divider.className = 'list-group-item bg-light';
-            divider.innerHTML = '<strong class="text-secondary">All Plays</strong>';
+            divider.className = 'list-group-item bg-light py-1 mt-2';
+            divider.innerHTML = '<small class="text-secondary font-weight-bold">ALL PLAYS</small>';
             list.appendChild(divider);
         }
 
-        filteredPlays.forEach(play => {
-            const btn = this.createPlayButton(play);
-            list.appendChild(btn);
+        // Render Macro Groups
+        // Convert map to array and sort alpha
+        const macros = Array.from(macroMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+        macros.forEach(([name, variations]) => {
+            // If only 1 variation, just show it as a play
+            if (variations.length === 1) {
+                list.appendChild(this.createPlayButton(variations[0], false));
+            } else {
+                // Multiple variations: Show the MACRO name.
+                // Clicking it selects the FIRST variation (or could expand, but user said "not both")
+                // We'll assume clicking the macro selects the "base" or first variation.
+                // Better yet: Pass the first one, but label it with the Macro Name.
+                list.appendChild(this.createPlayButton(variations[0], true, name));
+            }
         });
     }
 
     // NEW: Helper to create play button
-    createPlayButton(play) {
+    // isMacro: true if this represents a group
+    // customLabel: override the play name (e.g. "DueBasso" instead of "DueBasso-1")
+    createPlayButton(play, isMacro = false, customLabel = null) {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'list-group-item list-group-item-action';
+        btn.className = 'list-group-item list-group-item-action py-2';
         btn.style.cursor = 'pointer';
+        
+        const displayName = customLabel || play.name;
+        
         btn.innerHTML = `
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <div class="font-weight-bold">${play.name}</div>
-                    ${play.description ? `<small class="text-muted">${play.description}</small>` : ''}
-                </div>
-                <small class="badge badge-secondary">${play.type}</small>
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="font-weight-bold">${displayName}</span>
+                ${isMacro ? '<small class="badge badge-light border text-muted">Group</small>' : ''}
             </div>
         `;
-        btn.onclick = () => this.selectPlay(play);
+        btn.onclick = () => this.selectPlay(play); // If macro, this selects the first variation (play object passed in)
         return btn;
     }
 
     openPlaySelector(eventType, shooter = null, shotType = null) {
         // Check if play selector toggle is ON
         if (!this.playSelectMode) {
-            console.log('Play selector is OFF - skipping modal');
-            // IMPROVED: If skipped, finalize pending events
             this.finalizePlaySelection(null);
             return;
         }
@@ -238,9 +286,22 @@ class GameTracker {
             shotType
         };
 
-        // Render the plays list
-        this.renderPlaysList('All');
+        // Reset to Offense view by default
+        this.showSpecial = false;
+        this.updateSpecialToggleBtn(); // helper to reset button style
+
+        // Render
+        this.renderPlaysList();
         $('#playSelectorModal').modal('show');
+    }
+
+    updateSpecialToggleBtn() {
+        const btn = document.getElementById('btn-toggle-special');
+        if (btn) {
+            btn.classList.remove('btn-warning');
+            btn.classList.add('btn-outline-secondary');
+            btn.innerHTML = '<i class="fas fa-star"></i> Show Special';
+        }
     }
 
     selectPlay(play) {
