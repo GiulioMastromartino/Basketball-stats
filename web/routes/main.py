@@ -283,6 +283,7 @@ def upload_game():
                         stl=player["stl"],
                         blk=player["blk"],
                         pf=player["pf"],
+                        plus_minus=int(player.get("plus_minus", 0) or 0),
                     )
                     db.session.add(stat)
 
@@ -396,6 +397,7 @@ def upload_game():
                     stl=int(player.get("stl", 0) or 0),
                     blk=int(player.get("blk", 0) or 0),
                     pf=int(player.get("pf", 0) or 0),
+                    plus_minus=int(player.get("plus_minus", 0) or 0),
                 )
                 db.session.add(stat)
 
