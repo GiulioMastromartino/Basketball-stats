@@ -34,6 +34,8 @@ from core.utils import (
     calculate_two_point_stats,
     parse_minutes,
     safe_percentage,
+    get_player_stats_averages,
+    normalize_per_100_possessions
 )
 
 analytics_bp = Blueprint("analytics", __name__)
@@ -993,6 +995,138 @@ def download_all_reports():
         return jsonify({"error": f"Failed to generate reports: {str(e)}"}), 500
 
 
+def _calculate_player_metrics(stats, game_map, games_played):
+    """Calculate comprehensive player metrics for the report"""
+    # Averages
+    avg_stats = get_player_stats_averages(stats)
+
+    # Per 100 Possessions
+    total_poss = 0
+    total_minutes = 0
+    for s in stats:
+        poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
+        total_poss += poss
+        total_minutes += parse_minutes(s.minutes)
+    
+    per_100_stats = {
+        'points': normalize_per_100_possessions(avg_stats['points'], total_poss/games_played) if total_poss else 0,
+        'reb': normalize_per_100_possessions(avg_stats['reb'], total_poss/games_played) if total_poss else 0,
+        'ast': normalize_per_100_possessions(avg_stats['ast'], total_poss/games_played) if total_poss else 0,
+        'stl': normalize_per_100_possessions(avg_stats['stl'], total_poss/games_played) if total_poss else 0,
+        'blk': normalize_per_100_possessions(avg_stats['blk'], total_poss/games_played) if total_poss else 0,
+    }
+
+    # Shooting Breakdown
+    shooting_data = {
+        'fg': {'made': avg_stats['fgm'], 'att': avg_stats['fga'], 'pct': avg_stats['fg_percent']},
+        'three_pt': {'made': avg_stats['tpm'], 'att': avg_stats['tpa'], 'pct': avg_stats['tp_percent']},
+        'ft': {'made': avg_stats['ftm'], 'att': avg_stats['fta'], 'pct': avg_stats['ft_percent']},
+    }
+    
+    # 2PT Calculations
+    two_pt_made = avg_stats['fgm'] - avg_stats['tpm']
+    two_pt_att = avg_stats['fga'] - avg_stats['tpa']
+    shooting_data['two_pt'] = {
+        'made': round(two_pt_made, 1),
+        'att': round(two_pt_att, 1),
+        'pct': safe_percentage(two_pt_made, two_pt_att)
+    }
+
+    # Advanced Metrics
+    total_pts = avg_stats['points'] * games_played
+    total_fga = avg_stats['fga'] * games_played
+    total_fta = avg_stats['fta'] * games_played
+    total_fgm = avg_stats['fgm'] * games_played
+    total_tpm = avg_stats['tpm'] * games_played
+    
+    advanced_stats = {
+        'ts_pct': calculate_ts_percent(total_pts, total_fga, total_fta),
+        'efg_pct': calculate_efg_percent(total_fgm, total_tpm, total_fga),
+        'ortg': calculate_ortg(total_pts, total_poss),
+        'ast_tov': avg_stats['ast'] / avg_stats['tov'] if avg_stats['tov'] > 0 else avg_stats['ast'],
+        'usg_pct': 0, # Requires team context, calculated separately
+        'pie': 0 # Requires extensive team context
+    }
+
+    # Game Logs
+    game_logs = []
+    for s in stats:
+        game = game_map.get(s.game_id)
+        if not game: continue
+        
+        poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
+        ortg = calculate_ortg(s.points, poss)
+        gmsc = s.points + 0.4*s.fgm - 0.7*s.fga - 0.4*(s.fta-s.ftm) + 0.7*s.oreb + 0.3*s.dreb + s.stl + 0.7*s.ast + 0.7*s.blk - 0.4*s.pf - s.tov
+
+        game_logs.append({
+            'date': game.date,
+            'opponent': game.opponent,
+            'result': game.result,
+            'minutes': s.minutes,
+            'pts': s.points,
+            'reb': s.reb,
+            'ast': s.ast,
+            'stl': s.stl,
+            'blk': s.blk,
+            'tov': s.tov,
+            'pf': s.pf,
+            'fgm': s.fgm, 'fga': s.fga, 'fg_pct': round(s.fg_percent * 100, 1),
+            'tpm': s.tpm, 'tpa': s.tpa, 'tp_percent': round(s.tp_percent * 100, 1),
+            'ftm': s.ftm, 'fta': s.fta, 'ft_percent': round(s.ft_percent * 100, 1),
+            'ortg': round(ortg, 1),
+            'gmsc': round(gmsc, 1)
+        })
+
+    return {
+        'avg_stats': avg_stats,
+        'per_100': per_100_stats,
+        'shooting': shooting_data,
+        'advanced': advanced_stats,
+        'games_played': games_played,
+        'game_logs': game_logs
+    }
+
+
+def _generate_player_charts(stats, game_map, player_name):
+    """Generate charts for player report"""
+    if not stats:
+        return {'chart_scoring': '', 'chart_shooting': ''}
+        
+    dates = []
+    points = []
+    ortgs = []
+    
+    for s in stats:
+        game = game_map.get(s.game_id)
+        if game:
+            dates.append(game.date)
+            points.append(s.points)
+            poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
+            ortgs.append(calculate_ortg(s.points, poss))
+            
+    # Scoring Chart
+    fig, ax1 = plt.subplots(figsize=(10, 4))
+    ax1.bar(dates, points, color='#007bff', alpha=0.6, label='Points')
+    ax1.set_ylabel('Points', color='#007bff')
+    
+    # Add trend line (MA 3)
+    if len(points) >= 3:
+        ma3 = [sum(points[i-2:i+1])/3 if i >= 2 else points[i] for i in range(len(points))]
+        ax1.plot(dates, ma3, color='#0056b3', linestyle='--', linewidth=2, label='3-Game MA')
+        
+    ax1.tick_params(axis='x', rotation=45)
+    plt.title(f"{player_name} - Scoring Trend")
+    plt.tight_layout()
+    
+    img_io = BytesIO()
+    plt.savefig(img_io, format='png', dpi=100)
+    img_io.seek(0)
+    chart_scoring = base64.b64encode(img_io.read()).decode()
+    plt.close()
+
+    return {'chart_scoring': chart_scoring}
+
+
 def _calculate_game_stats(stats):
     """Enrich player stats with calculated metrics for PDF"""
     for s in stats:
@@ -1364,3 +1498,64 @@ def _generate_team_scoring_chart(games):
     plt.close(fig)
     
     return img_base64
+
+
+def _get_top_contributors(game_ids):
+    """
+    Find top contributors for key stats across all games
+    """
+    stats_map = {
+        'Points': func.sum(PlayerStat.points),
+        'Rebounds': func.sum(PlayerStat.reb),
+        'Assists': func.sum(PlayerStat.ast),
+        'Steals': func.sum(PlayerStat.stl),
+        'Blocks': func.sum(PlayerStat.blk)
+    }
+    
+    contributors = {}
+    
+    for category, stat_func in stats_map.items():
+        top = (
+            db.session.query(
+                PlayerStat.player_name,
+                stat_func.label('total')
+            )
+            .filter(PlayerStat.game_id.in_(game_ids))
+            .group_by(PlayerStat.player_name)
+            .order_by(desc('total'))
+            .first()
+        )
+        
+        if top:
+            contributors[category] = {
+                'name': top.player_name,
+                'value': int(top.total)
+            }
+            
+    return contributors
+
+def _analyze_opponents(games):
+    """
+    Analyze performance against different opponents
+    """
+    opp_stats = defaultdict(lambda: {'wins': 0, 'losses': 0, 'pf': 0, 'pa': 0, 'games': 0})
+    
+    for g in games:
+        opp = g.opponent
+        opp_stats[opp]['games'] += 1
+        opp_stats[opp]['pf'] += g.team_score
+        opp_stats[opp]['pa'] += g.opponent_score
+        
+        if g.result == 'W':
+            opp_stats[opp]['wins'] += 1
+        else:
+            opp_stats[opp]['losses'] += 1
+            
+    results = []
+    for opp, stats in opp_stats.items():
+        stats['diff'] = stats['pf'] - stats['pa']
+        stats['opponent'] = opp
+        results.append(stats)
+        
+    # Sort by point differential
+    return sorted(results, key=lambda x: x['diff'], reverse=True)
