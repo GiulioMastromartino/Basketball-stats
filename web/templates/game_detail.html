@@ -180,6 +180,15 @@
                     <i class="fas fa-chart-pie me-2"></i>Team Analytics
                 </button>
             </li>
+
+            {% if plays_data %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="plays-tab" data-bs-toggle="pill" data-bs-target="#plays" type="button" role="tab">
+                    <i class="fas fa-clipboard-list me-2"></i>Plays
+                </button>
+            </li>
+            {% endif %}
+
             {% if shot_events %}
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="shots-tab" data-bs-toggle="pill" data-bs-target="#shots" type="button" role="tab">
@@ -397,8 +406,105 @@
                 </div>
             </div>
         </div>
+
+        <!-- Tab 4: Plays -->
+        {% if plays_data %}
+        <div class="tab-pane fade" id="plays" role="tabpanel">
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <h6 class="text-uppercase text-muted mb-4 fw-bold letter-spacing-1">Play Metrics</h6>
+
+                        {% set total_runs = plays_data|sum(attribute='runs') %}
+                        {% set total_made = plays_data|sum(attribute='made') %}
+                        {% set total_points = plays_data|sum(attribute='points') %}
+
+                        {% if total_runs > 0 %}
+                            {% set overall_fg = (total_made / total_runs * 100) %}
+                            {% set overall_ppp = (total_points / total_runs) %}
+                        {% else %}
+                            {% set overall_fg = 0 %}
+                            {% set overall_ppp = 0 %}
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between align-items-end mb-3 border-bottom pb-3">
+                            <div>
+                                <div class="small text-muted text-uppercase">Plays run</div>
+                                <div class="h3 mb-0 fw-bold">{{ total_runs }}</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted text-uppercase">Unique plays</div>
+                                <div class="h3 mb-0 fw-bold">{{ plays_data|length }}</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-end mb-3 border-bottom pb-3">
+                            <div>
+                                <div class="small text-muted text-uppercase">FG%</div>
+                                <div class="h3 mb-0 fw-bold text-primary">{{ "%.1f"|format(overall_fg) }}%</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted text-uppercase">PPP</div>
+                                <div class="h3 mb-0 fw-bold text-success">{{ "%.2f"|format(overall_ppp) }}</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-end">
+                            <div>
+                                <div class="small text-muted text-uppercase">Points</div>
+                                <div class="h3 mb-0 fw-bold">{{ total_points }}</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted text-uppercase">Made</div>
+                                <div class="h3 mb-0 fw-bold">{{ total_made }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-8">
+                    <div class="table-container">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-4">Play</th>
+                                        <th class="text-center">Runs</th>
+                                        <th class="text-center">Made</th>
+                                        <th class="text-center">FG%</th>
+                                        <th class="text-center">Points</th>
+                                        <th class="text-center">PPP</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for play in plays_data %}
+                                    <tr>
+                                        <td class="ps-4 fw-bold">{{ play.name }}</td>
+                                        <td class="text-center">{{ play.runs }}</td>
+                                        <td class="text-center">{{ play.made }}</td>
+                                        <td class="text-center">
+                                            {% if play.fg_pct >= 50 %}
+                                            <span class="badge bg-success">{{ "%.1f"|format(play.fg_pct) }}%</span>
+                                            {% elif play.fg_pct >= 33 %}
+                                            <span class="badge bg-warning text-dark">{{ "%.1f"|format(play.fg_pct) }}%</span>
+                                            {% else %}
+                                            <span class="badge bg-danger">{{ "%.1f"|format(play.fg_pct) }}%</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center fw-bold">{{ play.points }}</td>
+                                        <td class="text-center font-monospace">{{ "%.2f"|format(play.ppp) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         
-        <!-- Tab 4: Shot Chart -->
+        <!-- Tab 5: Shot Chart -->
         {% if shot_events %}
         <div class="tab-pane fade" id="shots" role="tabpanel">
             <div class="text-center py-3">
