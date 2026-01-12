@@ -79,6 +79,7 @@ def parse_game_pdf(pdf_path):
         def parse_row_cells(row):
             # Expected columns:
             # Name, MIN, PTS, FGM, FGA, FG%, 3PM, 3PA, 3P%, FTM, FTA, FT%, OREB, DREB, REB, AST, TOV, STL, BLK, PF
+            # Optional 21st column: +/-
             if not row:
                 return None
 
@@ -95,7 +96,7 @@ def parse_game_pdf(pdf_path):
                 return None
 
             try:
-                return {
+                p_data = {
                     "name": str(row[0]).strip(),
                     "minutes": str(row[1]).strip(),
                     "points": _safe_int(row[2]),
@@ -116,7 +117,14 @@ def parse_game_pdf(pdf_path):
                     "stl": _safe_int(row[17]),
                     "blk": _safe_int(row[18]),
                     "pf": _safe_int(row[19]),
+                    "plus_minus": 0
                 }
+                
+                # Check for +/- column (index 20)
+                if len(row) > 20:
+                    p_data["plus_minus"] = _safe_int(row[20])
+                    
+                return p_data
             except Exception:
                 return None
 
@@ -128,6 +136,7 @@ def parse_game_pdf(pdf_path):
                     players.append(parsed)
 
         # Fallback: line parsing (best effort)
+        # NOTE: Fallback assumes standard 20 columns. Does not support +/- to avoid breaking legacy files.
         if not players:
             lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
             for line in lines:
@@ -190,6 +199,7 @@ def parse_game_pdf(pdf_path):
                             "stl": stl,
                             "blk": blk,
                             "pf": pf,
+                            "plus_minus": 0 # Default for fallback text parsing
                         }
                     )
                 except Exception:
