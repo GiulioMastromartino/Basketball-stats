@@ -83,12 +83,28 @@ def live_game():
     # Fetch existing player names for easy selection
     existing_players = [r[0] for r in db.session.query(PlayerStat.player_name).distinct().order_by(PlayerStat.player_name).all()]
     
-    # Fetch available plays for selection
+    # Fetch available plays for selection (also injected, but JS fetches from API)
     plays_list = Play.query.order_by(Play.play_type, Play.name).all()
     
     from datetime import datetime
     now_date = datetime.now().strftime("%Y-%m-%d")
     return render_template("live_game.html", existing_players=existing_players, now_date=now_date, plays=plays_list)
+
+
+@main_bp.route("/api/plays")
+@login_required
+def api_plays():
+    """API endpoint to get list of plays for live game selector"""
+    plays = Play.query.order_by(Play.play_type, Play.name).all()
+    return jsonify([
+        {
+            "id": p.id,
+            "name": p.name,
+            "type": p.play_type,
+            "description": p.description,
+        }
+        for p in plays
+    ])
 
 
 @main_bp.route("/live-game/save", methods=["POST"])
