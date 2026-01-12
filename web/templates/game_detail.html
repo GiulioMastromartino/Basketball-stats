@@ -246,6 +246,7 @@
                         <thead>
                             <tr>
                                 <th class="ps-4">PLAYER</th>
+                                <th class="text-center">+/-</th>
                                 <th class="text-center">USG%</th>
                                 <th class="text-center">ORTG</th>
                                 <th class="text-center">PPP</th>
@@ -260,6 +261,15 @@
                             {% for p in stats %}
                             <tr>
                                 <td class="ps-4 fw-bold">{{ p.player_name }}</td>
+                                <td class="text-center">
+                                    {% if p.plus_minus > 0 %}
+                                    <span class="pm-badge pm-pos">+{{ p.plus_minus }}</span>
+                                    {% elif p.plus_minus < 0 %}
+                                    <span class="pm-badge pm-neg">{{ p.plus_minus }}</span>
+                                    {% else %}
+                                    <span class="pm-badge pm-neu">0</span>
+                                    {% endif %}
+                                </td>
                                 <td class="text-center">{{ p.usg_pct }}%</td>
                                 <td class="text-center fw-bold {% if p.ortg >= 110 %}text-success{% elif p.ortg <= 90 %}text-danger{% endif %}">{{ p.ortg }}</td>
                                 <td class="text-center">{{ p.ppp }}</td>
