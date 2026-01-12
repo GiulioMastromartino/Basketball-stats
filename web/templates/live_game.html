@@ -251,4 +251,13 @@
     window.AVAILABLE_PLAYS = {{ plays|tojson|safe }};
 </script>
 
+<!-- Scripts -->
+<!-- jQuery needed for Bootstrap modals if using BS4 or mixed, but BS5 uses vanilla JS mostly. 
+     However, the code uses $('#modal').modal('show') which is jQuery syntax.
+     We need to ensure jQuery is loaded. Base template imports Bootstrap 5 bundle which might not include full jQuery.
+-->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Logic -->
+<script src="{{ url_for('static', filename='js/live_game.js') }}"></script>
+
 {% endblock %}
