@@ -95,3 +95,12 @@ class GameEvent(db.Model):
     timestamp = db.Column(db.Integer, default=0) # generic ordering index
     
     game = db.relationship("Game", backref=db.backref("events", lazy=True))
+
+
+class Play(db.Model):
+    __tablename__ = "plays"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    play_type = db.Column(db.String(50), default="Offense")  # Offense, Defense, Special
+    image_filename = db.Column(db.String(255), nullable=True) # Stored in uploads/plays/
