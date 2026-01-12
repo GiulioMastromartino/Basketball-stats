@@ -279,18 +279,25 @@
 <div id="playerPage" class="container-fluid page-hidden">
     <!-- Player Header -->
     <div class="player-header">
-        <div class="d-flex align-items-center gap-4">
-            <div class="player-avatar-lg">{{ player_name[:2]|upper }}</div>
-            <div style="flex: 1;">
-                <h1 style="font-size: 36px; margin: 0;">{{ player_name }}</h1>
-                <div class="d-flex align-items-center gap-3 mt-2" style="opacity: 0.9;">
-                    <span style="font-size: 18px;"><i class="fas fa-basketball-ball"></i> {{ games_played }} Games</span>
-                    <span style="font-size: 18px;"><i class="fas fa-clock"></i> {{ averages.mpg|round(1) }} MIN</span>
+        <div class="d-flex align-items-center gap-4 justify-content-between">
+            <div class="d-flex align-items-center gap-4" style="flex: 1;">
+                <div class="player-avatar-lg">{{ player_name[:2]|upper }}</div>
+                <div>
+                    <h1 style="font-size: 36px; margin: 0;">{{ player_name }}</h1>
+                    <div class="d-flex align-items-center gap-3 mt-2" style="opacity: 0.9;">
+                        <span style="font-size: 18px;"><i class="fas fa-basketball-ball"></i> {{ games_played }} Games</span>
+                        <span style="font-size: 18px;"><i class="fas fa-clock"></i> {{ averages.mpg|round(1) }} MIN</span>
+                    </div>
                 </div>
             </div>
-            <div>
+            <div style="display: flex; gap: 10px; align-items: center;">
                 <a href="{{ url_for('main.players', game_type=game_type) }}" class="btn btn-light">
                     <i class="fas fa-arrow-left"></i> Back to Players
+                </a>
+                <a href="{{ url_for('analytics.player_report_pdf', player_name=player_name, game_type=game_type) }}" 
+                   class="btn btn-sm" 
+                   style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 15px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; text-decoration: none; border-radius: 6px;">
+                    <i class="fas fa-download"></i> Export PDF
                 </a>
             </div>
         </div>
