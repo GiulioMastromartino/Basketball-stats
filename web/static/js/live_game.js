@@ -30,6 +30,9 @@ class GameTracker {
         this.playsCache = [];
         this.playTypes = [];
 
+        // Play selector toggle state
+        this.playSelectMode = true;  // Toggle state for play selector
+
         // Constants
         this.CONSTANTS = {
             SVG_WIDTH: 500,
@@ -80,6 +83,26 @@ class GameTracker {
         window.onbeforeunload = () => {
             if (this.isClockRunning) return "Game is in progress. Are you sure?";
         };
+    }
+
+    // --- PLAY SELECTOR TOGGLE ---
+    togglePlaySelector() {
+        this.playSelectMode = !this.playSelectMode;
+        const btn = document.getElementById('btn-play-selector');
+        const status = document.getElementById('play-selector-status');
+        
+        if (this.playSelectMode) {
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-info');
+            status.textContent = 'ON';
+            status.style.color = '#28a745';
+        } else {
+            btn.classList.remove('btn-info');
+            btn.classList.add('btn-secondary');
+            status.textContent = 'OFF';
+            status.style.color = '#6c757d';
+        }
+        this.saveState();
     }
 
     // --- PLAYS LOADING ---
@@ -163,6 +186,12 @@ class GameTracker {
     }
 
     openPlaySelector(eventType, shooter = null, shotType = null) {
+        // Check if play selector toggle is ON
+        if (!this.playSelectMode) {
+            console.log('Play selector is OFF - skipping modal');
+            return;
+        }
+
         this.pendingPlaySelection = {
             eventType,  // 'SHOT_2PT', 'SHOT_3PT', 'TURNOVER'
             shooter,
@@ -858,7 +887,7 @@ class GameTracker {
                 });
             }
 
-            // Open play selector after made shot
+            // Open play selector after made shot (only if toggle is ON)
             this.openPlaySelector('SHOT_' + type.toUpperCase(), shooter, type);
 
             this.pendingMadeShot = null;
@@ -888,7 +917,7 @@ class GameTracker {
                 });
             }
 
-            // Open play selector after missed shot
+            // Open play selector after missed shot (only if toggle is ON)
             this.openPlaySelector('SHOT_' + type.toUpperCase(), shooter, type);
 
             this.pendingMissShot = null;
