@@ -16,6 +16,10 @@ class GameTracker {
         this.clockSeconds = 0;
         this.isClockRunning = false;
         
+        // Auto-cache timer
+        this.autoCacheInterval = null;
+        this.lastCacheTimestamp = 0;
+        
         // UI Helpers
         this.shotLocListenerAttached = false;
         
@@ -27,7 +31,8 @@ class GameTracker {
             SVG_ID: 'halfCourtSvg',
             STORAGE_KEY: 'basketball_live_game_state',
             CACHE_KEY: 'basketball_live_game_cache',
-            MAX_CACHED_GAMES: 3
+            MAX_CACHED_GAMES: 3,
+            AUTO_CACHE_INTERVAL_MS: 30000 // 30 seconds
         };
 
         this.init();
@@ -55,6 +60,9 @@ class GameTracker {
 
              this.renderActivePlayers();
              this.updateScoreboard();
+             
+             // Start auto-cache timer for active game
+             this.startAutoCacheTimer();
         }
     }
 
@@ -64,6 +72,32 @@ class GameTracker {
         window.onbeforeunload = () => {
             if (this.isClockRunning) return "Game is in progress. Are you sure?";
         };
+    }
+
+    // --- AUTO-CACHE TIMER ---
+    startAutoCacheTimer() {
+        // Clear any existing timer
+        if (this.autoCacheInterval) {
+            clearInterval(this.autoCacheInterval);
+        }
+        
+        // Start new timer
+        this.autoCacheInterval = setInterval(() => {
+            const now = Date.now();
+            const timeSinceLastCache = now - this.lastCacheTimestamp;
+            
+            // Only auto-cache if 30s have passed since last cache
+            if (timeSinceLastCache >= this.CONSTANTS.AUTO_CACHE_INTERVAL_MS) {
+                this.addToCache(this.getCurrentState(), true); // true = auto-cache
+            }
+        }, this.CONSTANTS.AUTO_CACHE_INTERVAL_MS);
+    }
+
+    stopAutoCacheTimer() {
+        if (this.autoCacheInterval) {
+            clearInterval(this.autoCacheInterval);
+            this.autoCacheInterval = null;
+        }
     }
 
     // --- CACHE MANAGEMENT ---
@@ -78,7 +112,7 @@ class GameTracker {
         }
     }
 
-    addToCache(state) {
+    addToCache(state, isAutoCache = false) {
         const cache = this.getCachedGames();
         
         // Create a snapshot with timestamp
@@ -88,6 +122,9 @@ class GameTracker {
             id: Date.now() + Math.random() // unique ID
         };
         
+        // Update last cache timestamp
+        this.lastCacheTimestamp = snapshot.timestamp;
+        
         // Add to front of array
         cache.unshift(snapshot);
         
@@ -96,6 +133,11 @@ class GameTracker {
         
         localStorage.setItem(this.CONSTANTS.CACHE_KEY, JSON.stringify(trimmed));
         this.renderCachedGamesUI();
+        
+        // Optional: Log auto-cache events for debugging
+        if (isAutoCache) {
+            console.log('[Auto-cache] Game state saved at', new Date(snapshot.timestamp).toLocaleTimeString());
+        }
     }
 
     removeFromCache(id) {
@@ -149,6 +191,9 @@ class GameTracker {
 
             this.renderActivePlayers();
             this.updateScoreboard();
+            
+            // Restart auto-cache timer
+            this.startAutoCacheTimer();
         }
     }
 
@@ -256,6 +301,7 @@ class GameTracker {
 
     clearState() {
         localStorage.removeItem(this.CONSTANTS.STORAGE_KEY);
+        this.stopAutoCacheTimer();
     }
 
     // --- SETUP ---
@@ -364,6 +410,9 @@ class GameTracker {
 
         this.renderActivePlayers();
         this.saveState();
+        
+        // Start auto-cache timer when game starts
+        this.startAutoCacheTimer();
     }
 
     // --- GAMEPLAY ---
@@ -767,7 +816,7 @@ class GameTracker {
             btn.classList.add('btn-success');
             this.updatePlayerTimes();
             
-            // Save to cache when clock is stopped (potential manual save point)
+            // Save to cache when clock is stopped (event-based cache)
             this.addToCache(this.getCurrentState());
         } else {
             const now = Date.now();
@@ -828,7 +877,7 @@ class GameTracker {
         this.clockSeconds = 0;
         this.updateClockDisplay();
         
-        // Cache at quarter boundaries
+        // Cache at quarter boundaries (event-based cache)
         this.addToCache(this.getCurrentState());
         this.saveState();
     }
@@ -893,7 +942,7 @@ class GameTracker {
         this.renderActivePlayers();
         $('#subModal').modal('hide');
         
-        // Cache after substitutions
+        // Cache after substitutions (event-based cache)
         this.addToCache(this.getCurrentState());
         this.saveState();
     }
@@ -941,7 +990,7 @@ class GameTracker {
             body: JSON.stringify(payload)
         }).then(res => res.json()).then(data => {
             if(data.success) {
-                this.clearState(); // Clear local storage on success
+                this.clearState(); // Clear local storage on success + stop timer
                 // Don't remove from cache - let user keep historical snapshots
                 window.location.href = `/game/${data.game_id}`;
             } else {
