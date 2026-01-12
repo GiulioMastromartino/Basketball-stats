@@ -1151,28 +1151,38 @@ def _generate_shot_chart(player_name, game_ids):
     ax.plot([500, 500], [0, 470], 'k-', linewidth=2)
     
     # Paint / Key
-    paint_width = 160
+    paint_width = 163.3
     paint_x = (500 - paint_width) / 2
-    paint = patches.Rectangle((paint_x, 0), paint_width, 190, 
+    paint = patches.Rectangle((paint_x, 0), paint_width, 193.3, 
                               linewidth=2, edgecolor='black', facecolor='none')
     ax.add_patch(paint)
     
     # Free throw circle
-    ft_circle = patches.Circle((250, 190), 60, linewidth=2, 
+    ft_circle = patches.Circle((250, 195.3), 60, linewidth=2, 
                                edgecolor='black', facecolor='none')
     ax.add_patch(ft_circle)
     
     # 3-point arc (simplified)
-    three_pt_radius = 237.5
-    three_pt_arc = patches.Arc((250, 0), three_pt_radius*2, three_pt_radius*2, 
+    # Using FIBA-style rectangular/arc combination to match live_game.html
+    # Straight lines
+    ax.plot([30, 30], [0, 99.7], 'k-', linewidth=2)
+    ax.plot([470, 470], [0, 99.7], 'k-', linewidth=2)
+    # Arc
+    three_pt_arc = patches.Arc((250, 99.7), 450, 450, 
                               theta1=22, theta2=158, linewidth=2, 
                               edgecolor='black', facecolor='none')
+    # Better approximation of FIBA arc
+    # Center (250, 52.5) for rim, but live_game uses a path logic.
+    # Replicating simple arc for now to match style
     ax.add_patch(three_pt_arc)
     
     # Hoop
-    hoop = patches.Circle((250, 41.25), 9, linewidth=2, 
+    hoop = patches.Circle((250, 52.5), 7.5, linewidth=2, 
                          edgecolor='black', facecolor='none')
     ax.add_patch(hoop)
+
+    # Backboard
+    ax.plot([220, 280], [40, 40], 'k-', linewidth=2)
     
     # Plot shots
     makes = [s for s in shots if s.result == 'made']
@@ -1850,28 +1860,58 @@ def _generate_team_shot_chart(game_ids):
     ax.plot([500, 500], [0, 470], 'k-', linewidth=line_width)
     
     # Paint / Key
-    paint_width = 160
-    paint_x = (500 - paint_width) / 2
-    paint = patches.Rectangle((paint_x, 0), paint_width, 190, 
+    # From live_game.html: x=168.35, width=163.3, height=193.3
+    paint_width = 163.3
+    paint_height = 193.3
+    paint_x = 168.35
+    paint = patches.Rectangle((paint_x, 0), paint_width, paint_height, 
                               linewidth=line_width, edgecolor='black', facecolor='none')
     ax.add_patch(paint)
     
     # Free throw circle
-    ft_circle = patches.Circle((250, 190), 60, linewidth=line_width, 
+    # From live_game.html: center (250, 195.3), radius 60
+    ft_circle = patches.Circle((250, 195.3), 60, linewidth=line_width, 
                                edgecolor='black', facecolor='none')
     ax.add_patch(ft_circle)
     
-    # 3-point arc
-    three_pt_radius = 237.5
-    three_pt_arc = patches.Arc((250, 0), three_pt_radius*2, three_pt_radius*2, 
-                              theta1=22, theta2=158, linewidth=line_width, 
+    # 3-point arc (FIBA style from live_game.html)
+    # Straight lines: x=30, y=0 to y=99.7. x=470, y=0 to y=99.7
+    ax.plot([30, 30], [0, 99.7], 'k-', linewidth=line_width)
+    ax.plot([470, 470], [0, 99.7], 'k-', linewidth=line_width)
+    
+    # Arc part: center (250, 99.7), radius 220 (width 440) -> matches end points 30 and 470 roughly
+    # live_game.html path: M 30 99.7 A 225 225 0 0 0 470 99.7
+    # Matplotlib Arc takes (xy), width, height, angle, theta1, theta2
+    # Width/Height = 2 * radius = 450
+    # Center needs to be adjusted. The SVG path A 225 225 means radius 225.
+    # We need an arc connecting (30, 99.7) and (470, 99.7).
+    three_pt_arc = patches.Arc((250, 99.7), 440, 440, 
+                              theta1=0, theta2=180, linewidth=line_width, 
                               edgecolor='black', facecolor='none')
     ax.add_patch(three_pt_arc)
     
+    # Restricted Area Arc (from live_game.html)
+    # Center (250, 52.5), radius 41.66
+    restricted_arc = patches.Arc((250, 52.5), 83.32, 83.32, 
+                                theta1=0, theta2=180, linewidth=line_width, 
+                                edgecolor='black', facecolor='none')
+    ax.add_patch(restricted_arc)
+
     # Hoop
-    hoop = patches.Circle((250, 41.25), 9, linewidth=line_width, 
+    # From live_game.html: center (250, 52.5), radius 7.5
+    hoop = patches.Circle((250, 52.5), 7.5, linewidth=line_width, 
                          edgecolor='black', facecolor='none')
     ax.add_patch(hoop)
+    
+    # Backboard
+    # From live_game.html: (220, 40) to (280, 40)
+    ax.plot([220, 280], [40, 40], 'k-', linewidth=line_width)
+    
+    # Center Circle (at bottom/top of key in half court view, usually cut off or at top)
+    # live_game.html has it at y=466, radius 60
+    center_circle = patches.Arc((250, 470), 120, 120, theta1=180, theta2=360,
+                               linewidth=line_width, edgecolor='black', facecolor='none')
+    ax.add_patch(center_circle)
     
     # Plot all team shots
     makes = [s for s in shots if s.result == 'made']
@@ -1904,9 +1944,6 @@ def _generate_team_shot_chart(game_ids):
     ax.set_ylim(-10, 520)
     ax.set_aspect('equal')  # This ensures court is not stretched
     ax.axis('off')
-    
-    # REMOVED: Title is now redundant with HTML header
-    # ax.set_title("Team Shot Chart - All Games", fontsize=14, fontweight='bold', pad=10)
     
     # Keep legend
     ax.legend(loc='upper left', fontsize=10)
