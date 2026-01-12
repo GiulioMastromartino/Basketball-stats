@@ -1,9 +1,31 @@
-from core.models import Game, PlayerStat, ShotEvent, GameEvent, db
+from core.models import Game, PlayerStat, ShotEvent, GameEvent, Play, db
 from core.utils import normalize_date_to_display
+from flask import current_app
+
+def validate_play_id(play_id):
+    """
+    Validate that a play ID exists in the database before using it.
+    Returns the validated play_id or raises ValueError if invalid.
+    """
+    if not play_id:
+        return None
+    
+    try:
+        play_id_int = int(play_id)
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid play ID type: {play_id}. Must be an integer.")
+    
+    play = Play.query.get(play_id_int)
+    if not play:
+        raise ValueError(f"Play ID {play_id_int} does not exist in the database.")
+    
+    return play_id_int
+
 
 def create_game_from_live_data(data):
     """
     Creates a new Game, PlayerStats, ShotEvents, and GameEvents from the JSON data payload.
+    Validates all play IDs before database insertion.
     """
     if not data:
         raise ValueError("No data received")
@@ -71,6 +93,15 @@ def create_game_from_live_data(data):
         y = ev.get("y")
         q = ev.get("quarter")
 
+        # Validate play_id if provided
+        validated_play_id = None
+        if play_id:
+            try:
+                validated_play_id = validate_play_id(play_id)
+            except ValueError as e:
+                current_app.logger.warning(f"Shot event play validation error: {e}")
+                # Log but continue - play_id will be NULL
+
         shot = ShotEvent(
             game_id=game.id,
             player_name=shooter,
@@ -80,7 +111,7 @@ def create_game_from_live_data(data):
             x_loc=float(x) if x is not None else None,
             y_loc=float(y) if y is not None else None,
             quarter=int(q) if q is not None else None,
-            play_id=int(play_id) if play_id else None
+            play_id=validated_play_id
         )
         db.session.add(shot)
 
@@ -95,6 +126,15 @@ def create_game_from_live_data(data):
         shot_attempt = ev.get("shot_attempt")
         play_id = ev.get("play_id")
 
+        # Validate play_id if provided
+        validated_play_id = None
+        if play_id:
+            try:
+                validated_play_id = validate_play_id(play_id)
+            except ValueError as e:
+                current_app.logger.warning(f"Game event play validation error: {e}")
+                # Log but continue - play_id will be NULL
+
         game_event = GameEvent(
             game_id=game.id,
             event_type=event_type,
@@ -102,7 +142,7 @@ def create_game_from_live_data(data):
             detail=str(detail) if detail is not None else "",
             timestamp=int(timestamp),
             shot_attempt=shot_attempt,
-            play_id=int(play_id) if play_id else None
+            play_id=validated_play_id
         )
         db.session.add(game_event)
 
