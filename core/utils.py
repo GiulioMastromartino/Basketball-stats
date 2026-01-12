@@ -1,6 +1,7 @@
 """
 Shared utility functions for basketball statistics calculations
 """
+from statistics import mean
 
 FT_ATTEMPT_WEIGHT = 0.44
 THREE_POINT_WEIGHT = 0.5
@@ -145,3 +146,66 @@ def normalize_date_to_display(date_str: str) -> str:
     if len(year) == 2:
         year = f"20{year}"
     return f"{int(day):02d}/{int(month):02d}/{int(year):04d}"
+
+def get_player_stats_averages(stats):
+    """
+    Calculate average statistics for a list of PlayerStat objects.
+    Returns a dictionary of averages.
+    """
+    if not stats:
+        return {
+            "points": 0, "minutes": 0, "reb": 0, "ast": 0,
+            "fgm": 0, "fga": 0, "fg_percent": 0,
+            "tpm": 0, "tpa": 0, "tp_percent": 0,
+            "ftm": 0, "fta": 0, "ft_percent": 0,
+            "oreb": 0, "dreb": 0,
+            "stl": 0, "blk": 0, "tov": 0, "pf": 0,
+            "pm": 0, # Added pm (plus_minus)
+            "games_played": 0
+        }
+    
+    count = len(stats)
+    
+    # Calculate simple totals
+    total_points = sum(s.points for s in stats)
+    total_minutes = sum(parse_minutes(s.minutes) for s in stats)
+    total_reb = sum(s.reb for s in stats)
+    total_ast = sum(s.ast for s in stats)
+    total_fgm = sum(s.fgm for s in stats)
+    total_fga = sum(s.fga for s in stats)
+    total_tpm = sum(s.tpm for s in stats)
+    total_tpa = sum(s.tpa for s in stats)
+    total_ftm = sum(s.ftm for s in stats)
+    total_fta = sum(s.fta for s in stats)
+    total_oreb = sum(s.oreb for s in stats)
+    total_dreb = sum(s.dreb for s in stats)
+    total_stl = sum(s.stl for s in stats)
+    total_blk = sum(s.blk for s in stats)
+    total_tov = sum(s.tov for s in stats)
+    total_pf = sum(s.pf for s in stats)
+    # Handle potentially missing plus_minus attribute safely
+    total_pm = sum(getattr(s, 'plus_minus', 0) for s in stats)
+
+    return {
+        "points": round(total_points / count, 1),
+        "minutes": round(total_minutes / count, 1),
+        "reb": round(total_reb / count, 1),
+        "ast": round(total_ast / count, 1),
+        "fgm": round(total_fgm / count, 1),
+        "fga": round(total_fga / count, 1),
+        "fg_percent": safe_percentage(total_fgm, total_fga),
+        "tpm": round(total_tpm / count, 1),
+        "tpa": round(total_tpa / count, 1),
+        "tp_percent": safe_percentage(total_tpm, total_tpa),
+        "ftm": round(total_ftm / count, 1),
+        "fta": round(total_fta / count, 1),
+        "ft_percent": safe_percentage(total_ftm, total_fta),
+        "oreb": round(total_oreb / count, 1),
+        "dreb": round(total_dreb / count, 1),
+        "stl": round(total_stl / count, 1),
+        "blk": round(total_blk / count, 1),
+        "tov": round(total_tov / count, 1),
+        "pf": round(total_pf / count, 1),
+        "pm": round(total_pm / count, 1), # Added pm
+        "games_played": count
+    }
