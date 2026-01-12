@@ -344,7 +344,10 @@
                     <span style="font-size: 18px;"><i class="fas fa-clock"></i> {{ averages.mpg|round(1) }} MIN</span>
                 </div>
             </div>
-            <div>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('analytics.player_report_pdf', player_name=player_name, game_type=game_type) }}" class="btn btn-outline-light">
+                    <i class="fas fa-file-download"></i> Download Report
+                </a>
                 <a href="{{ url_for('main.players', game_type=game_type) }}" class="btn btn-light">
                     <i class="fas fa-arrow-left"></i> Back to Players
                 </a>
@@ -369,7 +372,11 @@
         </div>
         <div class="stat-card">
             <div class="stat-card-value">
-                {% if averages.pm > 0 %}+{% endif %}{{ averages.pm|round(1) }}
+                {% if averages.pm is not none %}
+                    {% if averages.pm > 0 %}+{% endif %}{{ averages.pm|round(1) }}
+                {% else %}
+                    <span style="color: #999; font-size: 22px;">N/A</span>
+                {% endif %}
             </div>
             <div class="stat-card-label">Plus/Minus</div>
         </div>
@@ -618,12 +625,16 @@
                     <td>{{ log.stat.minutes }}</td>
                     <td><strong>{{ log.stat.points }}</strong></td>
                     <td>
-                        {% if log.stat.plus_minus > 0 %}
-                        <span class="pm-badge pm-pos">+{{ log.stat.plus_minus }}</span>
-                        {% elif log.stat.plus_minus < 0 %}
-                        <span class="pm-badge pm-neg">{{ log.stat.plus_minus }}</span>
+                        {% if log.stat.plus_minus is not none %}
+                            {% if log.stat.plus_minus > 0 %}
+                            <span class="pm-badge pm-pos">+{{ log.stat.plus_minus }}</span>
+                            {% elif log.stat.plus_minus < 0 %}
+                            <span class="pm-badge pm-neg">{{ log.stat.plus_minus }}</span>
+                            {% else %}
+                            <span class="pm-badge pm-neu">0</span>
+                            {% endif %}
                         {% else %}
-                        <span class="pm-badge pm-neu">0</span>
+                            <span class="pm-badge pm-neu">N/A</span>
                         {% endif %}
                     </td>
                     <td>{{ log.stat.reb }}</td>
