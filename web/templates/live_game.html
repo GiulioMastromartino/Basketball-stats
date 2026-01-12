@@ -85,7 +85,7 @@
                  <!-- Quarter Display -->
                  <div class="mb-1">
                      <span class="badge badge-light" id="quarter-display" style="font-size: 1.2rem;">Q1</span>
-                     <button class="btn btn-outline-light btn-sm py-0 px-2 ml-2" onclick="gameTracker.nextQuarter()" title="Next Quarter" style="font-size: 0.8rem;">Next Q &raquo;</button>
+                     <button class="btn btn-outline-light btn-sm py-0 px-2 ml-2" onclick="gameTracker.nextQuarter()" title="Next Quarter" style="font-size: 0.8rem;">Next Q »</button>
                  </div>
                  
                  <!-- Large Clock -->
@@ -272,6 +272,32 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PLAY SELECTOR MODAL (NEW) -->
+<div class="modal fade" id="playSelectorModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Select Play</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="play-filter">Filter by Type:</label>
+          <select id="play-filter" class="form-control" onchange="gameTracker.filterPlays()">
+            <option value="All">All Plays</option>
+          </select>
+        </div>
+        <div id="plays-list" class="list-group" style="max-height: 400px; overflow-y: auto;">
+          <!-- Populated by JS -->
+        </div>
+        <button type="button" class="btn btn-secondary mt-3 w-100" data-dismiss="modal">Skip / None</button>
       </div>
     </div>
   </div>
