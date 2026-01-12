@@ -18,7 +18,7 @@ from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import text
 
 from config import get_config
-from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, bcrypt, db
+from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, Play, bcrypt, db
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -68,7 +68,7 @@ def create_app(config_name: str = None) -> Flask:
 
     # Auto-migrate database schema on startup
     with app.app_context():
-        # Ensure all tables exist (creates new tables like game_events if missing)
+        # Ensure all tables exist (creates new tables like game_events, plays if missing)
         db.create_all()
         # Perform schema migrations for existing tables
         auto_migrate_schema()
@@ -133,11 +133,13 @@ def register_blueprints(app: Flask):
     from web.routes.api import api_bp
     from web.routes.auth import auth_bp
     from web.routes.main import main_bp
+    from web.routes.plays import plays_bp  # <--- NEW
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api/v1")
     app.register_blueprint(analytics_bp)
+    app.register_blueprint(plays_bp)  # <--- NEW
 
 
 def register_commands(app: Flask):
@@ -146,7 +148,7 @@ def register_commands(app: Flask):
     @app.cli.command("reset-stats-db")
     def reset_stats_db():
         """
-        Drops Game, PlayerStat, ShotEvent, GameEvent tables 
+        Drops Game, PlayerStat, ShotEvent, GameEvent, Play tables 
         to apply new schema changes, but PRESERVES the User table.
         """
         click.echo("WARNING: This will delete all GAMES and STATS.")
@@ -154,24 +156,18 @@ def register_commands(app: Flask):
             return
 
         with app.app_context():
-            # Drop tables in dependency order (children first)
-            # ShotEvent/GameEvent/PlayerStat depend on Game
             try:
-                click.echo("Dropping ShotEvent...")
+                # Drop tables in dependency order
+                click.echo("Dropping tables...")
                 ShotEvent.__table__.drop(db.engine, checkfirst=True)
-                
-                click.echo("Dropping GameEvent...")
                 GameEvent.__table__.drop(db.engine, checkfirst=True)
-                
-                click.echo("Dropping PlayerStat...")
                 PlayerStat.__table__.drop(db.engine, checkfirst=True)
-                
-                click.echo("Dropping Game...")
                 Game.__table__.drop(db.engine, checkfirst=True)
+                Play.__table__.drop(db.engine, checkfirst=True)
                 
-                click.echo("Recreating all tables (including new schema)...")
+                click.echo("Recreating all tables...")
                 db.create_all()
                 
-                click.echo("Done! Stats DB reset. User table preserved.")
+                click.echo("Done! DB reset. User table preserved.")
             except Exception as e:
                 click.echo(f"Error resetting DB: {e}")
