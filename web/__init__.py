@@ -14,6 +14,7 @@ from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
+from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import text
 
@@ -28,6 +29,7 @@ limiter = Limiter(
     storage_uri="memory://",
 )
 cache = Cache()
+migrate = Migrate()
 
 
 def create_app(config_name: str = None) -> Flask:
@@ -49,6 +51,7 @@ def create_app(config_name: str = None) -> Flask:
     csrf.init_app(app)
     cache.init_app(app)
     limiter.init_app(app)
+    migrate.init_app(app, db)
 
     # Configure login manager
     login_manager.init_app(app)
