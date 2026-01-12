@@ -281,14 +281,14 @@
                                     <span class="pm-badge pm-neu">0</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-center">{{ p.usg_pct }}%</td>
-                                <td class="text-center fw-bold {% if p.ortg >= 110 %}text-success{% elif p.ortg <= 90 %}text-danger{% endif %}">{{ p.ortg }}</td>
-                                <td class="text-center">{{ p.ppp }}</td>
-                                <td class="text-center text-info">{{ p.ts_pct }}%</td>
-                                <td class="text-center">{{ p.efg_pct }}%</td>
-                                <td class="text-center">{{ p.ast_tov_ratio }}</td>
-                                <td class="text-center">{{ p.game_score }}</td>
-                                <td class="text-center">{{ p.fta_pct }}%</td>
+                                <td class="text-center">{{ "%.1f"|format(p.usg_pct) }}%</td>
+                                <td class="text-center fw-bold {% if p.ortg >= 110 %}text-success{% elif p.ortg <= 90 %}text-danger{% endif %}">{{ "%.1f"|format(p.ortg) }}</td>
+                                <td class="text-center">{{ "%.2f"|format(p.ppp) }}</td>
+                                <td class="text-center text-info">{{ "%.1f"|format(p.ts_pct) }}%</td>
+                                <td class="text-center">{{ "%.1f"|format(p.efg_pct) }}%</td>
+                                <td class="text-center">{{ "%.1f"|format(p.ast_tov_ratio) }}</td>
+                                <td class="text-center">{{ "%.1f"|format(p.game_score) }}</td>
+                                <td class="text-center">{{ "%.1f"|format(p.fta_pct) }}%</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -306,19 +306,19 @@
                         <h6 class="text-uppercase text-muted mb-4 fw-bold letter-spacing-1">Four Factors</h6>
                         <div class="row text-center g-3">
                             <div class="col-6">
-                                <div class="h2 mb-0 fw-bold text-primary">{{ advanced.efg_pct }}%</div>
+                                <div class="h2 mb-0 fw-bold text-primary">{{ "%.1f"|format(advanced.efg_pct) }}%</div>
                                 <div class="small text-muted">eFG%</div>
                             </div>
                             <div class="col-6">
-                                <div class="h2 mb-0 fw-bold text-success">{{ advanced.tov_pct }}%</div>
+                                <div class="h2 mb-0 fw-bold text-success">{{ "%.1f"|format(advanced.tov_pct) }}%</div>
                                 <div class="small text-muted">TOV%</div>
                             </div>
                             <div class="col-6">
-                                <div class="h2 mb-0 fw-bold text-info">{{ advanced.oreb_pct }}%</div>
+                                <div class="h2 mb-0 fw-bold text-info">{{ "%.1f"|format(advanced.oreb_pct) }}%</div>
                                 <div class="small text-muted">OREB%</div>
                             </div>
                             <div class="col-6">
-                                <div class="h2 mb-0 fw-bold text-warning">{{ advanced.ft_rate }}</div>
+                                <div class="h2 mb-0 fw-bold text-warning">{{ "%.1f"|format(advanced.ft_rate) }}</div>
                                 <div class="small text-muted">FT Rate</div>
                             </div>
                         </div>
@@ -332,21 +332,21 @@
                         <div class="d-flex justify-content-between align-items-end mb-3 border-bottom pb-3">
                             <div>
                                 <div class="small text-muted text-uppercase">Pace</div>
-                                <div class="h3 mb-0 fw-bold">{{ advanced.pace }}</div>
+                                <div class="h3 mb-0 fw-bold">{{ "%.1f"|format(advanced.pace|default(0)) }}</div>
                             </div>
                             <div class="text-end">
                                 <div class="small text-muted text-uppercase">Possessions</div>
-                                <div class="h3 mb-0 fw-bold">{{ advanced.possessions }}</div>
+                                <div class="h3 mb-0 fw-bold">{{ "%.1f"|format(advanced.possessions) }}</div>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-end">
                             <div>
                                 <div class="small text-muted text-uppercase">Off Rating</div>
-                                <div class="h3 mb-0 fw-bold text-success">{{ advanced.ortg }}</div>
+                                <div class="h3 mb-0 fw-bold text-success">{{ "%.1f"|format(advanced.ortg) }}</div>
                             </div>
                             <div class="text-end">
                                 <div class="small text-muted text-uppercase">Def Rating</div>
-                                <div class="h3 mb-0 fw-bold text-danger">{{ advanced.drtg }}</div>
+                                <div class="h3 mb-0 fw-bold text-danger">{{ "%.1f"|format(advanced.drtg) }}</div>
                             </div>
                         </div>
                     </div>
