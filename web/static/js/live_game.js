@@ -1241,7 +1241,7 @@ class GameTracker {
                         const isCurrentQ = (q === this.quarter);
                         const displayQ = isCurrentQ ? quarterDisplayed : qMins;
                         const qClass = isCurrentQ ? 'text-primary font-weight-bold' : 'text-muted';
-                        quarterBreakdown += `<span class="${qClass} mx-1" style="font-size: 0.75rem;">Q${q}: ${this.formatMinutes(displayQ)}</span>`;
+                        quarterBreakdown += `<span class=\"${qClass} mx-1\" style=\"font-size: 0.75rem;\">Q${q}: ${this.formatMinutes(displayQ)}</span>`;
                     }
                     qEl.innerHTML = quarterBreakdown;
                 }
@@ -1316,17 +1316,43 @@ class GameTracker {
         const container = document.getElementById('sub-roster-list');
         container.innerHTML = '';
 
+        const now = Date.now();
+
         this.fullRoster.forEach(p => {
             const isActive = this._tempLineup.includes(p);
             const pmVal = this.stats[p] ? this.stats[p].plus_minus : 0;
             const pmSign = pmVal > 0 ? '+' : '';
             const pmClass = pmVal > 0 ? 'text-success' : (pmVal < 0 ? 'text-danger' : 'text-muted');
 
+            // Calculate total minutes displayed
+            let totalDisplayedSeconds = this.stats[p].minutes_seconds || 0;
+            if (isActive && this.stats[p].last_sub_in) {
+                const diffSeconds = Math.floor((now - this.stats[p].last_sub_in) / 1000);
+                totalDisplayedSeconds += diffSeconds;
+            }
+
+            // Calculate current quarter minutes displayed
+            const quarterMins = this.stats[p].quarter_minutes || {1: 0, 2: 0, 3: 0, 4: 0};
+            let quarterDisplayedSeconds = quarterMins[this.quarter] || 0;
+            if (isActive && this.stats[p].last_sub_in) {
+                const diffSeconds = Math.floor((now - this.stats[p].last_sub_in) / 1000);
+                quarterDisplayedSeconds += diffSeconds;
+            }
+
+            const totalTimeStr = this.formatMinutes(totalDisplayedSeconds);
+            const quarterTimeStr = this.formatMinutes(quarterDisplayedSeconds);
+
             const btn = document.createElement('button');
             btn.className = `list-group-item list-group-item-action ${isActive ? 'active' : ''}`;
             btn.style.cursor = 'pointer';
             btn.innerHTML = `<div class="d-flex justify-content-between align-items-center">
-                                <span>${p} <small class="${pmClass} font-weight-bold">(${pmSign}${pmVal})</small></span>
+                                <div class="flex-grow-1">
+                                    <span>${p} <small class="${pmClass} font-weight-bold">(${pmSign}${pmVal})</small></span>
+                                    <div style="font-size: 0.85rem; margin-top: 4px;">
+                                        <span class="text-muted">Total: ${totalTimeStr}</span>
+                                        <span class="text-primary font-weight-bold mx-2">Q${this.quarter}: ${quarterTimeStr}</span>
+                                    </div>
+                                </div>
                                 <small>${isActive ? 'ON COURT' : 'BENCH'}</small>
                              </div>`;
 
