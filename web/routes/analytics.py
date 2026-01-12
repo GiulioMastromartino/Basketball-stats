@@ -808,6 +808,8 @@ def player_report_pdf(player_name):
     - Page 4: Advanced Metrics with Team Rankings
     - Page 5-6: Performance Charts with 3-Game MA
     - Page 7+: Game-by-Game Log with +/-
+    
+    NOTE: Plus/Minus from CSV-imported games is EXCLUDED from calculations
     """
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
@@ -1005,13 +1007,25 @@ def download_all_reports():
 
 
 def _calculate_player_metrics(stats, game_map, games_played):
-    """Calculate comprehensive player metrics for the report"""
+    """
+    Calculate comprehensive player metrics for the report.
+    
+    IMPORTANT: Plus/Minus from CSV-imported games (source='IMPORT') is EXCLUDED.
+    Only LIVE game +/- values are counted to ensure accuracy.
+    """
     # Averages
     avg_stats = get_player_stats_averages(stats)
     
-    # Calculate +/- average
-    total_plus_minus = sum(s.plus_minus for s in stats)
-    avg_plus_minus = total_plus_minus / games_played if games_played > 0 else 0
+    # Calculate +/- average - ONLY from LIVE games
+    live_game_stats = [s for s in stats if game_map.get(s.game_id) and game_map[s.game_id].source == 'LIVE']
+    
+    if live_game_stats:
+        total_plus_minus = sum(s.plus_minus for s in live_game_stats)
+        live_games_count = len(live_game_stats)
+        avg_plus_minus = total_plus_minus / live_games_count if live_games_count > 0 else 0
+    else:
+        # No live games with +/- data
+        avg_plus_minus = 0
 
     # Per 100 Possessions
     total_poss = 0
@@ -1059,7 +1073,8 @@ def _calculate_player_metrics(stats, game_map, games_played):
         'ast_tov': avg_stats['ast'] / avg_stats['tov'] if avg_stats['tov'] > 0 else avg_stats['ast'],
         'usg_pct': 0, # Requires team context, calculated separately
         'pie': 0, # Requires extensive team context
-        'avg_plus_minus': round(avg_plus_minus, 1)
+        'avg_plus_minus': round(avg_plus_minus, 1),
+        'has_live_plus_minus': len(live_game_stats) > 0  # Flag to show if +/- is available
     }
 
     # Game Logs
@@ -1071,6 +1086,9 @@ def _calculate_player_metrics(stats, game_map, games_played):
         poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
         ortg = calculate_ortg(s.points, poss)
         gmsc = s.points + 0.4*s.fgm - 0.7*s.fga - 0.4*(s.fta-s.ftm) + 0.7*s.oreb + 0.3*s.dreb + s.stl + 0.7*s.ast + 0.7*s.blk - 0.4*s.pf - s.tov
+
+        # Only show +/- for LIVE games
+        display_plus_minus = s.plus_minus if game.source == 'LIVE' else None
 
         game_logs.append({
             'date': game.date,
@@ -1084,7 +1102,8 @@ def _calculate_player_metrics(stats, game_map, games_played):
             'blk': s.blk,
             'tov': s.tov,
             'pf': s.pf,
-            'plus_minus': s.plus_minus,
+            'plus_minus': display_plus_minus,
+            'is_live': game.source == 'LIVE',  # Flag for template
             'fgm': s.fgm, 'fga': s.fga, 'fg_pct': round(s.fg_percent * 100, 1),
             'tpm': s.tpm, 'tpa': s.tpa, 'tp_percent': round(s.tp_percent * 100, 1),
             'ftm': s.ftm, 'fta': s.fta, 'ft_percent': round(s.ft_percent * 100, 1),
@@ -1098,7 +1117,8 @@ def _calculate_player_metrics(stats, game_map, games_played):
         'shooting': shooting_data,
         'advanced': advanced_stats,
         'games_played': games_played,
-        'game_logs': game_logs
+        'game_logs': game_logs,
+        'live_games_count': len(live_game_stats)  # For template reference
     }
 
 
@@ -1215,7 +1235,11 @@ def _generate_shot_chart(player_name, game_ids):
 
 
 def _generate_player_charts(stats, game_map, player_name):
-    """Generate charts for player report"""
+    """
+    Generate charts for player report.
+    
+    Plus/Minus chart only includes LIVE game data for accuracy.
+    """
     if not stats:
         return {'chart_scoring': '', 'chart_shooting': ''}
         
@@ -1231,19 +1255,30 @@ def _generate_player_charts(stats, game_map, player_name):
             points.append(s.points)
             poss = calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
             ortgs.append(calculate_ortg(s.points, poss))
-            plus_minus_vals.append(s.plus_minus)
+            
+            # Only show +/- for LIVE games
+            if game.source == 'LIVE':
+                plus_minus_vals.append(s.plus_minus)
+            else:
+                plus_minus_vals.append(None)  # Skip imported games
             
     # Scoring Chart with +/-
     fig, ax1 = plt.subplots(figsize=(10, 4))
     ax1.bar(dates, points, color='#007bff', alpha=0.6, label='Points')
     ax1.set_ylabel('Points', color='#007bff')
     
-    # Add +/- line on secondary axis
+    # Add +/- line on secondary axis (only LIVE games)
     ax2 = ax1.twinx()
-    ax2.plot(dates, plus_minus_vals, color='#28a745', marker='o', 
-            linewidth=2, label='+/-', markersize=4)
-    ax2.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
-    ax2.set_ylabel('+/-', color='#28a745')
+    # Filter out None values for plotting
+    live_dates = [d for d, pm in zip(dates, plus_minus_vals) if pm is not None]
+    live_pm = [pm for pm in plus_minus_vals if pm is not None]
+    
+    if live_pm:
+        ax2.plot(live_dates, live_pm, color='#28a745', marker='o', 
+                linewidth=2, label='+/- (LIVE only)', markersize=4)
+        ax2.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+        ax2.set_ylabel('+/-', color='#28a745')
+        ax2.legend(loc='upper right')
     
     # Add trend line (MA 3)
     if len(points) >= 3:
@@ -1252,7 +1287,6 @@ def _generate_player_charts(stats, game_map, player_name):
         
     ax1.tick_params(axis='x', rotation=45)
     ax1.legend(loc='upper left')
-    ax2.legend(loc='upper right')
     plt.title(f"{player_name} - Scoring & +/- Trend")
     plt.tight_layout()
     
