@@ -24,7 +24,7 @@
         }
         .header-left h1 { margin: 0; font-size: 20px; color: #2c3e50; }
         .header-right { text-align: right; font-size: 10px; color: #718096; }
-        
+
         .section-title {
             background: #2c3e50;
             color: white;
@@ -87,15 +87,15 @@
         }
         td.text-left { text-align: left; font-weight: 600; }
         tr:nth-child(even) { background-color: #f8fafc; }
-        
+
         /* Stats Highlighting */
         .stat-good { color: #28a745; font-weight: bold; }
         .stat-bad { color: #dc3545; font-weight: bold; }
-        
+
         /* Two Column Layout */
         .row { display: flex; gap: 15px; }
         .col { flex: 1; }
-        
+
         /* Top Performers Cards */
         .top-performer-card {
             border: 1px solid #e2e8f0;
@@ -108,6 +108,11 @@
         .tp-label { font-size: 9px; text-transform: uppercase; color: #718096; }
         .tp-value { font-size: 16px; font-weight: 800; color: #2c3e50; margin: 2px 0; }
         .tp-name { font-weight: 600; color: #4a5568; }
+
+        /* Chart */
+        .chart-container { text-align: center; margin-bottom: 10px; }
+        .chart-container img { max-width: 100%; height: auto; }
+        .small-note { color: #718096; font-size: 9px; margin-top: 4px; }
 
         /* Glossary */
         .glossary-item {
@@ -269,13 +274,73 @@
 
     <div class="page-break"></div>
 
-    <!-- Page 2: Shooting & Advanced Stats -->
+    <!-- Page 2: Shot Chart & Plays -->
+    <div class="header-container">
+        <div class="header-left">
+            <h1>Shot Chart & Plays</h1>
+        </div>
+        <div class="header-right">
+            Page 2/4
+        </div>
+    </div>
+
+    <div class="section-title">Shot Chart</div>
+    {% if shot_chart %}
+    <div class="chart-container">
+        <img src="data:image/png;base64,{{ shot_chart }}" alt="Team shot chart">
+    </div>
+    {% else %}
+    <div class="small-note">No shot chart data available for this game.</div>
+    {% endif %}
+
+    <div class="section-title">Play Efficiency (Offense)</div>
+    {% if plays_data and plays_data|length > 0 %}
+    <table>
+        <thead>
+            <tr>
+                <th class="text-left" style="width: 30%;">Play</th>
+                <th>POSS</th>
+                <th>PTS</th>
+                <th>PPP</th>
+                <th>TOV</th>
+                <th>TOV%</th>
+                <th>FG%</th>
+                <th>eFG%</th>
+                <th>Score%</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for play in plays_data %}
+            <tr>
+                <td class="text-left">{{ play.play_name }}</td>
+                <td>{{ play.possessions }}</td>
+                <td>{{ play.points }}</td>
+                <td>{{ play.ppp|round(2) }}</td>
+                <td>{{ play.turnovers }}</td>
+                <td>{{ play.tov_pct|round(1) }}%</td>
+                <td>{{ play.fg_pct|round(1) }}%</td>
+                <td>{{ play.efg_pct|round(1) }}%</td>
+                <td>{{ play.score_pct|round(1) }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="small-note">
+        Tracked coverage: {{ (100 - (untracked.untracked_possessions_pct|default(0)))|round(1) }}% of possessions.
+    </div>
+    {% else %}
+    <div class="small-note">No play events recorded for this game.</div>
+    {% endif %}
+
+    <div class="page-break"></div>
+
+    <!-- Page 3: Shooting & Advanced Stats -->
     <div class="header-container">
         <div class="header-left">
             <h1>Detailed Analysis</h1>
         </div>
         <div class="header-right">
-            Page 2/3
+            Page 3/4
         </div>
     </div>
 
@@ -359,7 +424,7 @@
             </span>
         </div>
         {% endif %}
-        
+
         {% if alerts.inefficient %}
         <div>
             <strong style="color: #c53030;">📉 Low Efficiency (< 0.8 PPP):</strong>
@@ -375,18 +440,18 @@
 
     <div class="page-break"></div>
 
-    <!-- Page 3: Glossary -->
+    <!-- Page 4: Glossary -->
     <div class="header-container">
         <div class="header-left">
             <h1>Metrics Glossary</h1>
         </div>
         <div class="header-right">
-            Page 3/3
+            Page 4/4
         </div>
     </div>
 
     <div class="section-title">Basic Statistics</div>
-    
+
     <div class="glossary-item">
         <div class="glossary-term">MIN - Minutes Played</div>
         <div class="glossary-desc">Total time a player was on the court during the game.</div>
