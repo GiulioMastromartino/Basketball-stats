@@ -1,8 +1,6 @@
-from flask import Flask
-from flask_migrate import Migrate
-from sqlalchemy import text
-from core.models import db, User  # Import your models
-from config import Config
+#!/usr/bin/env python3
+import argparse
+import os
 
 def create_app():
     app = Flask(__name__, template_folder="../web/templates", static_folder="../web/static")
@@ -46,6 +44,19 @@ def create_app():
 
     return app
 
+# Support for 'flask run' and 'flask db' commands
+# Flask checks for 'app' or 'application' in FLASK_APP module
+app = create_app(os.getenv("FLASK_ENV", "development"))
+
 if __name__ == "__main__":
-    app = create_app()
-    app.run(host="0.0.0.0", port=8080)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", default="development")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8080)
+    args = parser.parse_args()
+    
+    # Overwrite the default app if args are provided (though typically same env)
+    if args.env != os.getenv("FLASK_ENV", "development"):
+        app = create_app(args.env)
+        
+    app.run(host=args.host, port=args.port, debug=app.config["DEBUG"])

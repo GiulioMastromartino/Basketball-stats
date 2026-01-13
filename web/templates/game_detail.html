@@ -59,13 +59,24 @@
     .shot-chart-wrapper {
         position: relative;
         width: 100%;
-        max-width: 600px;
+        max-width: 500px; /* Fixed max-width to match SVG coordinate system visual */
         margin: 0 auto;
         background: white;
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
+
+    /* Overlay container that sits exactly on top of the SVG */
+    #shot-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none; /* Let clicks pass through to SVG if needed */
+    }
+
     .shot-point {
         position: absolute;
         width: 12px;
@@ -74,6 +85,7 @@
         transform: translate(-50%, -50%);
         border: 2px solid rgba(255,255,255,0.8);
         cursor: pointer;
+        pointer-events: auto; /* Re-enable pointer events for tooltips */
         transition: transform 0.2s, z-index 0.2s;
         z-index: 10;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -84,7 +96,7 @@
     }
     .shot-made { background-color: #28a745; } /* Green */
     .shot-missed { background-color: #dc3545; } /* Red */
-    
+
     .shot-tooltip {
         position: absolute;
         background: rgba(0, 0, 0, 0.85);
@@ -115,23 +127,23 @@
 <div class="game-header text-center">
     <div class="container">
         <h5 class="text-uppercase letter-spacing-2 mb-3" style="letter-spacing: 2px; opacity: 0.8;">{{ game.date }} • {{ game.game_type }}</h5>
-        
+
         <div class="d-flex align-items-center justify-content-center gap-5">
             <div class="text-end">
                 <div class="h3 mb-0">US</div>
                 <div class="small opacity-75">Home Team</div>
             </div>
-            
+
             <div class="score-board mx-4">
                 {{ game.team_score }} - {{ game.opponent_score }}
             </div>
-            
+
             <div class="text-start">
                 <div class="h3 mb-0">{{ game.opponent[:3]|upper }}</div>
                 <div class="small opacity-75">{{ game.opponent }}</div>
             </div>
         </div>
-        
+
         <div class="mt-3 badge bg-white text-dark px-3 py-2 rounded-pill shadow-sm">
             <i class="fas fa-{% if game.result == 'W' %}trophy text-warning{% else %}times-circle text-danger{% endif %} me-2"></i>
             {{ 'VICTORY' if game.result == 'W' else 'DEFEAT' }}
@@ -140,7 +152,7 @@
 </div>
 
 <div class="container pb-5">
-    
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <!-- Navigation Tabs -->
         <ul class="nav nav-pills" id="gameTabs" role="tablist">
@@ -159,6 +171,15 @@
                     <i class="fas fa-chart-pie me-2"></i>Team Analytics
                 </button>
             </li>
+
+            {% if plays_data %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="plays-tab" data-bs-toggle="pill" data-bs-target="#plays" type="button" role="tab">
+                    <i class="fas fa-clipboard-list me-2"></i>Plays
+                </button>
+            </li>
+            {% endif %}
+
             {% if shot_events %}
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="shots-tab" data-bs-toggle="pill" data-bs-target="#shots" type="button" role="tab">
@@ -173,9 +194,9 @@
             <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-dark shadow-sm">
                 <i class="fas fa-download me-2"></i>Download Report
             </a>
-            
-            <form method="POST" action="{{ url_for('main.delete_game', game_id=game.id) }}" 
-                  onsubmit="return confirm('Are you sure you want to delete this game? This action cannot be undone.');" 
+
+            <form method="POST" action="{{ url_for('main.delete_game', game_id=game.id) }}"
+                  onsubmit="return confirm('Are you sure you want to delete this game? This action cannot be undone.');"
                   class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-outline-danger shadow-sm">
@@ -186,7 +207,7 @@
     </div>
 
     <div class="tab-content" id="gameTabsContent">
-        
+
         <!-- Tab 1: Box Score -->
         <div class="tab-pane fade show active" id="boxscore" role="tabpanel">
             <div class="table-container">
@@ -361,7 +382,7 @@
                             {% set p2 = (team_stats.fgm - team_stats.tpm) * 2 %}
                             {% set p3 = team_stats.tpm * 3 %}
                             {% set ft = team_stats.ftm %}
-                            
+
                             <div class="progress-bar bg-primary" role="progressbar" style="width: {{ (p2/total_pts*100)|round }}%">
                                 2PT ({{ (p2/total_pts*100)|round }}%)
                             </div>
@@ -376,38 +397,277 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Tab 4: Shot Chart -->
+
+        <!-- Tab 4: Plays -->
+        {% if plays_data %}
+        <div class="tab-pane fade" id="plays" role="tabpanel">
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <h6 class="text-uppercase text-muted mb-4 fw-bold letter-spacing-1">Offensive Play Analysis</h6>
+
+                        {% set total_poss = plays_data|sum(attribute='possessions') %}
+                        {% set total_points = plays_data|sum(attribute='points') %}
+                        {% set total_turnovers = plays_data|sum(attribute='turnovers') %}
+                        {% set total_shot_att = plays_data|sum(attribute='shot_attempts') %}
+                        {% set total_made = plays_data|sum(attribute='made_shots') %}
+
+                        {% if total_poss > 0 %}
+                            {% set overall_ppp = (total_points / total_poss) %}
+                            {% set overall_tov = (total_turnovers / total_poss * 100) %}
+                            {% set overall_score = (total_made / total_poss * 100) %}
+                        {% else %}
+                            {% set overall_ppp = 0 %}
+                            {% set overall_tov = 0 %}
+                            {% set overall_score = 0 %}
+                        {% endif %}
+
+                        {% if total_shot_att > 0 %}
+                            {% set overall_fg = (total_made / total_shot_att * 100) %}
+                        {% else %}
+                            {% set overall_fg = 0 %}
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between align-items-end mb-3 border-bottom pb-3">
+                            <div>
+                                <div class="small text-muted text-uppercase">Possessions</div>
+                                <div class="h3 mb-0 fw-bold">{{ total_poss }}</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted text-uppercase">Unique plays</div>
+                                <div class="h3 mb-0 fw-bold">{{ plays_data|length }}</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-end mb-3 border-bottom pb-3">
+                            <div>
+                                <div class="small text-muted text-uppercase">PPP</div>
+                                <div class="h3 mb-0 fw-bold text-success">{{ "%.2f"|format(overall_ppp) }}</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted text-uppercase">TOV%</div>
+                                <div class="h3 mb-0 fw-bold text-danger">{{ "%.1f"|format(overall_tov) }}%</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-end mb-3 border-bottom pb-3">
+                            <div>
+                                <div class="small text-muted text-uppercase">FG%</div>
+                                <div class="h3 mb-0 fw-bold text-primary">{{ "%.1f"|format(overall_fg) }}%</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted text-uppercase">Score%</div>
+                                <div class="h3 mb-0 fw-bold">{{ "%.1f"|format(overall_score) }}%</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-end">
+                            <div>
+                                <div class="small text-muted text-uppercase">Points</div>
+                                <div class="h3 mb-0 fw-bold">{{ total_points }}</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted text-uppercase">Turnovers</div>
+                                <div class="h3 mb-0 fw-bold">{{ total_turnovers }}</div>
+                            </div>
+                        </div>
+
+                        {% if untracked %}
+                        <div class="mt-4 pt-3 border-top">
+                            <div class="small text-muted text-uppercase">Untracked (coverage)</div>
+                            <div class="small text-muted">
+                                Shots: {{ "%.1f"|format(untracked.untracked_shots_pct) }}% •
+                                Turnovers: {{ "%.1f"|format(untracked.untracked_turnovers_pct) }}% •
+                                Possessions: {{ "%.1f"|format(untracked.untracked_possessions_pct) }}%
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="col-md-8">
+                    <div class="table-container">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-4">Play</th>
+                                        <th class="text-center">Poss</th>
+                                        <th class="text-center">Pts</th>
+                                        <th class="text-center">PPP</th>
+                                        <th class="text-center">TOV</th>
+                                        <th class="text-center">TOV%</th>
+                                        <th class="text-center">FG%</th>
+                                        <th class="text-center">eFG%</th>
+                                        <th class="text-center">Score%</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for play in plays_data %}
+                                    <tr>
+                                        <td class="ps-4 fw-bold">{{ play.name }}</td>
+                                        <td class="text-center">{{ play.possessions }}</td>
+                                        <td class="text-center fw-bold">{{ play.points }}</td>
+                                        <td class="text-center font-monospace">
+                                            {% if play.ppp >= 1.1 %}
+                                            <span class="badge bg-success">{{ "%.2f"|format(play.ppp) }}</span>
+                                            {% elif play.ppp >= 0.9 %}
+                                            <span class="badge bg-warning text-dark">{{ "%.2f"|format(play.ppp) }}</span>
+                                            {% else %}
+                                            <span class="badge bg-danger">{{ "%.2f"|format(play.ppp) }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center">{{ play.turnovers }}</td>
+                                        <td class="text-center">{{ "%.1f"|format(play.tov_pct) }}%</td>
+                                        <td class="text-center">{{ "%.1f"|format(play.fg_pct) }}%</td>
+                                        <td class="text-center">{{ "%.1f"|format(play.efg_pct) }}%</td>
+                                        <td class="text-center">{{ "%.1f"|format(play.score_pct) }}%</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4 mt-1">
+                <div class="col-12">
+                    <div class="stat-card">
+                        <h6 class="text-uppercase text-muted mb-3 fw-bold letter-spacing-1">Play → Players</h6>
+                        {% if plays_players_data %}
+                        <div class="accordion" id="accordionPlayPlayers">
+                            {% for play in plays_players_data %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-pp-{{ play.id }}">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-pp-{{ play.id }}" aria-expanded="false" aria-controls="collapse-pp-{{ play.id }}">
+                                        {{ play.name }}
+                                    </button>
+                                </h2>
+                                <div id="collapse-pp-{{ play.id }}" class="accordion-collapse collapse" aria-labelledby="heading-pp-{{ play.id }}" data-bs-parent="#accordionPlayPlayers">
+                                    <div class="accordion-body p-0">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover align-middle mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="ps-4">Player</th>
+                                                        <th class="text-center">Poss</th>
+                                                        <th class="text-center">Pts</th>
+                                                        <th class="text-center">PPP</th>
+                                                        <th class="text-center">TOV</th>
+                                                        <th class="text-center">TOV%</th>
+                                                        <th class="text-center">FG%</th>
+                                                        <th class="text-center">eFG%</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for p in play.players %}
+                                                    <tr>
+                                                        <td class="ps-4 fw-bold">{{ p.player_name }}</td>
+                                                        <td class="text-center">{{ p.possessions }}</td>
+                                                        <td class="text-center fw-bold">{{ p.points }}</td>
+                                                        <td class="text-center">{{ "%.2f"|format(p.ppp) }}</td>
+                                                        <td class="text-center">{{ p.turnovers }}</td>
+                                                        <td class="text-center">{{ "%.1f"|format(p.tov_pct) }}%</td>
+                                                        <td class="text-center">{{ "%.1f"|format(p.fg_pct) }}%</td>
+                                                        <td class="text-center">{{ "%.1f"|format(p.efg_pct) }}%</td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-muted">No tracked play data for player breakdown.</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <div class="stat-card">
+                        <h6 class="text-uppercase text-muted mb-3 fw-bold letter-spacing-1">Player → Plays</h6>
+                        {% if players_plays_data %}
+                        <div class="accordion" id="accordionPlayerPlays">
+                            {% for player in players_plays_data %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-pl-{{ loop.index }}">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-pl-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-pl-{{ loop.index }}">
+                                        {{ player.player_name }}
+                                    </button>
+                                </h2>
+                                <div id="collapse-pl-{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="heading-pl-{{ loop.index }}" data-bs-parent="#accordionPlayerPlays">
+                                    <div class="accordion-body p-0">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover align-middle mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="ps-4">Play</th>
+                                                        <th class="text-center">Poss</th>
+                                                        <th class="text-center">Pts</th>
+                                                        <th class="text-center">PPP</th>
+                                                        <th class="text-center">TOV</th>
+                                                        <th class="text-center">TOV%</th>
+                                                        <th class="text-center">FG%</th>
+                                                        <th class="text-center">eFG%</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for pl in player.plays %}
+                                                    <tr>
+                                                        <td class="ps-4 fw-bold">{{ pl.name }}</td>
+                                                        <td class="text-center">{{ pl.possessions }}</td>
+                                                        <td class="text-center fw-bold">{{ pl.points }}</td>
+                                                        <td class="text-center">{{ "%.2f"|format(pl.ppp) }}</td>
+                                                        <td class="text-center">{{ pl.turnovers }}</td>
+                                                        <td class="text-center">{{ "%.1f"|format(pl.tov_pct) }}%</td>
+                                                        <td class="text-center">{{ "%.1f"|format(pl.fg_pct) }}%</td>
+                                                        <td class="text-center">{{ "%.1f"|format(pl.efg_pct) }}%</td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-muted">No tracked play data for player breakdown.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Tab 5: Shot Chart -->
         {% if shot_events %}
         <div class="tab-pane fade" id="shots" role="tabpanel">
             <div class="text-center py-3">
                 <h6 class="text-uppercase text-muted fw-bold mb-3">Field Goal Locations</h6>
-                
+
                 <div class="shot-chart-wrapper">
                     <!-- Half Court SVG Background -->
-                    <!-- Aspect ratio roughly 500:470 -->
                     <svg viewBox="0 0 500 470" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; background: #e0d4c5; display: block;">
-                         <!-- Key Area -->
                          <rect x="170" y="0" width="160" height="190" fill="none" stroke="#fff" stroke-width="2"/>
-                         <!-- Hoop -->
                          <circle cx="250" cy="47.5" r="7.5" fill="none" stroke="#ec9c3d" stroke-width="2"/>
-                         <!-- Backboard -->
                          <line x1="220" y1="40" x2="280" y2="40" stroke="#fff" stroke-width="2"/>
-                         <!-- 3PT Line (simplified arc for viz) -->
-                         <!-- For visualization, a simple path is enough to give context -->
                          <path d="M 30,0 L 30,140 A 237.5 237.5 0 0 0 470 140 L 470,0" fill="none" stroke="#fff" stroke-width="2"/>
-                         <!-- Center Circle -->
                          <circle cx="250" cy="470" r="60" fill="none" stroke="#fff" stroke-width="2"/>
-                         <!-- Free Throw Circle -->
                          <circle cx="250" cy="190" r="60" fill="none" stroke="#fff" stroke-width="2"/>
                     </svg>
-                    
+
                     <!-- Shot Layer -->
                     <div id="shot-layer">
                         {% for shot in shot_events %}
                             {% if shot.x_loc is not none and shot.y_loc is not none %}
                             <div class="shot-point {{ 'shot-made' if shot.result == 'made' else 'shot-missed' }}"
-                                 style="left: {{ shot.x_loc }}%; top: {{ shot.y_loc }}%;"
+                                 style="left: {{ (shot.x_loc / 500 * 100) }}%; top: {{ (shot.y_loc / 470 * 100) }}%;"
                                  data-player="{{ shot.player_name }}"
                                  data-type="{{ shot.shot_type }}"
                                  data-pts="{{ shot.points }}"
@@ -417,13 +677,13 @@
                         {% endfor %}
                     </div>
                 </div>
-                
+
                 <div class="mt-3">
                     <span class="badge bg-success me-2">● Made</span>
                     <span class="badge bg-danger">● Missed</span>
                 </div>
             </div>
-            
+
             <!-- Shot Tooltip -->
             <div id="shot-tooltip" class="shot-tooltip"></div>
         </div>
@@ -437,28 +697,26 @@
         // Simple JS for Shot Tooltip
         const tooltip = document.getElementById('shot-tooltip');
         const points = document.querySelectorAll('.shot-point');
-        
+
         points.forEach(pt => {
             pt.addEventListener('mouseenter', (e) => {
                 const player = pt.getAttribute('data-player');
                 const type = pt.getAttribute('data-type');
                 const res = pt.getAttribute('data-res');
-                
+
                 tooltip.innerHTML = `<strong>${player}</strong><br>${type.toUpperCase()} - ${res.toUpperCase()}`;
                 tooltip.style.display = 'block';
-                
-                // Position relative to viewport or parent? 
-                // Simple follow mouse
+
                 moveTooltip(e);
             });
-            
+
             pt.addEventListener('mousemove', moveTooltip);
-            
+
             pt.addEventListener('mouseleave', () => {
                 tooltip.style.display = 'none';
             });
         });
-        
+
         function moveTooltip(e) {
             tooltip.style.left = (e.pageX + 10) + 'px';
             tooltip.style.top = (e.pageY + 10) + 'px';

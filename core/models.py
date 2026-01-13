@@ -81,17 +81,33 @@ class ShotEvent(db.Model):
     x_loc = db.Column(db.Float, nullable=True) # Normalized 0-500
     y_loc = db.Column(db.Float, nullable=True) # Normalized 0-470
     quarter = db.Column(db.Integer)
+    play_id = db.Column(db.Integer, db.ForeignKey("plays.id"), nullable=True) # Tagged play
     
     game = db.relationship("Game", backref=db.backref("shots", lazy=True))
+    play = db.relationship("Play", backref=db.backref("shot_events", lazy=True))
 
 
 class GameEvent(db.Model):
     __tablename__ = "game_events"
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=False)
-    event_type = db.Column(db.String(50)) # SUB_IN, SUB_OUT, OPP_SCORE
+    event_type = db.Column(db.String(50)) # SHOT_2PT, SHOT_3PT, TURNOVER, SUB_IN, SUB_OUT, OPP_SCORE
     player_name = db.Column(db.String(100), nullable=True)
     detail = db.Column(db.String(255), nullable=True) # e.g. amount of points for opp score
     timestamp = db.Column(db.Integer, default=0) # generic ordering index
+    shot_attempt = db.Column(db.String(10), nullable=True) # 'attempted' or 'made' for shots
+    play_id = db.Column(db.Integer, db.ForeignKey("plays.id"), nullable=True) # Tagged play
     
     game = db.relationship("Game", backref=db.backref("events", lazy=True))
+    play = db.relationship("Play", backref=db.backref("game_events", lazy=True))
+
+
+class Play(db.Model):
+    __tablename__ = "plays"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    play_type = db.Column(db.String(50), default="Offense")  # Offense, Defense, Special
+    image_filename = db.Column(db.String(255), nullable=True) # Stored in uploads/plays/
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

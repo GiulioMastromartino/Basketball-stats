@@ -162,6 +162,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="{{ url_for('plays.index') }}" class="{% if 'plays' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-clipboard-list"></i> Plays
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="{{ url_for('main.glossary') }}" class="{% if request.endpoint == 'main.glossary' %}active{% endif %}">
                         <i class="fas fa-book"></i> Glossary
                     </a>

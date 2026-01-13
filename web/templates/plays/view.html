@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ play.name }} - HoopsStats{% endblock %}
+
+{% block content %}
+<div class="play-detail-container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('plays.index') }}">Plays</a></li>
+            <li class="breadcrumb-item active">{{ play.name }}</li>
+        </ol>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="play-detail-header">
+        <div class="play-detail-image">
+            {% if play.image_filename %}
+                <img src="{{ url_for('static', filename='uploads/plays/' + play.image_filename) }}" 
+                     alt="{{ play.name }}" class="img-fluid">
+            {% else %}
+                <div class="image-placeholder">
+                    <i class="fas fa-image"></i>
+                    <p>No diagram available</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="play-detail-info">
+            <span class="play-type-badge">{{ play.play_type }}</span>
+            <h1 class="play-detail-title">{{ play.name }}</h1>
+            
+            <div class="play-meta">
+                <div class="meta-item">
+                    <span class="meta-label">Type</span>
+                    <span class="meta-value">{{ play.play_type }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Added</span>
+                    <span class="meta-value">{{ play.created_at.strftime('%b %d, %Y') if play.created_at else 'N/A' }}</span>
+                </div>
+            </div>
+
+            {% if play.description %}
+            <div class="play-description-box">
+                <h3>Description</h3>
+                <p>{{ play.description }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Actions -->
+            <div class="play-actions">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editPlayModal">
+                    <i class="fas fa-edit"></i> Edit Play
+                </button>
+                <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deletePlayModal">
+                    <i class="fas fa-trash"></i> Delete Play
+                </button>
+                <a href="{{ url_for('plays.index') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Play Modal -->
+<div class="modal fade" id="editPlayModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Play</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('plays.edit', play_id=play.id) }}" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <!-- Play Name -->
+                    <div class="mb-3">
+                        <label for="editPlayName" class="form-label">Play Name *</label>
+                        <input type="text" class="form-control" id="editPlayName" name="name" 
+                               value="{{ play.name }}" required>
+                    </div>
+
+                    <!-- Play Type -->
+                    <div class="mb-3">
+                        <label for="editPlayType" class="form-label">Type *</label>
+                        <select class="form-select" id="editPlayType" name="play_type" required>
+                            <option value="Offense" {% if play.play_type == 'Offense' %}selected{% endif %}>Offense</option>
+                            <option value="Defense" {% if play.play_type == 'Defense' %}selected{% endif %}>Defense</option>
+                            <option value="Special" {% if play.play_type == 'Special' %}selected{% endif %}>Special</option>
+                        </select>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-3">
+                        <label for="editPlayDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editPlayDescription" name="description" rows="4">{{ play.description or '' }}</textarea>
+                    </div>
+
+                    <!-- Image Upload -->
+                    <div class="mb-3">
+                        <label for="editPlayImage" class="form-label">Play Diagram (PNG, JPG, GIF)</label>
+                        <input type="file" class="form-control" id="editPlayImage" name="image" accept="image/*">
+                        <small class="form-text text-muted">Leave empty to keep current image</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deletePlayModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Delete Play</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong>{{ play.name }}</strong>?</p>
+                <p class="text-danger"><small>This action cannot be undone.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{{ url_for('plays.delete', play_id=play.id) }}" method="POST" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.play-detail-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.play-detail-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin: 2rem 0;
+}
+
+.play-detail-image {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.play-detail-image img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.image-placeholder {
+    width: 100%;
+    height: 400px;
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+}
+
+.image-placeholder i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.3;
+}
+
+.play-detail-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.play-type-badge {
+    display: inline-block;
+    background: var(--secondary);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    width: fit-content;
+}
+
+.play-detail-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 0;
+}
+
+.play-meta {
+    display: flex;
+    gap: 2rem;
+    padding: 1.5rem;
+    background: var(--bg-body);
+    border-radius: 8px;
+}
+
+.meta-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.meta-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.meta-value {
+    font-size: 1.1rem;
+    color: var(--text-main);
+    font-weight: 500;
+}
+
+.play-description-box {
+    padding: 1.5rem;
+    background: white;
+    border-left: 4px solid var(--secondary);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.play-description-box h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--text-main);
+}
+
+.play-description-box p {
+    margin: 0;
+    line-height: 1.6;
+    color: var(--text-main);
+}
+
+.play-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.play-actions .btn {
+    flex: 1;
+    min-width: 150px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .play-detail-header {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .play-detail-title {
+        font-size: 1.8rem;
+    }
+
+    .play-meta {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .play-actions {
+        flex-direction: column;
+    }
+
+    .play-actions .btn {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}

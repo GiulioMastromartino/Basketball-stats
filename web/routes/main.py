@@ -5,12 +5,18 @@ from werkzeug.utils import secure_filename
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_required
-from sqlalchemy import func
+from sqlalchemy import case, func
 
-from core.models import Game, PlayerStat, ShotEvent, db
+from core.models import Game, PlayerStat, ShotEvent, db, Play
 from core.csv_processor import CSVProcessor
 from core.parser import parse_game_pdf
 from core.services import create_game_from_live_data
+from core.play_analytics import (
+    get_play_stats,
+    get_play_player_stats,
+    get_player_play_stats,
+    get_untracked_percentages,
+)
 from core.utils import (
     FT_ATTEMPT_WEIGHT,
     THREE_POINT_WEIGHT,
@@ -82,28 +88,94 @@ def live_game():
     """Interface for live game stat tracking"""
     # Fetch existing player names for easy selection
     existing_players = [r[0] for r in db.session.query(PlayerStat.player_name).distinct().order_by(PlayerStat.player_name).all()]
+
+    # Fetch available plays for selection (also injected, but JS fetches from API)
+    # Convert SQLAlchemy objects to dicts for JSON serialization in template
+    plays_query = Play.query.order_by(Play.play_type, Play.name).all()
+    plays_list = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "type": p.play_type,
+            "description": p.description,
+        }
+        for p in plays_query
+    ]
+
     from datetime import datetime
     now_date = datetime.now().strftime("%Y-%m-%d")
-    return render_template("live_game.html", existing_players=existing_players, now_date=now_date)
+    return render_template("live_game.html", existing_players=existing_players, now_date=now_date, plays=plays_list)
+
+
+@main_bp.route("/api/plays")
+@login_required
+def api_plays():
+    """API endpoint to get list of plays for live game selector"""
+    plays = Play.query.order_by(Play.play_type, Play.name).all()
+    return jsonify([
+        {
+            "id": p.id,
+            "name": p.name,
+            "type": p.play_type,
+            "description": p.description,
+        }
+        for p in plays
+    ])
 
 
 @main_bp.route("/live-game/save", methods=["POST"])
 @login_required
 def save_live_game():
-    """Receive JSON data from live tracker and save to DB"""
+    """Receive JSON data from live tracker and save to DB
+
+    Returns JSON response:
+    - Success: {"success": true, "game_id": <id>}
+    - Error: {"error": "error message", "details": "optional details"}
+    """
     data = request.get_json()
-    
+
     if not data:
-        return jsonify({"error": "No data received"}), 400
+        return jsonify({
+            "error": "No data received",
+            "details": "Request body is empty or not valid JSON"
+        }), 400
 
     try:
         game = create_game_from_live_data(data)
-        return jsonify({"success": True, "game_id": game.id})
+        current_app.logger.info(f"Live game saved successfully: Game ID {game.id}")
+        return jsonify({
+            "success": True,
+            "game_id": game.id,
+            "message": f"Game saved: {game.opponent} ({game.result})"
+        }), 201
+
+    except ValueError as e:
+        # Validation errors (invalid play IDs, missing required fields, etc.)
+        db.session.rollback()
+        error_msg = str(e)
+        current_app.logger.warning(f"Live game validation error: {error_msg}")
+        return jsonify({
+            "error": "Validation Error",
+            "details": error_msg
+        }), 400
 
     except Exception as e:
+        # Unexpected errors (database errors, FK violations, etc.)
         db.session.rollback()
-        current_app.logger.error(f"Live game save error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        error_msg = str(e)
+        current_app.logger.error(f"Live game save error: {error_msg}", exc_info=True)
+
+        # Provide user-friendly error message
+        user_msg = "An unexpected error occurred while saving the game."
+        if "foreign key" in error_msg.lower():
+            user_msg = "Database integrity error: Invalid reference to play or other data."
+        elif "constraint" in error_msg.lower():
+            user_msg = "Data constraint violation: Check that all required fields are valid."
+
+        return jsonify({
+            "error": user_msg,
+            "details": error_msg if current_app.debug else None
+        }), 500
 
 
 @main_bp.route("/upload-game", methods=["GET", "POST"])
@@ -348,6 +420,12 @@ def game_detail(game_id):
     # Fetch shot events for this game if available
     shot_events = ShotEvent.query.filter_by(game_id=game.id).all()
 
+    # --- Plays analysis dashboard (offense only) ---
+    plays_data = get_play_stats(game.id, play_type="Offense")
+    plays_players_data = get_play_player_stats(game.id, play_type="Offense")
+    players_plays_data = get_player_play_stats(game.id, play_type="Offense")
+    untracked = get_untracked_percentages(game.id)
+
     team_possessions = sum(
         calculate_possessions(p.fga, p.fta, p.oreb, p.tov) for p in stats
     )
@@ -447,6 +525,10 @@ def game_detail(game_id):
         game=game,
         stats=stats,
         shot_events=shot_events,
+        plays_data=plays_data,
+        plays_players_data=plays_players_data,
+        players_plays_data=players_plays_data,
+        untracked=untracked,
         team_stats=team_stats,
         advanced=advanced,
     )
@@ -466,7 +548,7 @@ def delete_game(game_id):
         # Delete game events (future proof)
         from core.models import GameEvent
         GameEvent.query.filter_by(game_id=game.id).delete()
-        
+
         db.session.delete(game)
         db.session.commit()
         flash(f"Deleted game: {game.opponent} on {game.date}", "success")
@@ -575,7 +657,7 @@ def player_detail(player_name):
         "bpg": totals["blk"] / gp,
         "topg": totals["tov"] / gp,
         "pfpg": totals["pf"] / gp,
-        "pm": totals["plus_minus"] / gp if gp > 0 else 0,  # Changed from plus_minus to pm
+        "pm": totals["plus_minus"] / gp if gp > 0 else 0,
         "eff": calculate_efficiency(
             totals["points"],
             totals["reb"],
