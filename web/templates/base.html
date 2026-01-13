@@ -4,17 +4,29 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{% block title %}HoopsStats{% endblock %}</title>
-        
+
         <!-- Bootstrap CSS -->
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-        
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+        />
+
         <!-- Fonts & Icons -->
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
-        
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        />
+
         <!-- Main Stylesheet -->
-        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-        
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='css/style.css') }}"
+        />
+
         <style>
             /* Layout specific styles needed for sidebar + content structure */
             body {
@@ -23,7 +35,7 @@
                 margin: 0;
                 background-color: var(--bg-body);
             }
-            
+
             /* Sidebar */
             .sidebar {
                 width: 260px;
@@ -36,7 +48,7 @@
                 z-index: 1000;
                 padding: var(--spacing-md);
             }
-            
+
             .sidebar-brand {
                 display: flex;
                 align-items: center;
@@ -48,12 +60,12 @@
                 text-decoration: none;
                 padding: 0 12px;
             }
-            
+
             .sidebar-brand i {
                 color: var(--accent); /* Orange ball icon */
                 font-size: 24px;
             }
-            
+
             .nav-list {
                 list-style: none;
                 display: flex;
@@ -62,7 +74,7 @@
                 padding-left: 0; /* Bootstrap reset */
                 margin-bottom: 0;
             }
-            
+
             .nav-item a {
                 display: flex;
                 align-items: center;
@@ -74,21 +86,21 @@
                 text-decoration: none;
                 transition: all 0.2s ease;
             }
-            
+
             .nav-item a:hover {
                 background-color: var(--bg-body);
                 color: var(--text-main);
             }
-            
+
             .nav-item a.active {
                 background-color: var(--secondary);
                 color: var(--text-light);
             }
-            
+
             .nav-item a.active i {
                 color: var(--text-light);
             }
-            
+
             /* Main Content Area */
             .main-content {
                 margin-left: 260px; /* Match sidebar width */
@@ -97,7 +109,7 @@
                 overflow-y: auto;
                 background-color: #f8f9fa; /* Bootstrap light bg */
             }
-            
+
             /* Responsive */
             @media (max-width: 768px) {
                 .sidebar {
@@ -112,7 +124,7 @@
                     padding: var(--spacing-md);
                 }
             }
-            
+
             /* Clean up Bootstrap conflicts with custom vars if needed */
             :root {
                 --bg-body: #f3f4f6;
@@ -126,9 +138,11 @@
                 --spacing-md: 1rem;
                 --spacing-xl: 2rem;
             }
-            
+
             /* Remove text-decoration from all links by default in sidebar */
-            a { text-decoration: none; }
+            a {
+                text-decoration: none;
+            }
         </style>
         {% block extra_css %}{% endblock %}
     </head>
@@ -139,39 +153,69 @@
                 <i class="fas fa-basketball-ball"></i>
                 Hoops
             </a>
-            
+
             <ul class="nav-list">
                 <li class="nav-item">
-                    <a href="{{ url_for('main.index') }}" class="{% if request.endpoint == 'main.index' %}active{% endif %}">
+                    <a
+                        href="{{ url_for('main.index') }}"
+                        class="{% if request.endpoint == 'main.index' %}active{% endif %}"
+                    >
                         <i class="fas fa-th-large"></i> Dashboard
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url_for('main.games') }}" class="{% if request.endpoint == 'main.games' %}active{% endif %}">
+                    <a
+                        href="{{ url_for('main.games') }}"
+                        class="{% if request.endpoint == 'main.games' %}active{% endif %}"
+                    >
                         <i class="far fa-calendar-alt"></i> Games
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url_for('main.players') }}" class="{% if request.endpoint == 'main.players' %}active{% endif %}">
+                    <a
+                        href="/live-game"
+                        class="{% if request.endpoint == 'live_game' %}active{% endif %}"
+                    >
+                        <i
+                            class="fas fa-broadcast-tower"
+                            style="color: #e74c3c"
+                        ></i>
+                        Live Game
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a
+                        href="{{ url_for('main.players') }}"
+                        class="{% if request.endpoint == 'main.players' %}active{% endif %}"
+                    >
                         <i class="fas fa-users"></i> Players
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url_for('analytics.dashboard') }}" class="{% if 'analytics' in request.endpoint %}active{% endif %}">
+                    <a
+                        href="{{ url_for('analytics.dashboard') }}"
+                        class="{% if 'analytics' in request.endpoint %}active{% endif %}"
+                    >
                         <i class="fas fa-chart-bar"></i> Analytics
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url_for('plays.index') }}" class="{% if 'plays' in request.endpoint %}active{% endif %}">
+                    <a
+                        href="{{ url_for('plays.index') }}"
+                        class="{% if 'plays' in request.endpoint %}active{% endif %}"
+                    >
                         <i class="fas fa-clipboard-list"></i> Plays
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url_for('main.glossary') }}" class="{% if request.endpoint == 'main.glossary' %}active{% endif %}">
+                    <a
+                        href="{{ url_for('main.glossary') }}"
+                        class="{% if request.endpoint == 'main.glossary' %}active{% endif %}"
+                    >
                         <i class="fas fa-book"></i> Glossary
                     </a>
                 </li>
-                 <li class="nav-item" style="margin-top: auto;">
+                <li class="nav-item" style="margin-top: auto">
                     <a href="{{ url_for('main.upload_game') }}">
                         <i class="fas fa-cloud-upload-alt"></i> Upload
                     </a>
@@ -181,23 +225,27 @@
 
         <!-- Page Content -->
         <main class="main-content">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-            
-            {% block content %}{% endblock %}
+            {% with messages = get_flashed_messages(with_categories=true) %} {%
+            if messages %} {% for category, message in messages %}
+            <div
+                class="alert alert-{{ category }} alert-dismissible fade show"
+                role="alert"
+            >
+                {{ message }}
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"
+                    aria-label="Close"
+                ></button>
+            </div>
+            {% endfor %} {% endif %} {% endwith %} {% block content %}{%
+            endblock %}
         </main>
 
         <!-- Bootstrap JS Bundle -->
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-        
+
         {% block scripts %}{% endblock %}
     </body>
 </html>
