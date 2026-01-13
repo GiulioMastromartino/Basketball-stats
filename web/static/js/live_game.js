@@ -14,9 +14,8 @@ class GameTracker {
         this.pendingPlaySelection = null;
         this.pendingTurnover = null;
 
-        // **NEW: Track currently selected play for event tagging**
-        this.currentPlayId = null;
-        this.currentPlayName = null;
+        // **NEW: Track last added shot index for retroactive play_id assignment**
+        this.lastShotIndex = null;
 
         // Timer State
         this.timerInterval = null;
@@ -272,17 +271,21 @@ class GameTracker {
         }
     }
 
-    // **CRITICAL FIX: Capture play ID and store in currentPlayId**
+    // **FIX: Retroactively update shot's play_id**
     selectPlay(play) {
         if (!this.pendingPlaySelection && !this.pendingTurnover) {
             $('#playSelectorModal').modal('hide');
             return;
         }
 
-        // **NEW: Store selected play ID globally for event tagging**
-        this.currentPlayId = play.id;
-        this.currentPlayName = play.name;
-        console.log(`Play selected: ID ${this.currentPlayId} (${this.currentPlayName})`);
+        console.log(`Play selected: ID ${play.id} (${play.name})`);
+
+        // **CRITICAL FIX: Update the last shot's play_id retroactively**
+        if (this.lastShotIndex !== null && this.lastShotIndex < this.shotLocations.length) {
+            this.shotLocations[this.lastShotIndex].play_id = play.id;
+            console.log(`Updated shot at index ${this.lastShotIndex} with play_id ${play.id}`);
+            this.lastShotIndex = null; // Clear after use
+        }
 
         this.addToRecentPlays(play);
         this.finalizePlaySelection(play);
@@ -290,9 +293,8 @@ class GameTracker {
     }
 
     skipPlaySelection() {
-        // **NEW: Clear play ID if skipped**
-        this.currentPlayId = null;
-        this.currentPlayName = null;
+        // **FIX: Clear pending shot index if skipped**
+        this.lastShotIndex = null;
         this.finalizePlaySelection(null);
         $('#playSelectorModal').modal('hide');
     }
@@ -313,7 +315,7 @@ class GameTracker {
                 quarter: this.quarter,
                 clockSeconds: this.quarterSeconds,
                 timestamp: Date.now(),
-                play_id: play ? play.id : null  // **NEW: Include play_id at event level**
+                play_id: play ? play.id : null
             };
             this.gameEvents.push(event);
 
@@ -336,7 +338,7 @@ class GameTracker {
                     quarter: this.quarter,
                     clockSeconds: this.quarterSeconds,
                     timestamp: Date.now(),
-                    play_id: play.id  // **NEW: Include play_id at event level**
+                    play_id: play.id
                 };
                 this.gameEvents.push(event);
             }
@@ -1020,6 +1022,7 @@ class GameTracker {
             }
 
             if (!skipped && location) {
+                // **FIX: Push shot WITHOUT play_id, store index for later update**
                 this.shotLocations.push({
                     shooter, type, points,
                     assister: assister || null,
@@ -1029,8 +1032,12 @@ class GameTracker {
                     quarter: this.quarter,
                     clockSeconds: this.quarterSeconds,
                     timestamp: Date.now(),
-                    play_id: this.currentPlayId  // **NEW: Include captured play_id**
+                    play_id: null  // Will be updated after play selection
                 });
+                
+                // Store the index of this shot for retroactive play_id update
+                this.lastShotIndex = this.shotLocations.length - 1;
+                console.log(`Shot added at index ${this.lastShotIndex}, awaiting play selection`);
             }
 
             this.openPlaySelector('SHOT_' + type.toUpperCase(), shooter, type);
@@ -1047,6 +1054,7 @@ class GameTracker {
             this.updateShooting(shooter, type, 0, 1);
 
             if (!skipped && location) {
+                // **FIX: Push shot WITHOUT play_id, store index for later update**
                 this.shotLocations.push({
                     shooter,
                     type,
@@ -1058,8 +1066,12 @@ class GameTracker {
                     quarter: this.quarter,
                     clockSeconds: this.quarterSeconds,
                     timestamp: Date.now(),
-                    play_id: this.currentPlayId  // **NEW: Include captured play_id**
+                    play_id: null  // Will be updated after play selection
                 });
+                
+                // Store the index of this shot for retroactive play_id update
+                this.lastShotIndex = this.shotLocations.length - 1;
+                console.log(`Shot added at index ${this.lastShotIndex}, awaiting play selection`);
             }
 
             this.openPlaySelector('SHOT_' + type.toUpperCase(), shooter, type);
