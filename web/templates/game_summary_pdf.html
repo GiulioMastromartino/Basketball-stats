@@ -376,9 +376,9 @@
                 {% for play in plays_data %}
                 <tr>
                     <td class="text-left">
-                        {% if play.play_name %}{{ play.play_name }}{% endif %}
-                        {% if play.play_type %}{{ play.play_type }}{% endif %}
-                        {% if not play.play_name and not play.play_type %}{{
+                        {% if play.name %}{{ play.name }}{% endif %} {% if
+                        play.play_type %}{{ play.play_type }}{% endif %} {% if
+                        not play.name and not play.play_type %}{{
                         play.description|default('Unnamed Play') }}{% endif %}
                         {% if play.play_number %} #{{ play.play_number }}{%
                         endif %}
