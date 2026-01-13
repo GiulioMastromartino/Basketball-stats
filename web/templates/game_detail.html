@@ -471,6 +471,17 @@
                                 <div class="h3 mb-0 fw-bold">{{ total_turnovers }}</div>
                             </div>
                         </div>
+
+                        {% if untracked %}
+                        <div class="mt-4 pt-3 border-top">
+                            <div class="small text-muted text-uppercase">Untracked (coverage)</div>
+                            <div class="small text-muted">
+                                Shots: {{ "%.1f"|format(untracked.untracked_shots_pct) }}% •
+                                Turnovers: {{ "%.1f"|format(untracked.untracked_turnovers_pct) }}% •
+                                Possessions: {{ "%.1f"|format(untracked.untracked_possessions_pct) }}%
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -516,6 +527,118 @@
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4 mt-1">
+                <div class="col-12">
+                    <div class="stat-card">
+                        <h6 class="text-uppercase text-muted mb-3 fw-bold letter-spacing-1">Play → Players</h6>
+                        {% if plays_players_data %}
+                        <div class="accordion" id="accordionPlayPlayers">
+                            {% for play in plays_players_data %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-pp-{{ play.id }}">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-pp-{{ play.id }}" aria-expanded="false" aria-controls="collapse-pp-{{ play.id }}">
+                                        {{ play.name }}
+                                    </button>
+                                </h2>
+                                <div id="collapse-pp-{{ play.id }}" class="accordion-collapse collapse" aria-labelledby="heading-pp-{{ play.id }}" data-bs-parent="#accordionPlayPlayers">
+                                    <div class="accordion-body p-0">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover align-middle mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="ps-4">Player</th>
+                                                        <th class="text-center">Poss</th>
+                                                        <th class="text-center">Pts</th>
+                                                        <th class="text-center">PPP</th>
+                                                        <th class="text-center">TOV</th>
+                                                        <th class="text-center">TOV%</th>
+                                                        <th class="text-center">FG%</th>
+                                                        <th class="text-center">eFG%</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for p in play.players %}
+                                                    <tr>
+                                                        <td class="ps-4 fw-bold">{{ p.player_name }}</td>
+                                                        <td class="text-center">{{ p.possessions }}</td>
+                                                        <td class="text-center fw-bold">{{ p.points }}</td>
+                                                        <td class="text-center">{{ "%.2f"|format(p.ppp) }}</td>
+                                                        <td class="text-center">{{ p.turnovers }}</td>
+                                                        <td class="text-center">{{ "%.1f"|format(p.tov_pct) }}%</td>
+                                                        <td class="text-center">{{ "%.1f"|format(p.fg_pct) }}%</td>
+                                                        <td class="text-center">{{ "%.1f"|format(p.efg_pct) }}%</td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-muted">No tracked play data for player breakdown.</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <div class="stat-card">
+                        <h6 class="text-uppercase text-muted mb-3 fw-bold letter-spacing-1">Player → Plays</h6>
+                        {% if players_plays_data %}
+                        <div class="accordion" id="accordionPlayerPlays">
+                            {% for player in players_plays_data %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-pl-{{ loop.index }}">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-pl-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-pl-{{ loop.index }}">
+                                        {{ player.player_name }}
+                                    </button>
+                                </h2>
+                                <div id="collapse-pl-{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="heading-pl-{{ loop.index }}" data-bs-parent="#accordionPlayerPlays">
+                                    <div class="accordion-body p-0">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover align-middle mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="ps-4">Play</th>
+                                                        <th class="text-center">Poss</th>
+                                                        <th class="text-center">Pts</th>
+                                                        <th class="text-center">PPP</th>
+                                                        <th class="text-center">TOV</th>
+                                                        <th class="text-center">TOV%</th>
+                                                        <th class="text-center">FG%</th>
+                                                        <th class="text-center">eFG%</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for pl in player.plays %}
+                                                    <tr>
+                                                        <td class="ps-4 fw-bold">{{ pl.name }}</td>
+                                                        <td class="text-center">{{ pl.possessions }}</td>
+                                                        <td class="text-center fw-bold">{{ pl.points }}</td>
+                                                        <td class="text-center">{{ "%.2f"|format(pl.ppp) }}</td>
+                                                        <td class="text-center">{{ pl.turnovers }}</td>
+                                                        <td class="text-center">{{ "%.1f"|format(pl.tov_pct) }}%</td>
+                                                        <td class="text-center">{{ "%.1f"|format(pl.fg_pct) }}%</td>
+                                                        <td class="text-center">{{ "%.1f"|format(pl.efg_pct) }}%</td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-muted">No tracked play data for player breakdown.</div>
+                        {% endif %}
                     </div>
                 </div>
             </div>

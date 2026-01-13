@@ -11,7 +11,12 @@ from core.models import Game, PlayerStat, ShotEvent, db, Play
 from core.csv_processor import CSVProcessor
 from core.parser import parse_game_pdf
 from core.services import create_game_from_live_data
-from core.play_analytics import get_play_stats
+from core.play_analytics import (
+    get_play_stats,
+    get_play_player_stats,
+    get_player_play_stats,
+    get_untracked_percentages,
+)
 from core.utils import (
     FT_ATTEMPT_WEIGHT,
     THREE_POINT_WEIGHT,
@@ -122,7 +127,7 @@ def api_plays():
 @login_required
 def save_live_game():
     """Receive JSON data from live tracker and save to DB
-    
+
     Returns JSON response:
     - Success: {"success": true, "game_id": <id>}
     - Error: {"error": "error message", "details": "optional details"}
@@ -159,14 +164,14 @@ def save_live_game():
         db.session.rollback()
         error_msg = str(e)
         current_app.logger.error(f"Live game save error: {error_msg}", exc_info=True)
-        
+
         # Provide user-friendly error message
         user_msg = "An unexpected error occurred while saving the game."
         if "foreign key" in error_msg.lower():
             user_msg = "Database integrity error: Invalid reference to play or other data."
         elif "constraint" in error_msg.lower():
             user_msg = "Data constraint violation: Check that all required fields are valid."
-        
+
         return jsonify({
             "error": user_msg,
             "details": error_msg if current_app.debug else None
@@ -417,6 +422,9 @@ def game_detail(game_id):
 
     # --- Plays analysis dashboard (offense only) ---
     plays_data = get_play_stats(game.id, play_type="Offense")
+    plays_players_data = get_play_player_stats(game.id, play_type="Offense")
+    players_plays_data = get_player_play_stats(game.id, play_type="Offense")
+    untracked = get_untracked_percentages(game.id)
 
     team_possessions = sum(
         calculate_possessions(p.fga, p.fta, p.oreb, p.tov) for p in stats
@@ -518,6 +526,9 @@ def game_detail(game_id):
         stats=stats,
         shot_events=shot_events,
         plays_data=plays_data,
+        plays_players_data=plays_players_data,
+        players_plays_data=players_plays_data,
+        untracked=untracked,
         team_stats=team_stats,
         advanced=advanced,
     )
