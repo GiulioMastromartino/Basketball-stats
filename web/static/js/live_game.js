@@ -110,15 +110,10 @@ class GameTracker {
 
     // --- PLAYS LOADING ---
     loadPlays() {
-        if (window.AVAILABLE_PLAYS && window.AVAILABLE_PLAYS.length > 0) {
-            console.log("Loading plays from injected data...");
-            this.playsCache = window.AVAILABLE_PLAYS;
-            this.processPlayTypes();
-            return;
-        }
-
+        // Always attempt fetch from API first to get fresh data (IDs)
         const csrfToken = document.getElementById('csrf_token')?.value || '';
         
+        console.log("Fetching fresh plays from API...");
         fetch('/api/plays', {
             method: 'GET',
             headers: {
@@ -131,7 +126,15 @@ class GameTracker {
             this.playsCache = plays;
             this.processPlayTypes();
         })
-        .catch(err => console.error('Failed to load plays:', err));
+        .catch(err => {
+            console.error('Failed to load plays from API, falling back to injected data:', err);
+            // Fallback to injected data if API fails
+            if (window.AVAILABLE_PLAYS && window.AVAILABLE_PLAYS.length > 0) {
+                console.log("Using injected plays data as fallback.");
+                this.playsCache = window.AVAILABLE_PLAYS;
+                this.processPlayTypes();
+            }
+        });
     }
 
     processPlayTypes() {
@@ -654,6 +657,9 @@ class GameTracker {
             alert("Please enter an opponent name.");
             return;
         }
+        
+        // **NEW: Ensure latest plays are loaded when game starts**
+        this.loadPlays();
 
         if (Object.keys(this.stats).length === 0) {
             this.fullRoster.forEach(p => {
