@@ -1,48 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import os
-
-def create_app():
-    app = Flask(__name__, template_folder="../web/templates", static_folder="../web/static")
-    app.config.from_object(Config)
-
-    # Initialize extensions
-    db.init_app(app)
-    migrate = Migrate(app, db)  # Initialize Flask-Migrate
-
-    with app.app_context():
-        # Import routes
-        from web.routes.main import main_bp
-        from web.routes.auth import auth_bp
-        from web.routes.analytics import analytics_bp
-        from web.routes.api import api_bp
-
-        # Register blueprints
-        app.register_blueprint(main_bp)
-        app.register_blueprint(auth_bp)
-        app.register_blueprint(analytics_bp)
-        app.register_blueprint(api_bp, url_prefix='/api')
-
-        # Create database tables if they don't exist
-        db.create_all()
-        
-        # Auto-migration fix for existing databases
-        # Check if 'source' column exists in 'games' table
-        try:
-            with db.engine.connect() as conn:
-                # SQLite specific check
-                result = conn.execute(text("PRAGMA table_info(games)"))
-                columns = [row[1] for row in result.fetchall()]
-                
-                if 'source' not in columns:
-                    print("Migrating database: Adding 'source' column to 'games' table...")
-                    conn.execute(text("ALTER TABLE games ADD COLUMN source VARCHAR(20) DEFAULT 'IMPORT'"))
-                    conn.commit()
-                    print("Migration successful.")
-        except Exception as e:
-            print(f"Auto-migration warning: {e}")
-
-    return app
+from web import create_app
 
 # Support for 'flask run' and 'flask db' commands
 # Flask checks for 'app' or 'application' in FLASK_APP module
@@ -55,7 +14,10 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8080)
     args = parser.parse_args()
     
-    # Overwrite the default app if args are provided (though typically same env)
+    # Check if we need to reload with a different env
+    # Note: If FLASK_ENV was set, 'app' is already created with it above.
+    # If args.env differs, we might recreate it, but usually the above global 'app' is what WSGI uses.
+    # For direct execution:
     if args.env != os.getenv("FLASK_ENV", "development"):
         app = create_app(args.env)
         
