@@ -22,6 +22,12 @@ from sqlalchemy import desc, func
 from weasyprint import HTML
 
 from core.models import Game, PlayerStat, ShotEvent, db
+from core.play_analytics import (
+    get_play_stats,
+    get_play_player_stats,
+    get_player_play_stats,
+    get_untracked_percentages,
+)
 from core.utils import (
     FT_ATTEMPT_WEIGHT,
     THREE_POINT_WEIGHT,
@@ -721,6 +727,15 @@ def game_summary_pdf(game_id):
     # Team aggregates
     team_aggregates = _get_team_aggregates(stats_with_metrics)
     
+    # --- Shot chart + plays (offense) ---
+    shot_events = ShotEvent.query.filter_by(game_id=game_id).all()
+    shot_chart = _generate_team_shot_chart([game_id]) if shot_events else ""
+
+    plays_data = get_play_stats(game_id, play_type="Offense")
+    plays_players_data = get_play_player_stats(game_id, play_type="Offense")
+    players_plays_data = get_player_play_stats(game_id, play_type="Offense")
+    untracked = get_untracked_percentages(game_id) or {}
+
     # Render HTML template
     html = render_template(
         "game_summary_pdf.html",
@@ -729,7 +744,12 @@ def game_summary_pdf(game_id):
         top_performers=top_performers,
         alerts=alerts,
         team_aggregates=team_aggregates,
-        generated_date=datetime.now().strftime("%B %d, %Y")
+        shot_chart=shot_chart,
+        plays_data=plays_data,
+        plays_players_data=plays_players_data,
+        players_plays_data=players_plays_data,
+        untracked=untracked,
+        generated_date=datetime.now().strftime("%B %d, %Y"),
     )
     
     # Convert to PDF
@@ -740,8 +760,12 @@ def game_summary_pdf(game_id):
     pdf_io.seek(0)
     
     filename = f"game_{game.opponent}_{game.date}.pdf"
-    return send_file(pdf_io, mimetype="application/pdf", 
-                     as_attachment=True, download_name=filename)
+    return send_file(
+        pdf_io,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
 
 
 @analytics_bp.route("/team/report.pdf")

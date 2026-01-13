@@ -1,518 +1,764 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-    <meta charset="utf-8">
-    <title>Game Summary Report</title>
-    <style>
-        @page {
-            size: A4;
-            margin: 1cm;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            color: #1a202c;
-            line-height: 1.5;
-            font-size: 11px;
-        }
-        .header-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #2c3e50;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-        }
-        .header-left h1 { margin: 0; font-size: 20px; color: #2c3e50; }
-        .header-right { text-align: right; font-size: 10px; color: #718096; }
-        
-        .section-title {
-            background: #2c3e50;
-            color: white;
-            padding: 5px 10px;
-            font-size: 12px;
-            font-weight: bold;
-            margin: 15px 0 10px 0;
-            border-radius: 4px;
-        }
+    <head>
+        <meta charset="utf-8" />
+        <title>Game Summary Report</title>
+        <style>
+            @page {
+                size: A4;
+                margin: 1cm;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                color: #1a202c;
+                line-height: 1.5;
+                font-size: 11px;
+            }
+            .header-container {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #2c3e50;
+                padding-bottom: 10px;
+                margin-bottom: 20px;
+            }
+            .header-left h1 { margin: 0; font-size: 20px; color: #2c3e50; }
+            .header-right { text-align: right; font-size: 10px; color: #718096; }
 
-        /* Hero Scoreboard */
-        .scoreboard {
-            background: #f7fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .score-large {
-            font-size: 24px;
-            font-weight: 800;
-            color: #2d3748;
-        }
-        .score-details {
-            font-size: 10px;
-            color: #718096;
-            margin-top: 5px;
-        }
-        .result-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            color: white;
-            font-weight: bold;
-            font-size: 10px;
-            background: {% if game.result == 'W' %}#28a745{% else %}#dc3545{% endif %};
-        }
+            .section-title {
+                background: #2c3e50;
+                color: white;
+                padding: 5px 10px;
+                font-size: 12px;
+                font-weight: bold;
+                margin: 15px 0 10px 0;
+                border-radius: 4px;
+            }
 
-        /* Tables */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-            font-size: 10px;
-        }
-        th {
-            background: #edf2f7;
-            text-align: center;
-            padding: 6px;
-            border-bottom: 2px solid #cbd5e0;
-            font-weight: 700;
-            color: #4a5568;
-        }
-        th.text-left { text-align: left; }
-        td {
-            padding: 5px;
-            border-bottom: 1px solid #e2e8f0;
-            text-align: center;
-        }
-        td.text-left { text-align: left; font-weight: 600; }
-        tr:nth-child(even) { background-color: #f8fafc; }
-        
-        /* Stats Highlighting */
-        .stat-good { color: #28a745; font-weight: bold; }
-        .stat-bad { color: #dc3545; font-weight: bold; }
-        
-        /* Two Column Layout */
-        .row { display: flex; gap: 15px; }
-        .col { flex: 1; }
-        
-        /* Top Performers Cards */
-        .top-performer-card {
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 10px;
-            text-align: center;
-            background: #fff;
-            margin-bottom: 10px;
-        }
-        .tp-label { font-size: 9px; text-transform: uppercase; color: #718096; }
-        .tp-value { font-size: 16px; font-weight: 800; color: #2c3e50; margin: 2px 0; }
-        .tp-name { font-weight: 600; color: #4a5568; }
+            /* Hero Scoreboard */
+            .scoreboard {
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 20px;
+                text-align: center;
+            }
+            .score-large {
+                font-size: 24px;
+                font-weight: 800;
+                color: #2d3748;
+            }
+            .score-details {
+                font-size: 10px;
+                color: #718096;
+                margin-top: 5px;
+            }
+            .result-badge {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 4px;
+                color: white;
+                font-weight: bold;
+                font-size: 10px;
+                background: {% if game.result == 'W' %}#28a745{% else %}#dc3545{% endif %};
+            }
 
-        /* Glossary */
-        .glossary-item {
-            margin-bottom: 12px;
-            padding: 8px;
-            background: #f7fafc;
-            border-left: 3px solid #4299e1;
-            border-radius: 4px;
-        }
-        .glossary-term {
-            font-weight: 700;
-            color: #2c5282;
-            font-size: 11px;
-        }
-        .glossary-desc {
-            color: #4a5568;
-            margin-top: 3px;
-            font-size: 10px;
-        }
-        .glossary-range {
-            color: #718096;
-            font-style: italic;
-            margin-top: 3px;
-            font-size: 9px;
-        }
+            /* Tables */
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 15px;
+                font-size: 10px;
+            }
+            th {
+                background: #edf2f7;
+                text-align: center;
+                padding: 6px;
+                border-bottom: 2px solid #cbd5e0;
+                font-weight: 700;
+                color: #4a5568;
+            }
+            th.text-left { text-align: left; }
+            td {
+                padding: 5px;
+                border-bottom: 1px solid #e2e8f0;
+                text-align: center;
+            }
+            td.text-left { text-align: left; font-weight: 600; }
+            tr:nth-child(even) { background-color: #f8fafc; }
 
-        .page-break { page-break-after: always; }
-    </style>
-</head>
-<body>
-    <!-- Page 1: Overview & Basic Box Score -->
-    <div class="header-container">
-        <div class="header-left">
-            <h1>Game Summary</h1>
-            <div style="font-size: 12px; margin-top: 2px;">{{ game.date }} vs {{ game.opponent }}</div>
-        </div>
-        <div class="header-right">
-            <div>Generated: {{ generated_date }}</div>
-            <div>Type: {{ game.game_type }}</div>
-        </div>
-    </div>
+            /* Stats Highlighting */
+            .stat-good { color: #28a745; font-weight: bold; }
+            .stat-bad { color: #dc3545; font-weight: bold; }
 
-    <!-- Scoreboard -->
-    <div class="scoreboard">
-        <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
-            <div style="text-align: center;">
-                <div style="font-size: 14px; font-weight: bold; color: #4a5568;">TEAM</div>
-                <div class="score-large">{{ game.team_score }}</div>
+            /* Two Column Layout */
+            .row { display: flex; gap: 15px; }
+            .col { flex: 1; }
+
+            /* Top Performers Cards */
+            .top-performer-card {
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 10px;
+                text-align: center;
+                background: #fff;
+                margin-bottom: 10px;
+            }
+            .tp-label { font-size: 9px; text-transform: uppercase; color: #718096; }
+            .tp-value { font-size: 16px; font-weight: 800; color: #2c3e50; margin: 2px 0; }
+            .tp-name { font-weight: 600; color: #4a5568; }
+
+            /* Chart */
+            .chart-container { text-align: center; margin-bottom: 10px; }
+            .chart-container img { max-width: 100%; height: auto; }
+            .small-note { color: #718096; font-size: 9px; margin-top: 4px; }
+
+            /* Glossary */
+            .glossary-item {
+                margin-bottom: 12px;
+                padding: 8px;
+                background: #f7fafc;
+                border-left: 3px solid #4299e1;
+                border-radius: 4px;
+            }
+            .glossary-term {
+                font-weight: 700;
+                color: #2c5282;
+                font-size: 11px;
+            }
+            .glossary-desc {
+                color: #4a5568;
+                margin-top: 3px;
+                font-size: 10px;
+            }
+            .glossary-range {
+                color: #718096;
+                font-style: italic;
+                margin-top: 3px;
+                font-size: 9px;
+            }
+
+            .page-break { page-break-after: always; }
+        </style>
+    </head>
+    <body>
+        <!-- Page 1: Overview & Basic Box Score -->
+        <div class="header-container">
+            <div class="header-left">
+                <h1>Game Summary</h1>
+                <div style="font-size: 12px; margin-top: 2px">
+                    {{ game.date }} vs {{ game.opponent }}
+                </div>
             </div>
-            <div class="result-badge">{{ 'VICTORY' if game.result == 'W' else 'DEFEAT' }}</div>
-            <div style="text-align: center;">
-                <div style="font-size: 14px; font-weight: bold; color: #4a5568;">OPPONENT</div>
-                <div class="score-large">{{ game.opponent_score }}</div>
+            <div class="header-right">
+                <div>Generated: {{ generated_date }}</div>
+                <div>Type: {{ game.game_type }}</div>
             </div>
         </div>
-        <div class="score-details">
-            Differential: {{ (game.team_score - game.opponent_score)|abs }} points
-        </div>
-    </div>
 
-    <!-- Top Performers & Team Overview -->
-    <div class="row">
-        <div class="col">
-            <div class="section-title">Top Performers</div>
-            <div style="display: flex; gap: 10px;">
-                {% if top_performers.points %}
-                <div class="col top-performer-card">
-                    <div class="tp-label">Points</div>
-                    <div class="tp-value">{{ top_performers.points.points }}</div>
-                    <div class="tp-name">{{ top_performers.points.player_name }}</div>
+        <!-- Scoreboard -->
+        <div class="scoreboard">
+            <div
+                style="
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 20px;
+                "
+            >
+                <div style="text-align: center">
+                    <div
+                        style="
+                            font-size: 14px;
+                            font-weight: bold;
+                            color: #4a5568;
+                        "
+                    >
+                        TEAM
+                    </div>
+                    <div class="score-large">{{ game.team_score }}</div>
                 </div>
-                {% endif %}
-                {% if top_performers.efficiency %}
-                <div class="col top-performer-card">
-                    <div class="tp-label">Efficiency</div>
-                    <div class="tp-value">{{ top_performers.efficiency.eff }}</div>
-                    <div class="tp-name">{{ top_performers.efficiency.player_name }}</div>
+                <div class="result-badge">
+                    {{ 'VICTORY' if game.result == 'W' else 'DEFEAT' }}
                 </div>
-                {% endif %}
-                {% if top_performers.rebounds %}
-                <div class="col top-performer-card">
-                    <div class="tp-label">Rebounds</div>
-                    <div class="tp-value">{{ top_performers.rebounds.reb }}</div>
-                    <div class="tp-name">{{ top_performers.rebounds.player_name }}</div>
+                <div style="text-align: center">
+                    <div
+                        style="
+                            font-size: 14px;
+                            font-weight: bold;
+                            color: #4a5568;
+                        "
+                    >
+                        OPPONENT
+                    </div>
+                    <div class="score-large">{{ game.opponent_score }}</div>
                 </div>
-                {% endif %}
+            </div>
+            <div class="score-details">
+                Differential: {{ (game.team_score - game.opponent_score)|abs }}
+                points
             </div>
         </div>
-        <div class="col">
-            <div class="section-title">Team Shooting</div>
-            <table style="margin: 0;">
-                <tr>
-                    <th class="text-left">Metric</th>
-                    <th>Value</th>
-                    <th>Goal</th>
-                </tr>
-                <tr>
-                    <td class="text-left">FG%</td>
-                    <td class="{{ 'stat-good' if team_aggregates.fg_pct >= 45 else 'stat-bad' }}">{{ team_aggregates.fg_pct|round(1) }}%</td>
-                    <td style="color: #718096;">45%</td>
-                </tr>
-                <tr>
-                    <td class="text-left">2P%</td>
-                    <td class="{{ 'stat-good' if team_aggregates.two_pt_pct >= 50 else 'stat-bad' }}">{{ team_aggregates.two_pt_pct|round(1) }}%</td>
-                    <td style="color: #718096;">50%</td>
-                </tr>
-                <tr>
-                    <td class="text-left">3P%</td>
-                    <td class="{{ 'stat-good' if team_aggregates.tp_pct >= 33 else 'stat-bad' }}">{{ team_aggregates.tp_pct|round(1) }}%</td>
-                    <td style="color: #718096;">33%</td>
-                </tr>
-                <tr>
-                    <td class="text-left">FT%</td>
-                    <td class="{{ 'stat-good' if team_aggregates.ft_pct >= 70 else 'stat-bad' }}">{{ team_aggregates.ft_pct|round(1) }}%</td>
-                    <td style="color: #718096;">70%</td>
-                </tr>
-                <tr>
-                    <td class="text-left">True Shooting %</td>
-                    <td class="{{ 'stat-good' if team_aggregates.ts_pct >= 55 else 'stat-bad' }}">{{ team_aggregates.ts_pct|round(1) }}%</td>
-                    <td style="color: #718096;">55%</td>
-                </tr>
-            </table>
+
+        <!-- Top Performers & Team Overview -->
+        <div class="row">
+            <div class="col">
+                <div class="section-title">Top Performers</div>
+                <div style="display: flex; gap: 10px">
+                    {% if top_performers.points %}
+                    <div class="col top-performer-card">
+                        <div class="tp-label">Points</div>
+                        <div class="tp-value">
+                            {{ top_performers.points.points }}
+                        </div>
+                        <div class="tp-name">
+                            {{ top_performers.points.player_name }}
+                        </div>
+                    </div>
+                    {% endif %} {% if top_performers.efficiency %}
+                    <div class="col top-performer-card">
+                        <div class="tp-label">Efficiency</div>
+                        <div class="tp-value">
+                            {{ top_performers.efficiency.eff }}
+                        </div>
+                        <div class="tp-name">
+                            {{ top_performers.efficiency.player_name }}
+                        </div>
+                    </div>
+                    {% endif %} {% if top_performers.rebounds %}
+                    <div class="col top-performer-card">
+                        <div class="tp-label">Rebounds</div>
+                        <div class="tp-value">
+                            {{ top_performers.rebounds.reb }}
+                        </div>
+                        <div class="tp-name">
+                            {{ top_performers.rebounds.player_name }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col">
+                <div class="section-title">Team Shooting</div>
+                <table style="margin: 0">
+                    <tr>
+                        <th class="text-left">Metric</th>
+                        <th>Value</th>
+                        <th>Goal</th>
+                    </tr>
+                    <tr>
+                        <td class="text-left">FG%</td>
+                        <td
+                            class="{{ 'stat-good' if team_aggregates.fg_pct >= 45 else 'stat-bad' }}"
+                        >
+                            {{ team_aggregates.fg_pct|round(1) }}%
+                        </td>
+                        <td style="color: #718096">45%</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left">2P%</td>
+                        <td
+                            class="{{ 'stat-good' if team_aggregates.two_pt_pct >= 50 else 'stat-bad' }}"
+                        >
+                            {{ team_aggregates.two_pt_pct|round(1) }}%
+                        </td>
+                        <td style="color: #718096">50%</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left">3P%</td>
+                        <td
+                            class="{{ 'stat-good' if team_aggregates.tp_pct >= 33 else 'stat-bad' }}"
+                        >
+                            {{ team_aggregates.tp_pct|round(1) }}%
+                        </td>
+                        <td style="color: #718096">33%</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left">FT%</td>
+                        <td
+                            class="{{ 'stat-good' if team_aggregates.ft_pct >= 70 else 'stat-bad' }}"
+                        >
+                            {{ team_aggregates.ft_pct|round(1) }}%
+                        </td>
+                        <td style="color: #718096">70%</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left">True Shooting %</td>
+                        <td
+                            class="{{ 'stat-good' if team_aggregates.ts_pct >= 55 else 'stat-bad' }}"
+                        >
+                            {{ team_aggregates.ts_pct|round(1) }}%
+                        </td>
+                        <td style="color: #718096">55%</td>
+                    </tr>
+                </table>
+            </div>
         </div>
-    </div>
 
-    <div class="section-title">Box Score: Basic Stats</div>
-    <table>
-        <thead>
-            <tr>
-                <th class="text-left" style="width: 20%;">Player</th>
-                <th>MIN</th>
-                <th>PTS</th>
-                <th>REB</th>
-                <th>AST</th>
-                <th>STL</th>
-                <th>BLK</th>
-                <th>TOV</th>
-                <th>PF</th>
-                <th>EFF</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in stats %}
-            <tr>
-                <td class="text-left">{{ p.player_name }}</td>
-                <td>{{ p.minutes }}</td>
-                <td style="font-weight: bold;">{{ p.points }}</td>
-                <td>{{ p.reb }}</td>
-                <td>{{ p.ast }}</td>
-                <td>{{ p.stl }}</td>
-                <td>{{ p.blk }}</td>
-                <td>{{ p.tov }}</td>
-                <td class="{{ 'stat-bad' if p.pf >= 4 }}">{{ p.pf }}</td>
-                <td style="background: #edf2f7; font-weight: bold;">{{ p.eff }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <div class="page-break"></div>
-
-    <!-- Page 2: Shooting & Advanced Stats -->
-    <div class="header-container">
-        <div class="header-left">
-            <h1>Detailed Analysis</h1>
-        </div>
-        <div class="header-right">
-            Page 2/3
-        </div>
-    </div>
-
-    <div class="section-title">Shooting Breakdown</div>
-    <table>
-        <thead>
-            <tr>
-                <th class="text-left" style="width: 20%;">Player</th>
-                <th>Field Goals</th>
-                <th>2-Points</th>
-                <th>3-Points</th>
-                <th>Free Throws</th>
-                <th>eFG%</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in stats %}
-            <tr>
-                <td class="text-left">{{ p.player_name }}</td>
-                <td>
-                    {{ p.fgm }}/{{ p.fga }}
-                    <span style="color: #718096; font-size: 9px;">({{ p.fg_percent|int }}%)</span>
-                </td>
-                <td>
-                    {{ p.two_pt_made }}/{{ p.two_pt_att }}
-                    <span style="color: #718096; font-size: 9px;">({{ p.two_pt_pct|round(0)|int }}%)</span>
-                </td>
-                <td>
-                    {{ p.tpm }}/{{ p.tpa }}
-                    <span style="color: #718096; font-size: 9px;">({{ p.tp_percent|int }}%)</span>
-                </td>
-                <td>
-                    {{ p.ftm }}/{{ p.fta }}
-                    <span style="color: #718096; font-size: 9px;">({{ p.ft_percent|int }}%)</span>
-                </td>
-                <td>{{ p.efg_pct|round(1) }}%</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <div class="section-title">Advanced Metrics</div>
-    <table>
-        <thead>
-            <tr>
-                <th class="text-left" style="width: 20%;">Player</th>
-                <th>USG%</th>
-                <th>ORtg</th>
-                <th>PPP</th>
-                <th>TS%</th>
-                <th>AST/TOV</th>
-                <th>GmSc</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in stats %}
-            <tr>
-                <td class="text-left">{{ p.player_name }}</td>
-                <td>{{ p.usg_pct|round(1) }}%</td>
-                <td class="{{ 'stat-good' if p.ortg >= 110 else 'stat-bad' if p.ortg < 90 else '' }}">{{ p.ortg|round(0) }}</td>
-                <td>{{ p.ppp|round(2) }}</td>
-                <td>{{ p.ts_pct|round(1) }}%</td>
-                <td>{{ p.ast_tov_ratio|round(2) }}</td>
-                <td>{{ p.game_score|default(0)|round(1) }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <!-- Game Notes / Alerts -->
-    {% if alerts.foul_trouble or alerts.inefficient %}
-    <div class="section-title" style="background: #e53e3e;">Game Alerts</div>
-    <div style="border: 1px solid #fed7d7; background: #fff5f5; padding: 15px; border-radius: 6px;">
-        {% if alerts.foul_trouble %}
-        <div style="margin-bottom: 10px;">
-            <strong style="color: #c53030;">⚠️ Foul Trouble (4+ PF):</strong>
-            <span style="color: #2d3748;">
-                {% for p in alerts.foul_trouble %}
-                    {{ p.player_name }} ({{ p.pf }}){% if not loop.last %}, {% endif %}
+        <div class="section-title">Box Score: Basic Stats</div>
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-left" style="width: 20%">Player</th>
+                    <th>MIN</th>
+                    <th>PTS</th>
+                    <th>REB</th>
+                    <th>AST</th>
+                    <th>STL</th>
+                    <th>BLK</th>
+                    <th>TOV</th>
+                    <th>PF</th>
+                    <th>EFF</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in stats %}
+                <tr>
+                    <td class="text-left">{{ p.player_name }}</td>
+                    <td>{{ p.minutes }}</td>
+                    <td style="font-weight: bold">{{ p.points }}</td>
+                    <td>{{ p.reb }}</td>
+                    <td>{{ p.ast }}</td>
+                    <td>{{ p.stl }}</td>
+                    <td>{{ p.blk }}</td>
+                    <td>{{ p.tov }}</td>
+                    <td class="{{ 'stat-bad' if p.pf >= 4 }}">{{ p.pf }}</td>
+                    <td style="background: #edf2f7; font-weight: bold">
+                        {{ p.eff }}
+                    </td>
+                </tr>
                 {% endfor %}
-            </span>
+            </tbody>
+        </table>
+
+        <div class="page-break"></div>
+
+        <!-- Page 2: Shot Chart & Plays -->
+        <div class="header-container">
+            <div class="header-left">
+                <h1>Shot Chart & Plays</h1>
+            </div>
+            <div class="header-right">Page 2/4</div>
+        </div>
+
+        <div class="section-title">Shot Chart</div>
+        {% if shot_chart %}
+        <div class="chart-container">
+            <img
+                src="data:image/png;base64,{{ shot_chart }}"
+                alt="Team shot chart"
+            />
+        </div>
+        {% else %}
+        <div class="small-note">
+            No shot chart data available for this game.
         </div>
         {% endif %}
-        
-        {% if alerts.inefficient %}
-        <div>
-            <strong style="color: #c53030;">📉 Low Efficiency (< 0.8 PPP):</strong>
-            <span style="color: #2d3748;">
-                {% for p in alerts.inefficient %}
-                    {{ p.player_name }} ({{ p.ppp|round(2) }}){% if not loop.last %}, {% endif %}
+
+        <div class="section-title">Play Efficiency (Offense)</div>
+        {% if plays_data and plays_data|length > 0 %}
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-left" style="width: 30%">Play</th>
+                    <th>POSS</th>
+                    <th>PTS</th>
+                    <th>PPP</th>
+                    <th>TOV</th>
+                    <th>TOV%</th>
+                    <th>FG%</th>
+                    <th>eFG%</th>
+                    <th>Score%</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for play in plays_data %}
+                <tr>
+                    <td class="text-left">
+                        {% if play.name %}{{ play.name }}{% endif %} {% if
+                        play.play_type %}{{ play.play_type }}{% endif %} {% if
+                        not play.name and not play.play_type %}{{
+                        play.description|default('Unnamed Play') }}{% endif %}
+                        {% if play.play_number %} #{{ play.play_number }}{%
+                        endif %}
+                    </td>
+                    <td>{{ play.possessions|default(play.poss) }}</td>
+                    <td>{{ play.points }}</td>
+                    <td>{{ play.ppp|round(2) }}</td>
+                    <td>{{ play.turnovers|default(play.tov) }}</td>
+                    <td>{{ play.tov_pct|round(1) }}%</td>
+                    <td>{{ play.fg_pct|round(1) }}%</td>
+                    <td>{{ play.efg_pct|round(1) }}%</td>
+                    <td>{{ play.score_pct|round(1) }}%</td>
+                </tr>
                 {% endfor %}
-            </span>
+            </tbody>
+        </table>
+        <div class="small-note">
+            Tracked coverage: {{ (100 -
+            (untracked.untracked_possessions_pct|default(0)))|round(1) }}% of
+            possessions.
+        </div>
+        {% else %}
+        <div class="small-note">No play events recorded for this game.</div>
+        {% endif %}
+
+        <div class="page-break"></div>
+
+        <!-- Page 3: Shooting & Advanced Stats -->
+        <div class="header-container">
+            <div class="header-left">
+                <h1>Detailed Analysis</h1>
+            </div>
+            <div class="header-right">Page 3/4</div>
+        </div>
+
+        <div class="section-title">Shooting Breakdown</div>
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-left" style="width: 20%">Player</th>
+                    <th>Field Goals</th>
+                    <th>2-Points</th>
+                    <th>3-Points</th>
+                    <th>Free Throws</th>
+                    <th>eFG%</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in stats %}
+                <tr>
+                    <td class="text-left">{{ p.player_name }}</td>
+                    <td>
+                        {{ p.fgm }}/{{ p.fga }}
+                        <span style="color: #718096; font-size: 9px"
+                            >({{ p.fg_percent|int }}%)</span
+                        >
+                    </td>
+                    <td>
+                        {{ p.two_pt_made }}/{{ p.two_pt_att }}
+                        <span style="color: #718096; font-size: 9px"
+                            >({{ p.two_pt_pct|round(0)|int }}%)</span
+                        >
+                    </td>
+                    <td>
+                        {{ p.tpm }}/{{ p.tpa }}
+                        <span style="color: #718096; font-size: 9px"
+                            >({{ p.tp_percent|int }}%)</span
+                        >
+                    </td>
+                    <td>
+                        {{ p.ftm }}/{{ p.fta }}
+                        <span style="color: #718096; font-size: 9px"
+                            >({{ p.ft_percent|int }}%)</span
+                        >
+                    </td>
+                    <td>{{ p.efg_pct|round(1) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="section-title">Advanced Metrics</div>
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-left" style="width: 20%">Player</th>
+                    <th>USG%</th>
+                    <th>ORtg</th>
+                    <th>PPP</th>
+                    <th>TS%</th>
+                    <th>AST/TOV</th>
+                    <th>GmSc</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in stats %}
+                <tr>
+                    <td class="text-left">{{ p.player_name }}</td>
+                    <td>{{ p.usg_pct|round(1) }}%</td>
+                    <td
+                        class="{{ 'stat-good' if p.ortg >= 110 else 'stat-bad' if p.ortg < 90 else '' }}"
+                    >
+                        {{ p.ortg|round(0) }}
+                    </td>
+                    <td>{{ p.ppp|round(2) }}</td>
+                    <td>{{ p.ts_pct|round(1) }}%</td>
+                    <td>{{ p.ast_tov_ratio|round(2) }}</td>
+                    <td>{{ p.game_score|default(0)|round(1) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Game Notes / Alerts -->
+        {% if alerts.foul_trouble or alerts.inefficient %}
+        <div class="section-title" style="background: #e53e3e">Game Alerts</div>
+        <div
+            style="
+                border: 1px solid #fed7d7;
+                background: #fff5f5;
+                padding: 15px;
+                border-radius: 6px;
+            "
+        >
+            {% if alerts.foul_trouble %}
+            <div style="margin-bottom: 10px">
+                <strong style="color: #c53030">⚠️ Foul Trouble (4+ PF):</strong>
+                <span style="color: #2d3748">
+                    {% for p in alerts.foul_trouble %} {{ p.player_name }} ({{
+                    p.pf }}){% if not loop.last %}, {% endif %} {% endfor %}
+                </span>
+            </div>
+            {% endif %} {% if alerts.inefficient %}
+            <div>
+                <strong style="color: #c53030"
+                    >📉 Low Efficiency (< 0.8 PPP):</strong
+                >
+                <span style="color: #2d3748">
+                    {% for p in alerts.inefficient %} {{ p.player_name }} ({{
+                    p.ppp|round(2) }}){% if not loop.last %}, {% endif %} {%
+                    endfor %}
+                </span>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
-    </div>
-    {% endif %}
 
-    <div class="page-break"></div>
+        <div class="page-break"></div>
 
-    <!-- Page 3: Glossary -->
-    <div class="header-container">
-        <div class="header-left">
-            <h1>Metrics Glossary</h1>
+        <!-- Page 4: Glossary -->
+        <div class="header-container">
+            <div class="header-left">
+                <h1>Metrics Glossary</h1>
+            </div>
+            <div class="header-right">Page 4/4</div>
         </div>
-        <div class="header-right">
-            Page 3/3
+
+        <div class="section-title">Basic Statistics</div>
+
+        <div class="glossary-item">
+            <div class="glossary-term">MIN - Minutes Played</div>
+            <div class="glossary-desc">
+                Total time a player was on the court during the game.
+            </div>
+            <div class="glossary-range">
+                Range: 0-40 minutes (typical full game)
+            </div>
         </div>
-    </div>
 
-    <div class="section-title">Basic Statistics</div>
-    
-    <div class="glossary-item">
-        <div class="glossary-term">MIN - Minutes Played</div>
-        <div class="glossary-desc">Total time a player was on the court during the game.</div>
-        <div class="glossary-range">Range: 0-40 minutes (typical full game)</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">PTS - Points</div>
+            <div class="glossary-desc">
+                Total points scored (1pt for FT, 2pts for 2P, 3pts for 3P).
+            </div>
+            <div class="glossary-range">Range: 0-50+ | Good: 15+ per game</div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">PTS - Points</div>
-        <div class="glossary-desc">Total points scored (1pt for FT, 2pts for 2P, 3pts for 3P).</div>
-        <div class="glossary-range">Range: 0-50+ | Good: 15+ per game</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">REB - Total Rebounds</div>
+            <div class="glossary-desc">
+                Offensive rebounds (OREB) + Defensive rebounds (DREB).
+            </div>
+            <div class="glossary-range">Range: 0-20+ | Good: 8+ per game</div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">REB - Total Rebounds</div>
-        <div class="glossary-desc">Offensive rebounds (OREB) + Defensive rebounds (DREB).</div>
-        <div class="glossary-range">Range: 0-20+ | Good: 8+ per game</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">AST - Assists</div>
+            <div class="glossary-desc">
+                Passes that directly lead to a made basket.
+            </div>
+            <div class="glossary-range">Range: 0-15+ | Good: 5+ per game</div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">AST - Assists</div>
-        <div class="glossary-desc">Passes that directly lead to a made basket.</div>
-        <div class="glossary-range">Range: 0-15+ | Good: 5+ per game</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">STL - Steals</div>
+            <div class="glossary-desc">
+                Successful defensive interceptions of the ball.
+            </div>
+            <div class="glossary-range">Range: 0-5+ | Good: 2+ per game</div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">STL - Steals</div>
-        <div class="glossary-desc">Successful defensive interceptions of the ball.</div>
-        <div class="glossary-range">Range: 0-5+ | Good: 2+ per game</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">BLK - Blocks</div>
+            <div class="glossary-desc">
+                Shots legally deflected or stopped by a defender.
+            </div>
+            <div class="glossary-range">Range: 0-5+ | Good: 1+ per game</div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">BLK - Blocks</div>
-        <div class="glossary-desc">Shots legally deflected or stopped by a defender.</div>
-        <div class="glossary-range">Range: 0-5+ | Good: 1+ per game</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">TOV - Turnovers</div>
+            <div class="glossary-desc">
+                Loss of ball possession through errors or violations.
+            </div>
+            <div class="glossary-range">Range: 0-6+ | Good: <3 per game</div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">TOV - Turnovers</div>
-        <div class="glossary-desc">Loss of ball possession through errors or violations.</div>
-        <div class="glossary-range">Range: 0-6+ | Good: <3 per game</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">PF - Personal Fouls</div>
+            <div class="glossary-desc">
+                Illegal physical contact with an opponent. 5-6 fouls =
+                disqualification.
+            </div>
+            <div class="glossary-range">
+                Range: 0-6 | Warning: 4+ (foul trouble)
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">PF - Personal Fouls</div>
-        <div class="glossary-desc">Illegal physical contact with an opponent. 5-6 fouls = disqualification.</div>
-        <div class="glossary-range">Range: 0-6 | Warning: 4+ (foul trouble)</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">EFF - Efficiency</div>
+            <div class="glossary-desc">
+                Overall player contribution: (PTS+REB+AST+STL+BLK) -
+                ((FGA-FGM)+(FTA-FTM)+TOV).
+            </div>
+            <div class="glossary-range">
+                Range: -10 to 40+ | Poor: <10 | Good: 15+ | Elite: 25+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">EFF - Efficiency</div>
-        <div class="glossary-desc">Overall player contribution: (PTS+REB+AST+STL+BLK) - ((FGA-FGM)+(FTA-FTM)+TOV).</div>
-        <div class="glossary-range">Range: -10 to 40+ | Poor: <10 | Good: 15+ | Elite: 25+</div>
-    </div>
+        <div class="section-title" style="margin-top: 20px">
+            Shooting Percentages
+        </div>
 
-    <div class="section-title" style="margin-top: 20px;">Shooting Percentages</div>
+        <div class="glossary-item">
+            <div class="glossary-term">FG% - Field Goal Percentage</div>
+            <div class="glossary-desc">
+                Made field goals / Attempted field goals × 100.
+            </div>
+            <div class="glossary-range">
+                Range: 0-100% | Poor: <40% | Good: 45%+ | Elite: 55%+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">FG% - Field Goal Percentage</div>
-        <div class="glossary-desc">Made field goals / Attempted field goals × 100.</div>
-        <div class="glossary-range">Range: 0-100% | Poor: <40% | Good: 45%+ | Elite: 55%+</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">2P% - Two-Point Percentage</div>
+            <div class="glossary-desc">
+                Made 2-point shots / Attempted 2-point shots × 100.
+            </div>
+            <div class="glossary-range">
+                Range: 0-100% | Poor: <45% | Good: 50%+ | Elite: 60%+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">2P% - Two-Point Percentage</div>
-        <div class="glossary-desc">Made 2-point shots / Attempted 2-point shots × 100.</div>
-        <div class="glossary-range">Range: 0-100% | Poor: <45% | Good: 50%+ | Elite: 60%+</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">3P% - Three-Point Percentage</div>
+            <div class="glossary-desc">
+                Made 3-point shots / Attempted 3-point shots × 100.
+            </div>
+            <div class="glossary-range">
+                Range: 0-100% | Poor: <30% | Good: 35%+ | Elite: 40%+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">3P% - Three-Point Percentage</div>
-        <div class="glossary-desc">Made 3-point shots / Attempted 3-point shots × 100.</div>
-        <div class="glossary-range">Range: 0-100% | Poor: <30% | Good: 35%+ | Elite: 40%+</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">FT% - Free Throw Percentage</div>
+            <div class="glossary-desc">
+                Made free throws / Attempted free throws × 100.
+            </div>
+            <div class="glossary-range">
+                Range: 0-100% | Poor: <65% | Good: 75%+ | Elite: 85%+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">FT% - Free Throw Percentage</div>
-        <div class="glossary-desc">Made free throws / Attempted free throws × 100.</div>
-        <div class="glossary-range">Range: 0-100% | Poor: <65% | Good: 75%+ | Elite: 85%+</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">TS% - True Shooting Percentage</div>
+            <div class="glossary-desc">
+                Shooting efficiency accounting for 2P, 3P, and FT: PTS / (2 ×
+                (FGA + 0.44×FTA)) × 100.
+            </div>
+            <div class="glossary-range">
+                Range: 0-100% | Poor: <50% | Good: 55%+ | Elite: 65%+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">TS% - True Shooting Percentage</div>
-        <div class="glossary-desc">Shooting efficiency accounting for 2P, 3P, and FT: PTS / (2 × (FGA + 0.44×FTA)) × 100.</div>
-        <div class="glossary-range">Range: 0-100% | Poor: <50% | Good: 55%+ | Elite: 65%+</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">
+                eFG% - Effective Field Goal Percentage
+            </div>
+            <div class="glossary-desc">
+                FG% adjusted for 3-pointers being worth more: (FGM + 0.5×3PM) /
+                FGA × 100.
+            </div>
+            <div class="glossary-range">
+                Range: 0-100% | Poor: <45% | Good: 50%+ | Elite: 60%+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">eFG% - Effective Field Goal Percentage</div>
-        <div class="glossary-desc">FG% adjusted for 3-pointers being worth more: (FGM + 0.5×3PM) / FGA × 100.</div>
-        <div class="glossary-range">Range: 0-100% | Poor: <45% | Good: 50%+ | Elite: 60%+</div>
-    </div>
+        <div class="section-title" style="margin-top: 20px">
+            Advanced Metrics
+        </div>
 
-    <div class="section-title" style="margin-top: 20px;">Advanced Metrics</div>
+        <div class="glossary-item">
+            <div class="glossary-term">USG% - Usage Percentage</div>
+            <div class="glossary-desc">
+                Estimate of possessions used while on court: (FGA + 0.44×FTA +
+                TOV) / Minutes × scaling factor.
+            </div>
+            <div class="glossary-range">
+                Range: 0-40%+ | Low: <15% | Average: 20% | High: 28%+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">USG% - Usage Percentage</div>
-        <div class="glossary-desc">Estimate of possessions used while on court: (FGA + 0.44×FTA + TOV) / Minutes × scaling factor.</div>
-        <div class="glossary-range">Range: 0-40%+ | Low: <15% | Average: 20% | High: 28%+</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">ORtg - Offensive Rating</div>
+            <div class="glossary-desc">
+                Points produced per 100 possessions: (Points / Possessions) ×
+                100.
+            </div>
+            <div class="glossary-range">
+                Range: 0-200+ | Poor: <90 | Average: 100 | Good: 110+ | Elite:
+                120+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">ORtg - Offensive Rating</div>
-        <div class="glossary-desc">Points produced per 100 possessions: (Points / Possessions) × 100.</div>
-        <div class="glossary-range">Range: 0-200+ | Poor: <90 | Average: 100 | Good: 110+ | Elite: 120+</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">PPP - Points Per Possession</div>
+            <div class="glossary-desc">
+                Offensive efficiency: Points scored / Total possessions used.
+            </div>
+            <div class="glossary-range">
+                Range: 0-2.0+ | Poor: <0.8 | Average: 1.0 | Good: 1.2+ | Elite:
+                1.5+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">PPP - Points Per Possession</div>
-        <div class="glossary-desc">Offensive efficiency: Points scored / Total possessions used.</div>
-        <div class="glossary-range">Range: 0-2.0+ | Poor: <0.8 | Average: 1.0 | Good: 1.2+ | Elite: 1.5+</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">AST/TOV - Assist to Turnover Ratio</div>
+            <div class="glossary-desc">
+                Ball handling efficiency: Assists / Turnovers. Higher is better.
+            </div>
+            <div class="glossary-range">
+                Range: 0-10+ | Poor: <1.0 | Average: 1.5 | Good: 2.0+ | Elite:
+                3.0+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">AST/TOV - Assist to Turnover Ratio</div>
-        <div class="glossary-desc">Ball handling efficiency: Assists / Turnovers. Higher is better.</div>
-        <div class="glossary-range">Range: 0-10+ | Poor: <1.0 | Average: 1.5 | Good: 2.0+ | Elite: 3.0+</div>
-    </div>
+        <div class="glossary-item">
+            <div class="glossary-term">GmSc - Game Score</div>
+            <div class="glossary-desc">
+                Hollinger's overall game performance metric: PTS + 0.4×FGM -
+                0.7×FGA - 0.4×(FTA-FTM) + 0.7×OREB + 0.3×DREB + STL + 0.7×AST +
+                0.7×BLK - 0.4×PF - TOV.
+            </div>
+            <div class="glossary-range">
+                Range: -10 to 40+ | Poor: <8 | Average: 12 | Good: 18+ | Elite:
+                25+
+            </div>
+        </div>
 
-    <div class="glossary-item">
-        <div class="glossary-term">GmSc - Game Score</div>
-        <div class="glossary-desc">Hollinger's overall game performance metric: PTS + 0.4×FGM - 0.7×FGA - 0.4×(FTA-FTM) + 0.7×OREB + 0.3×DREB + STL + 0.7×AST + 0.7×BLK - 0.4×PF - TOV.</div>
-        <div class="glossary-range">Range: -10 to 40+ | Poor: <8 | Average: 12 | Good: 18+ | Elite: 25+</div>
-    </div>
-
-    <div style="margin-top: 30px; text-align: center; font-size: 10px; color: #a0aec0; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-        Generated by Basketball Stats Platform
-    </div>
-</body>
+        <div
+            style="
+                margin-top: 30px;
+                text-align: center;
+                font-size: 10px;
+                color: #a0aec0;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 10px;
+            "
+        >
+            Generated by Basketball Stats Platform
+        </div>
+    </body>
 </html>
