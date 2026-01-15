@@ -163,8 +163,8 @@ class GameTracker {
     }
 
     renderPlaysList() {
-        const list = document.getElementById('plays-list');
-        if (!list) return;
+        const container = document.getElementById('plays-list');
+        if (!container) return;
 
         let targetType = 'Offense';
         if (this.showSpecial) {
@@ -189,58 +189,97 @@ class GameTracker {
             macroMap.get(macroName).push(play);
         });
 
-        list.innerHTML = '';
+        container.innerHTML = '';
 
         if (filteredPlays.length === 0) {
-            list.innerHTML = `<div class="list-group-item text-muted text-center">No ${targetType} plays found</div>`;
+            container.innerHTML = '<div class="text-muted text-center p-4">No ' + targetType + ' plays found</div>';
             return;
         }
 
+        // Recent plays section (cards)
         if (targetType === 'Offense' && this.recentPlays.length > 0) {
             const recentHeader = document.createElement('div');
-            recentHeader.className = 'list-group-item bg-light py-1';
-            recentHeader.innerHTML = '<small class="text-primary font-weight-bold">RECENT</small>';
-            list.appendChild(recentHeader);
+            recentHeader.className = 'px-3 py-2 bg-light border-bottom';
+            recentHeader.innerHTML = '<small class="text-primary font-weight-bold"><i class="fas fa-history"></i> RECENT</small>';
+            container.appendChild(recentHeader);
 
+            const recentGrid = document.createElement('div');
+            recentGrid.className = 'row no-gutters p-2';
+            
             this.recentPlays.forEach(play => {
-                const btn = this.createPlayButton(play, false); 
-                btn.classList.add('border-primary');
-                list.appendChild(btn);
+                const card = this.createPlayCard(play, false, true);
+                recentGrid.appendChild(card);
             });
             
+            container.appendChild(recentGrid);
+            
             const divider = document.createElement('div');
-            divider.className = 'list-group-item bg-light py-1 mt-2';
-            divider.innerHTML = '<small class="text-secondary font-weight-bold">ALL PLAYS</small>';
-            list.appendChild(divider);
+            divider.className = 'px-3 py-2 bg-light border-top border-bottom';
+            divider.innerHTML = '<small class="text-secondary font-weight-bold"><i class="fas fa-list"></i> ALL PLAYS</small>';
+            container.appendChild(divider);
         }
+
+        // All plays section (cards grid)
+        const playsGrid = document.createElement('div');
+        playsGrid.className = 'row no-gutters p-2';
 
         const macros = Array.from(macroMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
         macros.forEach(([name, variations]) => {
             if (variations.length === 1) {
-                list.appendChild(this.createPlayButton(variations[0], false));
+                playsGrid.appendChild(this.createPlayCard(variations[0], false, false));
             } else {
-                list.appendChild(this.createPlayButton(variations[0], true, name));
+                playsGrid.appendChild(this.createPlayCard(variations[0], true, false, name));
             }
         });
+
+        container.appendChild(playsGrid);
     }
 
-    createPlayButton(play, isMacro = false, customLabel = null) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'list-group-item list-group-item-action py-2';
-        btn.style.cursor = 'pointer';
+    createPlayCard(play, isMacro = false, isRecent = false, customLabel = null) {
+        const col = document.createElement('div');
+        col.className = 'col-6 col-sm-4 col-md-3 p-1';
         
         const displayName = customLabel || play.name;
         
-        btn.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center">
-                <span class="font-weight-bold">${displayName}</span>
-                ${isMacro ? '<small class="badge badge-light border text-muted">Group</small>' : ''}
+        const card = document.createElement('div');
+        card.className = 'card h-100 shadow-sm border-0';
+        card.style.cursor = 'pointer';
+        card.style.transition = 'all 0.15s';
+        
+        // Add hover effect
+        card.onmouseenter = () => {
+            card.style.transform = 'translateY(-2px)';
+            card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+        };
+        card.onmouseleave = () => {
+            card.style.transform = 'translateY(0)';
+            card.style.boxShadow = '';
+        };
+        
+        // Apply colors based on type
+        let headerClass = 'bg-primary text-white';
+        if (isRecent) {
+            headerClass = 'bg-info text-white';
+        } else if (isMacro) {
+            headerClass = 'bg-secondary text-white';
+        }
+        
+        card.innerHTML = `
+            <div class="card-header ${headerClass} py-2 px-2 text-center">
+                <div class="font-weight-bold" style="font-size: 0.9rem; line-height: 1.2;">${displayName}</div>
+                ${isMacro ? '<small class="badge badge-light mt-1" style="font-size: 0.65rem;"><i class="fas fa-layer-group"></i> Group</small>' : ''}
+                ${isRecent ? '<small class="badge badge-light mt-1" style="font-size: 0.65rem;"><i class="fas fa-star"></i></small>' : ''}
+            </div>
+            <div class="card-body p-2 d-flex align-items-center justify-content-center" style="min-height: 50px;">
+                <i class="fas fa-basketball-ball text-muted" style="font-size: 1.5rem; opacity: 0.3;"></i>
             </div>
         `;
-        btn.onclick = () => this.selectPlay(play);
-        return btn;
+        
+        card.onclick = () => this.selectPlay(play);
+        
+        col.appendChild(card);
+        return col;
     }
 
     openPlaySelector(eventType, shooter = null, shotType = null) {
@@ -819,15 +858,15 @@ class GameTracker {
     renderStatBox(player, label, key, value, textClass = '', isToV = false) {
         const tovHtml = isToV ? `
             <div class="d-flex justify-content-center align-items-center">
-                <button class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.7rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">-</button>
+                <button class="btn btn-sm btn-secondary py-1 px-2 mx-1" style="font-size: 0.95rem; min-width: 36px;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">−</button>
                 <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
-                <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size: 0.8rem; line-height:1;" onclick="gameTracker.recordTurnover('${player}')">+</button>
+                <button class="btn btn-sm btn-danger py-1 px-2 mx-1 font-weight-bold" style="font-size: 1rem; min-width: 36px;" onclick="gameTracker.recordTurnover('${player}')">+</button>
             </div>
         ` : `
             <div class="d-flex justify-content-center align-items-center">
-                <button class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.7rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">-</button>
+                <button class="btn btn-sm btn-secondary py-1 px-2 mx-1" style="font-size: 0.95rem; min-width: 36px;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">−</button>
                 <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
-                <button class="btn btn-sm btn-outline-dark py-0 px-1" style="font-size: 0.8rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', 1)">+</button>
+                <button class="btn btn-sm btn-dark py-1 px-2 mx-1" style="font-size: 0.95rem; min-width: 36px;" onclick="gameTracker.updateStat('${player}', '${key}', 1)">+</button>
             </div>
         `;
         
@@ -1430,6 +1469,113 @@ class GameTracker {
 
         this.addToCache(this.getCurrentState());
         this.saveState();
+    }
+
+    // --- STATS VIEW ---
+    showCurrentStats() {
+        const tbody = document.getElementById('current-stats-table-body');
+        const tfoot = document.getElementById('current-stats-table-footer');
+        if (!tbody || !tfoot) return;
+
+        tbody.innerHTML = '';
+        tfoot.innerHTML = '';
+
+        // Convert stats object to array for sorting
+        // Filter out players with no minutes/stats if desired, or show all roster
+        const players = Object.keys(this.stats).map(name => {
+            const s = this.stats[name];
+            return { name, ...s, total_reb: s.oreb + s.dreb };
+        });
+
+        // Sort: Active players first, then by Points descending
+        players.sort((a, b) => {
+            const aActive = this.activeLineup.includes(a.name) ? 1 : 0;
+            const bActive = this.activeLineup.includes(b.name) ? 1 : 0;
+            if (aActive !== bActive) return bActive - aActive;
+            return b.points - a.points;
+        });
+
+        let team = {
+            points: 0, reb: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0,
+            fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0
+        };
+
+        players.forEach(p => {
+            // Accumulate Team Totals
+            team.points += p.points;
+            team.reb += p.total_reb;
+            team.oreb += p.oreb;
+            team.dreb += p.dreb;
+            team.ast += p.ast;
+            team.stl += p.stl;
+            team.blk += p.blk;
+            team.tov += p.tov;
+            team.pf += p.pf;
+            team.fgm += p.fgm;
+            team.fga += p.fga;
+            team.tpm += p.tpm;
+            team.tpa += p.tpa;
+            team.ftm += p.ftm;
+            team.fta += p.fta;
+
+            const row = document.createElement('tr');
+            const isActive = this.activeLineup.includes(p.name);
+            
+            // Highlight active players gently
+            if (isActive) row.classList.add('table-primary');
+
+            // Format percentages
+            const fgPct = p.fga > 0 ? Math.round((p.fgm / p.fga) * 100) : 0;
+            const tpPct = p.tpa > 0 ? Math.round((p.tpm / p.tpa) * 100) : 0;
+            const ftPct = p.fta > 0 ? Math.round((p.ftm / p.fta) * 100) : 0;
+            
+            // PM Color
+            const pmClass = p.plus_minus > 0 ? 'text-success' : (p.plus_minus < 0 ? 'text-danger' : 'text-muted');
+            const pmSign = p.plus_minus > 0 ? '+' : '';
+
+            row.innerHTML = `
+                <td class="text-left text-nowrap font-weight-bold">
+                    ${p.name} 
+                    ${isActive ? '<span class="badge badge-success ml-1" style="font-size:0.6em">ON</span>' : ''}
+                </td>
+                <td class="font-weight-bold border-left">${p.points}</td>
+                <td>${p.total_reb} <small class="text-muted">(${p.oreb}/${p.dreb})</small></td>
+                <td>${p.ast}</td>
+                <td>${p.stl}</td>
+                <td>${p.blk}</td>
+                <td>${p.tov}</td>
+                <td class="${p.pf >= 3 ? 'text-danger font-weight-bold' : ''}">${p.pf}</td>
+                <td class="border-left text-nowrap">${p.fgm}/${p.fga} <small class="text-muted">${fgPct}%</small></td>
+                <td class="text-nowrap">${p.tpm}/${p.tpa} <small class="text-muted">${tpPct}%</small></td>
+                <td class="text-nowrap">${p.ftm}/${p.fta} <small class="text-muted">${ftPct}%</small></td>
+                <td class="${pmClass} font-weight-bold border-left">${pmSign}${p.plus_minus}</td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        // Render Footer (Team Totals)
+        const teamFgPct = team.fga > 0 ? Math.round((team.fgm / team.fga) * 100) : 0;
+        const teamTpPct = team.tpa > 0 ? Math.round((team.tpm / team.tpa) * 100) : 0;
+        const teamFtPct = team.fta > 0 ? Math.round((team.ftm / team.fta) * 100) : 0;
+
+        tfoot.innerHTML = `
+            <tr>
+                <td class="text-left text-uppercase">Team Total</td>
+                <td class="border-left">${team.points}</td>
+                <td>${team.reb} <small class="text-muted">(${team.oreb}/${team.dreb})</small></td>
+                <td>${team.ast}</td>
+                <td>${team.stl}</td>
+                <td>${team.blk}</td>
+                <td>${team.tov}</td>
+                <td>${team.pf}</td>
+                <td class="border-left">${team.fgm}/${team.fga} <small class="text-muted">${teamFgPct}%</small></td>
+                <td>${team.tpm}/${team.tpa} <small class="text-muted">${teamTpPct}%</small></td>
+                <td>${team.ftm}/${team.fta} <small class="text-muted">${teamFtPct}%</small></td>
+                <td class="border-left">-</td>
+            </tr>
+        `;
+
+        $('#currentStatsModal').modal('show');
     }
 
     // --- FINISH ---

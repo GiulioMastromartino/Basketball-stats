@@ -1,6 +1,9 @@
+[![Documentation](https://img.shields.io/badge/docs-view_site-blue)](https://giuliomastromartino.github.io/Basketball-stats/)
+
 # 🏀 Basketball Stats Analyzer
 
 A web application for tracking and analyzing basketball game statistics with advanced metrics.
+
 
 ## What It Does
 

@@ -1,0 +1,51 @@
+site_name: Basketball Stats Tracker
+site_description: Professional Basketball Statistics Tracking & Analytics Platform
+site_author: Giulio Mastromartino
+repo_url: https://github.com/GiulioMastromartino/Basketball-stats
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - User Guide:
+    - 'Getting Started': user-guide/getting-started.md
+    - 'Live Game Tracking': user-guide/live-game.md
+    - 'Plays Management': user-guide/plays.md
+    - 'PDF Exports': user-guide/pdf-exports.md
+  - Technical:
+    - 'Deployment': technical/deployment.md
+    - 'Architecture': technical/architecture.md
+    - 'API Reference': technical/api.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
