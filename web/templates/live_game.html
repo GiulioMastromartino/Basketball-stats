@@ -217,6 +217,11 @@
                                 <button class="btn btn-info btn-sm" id="btn-play-selector" onclick="gameTracker.togglePlaySelector()">
                                     <span class="d-none d-md-inline">Play Selector: </span><span id="play-selector-status" style="color: #28a745;">ON</span>
                                 </button>
+                                
+                                <!-- Current Stats Button -->
+                                <button class="btn btn-primary btn-sm" onclick="gameTracker.showCurrentStats()">
+                                    <i class="fas fa-chart-bar"></i> <span class="d-none d-sm-inline">Stats</span>
+                                </button>
 
                                 <button class="btn btn-warning btn-sm" onclick="gameTracker.finishGame()">Finish Game</button>
                             </div>
@@ -358,6 +363,49 @@
                 <div class="list-group list-group-flush flex-grow-1" id="plays-list" style="overflow-y: auto;">
                     <!-- JS populates this -->
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Current Stats Modal -->
+<div class="modal fade" id="currentStatsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white py-2">
+                <h5 class="modal-title h6">Current Game Stats</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped table-hover mb-0 text-center" style="font-size: 0.85rem;">
+                        <thead class="thead-dark sticky-top">
+                            <tr>
+                                <th class="text-left" style="min-width: 100px;">Player</th>
+                                <th title="Points">PTS</th>
+                                <th title="Rebounds (Off/Def)">REB</th>
+                                <th title="Assists">AST</th>
+                                <th title="Steals">STL</th>
+                                <th title="Blocks">BLK</th>
+                                <th title="Turnovers">TOV</th>
+                                <th title="Personal Fouls">PF</th>
+                                <th title="Field Goals">FG</th>
+                                <th title="3-Pointers">3P</th>
+                                <th title="Free Throws">FT</th>
+                                <th title="Plus/Minus">+/-</th>
+                            </tr>
+                        </thead>
+                        <tbody id="current-stats-table-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                        <tfoot class="bg-light font-weight-bold border-top" id="current-stats-table-footer">
+                            <!-- Populated by JS -->
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer py-1">
+                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
