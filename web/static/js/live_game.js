@@ -858,15 +858,15 @@ class GameTracker {
     renderStatBox(player, label, key, value, textClass = '', isToV = false) {
         const tovHtml = isToV ? `
             <div class="d-flex justify-content-center align-items-center">
-                <button class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.7rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">-</button>
+                <button class="btn btn-sm btn-secondary py-1 px-2 mx-1" style="font-size: 0.95rem; min-width: 36px;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">−</button>
                 <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
-                <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size: 0.8rem; line-height:1;" onclick="gameTracker.recordTurnover('${player}')">+</button>
+                <button class="btn btn-sm btn-danger py-1 px-2 mx-1 font-weight-bold" style="font-size: 1rem; min-width: 36px;" onclick="gameTracker.recordTurnover('${player}')">+</button>
             </div>
         ` : `
             <div class="d-flex justify-content-center align-items-center">
-                <button class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.7rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">-</button>
+                <button class="btn btn-sm btn-secondary py-1 px-2 mx-1" style="font-size: 0.95rem; min-width: 36px;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">−</button>
                 <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
-                <button class="btn btn-sm btn-outline-dark py-0 px-1" style="font-size: 0.8rem; line-height:1;" onclick="gameTracker.updateStat('${player}', '${key}', 1)">+</button>
+                <button class="btn btn-sm btn-dark py-1 px-2 mx-1" style="font-size: 0.95rem; min-width: 36px;" onclick="gameTracker.updateStat('${player}', '${key}', 1)">+</button>
             </div>
         `;
         
