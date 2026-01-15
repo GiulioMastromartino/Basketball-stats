@@ -1432,6 +1432,113 @@ class GameTracker {
         this.saveState();
     }
 
+    // --- STATS VIEW ---
+    showCurrentStats() {
+        const tbody = document.getElementById('current-stats-table-body');
+        const tfoot = document.getElementById('current-stats-table-footer');
+        if (!tbody || !tfoot) return;
+
+        tbody.innerHTML = '';
+        tfoot.innerHTML = '';
+
+        // Convert stats object to array for sorting
+        // Filter out players with no minutes/stats if desired, or show all roster
+        const players = Object.keys(this.stats).map(name => {
+            const s = this.stats[name];
+            return { name, ...s, total_reb: s.oreb + s.dreb };
+        });
+
+        // Sort: Active players first, then by Points descending
+        players.sort((a, b) => {
+            const aActive = this.activeLineup.includes(a.name) ? 1 : 0;
+            const bActive = this.activeLineup.includes(b.name) ? 1 : 0;
+            if (aActive !== bActive) return bActive - aActive;
+            return b.points - a.points;
+        });
+
+        let team = {
+            points: 0, reb: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0,
+            fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0
+        };
+
+        players.forEach(p => {
+            // Accumulate Team Totals
+            team.points += p.points;
+            team.reb += p.total_reb;
+            team.oreb += p.oreb;
+            team.dreb += p.dreb;
+            team.ast += p.ast;
+            team.stl += p.stl;
+            team.blk += p.blk;
+            team.tov += p.tov;
+            team.pf += p.pf;
+            team.fgm += p.fgm;
+            team.fga += p.fga;
+            team.tpm += p.tpm;
+            team.tpa += p.tpa;
+            team.ftm += p.ftm;
+            team.fta += p.fta;
+
+            const row = document.createElement('tr');
+            const isActive = this.activeLineup.includes(p.name);
+            
+            // Highlight active players gently
+            if (isActive) row.classList.add('table-primary');
+
+            // Format percentages
+            const fgPct = p.fga > 0 ? Math.round((p.fgm / p.fga) * 100) : 0;
+            const tpPct = p.tpa > 0 ? Math.round((p.tpm / p.tpa) * 100) : 0;
+            const ftPct = p.fta > 0 ? Math.round((p.ftm / p.fta) * 100) : 0;
+            
+            // PM Color
+            const pmClass = p.plus_minus > 0 ? 'text-success' : (p.plus_minus < 0 ? 'text-danger' : 'text-muted');
+            const pmSign = p.plus_minus > 0 ? '+' : '';
+
+            row.innerHTML = `
+                <td class="text-left text-nowrap font-weight-bold">
+                    ${p.name} 
+                    ${isActive ? '<span class="badge badge-success ml-1" style="font-size:0.6em">ON</span>' : ''}
+                </td>
+                <td class="font-weight-bold border-left">${p.points}</td>
+                <td>${p.total_reb} <small class="text-muted">(${p.oreb}/${p.dreb})</small></td>
+                <td>${p.ast}</td>
+                <td>${p.stl}</td>
+                <td>${p.blk}</td>
+                <td>${p.tov}</td>
+                <td class="${p.pf >= 3 ? 'text-danger font-weight-bold' : ''}">${p.pf}</td>
+                <td class="border-left text-nowrap">${p.fgm}/${p.fga} <small class="text-muted">${fgPct}%</small></td>
+                <td class="text-nowrap">${p.tpm}/${p.tpa} <small class="text-muted">${tpPct}%</small></td>
+                <td class="text-nowrap">${p.ftm}/${p.fta} <small class="text-muted">${ftPct}%</small></td>
+                <td class="${pmClass} font-weight-bold border-left">${pmSign}${p.plus_minus}</td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        // Render Footer (Team Totals)
+        const teamFgPct = team.fga > 0 ? Math.round((team.fgm / team.fga) * 100) : 0;
+        const teamTpPct = team.tpa > 0 ? Math.round((team.tpm / team.tpa) * 100) : 0;
+        const teamFtPct = team.fta > 0 ? Math.round((team.ftm / team.fta) * 100) : 0;
+
+        tfoot.innerHTML = `
+            <tr>
+                <td class="text-left text-uppercase">Team Total</td>
+                <td class="border-left">${team.points}</td>
+                <td>${team.reb} <small class="text-muted">(${team.oreb}/${team.dreb})</small></td>
+                <td>${team.ast}</td>
+                <td>${team.stl}</td>
+                <td>${team.blk}</td>
+                <td>${team.tov}</td>
+                <td>${team.pf}</td>
+                <td class="border-left">${team.fgm}/${team.fga} <small class="text-muted">${teamFgPct}%</small></td>
+                <td>${team.tpm}/${team.tpa} <small class="text-muted">${teamTpPct}%</small></td>
+                <td>${team.ftm}/${team.fta} <small class="text-muted">${teamFtPct}%</small></td>
+                <td class="border-left">-</td>
+            </tr>
+        `;
+
+        $('#currentStatsModal').modal('show');
+    }
+
     // --- FINISH ---
     formatMinutes(totalSeconds) {
         const m = Math.floor(totalSeconds / 60);
