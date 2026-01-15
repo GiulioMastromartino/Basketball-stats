@@ -163,8 +163,8 @@ class GameTracker {
     }
 
     renderPlaysList() {
-        const list = document.getElementById('plays-list');
-        if (!list) return;
+        const container = document.getElementById('plays-list');
+        if (!container) return;
 
         let targetType = 'Offense';
         if (this.showSpecial) {
@@ -189,58 +189,97 @@ class GameTracker {
             macroMap.get(macroName).push(play);
         });
 
-        list.innerHTML = '';
+        container.innerHTML = '';
 
         if (filteredPlays.length === 0) {
-            list.innerHTML = `<div class="list-group-item text-muted text-center">No ${targetType} plays found</div>`;
+            container.innerHTML = '<div class="text-muted text-center p-4">No ' + targetType + ' plays found</div>';
             return;
         }
 
+        // Recent plays section (cards)
         if (targetType === 'Offense' && this.recentPlays.length > 0) {
             const recentHeader = document.createElement('div');
-            recentHeader.className = 'list-group-item bg-light py-1';
-            recentHeader.innerHTML = '<small class="text-primary font-weight-bold">RECENT</small>';
-            list.appendChild(recentHeader);
+            recentHeader.className = 'px-3 py-2 bg-light border-bottom';
+            recentHeader.innerHTML = '<small class="text-primary font-weight-bold"><i class="fas fa-history"></i> RECENT</small>';
+            container.appendChild(recentHeader);
 
+            const recentGrid = document.createElement('div');
+            recentGrid.className = 'row no-gutters p-2';
+            
             this.recentPlays.forEach(play => {
-                const btn = this.createPlayButton(play, false); 
-                btn.classList.add('border-primary');
-                list.appendChild(btn);
+                const card = this.createPlayCard(play, false, true);
+                recentGrid.appendChild(card);
             });
             
+            container.appendChild(recentGrid);
+            
             const divider = document.createElement('div');
-            divider.className = 'list-group-item bg-light py-1 mt-2';
-            divider.innerHTML = '<small class="text-secondary font-weight-bold">ALL PLAYS</small>';
-            list.appendChild(divider);
+            divider.className = 'px-3 py-2 bg-light border-top border-bottom';
+            divider.innerHTML = '<small class="text-secondary font-weight-bold"><i class="fas fa-list"></i> ALL PLAYS</small>';
+            container.appendChild(divider);
         }
+
+        // All plays section (cards grid)
+        const playsGrid = document.createElement('div');
+        playsGrid.className = 'row no-gutters p-2';
 
         const macros = Array.from(macroMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
         macros.forEach(([name, variations]) => {
             if (variations.length === 1) {
-                list.appendChild(this.createPlayButton(variations[0], false));
+                playsGrid.appendChild(this.createPlayCard(variations[0], false, false));
             } else {
-                list.appendChild(this.createPlayButton(variations[0], true, name));
+                playsGrid.appendChild(this.createPlayCard(variations[0], true, false, name));
             }
         });
+
+        container.appendChild(playsGrid);
     }
 
-    createPlayButton(play, isMacro = false, customLabel = null) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'list-group-item list-group-item-action py-2';
-        btn.style.cursor = 'pointer';
+    createPlayCard(play, isMacro = false, isRecent = false, customLabel = null) {
+        const col = document.createElement('div');
+        col.className = 'col-6 col-sm-4 col-md-3 p-1';
         
         const displayName = customLabel || play.name;
         
-        btn.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center">
-                <span class="font-weight-bold">${displayName}</span>
-                ${isMacro ? '<small class="badge badge-light border text-muted">Group</small>' : ''}
+        const card = document.createElement('div');
+        card.className = 'card h-100 shadow-sm border-0';
+        card.style.cursor = 'pointer';
+        card.style.transition = 'all 0.15s';
+        
+        // Add hover effect
+        card.onmouseenter = () => {
+            card.style.transform = 'translateY(-2px)';
+            card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+        };
+        card.onmouseleave = () => {
+            card.style.transform = 'translateY(0)';
+            card.style.boxShadow = '';
+        };
+        
+        // Apply colors based on type
+        let headerClass = 'bg-primary text-white';
+        if (isRecent) {
+            headerClass = 'bg-info text-white';
+        } else if (isMacro) {
+            headerClass = 'bg-secondary text-white';
+        }
+        
+        card.innerHTML = `
+            <div class="card-header ${headerClass} py-2 px-2 text-center">
+                <div class="font-weight-bold" style="font-size: 0.9rem; line-height: 1.2;">${displayName}</div>
+                ${isMacro ? '<small class="badge badge-light mt-1" style="font-size: 0.65rem;"><i class="fas fa-layer-group"></i> Group</small>' : ''}
+                ${isRecent ? '<small class="badge badge-light mt-1" style="font-size: 0.65rem;"><i class="fas fa-star"></i></small>' : ''}
+            </div>
+            <div class="card-body p-2 d-flex align-items-center justify-content-center" style="min-height: 50px;">
+                <i class="fas fa-basketball-ball text-muted" style="font-size: 1.5rem; opacity: 0.3;"></i>
             </div>
         `;
-        btn.onclick = () => this.selectPlay(play);
-        return btn;
+        
+        card.onclick = () => this.selectPlay(play);
+        
+        col.appendChild(card);
+        return col;
     }
 
     openPlaySelector(eventType, shooter = null, shotType = null) {
