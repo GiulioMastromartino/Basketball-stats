@@ -109,6 +109,56 @@
             .tp-value { font-size: 16px; font-weight: 800; color: #2c3e50; margin: 2px 0; }
             .tp-name { font-weight: 600; color: #4a5568; }
 
+            /* Player Analysis Cards */
+            .player-cards-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+                margin-bottom: 20px;
+            }
+
+            .player-card {
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 12px;
+                background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            }
+
+            .player-card-header {
+                font-size: 14px;
+                font-weight: 800;
+                color: #2c3e50;
+                margin-bottom: 8px;
+                border-bottom: 2px solid #4299e1;
+                padding-bottom: 4px;
+            }
+
+            .player-card-stats {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 8px;
+                margin-top: 8px;
+            }
+
+            .stat-box {
+                text-align: center;
+                padding: 6px;
+                background: white;
+                border-radius: 4px;
+            }
+
+            .stat-value {
+                font-size: 16px;
+                font-weight: 700;
+                color: #2c3e50;
+            }
+
+            .stat-label {
+                font-size: 9px;
+                color: #718096;
+                text-transform: uppercase;
+            }
+
             /* Chart */
             .chart-container { text-align: center; margin-bottom: 10px; }
             .chart-container img { max-width: 100%; height: auto; }
@@ -339,7 +389,7 @@
             <div class="header-left">
                 <h1>Shot Chart & Plays</h1>
             </div>
-            <div class="header-right">Page 2/4</div>
+            <div class="header-right">Page 2/5</div>
         </div>
 
         <div class="section-title">Shot Chart</div>
@@ -411,7 +461,7 @@
             <div class="header-left">
                 <h1>Detailed Analysis</h1>
             </div>
-            <div class="header-right">Page 3/4</div>
+            <div class="header-right">Page 3/5</div>
         </div>
 
         <div class="section-title">Shooting Breakdown</div>
@@ -528,12 +578,98 @@
 
         <div class="page-break"></div>
 
-        <!-- Page 4: Glossary -->
+        <!-- Page 4: Individual Player Analysis Cards -->
+        <div class="header-container">
+            <div class="header-left">
+                <h1>Individual Player Analysis</h1>
+            </div>
+            <div class="header-right">Page 4/5</div>
+        </div>
+
+        <div class="section-title">Player Performance Cards</div>
+
+        <div class="player-cards-grid">
+            {% for p in stats[:6] %}
+            <div class="player-card">
+                <div class="player-card-header">{{ p.player_name }}</div>
+                <div class="player-card-stats">
+                    <div class="stat-box">
+                        <div class="stat-value">{{ p.points }}</div>
+                        <div class="stat-label">PTS</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">{{ p.reb }}</div>
+                        <div class="stat-label">REB</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">{{ p.ast }}</div>
+                        <div class="stat-label">AST</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">{{ p.eff }}</div>
+                        <div class="stat-label">EFF</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">{{ p.ts_pct|round(1) }}%</div>
+                        <div class="stat-label">TS%</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" style="color: {{ '#28a745' if p.plus_minus > 0 else '#dc3545' if p.plus_minus < 0 else '#718096' }}">
+                            {{ '+' if p.plus_minus > 0 else '' }}{{ p.plus_minus }}
+                        </div>
+                        <div class="stat-label">+/-</div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if stats|length > 6 %}
+        <div class="player-cards-grid">
+            {% for p in stats[6:] %}
+            <div class="player-card">
+                <div class="player-card-header">{{ p.player_name }}</div>
+                <div class="player-card-stats">
+                    <div class="stat-box">
+                        <div class="stat-value">{{ p.points }}</div>
+                        <div class="stat-label">PTS</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">{{ p.reb }}</div>
+                        <div class="stat-label">REB</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">{{ p.ast }}</div>
+                        <div class="stat-label">AST</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">{{ p.eff }}</div>
+                        <div class="stat-label">EFF</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">{{ p.ts_pct|round(1) }}%</div>
+                        <div class="stat-label">TS%</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" style="color: {{ '#28a745' if p.plus_minus > 0 else '#dc3545' if p.plus_minus < 0 else '#718096' }}">
+                            {{ '+' if p.plus_minus > 0 else '' }}{{ p.plus_minus }}
+                        </div>
+                        <div class="stat-label">+/-</div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="page-break"></div>
+
+        <!-- Page 5: Glossary -->
         <div class="header-container">
             <div class="header-left">
                 <h1>Metrics Glossary</h1>
             </div>
-            <div class="header-right">Page 4/4</div>
+            <div class="header-right">Page 5/5</div>
         </div>
 
         <div class="section-title">Basic Statistics</div>
