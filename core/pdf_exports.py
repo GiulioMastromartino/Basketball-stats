@@ -21,7 +21,7 @@ from io import BytesIO
 from datetime import datetime
 from flask import current_app
 
-from core.models import Game, Player, ShotEvent, GameEvent, Play
+from core.models import Game, Player, ShotEvent, GameEvent, Play, PlayerStat
 from sqlalchemy import func, and_
 
 
@@ -81,6 +81,16 @@ class PlaysBasedPDFGenerator:
             parent=self.styles['Normal'],
             fontSize=10,
             spaceAfter=8
+        ))
+
+        # Player name style
+        self.styles.add(ParagraphStyle(
+            name='PlayerName',
+            parent=self.styles['Heading3'],
+            fontSize=11,
+            textColor=colors.HexColor('#1f2937'),
+            spaceAfter=4,
+            fontName='Helvetica-Bold'
         ))
 
     def generate_game_report_pdf(self, game_id):
@@ -152,6 +162,10 @@ class PlaysBasedPDFGenerator:
 
         # Shot Events Analysis
         story.extend(self._generate_shot_events_analysis(game))
+        story.append(Spacer(1, 0.2 * inch))
+
+        # Player Analysis Section - NEW
+        story.extend(self._generate_player_analysis_section(game))
         story.append(Spacer(1, 0.2 * inch))
 
         # Game Events Timeline
@@ -359,6 +373,136 @@ class PlaysBasedPDFGenerator:
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
         story.append(shot_table)
+        return story
+
+    def _generate_player_analysis_section(self, game):
+        """Generate comprehensive player analysis for all players in game.
+        
+        Args:
+            game (Game): Game object
+            
+        Returns:
+            list: Story elements
+        """
+        story = []
+        story.append(Paragraph("Player Analysis", self.styles['SectionHeading']))
+        
+        # Get all player stats for this game
+        player_stats = PlayerStat.query.filter_by(game_id=game.id).order_by(
+            PlayerStat.points.desc()
+        ).all()
+        
+        if not player_stats:
+            story.append(Paragraph("No player statistics recorded for this game.", self.styles['BodyText']))
+            return story
+        
+        # Create a card for each player
+        for idx, p_stat in enumerate(player_stats):
+            story.extend(self._create_player_stat_card(p_stat))
+            
+            # Add page break after every 3 players to avoid crowding
+            if (idx + 1) % 3 == 0 and idx + 1 < len(player_stats):
+                story.append(PageBreak())
+            else:
+                story.append(Spacer(1, 0.15 * inch))
+        
+        return story
+
+    def _create_player_stat_card(self, player_stat):
+        """Create a single player stat card for game report.
+        
+        Args:
+            player_stat (PlayerStat): PlayerStat object
+            
+        Returns:
+            list: Story elements for one player card
+        """
+        story = []
+        
+        # Player name header
+        story.append(Paragraph(
+            f"{player_stat.player_name}",
+            self.styles['PlayerName']
+        ))
+        
+        # Main stats line (scoring focus)
+        main_stats_text = f"{player_stat.fgm} points | {player_stat.dreb} defensive rebounds | {player_stat.fga} attempts | {player_stat.oreb} offensive rebounds"
+        story.append(Paragraph(main_stats_text, self.styles['BodyText']))
+        
+        # Shooting stats table (FG, T3, T2, FT)
+        shooting_data = [
+            ['FG', 'T3', 'T2', 'FT'],
+            [
+                f"{player_stat.fgm}\n{player_stat.fga}\n{player_stat.fg_percent:.1f}%",
+                f"{player_stat.tpm}\n{player_stat.tpa}\n{player_stat.tp_percent:.1f}%",
+                f"{player_stat.fgm - player_stat.tpm}\n{player_stat.fga - player_stat.tpa}\n{((player_stat.fgm - player_stat.tpm) / (player_stat.fga - player_stat.tpa) * 100) if (player_stat.fga - player_stat.tpa) > 0 else 0:.1f}%",
+                f"{player_stat.ftm}\n{player_stat.fta}\n{player_stat.ft_percent:.1f}%"
+            ]
+        ]
+        
+        shooting_table = Table(shooting_data, colWidths=[1.2 * inch, 1.2 * inch, 1.2 * inch, 1.2 * inch])
+        shooting_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f3f4f6')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
+        ]))
+        story.append(shooting_table)
+        story.append(Spacer(1, 0.1 * inch))
+        
+        # Detailed stats grid
+        minutes_display = player_stat.minutes if player_stat.minutes else "N/A"
+        efficiency = (player_stat.points / player_stat.fga * 100) if player_stat.fga > 0 else 0
+        
+        # Left column: Minutes, +/-, Efficiency
+        left_stats = [
+            ['Minuti', minutes_display],
+            ['+/-', str(player_stat.plus_minus)],
+            ['Efficienza', f"{efficiency:.1f}"]
+        ]
+        
+        # Right column: Defensive, Offensive, Steals, Blocks, Fouls, Turnovers
+        right_stats = [
+            ['R. difensivi', str(player_stat.dreb)],
+            ['R. offensivi', str(player_stat.oreb)],
+            ['Assist', str(player_stat.ast)],
+            ['Perse', str(player_stat.tov)],
+            ['Rubate', str(player_stat.stl)],
+            ['Falli', str(player_stat.pf)],
+            ['Falli subiti', str(player_stat.blk)]
+        ]
+        
+        # Create mini stat boxes
+        stats_data = [
+            left_stats + [[''], [''], ['']] + right_stats  # Padding for alignment
+        ]
+        
+        # More readable layout - use two columns
+        detailed_stats = [
+            ['Minuti', minutes_display, 'R. difensivi', str(player_stat.dreb)],
+            ['+/-', str(player_stat.plus_minus), 'R. offensivi', str(player_stat.oreb)],
+            ['Efficienza', f"{efficiency:.1f}", 'Assist', str(player_stat.ast)],
+            ['Stoppate', str(player_stat.blk), 'Perse', str(player_stat.tov)],
+            ['Rubate', str(player_stat.stl), 'Falli', str(player_stat.pf)]
+        ]
+        
+        details_table = Table(detailed_stats, colWidths=[1 * inch, 1 * inch, 1 * inch, 1 * inch])
+        details_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e5e7eb')),
+            ('BACKGROUND', (2, 0), (2, -1), colors.HexColor('#e5e7eb')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
+        ]))
+        story.append(details_table)
+        
         return story
 
     def _generate_game_events_section(self, game):
