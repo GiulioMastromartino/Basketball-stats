@@ -103,6 +103,7 @@ def import_all_csvs():
                         stl=player["stl"],
                         blk=player["blk"],
                         pf=player["pf"],
+                        plus_minus=player.get("plus_minus", 0),
                     )
                     db.session.add(stat)
 
