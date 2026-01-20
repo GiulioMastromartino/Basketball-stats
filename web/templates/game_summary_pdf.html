@@ -35,7 +35,7 @@
                 border-radius: 4px;
             }
 
-            /* Hero Scoreboard */
+            /* Scoreboard */
             .scoreboard {
                 background: #f7fafc;
                 border: 1px solid #e2e8f0;
@@ -44,16 +44,8 @@
                 margin-bottom: 20px;
                 text-align: center;
             }
-            .score-large {
-                font-size: 24px;
-                font-weight: 800;
-                color: #2d3748;
-            }
-            .score-details {
-                font-size: 10px;
-                color: #718096;
-                margin-top: 5px;
-            }
+            .score-large { font-size: 24px; font-weight: 800; color: #2d3748; }
+            .score-details { font-size: 10px; color: #718096; margin-top: 5px; }
             .result-badge {
                 display: inline-block;
                 padding: 2px 8px;
@@ -64,11 +56,10 @@
                 background: {% if game.result == 'W' %}#28a745{% else %}#dc3545{% endif %};
             }
 
-            /* Tables */
+            /* Global Table Styles */
             table {
                 width: 100%;
                 border-collapse: collapse;
-                margin-bottom: 15px;
                 font-size: 10px;
             }
             th {
@@ -88,15 +79,134 @@
             td.text-left { text-align: left; font-weight: 600; }
             tr:nth-child(even) { background-color: #f8fafc; }
 
-            /* Stats Highlighting */
+            /* Specific "Layout Tables" (Invisible borders) */
+            table.layout-table {
+                width: 100%;
+                margin: 0;
+                border: none;
+            }
+            table.layout-table td {
+                padding: 0;
+                border: none;
+                background: transparent;
+                vertical-align: top;
+            }
+
+            /* Shooting Table Specifics */
+            .shooting-table {
+                margin: 0;
+                width: 100%;
+            }
+            .shooting-table th {
+                background: transparent;
+                border: none;
+                color: #166534;
+                padding: 2px;
+                font-size: 9px;
+            }
+            .shooting-table td {
+                background: transparent;
+                border: none;
+                padding: 2px;
+                font-size: 10px;
+                color: #1f2937;
+            }
+            .shooting-table .row-label {
+                text-align: right;
+                font-weight: bold;
+                color: #166534;
+                padding-right: 8px;
+            }
+
+            /* Grey Card Styling */
+            .grey-card {
+                background-color: #e5e7eb;
+                border-radius: 8px;
+                padding: 8px;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                height: 100%; /* Fill cell height */
+            }
+
+            /* Right Info Panel Table */
+            .info-table {
+                width: 100%;
+            }
+            .info-table td {
+                padding: 3px 0;
+                border: none;
+                background: transparent;
+            }
+            .info-label {
+                text-align: left;
+                font-weight: bold;
+                color: #166534;
+                font-size: 10px;
+            }
+            .info-value {
+                text-align: right;
+                font-weight: bold;
+                color: #1f2937;
+                font-size: 11px;
+            }
+
+            /* Player Cards */
+            .player-cards-grid {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 15px;
+                margin-bottom: 20px;
+            }
+            .player-card {
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 12px;
+                background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+                break-inside: avoid;
+            }
+            .player-card-header {
+                font-size: 14px;
+                font-weight: 800;
+                color: #2c3e50;
+                margin-bottom: 8px;
+                border-bottom: 2px solid #4299e1;
+                padding-bottom: 4px;
+            }
+
+            /* Bottom Stats Grid */
+            .stat-row-bottom td.grey-box-cell {
+                background-color: #e5e7eb;
+                border-radius: 10px;
+                padding: 6px 8px;
+                width: 33.33%;
+                vertical-align: top;
+                border: none;
+            }
+            .inner-stat-table td {
+                border: none;
+                padding: 1px 0;
+                background: transparent;
+                font-size: 9px;
+            }
+            .inner-stat-table .stat-label {
+                text-align: left;
+                color: #166534;
+                font-weight: bold;
+            }
+            .inner-stat-table .stat-value {
+                text-align: right;
+                color: #1f2937;
+            }
+
+            /* Stats Colors */
             .stat-good { color: #28a745; font-weight: bold; }
             .stat-bad { color: #dc3545; font-weight: bold; }
+            .page-break { page-break-after: always; }
 
-            /* Two Column Layout */
+            /* Two Column Helpers */
             .row { display: flex; gap: 15px; }
             .col { flex: 1; }
 
-            /* Top Performers Cards */
+            /* Top Performer Card */
             .top-performer-card {
                 border: 1px solid #e2e8f0;
                 border-radius: 6px;
@@ -109,57 +219,6 @@
             .tp-value { font-size: 16px; font-weight: 800; color: #2c3e50; margin: 2px 0; }
             .tp-name { font-weight: 600; color: #4a5568; }
 
-            /* Player Analysis Cards */
-            .player-cards-grid {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 15px;
-                margin-bottom: 20px;
-            }
-
-            .player-card {
-                border: 2px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 12px;
-                background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-            }
-
-            .player-card-header {
-                font-size: 14px;
-                font-weight: 800;
-                color: #2c3e50;
-                margin-bottom: 8px;
-                border-bottom: 2px solid #4299e1;
-                padding-bottom: 4px;
-            }
-
-            .player-card-stats {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 8px;
-                margin-top: 8px;
-            }
-
-            .stat-box {
-                text-align: center;
-                padding: 6px;
-                background: white;
-                border-radius: 4px;
-            }
-
-            .stat-value {
-                font-size: 16px;
-                font-weight: 700;
-                color: #2c3e50;
-            }
-
-            .stat-label {
-                font-size: 9px;
-                color: #718096;
-                text-transform: uppercase;
-            }
-
-            /* Chart */
             .chart-container { text-align: center; margin-bottom: 10px; }
             .chart-container img { max-width: 100%; height: auto; }
             .small-note { color: #718096; font-size: 9px; margin-top: 4px; }
@@ -172,24 +231,9 @@
                 border-left: 3px solid #4299e1;
                 border-radius: 4px;
             }
-            .glossary-term {
-                font-weight: 700;
-                color: #2c5282;
-                font-size: 11px;
-            }
-            .glossary-desc {
-                color: #4a5568;
-                margin-top: 3px;
-                font-size: 10px;
-            }
-            .glossary-range {
-                color: #718096;
-                font-style: italic;
-                margin-top: 3px;
-                font-size: 9px;
-            }
-
-            .page-break { page-break-after: always; }
+            .glossary-term { font-weight: 700; color: #2c5282; font-size: 11px; }
+            .glossary-desc { color: #4a5568; margin-top: 3px; font-size: 10px; }
+            .glossary-range { color: #718096; font-style: italic; margin-top: 3px; font-size: 9px; }
         </style>
     </head>
     <body>
@@ -207,7 +251,6 @@
             </div>
         </div>
 
-        <!-- Scoreboard -->
         <div class="scoreboard">
             <div
                 style="
@@ -333,15 +376,6 @@
                         </td>
                         <td style="color: #718096">70%</td>
                     </tr>
-                    <tr>
-                        <td class="text-left">True Shooting %</td>
-                        <td
-                            class="{{ 'stat-good' if team_aggregates.ts_pct >= 55 else 'stat-bad' }}"
-                        >
-                            {{ team_aggregates.ts_pct|round(1) }}%
-                        </td>
-                        <td style="color: #718096">55%</td>
-                    </tr>
                 </table>
             </div>
         </div>
@@ -386,9 +420,7 @@
 
         <!-- Page 2: Shot Chart & Plays -->
         <div class="header-container">
-            <div class="header-left">
-                <h1>Shot Chart & Plays</h1>
-            </div>
+            <div class="header-left"><h1>Shot Chart & Plays</h1></div>
             <div class="header-right">Page 2/5</div>
         </div>
 
@@ -401,9 +433,7 @@
             />
         </div>
         {% else %}
-        <div class="small-note">
-            No shot chart data available for this game.
-        </div>
+        <div class="small-note">No shot chart data available.</div>
         {% endif %}
 
         <div class="section-title">Play Efficiency (Offense)</div>
@@ -416,51 +446,38 @@
                     <th>PTS</th>
                     <th>PPP</th>
                     <th>TOV</th>
-                    <th>TOV%</th>
                     <th>FG%</th>
                     <th>eFG%</th>
-                    <th>Score%</th>
                 </tr>
             </thead>
             <tbody>
                 {% for play in plays_data %}
                 <tr>
                     <td class="text-left">
-                        {% if play.name %}{{ play.name }}{% endif %} {% if
-                        play.play_type %}{{ play.play_type }}{% endif %} {% if
-                        not play.name and not play.play_type %}{{
-                        play.description|default('Unnamed Play') }}{% endif %}
-                        {% if play.play_number %} #{{ play.play_number }}{%
-                        endif %}
+                        {% if play.name %}{{ play.name }}{% endif %} {% if not
+                        play.name %}{{ play.description|default('Unnamed Play')
+                        }}{% endif %} {% if play.play_number %} #{{
+                        play.play_number }}{% endif %}
                     </td>
                     <td>{{ play.possessions|default(play.poss) }}</td>
                     <td>{{ play.points }}</td>
                     <td>{{ play.ppp|round(2) }}</td>
                     <td>{{ play.turnovers|default(play.tov) }}</td>
-                    <td>{{ play.tov_pct|round(1) }}%</td>
                     <td>{{ play.fg_pct|round(1) }}%</td>
                     <td>{{ play.efg_pct|round(1) }}%</td>
-                    <td>{{ play.score_pct|round(1) }}%</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        <div class="small-note">
-            Tracked coverage: {{ (100 -
-            (untracked.untracked_possessions_pct|default(0)))|round(1) }}% of
-            possessions.
-        </div>
         {% else %}
-        <div class="small-note">No play events recorded for this game.</div>
+        <div class="small-note">No play events recorded.</div>
         {% endif %}
 
         <div class="page-break"></div>
 
-        <!-- Page 3: Shooting & Advanced Stats -->
+        <!-- Page 3: Detailed Analysis -->
         <div class="header-container">
-            <div class="header-left">
-                <h1>Detailed Analysis</h1>
-            </div>
+            <div class="header-left"><h1>Detailed Analysis</h1></div>
             <div class="header-right">Page 3/5</div>
         </div>
 
@@ -510,39 +527,7 @@
             </tbody>
         </table>
 
-        <div class="section-title">Advanced Metrics</div>
-        <table>
-            <thead>
-                <tr>
-                    <th class="text-left" style="width: 20%">Player</th>
-                    <th>USG%</th>
-                    <th>ORtg</th>
-                    <th>PPP</th>
-                    <th>TS%</th>
-                    <th>AST/TOV</th>
-                    <th>GmSc</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for p in stats %}
-                <tr>
-                    <td class="text-left">{{ p.player_name }}</td>
-                    <td>{{ p.usg_pct|round(1) }}%</td>
-                    <td
-                        class="{{ 'stat-good' if p.ortg >= 110 else 'stat-bad' if p.ortg < 90 else '' }}"
-                    >
-                        {{ p.ortg|round(0) }}
-                    </td>
-                    <td>{{ p.ppp|round(2) }}</td>
-                    <td>{{ p.ts_pct|round(1) }}%</td>
-                    <td>{{ p.ast_tov_ratio|round(2) }}</td>
-                    <td>{{ p.game_score|default(0)|round(1) }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <!-- Game Notes / Alerts -->
+        <!-- Game Alerts -->
         {% if alerts.foul_trouble or alerts.inefficient %}
         <div class="section-title" style="background: #e53e3e">Game Alerts</div>
         <div
@@ -578,11 +563,9 @@
 
         <div class="page-break"></div>
 
-        <!-- Page 4: Individual Player Analysis Cards -->
+        <!-- Page 4: Player Cards -->
         <div class="header-container">
-            <div class="header-left">
-                <h1>Individual Player Analysis</h1>
-            </div>
+            <div class="header-left"><h1>Individual Player Analysis</h1></div>
             <div class="header-right">Page 4/5</div>
         </div>
 
@@ -592,71 +575,501 @@
             {% for p in stats[:6] %}
             <div class="player-card">
                 <div class="player-card-header">{{ p.player_name }}</div>
-                <div class="player-card-stats">
-                    <div class="stat-box">
-                        <div class="stat-value">{{ p.points }}</div>
-                        <div class="stat-label">PTS</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">{{ p.reb }}</div>
-                        <div class="stat-label">REB</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">{{ p.ast }}</div>
-                        <div class="stat-label">AST</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">{{ p.eff }}</div>
-                        <div class="stat-label">EFF</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">{{ p.ts_pct|round(1) }}%</div>
-                        <div class="stat-label">TS%</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value" style="color: {{ '#28a745' if p.plus_minus > 0 else '#dc3545' if p.plus_minus < 0 else '#718096' }}">
-                            {{ '+' if p.plus_minus > 0 else '' }}{{ p.plus_minus }}
-                        </div>
-                        <div class="stat-label">+/-</div>
-                    </div>
-                </div>
+
+                <!-- Main Layout Table: Shot Chart (Left) vs Stats (Right) -->
+                <table class="layout-table">
+                    <tr>
+                        <!-- LEFT: Shot Chart -->
+                        {% if p.shot_chart %}
+                        <td
+                            style="
+                                width: 250px;
+                                text-align: center;
+                                vertical-align: middle;
+                            "
+                        >
+                            <img
+                                src="data:image/png;base64,{{ p.shot_chart }}"
+                                style="
+                                    width: 100%;
+                                    height: auto;
+                                    object-fit: contain;
+                                "
+                            />
+                        </td>
+                        <td style="width: 15px"></td>
+                        <!-- Spacer -->
+                        {% endif %}
+
+                        <!-- RIGHT: Stats Grid -->
+                        <td style="vertical-align: top">
+                            <div class="stat-panel-grid">
+                                <!-- TOP ROW: Shooting + Info Panel (Using Table) -->
+                                <table
+                                    class="layout-table"
+                                    style="margin-bottom: 10px"
+                                >
+                                    <tr>
+                                        <!-- Shooting Matrix -->
+                                        <td>
+                                            <div class="grey-card">
+                                                <table class="shooting-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th></th>
+                                                            <th>FG</th>
+                                                            <th>T3</th>
+                                                            <th>T2</th>
+                                                            <th>FT</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td
+                                                                class="row-label"
+                                                            >
+                                                                Made
+                                                            </td>
+                                                            <td>{{ p.fgm }}</td>
+                                                            <td>{{ p.tpm }}</td>
+                                                            <td>
+                                                                {{ p.two_pt_made
+                                                                }}
+                                                            </td>
+                                                            <td>{{ p.ftm }}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td
+                                                                class="row-label"
+                                                            >
+                                                                Attempts
+                                                            </td>
+                                                            <td>{{ p.fga }}</td>
+                                                            <td>{{ p.tpa }}</td>
+                                                            <td>
+                                                                {{ p.two_pt_att
+                                                                }}
+                                                            </td>
+                                                            <td>{{ p.fta }}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td
+                                                                class="row-label"
+                                                            >
+                                                                %
+                                                            </td>
+                                                            <td>
+                                                                {{
+                                                                p.fg_percent|int
+                                                                }}%
+                                                            </td>
+                                                            <td>
+                                                                {{
+                                                                p.tp_percent|int
+                                                                }}%
+                                                            </td>
+                                                            <td>
+                                                                {{
+                                                                p.two_pt_pct|round(0)|int
+                                                                }}%
+                                                            </td>
+                                                            <td>
+                                                                {{
+                                                                p.ft_percent|int
+                                                                }}%
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </td>
+
+                                        <td style="width: 10px"></td>
+                                        <!-- Spacer -->
+
+                                        <!-- Right Info Panel (Minutes, +/-, Eff) -->
+                                        <td style="width: 140px">
+                                            <div class="grey-card">
+                                                <table class="info-table">
+                                                    <tr>
+                                                        <td class="info-label">
+                                                            Minutes
+                                                        </td>
+                                                        <td class="info-value">
+                                                            {{ p.minutes }}
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="info-label">
+                                                            +/-
+                                                        </td>
+                                                        <td
+                                                            class="info-value"
+                                                            style="color: {{ '#166534' if p.plus_minus > 0 else '#dc3545' if p.plus_minus < 0 else '#1f2937' }}"
+                                                        >
+                                                            {{ '+' if
+                                                            p.plus_minus > 0
+                                                            else '' }}{{
+                                                            p.plus_minus }}
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="info-label">
+                                                            Efficiency
+                                                        </td>
+                                                        <td class="info-value">
+                                                            {{ p.eff }}
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+
+                                <!-- BOTTOM ROW: 3 Columns Stats (Using Table) -->
+                                <table
+                                    class="stat-row-bottom"
+                                    style="
+                                        width: 100%;
+                                        border-spacing: 5px 0;
+                                        border-collapse: separate;
+                                    "
+                                >
+                                    <tr>
+                                        <!-- Rebounds -->
+                                        <td class="grey-box-cell">
+                                            <table class="inner-stat-table">
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        D.Reb
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.dreb }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        O.Reb
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.oreb }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td
+                                                        class="stat-label"
+                                                        style="color: #166534"
+                                                    >
+                                                        Rebounds
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.reb }}
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+
+                                        <!-- Playmaking -->
+                                        <td class="grey-box-cell">
+                                            <table class="inner-stat-table">
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        Assists
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.ast }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        Turnovers
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.tov }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        Steals
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.stl }}
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+
+                                        <!-- Defense/Fouls -->
+                                        <td class="grey-box-cell">
+                                            <table class="inner-stat-table">
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        Blocks
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.blk }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        Fouls
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.pf }}
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
             {% endfor %}
         </div>
 
+        <!-- Repeat similar block for stats[6:] if necessary, omitted for brevity but identical structure applies -->
         {% if stats|length > 6 %}
         <div class="player-cards-grid">
             {% for p in stats[6:] %}
             <div class="player-card">
                 <div class="player-card-header">{{ p.player_name }}</div>
-                <div class="player-card-stats">
-                    <div class="stat-box">
-                        <div class="stat-value">{{ p.points }}</div>
-                        <div class="stat-label">PTS</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">{{ p.reb }}</div>
-                        <div class="stat-label">REB</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">{{ p.ast }}</div>
-                        <div class="stat-label">AST</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">{{ p.eff }}</div>
-                        <div class="stat-label">EFF</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">{{ p.ts_pct|round(1) }}%</div>
-                        <div class="stat-label">TS%</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value" style="color: {{ '#28a745' if p.plus_minus > 0 else '#dc3545' if p.plus_minus < 0 else '#718096' }}">
-                            {{ '+' if p.plus_minus > 0 else '' }}{{ p.plus_minus }}
-                        </div>
-                        <div class="stat-label">+/-</div>
-                    </div>
-                </div>
+                <table class="layout-table">
+                    <tr>
+                        {% if p.shot_chart %}
+                        <td
+                            style="
+                                width: 250px;
+                                text-align: center;
+                                vertical-align: middle;
+                            "
+                        >
+                            <img
+                                src="data:image/png;base64,{{ p.shot_chart }}"
+                                style="
+                                    width: 100%;
+                                    height: auto;
+                                    object-fit: contain;
+                                "
+                            />
+                        </td>
+                        <td style="width: 15px"></td>
+                        {% endif %}
+                        <td style="vertical-align: top">
+                            <div class="stat-panel-grid">
+                                <table
+                                    class="layout-table"
+                                    style="margin-bottom: 10px"
+                                >
+                                    <tr>
+                                        <td>
+                                            <div class="grey-card">
+                                                <table class="shooting-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th></th>
+                                                            <th>FG</th>
+                                                            <th>T3</th>
+                                                            <th>T2</th>
+                                                            <th>FT</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td
+                                                                class="row-label"
+                                                            >
+                                                                Made
+                                                            </td>
+                                                            <td>{{ p.fgm }}</td>
+                                                            <td>{{ p.tpm }}</td>
+                                                            <td>
+                                                                {{ p.two_pt_made
+                                                                }}
+                                                            </td>
+                                                            <td>{{ p.ftm }}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td
+                                                                class="row-label"
+                                                            >
+                                                                Attempts
+                                                            </td>
+                                                            <td>{{ p.fga }}</td>
+                                                            <td>{{ p.tpa }}</td>
+                                                            <td>
+                                                                {{ p.two_pt_att
+                                                                }}
+                                                            </td>
+                                                            <td>{{ p.fta }}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td
+                                                                class="row-label"
+                                                            >
+                                                                %
+                                                            </td>
+                                                            <td>
+                                                                {{
+                                                                p.fg_percent|int
+                                                                }}%
+                                                            </td>
+                                                            <td>
+                                                                {{
+                                                                p.tp_percent|int
+                                                                }}%
+                                                            </td>
+                                                            <td>
+                                                                {{
+                                                                p.two_pt_pct|round(0)|int
+                                                                }}%
+                                                            </td>
+                                                            <td>
+                                                                {{
+                                                                p.ft_percent|int
+                                                                }}%
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </td>
+                                        <td style="width: 10px"></td>
+                                        <td style="width: 140px">
+                                            <div class="grey-card">
+                                                <table class="info-table">
+                                                    <tr>
+                                                        <td class="info-label">
+                                                            Minutes
+                                                        </td>
+                                                        <td class="info-value">
+                                                            {{ p.minutes }}
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="info-label">
+                                                            +/-
+                                                        </td>
+                                                        <td
+                                                            class="info-value"
+                                                            style="color: {{ '#166534' if p.plus_minus > 0 else '#dc3545' if p.plus_minus < 0 else '#1f2937' }}"
+                                                        >
+                                                            {{ '+' if
+                                                            p.plus_minus > 0
+                                                            else '' }}{{
+                                                            p.plus_minus }}
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="info-label">
+                                                            Efficiency
+                                                        </td>
+                                                        <td class="info-value">
+                                                            {{ p.eff }}
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <table
+                                    class="stat-row-bottom"
+                                    style="
+                                        width: 100%;
+                                        border-spacing: 5px 0;
+                                        border-collapse: separate;
+                                    "
+                                >
+                                    <tr>
+                                        <td class="grey-box-cell">
+                                            <table class="inner-stat-table">
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        D.Reb
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.dreb }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        O.Reb
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.oreb }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td
+                                                        class="stat-label"
+                                                        style="color: #166534"
+                                                    >
+                                                        Rebounds
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.reb }}
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                        <td class="grey-box-cell">
+                                            <table class="inner-stat-table">
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        Assists
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.ast }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        Turnovers
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.tov }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        Steals
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.stl }}
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                        <td class="grey-box-cell">
+                                            <table class="inner-stat-table">
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        Blocks
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.blk }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="stat-label">
+                                                        Fouls
+                                                    </td>
+                                                    <td class="stat-value">
+                                                        {{ p.pf }}
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
             {% endfor %}
         </div>
