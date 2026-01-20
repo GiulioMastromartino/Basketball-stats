@@ -907,18 +907,20 @@ def player_report_pdf(player_name):
     stats_with_dates.sort(key=lambda x: x[1].sort_date if x[1] else "")
     stats = [s[0] for s in stats_with_dates]
 
-    # Calculate all metrics
-    report_data = _calculate_player_metrics(stats, game_map, games_played=len(stats))
-
-    # Calculate team averages and rankings
-    team_avg = _calculate_team_averages(game_ids)
-    team_rankings = _calculate_team_rankings(player_name, game_ids, report_data)
-
-    # Generate charts
-    charts = _generate_player_charts(stats, game_map, player_name)
+    # Calculate comprehensive player data with ALL required variables
+    player_data = _calculate_comprehensive_player_data(stats, game_map, len(stats))
+    
+    # Calculate team averages
+    team_avg = _calculate_comprehensive_team_avg(game_ids)
+    
+    # Calculate team rankings
+    team_rankings = _calculate_comprehensive_team_rankings(player_name, game_ids, stats)
     
     # Generate shot chart
     shot_chart = _generate_shot_chart(player_name, game_ids)
+    
+    # Generate scoring chart
+    chart_scoring = _generate_scoring_chart(stats, game_map)
 
     # Get current date
     generated_date = datetime.now().strftime("%B %d, %Y")
@@ -929,11 +931,12 @@ def player_report_pdf(player_name):
         player_name=player_name,
         game_type=game_type,
         generated_date=generated_date,
+        games_played=len(stats),
         team_avg=team_avg,
         team_rankings=team_rankings,
         shot_chart=shot_chart,
-        **report_data,
-        **charts,
+        chart_scoring=chart_scoring,
+        **player_data,
     )
 
     # Convert to PDF
@@ -988,7 +991,7 @@ def download_all_reports():
     game_map = {g.id: g for g in games}
 
     # Calculate team averages once
-    team_avg = _calculate_team_averages(game_ids)
+    team_avg = _calculate_comprehensive_team_avg(game_ids)
 
     # Get current date
     generated_date = datetime.now().strftime("%B %d, %Y")
@@ -1016,17 +1019,11 @@ def download_all_reports():
                 stats_with_dates.sort(key=lambda x: x[1].sort_date if x[1] else "")
                 stats = [s[0] for s in stats_with_dates]
 
-                # Calculate metrics
-                report_data = _calculate_player_metrics(stats, game_map, games_played=len(stats))
-
-                # Calculate team rankings
-                team_rankings = _calculate_team_rankings(player_name, game_ids, report_data)
-
-                # Generate charts
-                charts = _generate_player_charts(stats, game_map, player_name)
-                
-                # Generate shot chart
+                # Calculate data
+                player_data = _calculate_comprehensive_player_data(stats, game_map, len(stats))
+                team_rankings = _calculate_comprehensive_team_rankings(player_name, game_ids, stats)
                 shot_chart = _generate_shot_chart(player_name, game_ids)
+                chart_scoring = _generate_scoring_chart(stats, game_map)
 
                 # Render HTML
                 html = render_template(
@@ -1034,11 +1031,12 @@ def download_all_reports():
                     player_name=player_name,
                     game_type=game_type,
                     generated_date=generated_date,
+                    games_played=len(stats),
                     team_avg=team_avg,
                     team_rankings=team_rankings,
                     shot_chart=shot_chart,
-                    **report_data,
-                    **charts,
+                    chart_scoring=chart_scoring,
+                    **player_data,
                 )
 
                 # Convert to PDF
@@ -1287,45 +1285,232 @@ def _generate_shot_chart(player_name, game_ids):
         plt.close()
         return ""
 
-def _generate_player_charts(stats, game_map, player_name):
-    """Generate trend charts for player report"""
-    charts = {}
+def _generate_scoring_chart(stats, game_map):
+    """Generate scoring and plus/minus trend chart"""
     try:
-        # PPG Chart
+        if not stats:
+            return ""
+            
         plt.figure(figsize=(10, 4))
-        # Game.date is a STRING, not datetime - use it directly
         dates = [game_map[s.game_id].date for s in stats]
         points = [s.points for s in stats]
+        plus_minus = [s.plus_minus if s.plus_minus is not None else 0 for s in stats]
         
-        plt.plot(dates, points, marker='o', linewidth=2, color='#208dd1')
-        plt.fill_between(dates, points, alpha=0.1, color='#208dd1')
-        plt.title('Points Per Game Trend')
+        # Points bars
+        plt.bar(dates, points, color='#208dd1', alpha=0.7, label='Points')
+        
+        # +/- line if available
+        if any(pm != 0 for pm in plus_minus):
+            plt.plot(dates, plus_minus, color='#10b981', marker='o', linewidth=2, label='+/-')
+        
+        plt.title('Points & +/- Per Game')
+        plt.legend()
         plt.grid(True, alpha=0.3)
+        plt.xticks(rotation=45, ha='right')
         
         img = BytesIO()
         plt.savefig(img, format='png', bbox_inches='tight', dpi=100)
         img.seek(0)
-        charts['ppg_chart'] = base64.b64encode(img.getvalue()).decode()
         plt.close()
         
-        # Efficiency Chart
-        plt.figure(figsize=(10, 4))
-        effs = [s.eff for s in stats]  # Assuming eff is pre-calculated
-        plt.bar(dates, effs, color='#10b981', alpha=0.7)
-        plt.title('Efficiency Rating Trend')
-        plt.grid(True, axis='y', alpha=0.3)
-        
-        img = BytesIO()
-        plt.savefig(img, format='png', bbox_inches='tight', dpi=100)
-        img.seek(0)
-        charts['efficiency_chart'] = base64.b64encode(img.getvalue()).decode()
-        plt.close()
-        
+        return base64.b64encode(img.getvalue()).decode()
     except Exception as e:
-        print(f"Error generating player charts: {e}")
+        print(f"Error generating scoring chart: {e}")
         plt.close()
-        
-    return charts
+        return ""
+
+def _calculate_comprehensive_player_data(stats, game_map, games_played):
+    """Calculate ALL data needed for player report template"""
+    if not stats:
+        return {}
+    
+    # Calculate totals
+    total_pts = sum(s.points for s in stats)
+    total_reb = sum(s.reb for s in stats)
+    total_oreb = sum(s.oreb for s in stats)
+    total_dreb = sum(s.dreb for s in stats)
+    total_ast = sum(s.ast for s in stats)
+    total_stl = sum(s.stl for s in stats)
+    total_blk = sum(s.blk for s in stats)
+    total_tov = sum(s.tov for s in stats)
+    total_pf = sum(s.pf for s in stats)
+    total_fgm = sum(s.fgm for s in stats)
+    total_fga = sum(s.fga for s in stats)
+    total_tpm = sum(s.tpm for s in stats)
+    total_tpa = sum(s.tpa for s in stats)
+    total_ftm = sum(s.ftm for s in stats)
+    total_fta = sum(s.fta for s in stats)
+    total_minutes = sum(parse_minutes(s.minutes) for s in stats)
+    total_plus_minus = sum(s.plus_minus if s.plus_minus is not None else 0 for s in stats)
+    
+    # Calculate 2PT
+    total_2pm = total_fgm - total_tpm
+    total_2pa = total_fga - total_tpa
+    
+    # Advanced calculations
+    total_poss = sum(calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in stats)
+    ortg = calculate_ortg(total_pts, total_poss) if total_poss > 0 else 0
+    ppp = calculate_ppp(total_pts, total_poss) if total_poss > 0 else 0
+    ts_pct = calculate_ts_percent(total_pts, total_fga, total_fta)
+    efg_pct = calculate_efg_percent(total_fgm, total_tpm, total_fga)
+    ast_tov = (total_ast / total_tov) if total_tov > 0 else total_ast
+    
+    # Build avg_stats object
+    avg_stats = {
+        'points': total_pts / games_played if games_played > 0 else 0,
+        'reb': total_reb / games_played if games_played > 0 else 0,
+        'oreb': total_oreb / games_played if games_played > 0 else 0,
+        'dreb': total_dreb / games_played if games_played > 0 else 0,
+        'ast': total_ast / games_played if games_played > 0 else 0,
+        'apg': total_ast / games_played if games_played > 0 else 0,
+        'stl': total_stl / games_played if games_played > 0 else 0,
+        'blk': total_blk / games_played if games_played > 0 else 0,
+        'tov': total_tov / games_played if games_played > 0 else 0,
+        'pf': total_pf / games_played if games_played > 0 else 0,
+        'minutes': total_minutes / games_played if games_played > 0 else 0,
+    }
+    
+    # Build shooting object
+    shooting = {
+        'fg': {
+            'made': total_fgm / games_played if games_played > 0 else 0,
+            'att': total_fga / games_played if games_played > 0 else 0,
+            'pct': (total_fgm / total_fga * 100) if total_fga > 0 else 0
+        },
+        'two_pt': {
+            'made': total_2pm / games_played if games_played > 0 else 0,
+            'att': total_2pa / games_played if games_played > 0 else 0,
+            'pct': (total_2pm / total_2pa * 100) if total_2pa > 0 else 0
+        },
+        'three_pt': {
+            'made': total_tpm / games_played if games_played > 0 else 0,
+            'att': total_tpa / games_played if games_played > 0 else 0,
+            'pct': (total_tpm / total_tpa * 100) if total_tpa > 0 else 0
+        },
+        'ft': {
+            'made': total_ftm / games_played if games_played > 0 else 0,
+            'att': total_fta / games_played if games_played > 0 else 0,
+            'pct': (total_ftm / total_fta * 100) if total_fta > 0 else 0
+        }
+    }
+    
+    # Build advanced object
+    advanced = {
+        'ortg': ortg,
+        'ppp': ppp,
+        'ts_pct': ts_pct,
+        'efg_pct': efg_pct,
+        'ast_tov': ast_tov,
+        'avg_plus_minus': (total_plus_minus / games_played) if games_played > 0 else None,
+        'oreb_pct': (total_oreb / total_reb * 100) if total_reb > 0 else 0,
+        'dreb_pct': (total_dreb / total_reb * 100) if total_reb > 0 else 0,
+    }
+    
+    # Build game_logs
+    game_logs = []
+    for s in stats:
+        game = game_map.get(s.game_id)
+        if game:
+            game_logs.append({
+                'date': game.date,
+                'opponent': game.opponent,
+                'result': 'W' if game.team_score > game.opponent_score else 'L',
+                'minutes': s.minutes,
+                'pts': s.points,
+                'reb': s.reb,
+                'ast': s.ast,
+                'stl': s.stl,
+                'blk': s.blk,
+                'tov': s.tov,
+                'fgm': s.fgm,
+                'fga': s.fga,
+                'fg_pct': round(s.fg_percent * 100, 1),
+                'tpm': s.tpm,
+                'tpa': s.tpa,
+                'tp_percent': round(s.tp_percent * 100, 1),
+                'ftm': s.ftm,
+                'fta': s.fta,
+                'ft_percent': round(s.ft_percent * 100, 1),
+                'plus_minus': s.plus_minus
+            })
+    
+    return {
+        'avg_stats': avg_stats,
+        'shooting': shooting,
+        'advanced': advanced,
+        'game_logs': game_logs
+    }
+
+def _calculate_comprehensive_team_avg(game_ids):
+    """Calculate comprehensive team averages"""
+    if not game_ids:
+        return {}
+    
+    num_games = len(game_ids)
+    stats = PlayerStat.query.filter(PlayerStat.game_id.in_(game_ids)).all()
+    
+    if not stats:
+        return {}
+    
+    total_pts = sum(s.points for s in stats)
+    total_fgm = sum(s.fgm for s in stats)
+    total_fga = sum(s.fga for s in stats)
+    total_tpm = sum(s.tpm for s in stats)
+    total_tpa = sum(s.tpa for s in stats)
+    total_ftm = sum(s.ftm for s in stats)
+    total_fta = sum(s.fta for s in stats)
+    total_ast = sum(s.ast for s in stats)
+    total_tov = sum(s.tov for s in stats)
+    total_poss = sum(calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in stats)
+    
+    return {
+        'ppg': total_pts / num_games if num_games > 0 else 0,
+        'ortg': calculate_ortg(total_pts, total_poss) if total_poss > 0 else 0,
+        'ts_pct': calculate_ts_percent(total_pts, total_fga, total_fta),
+        'efg_pct': calculate_efg_percent(total_fgm, total_tpm, total_fga),
+        'ast_tov': (total_ast / total_tov) if total_tov > 0 else 0
+    }
+
+def _calculate_comprehensive_team_rankings(player_name, game_ids, player_stats):
+    """Calculate comprehensive team rankings"""
+    if not game_ids:
+        return {}
+    
+    # Get all player aggregates
+    all_stats = db.session.query(
+        PlayerStat.player_name,
+        func.sum(PlayerStat.points).label('total_pts'),
+        func.sum(PlayerStat.reb).label('total_reb'),
+        func.sum(PlayerStat.ast).label('total_ast'),
+        func.count(PlayerStat.id).label('games')
+    ).filter(
+        PlayerStat.game_id.in_(game_ids),
+        PlayerStat.minutes != "00:00"
+    ).group_by(PlayerStat.player_name).all()
+    
+    # Calculate PPG, RPG, APG for each player
+    player_avgs = []
+    for name, pts, reb, ast, games in all_stats:
+        if games > 0:
+            player_avgs.append({
+                'name': name,
+                'ppg': pts / games,
+                'rpg': reb / games,
+                'apg': ast / games
+            })
+    
+    # Find rankings
+    rankings = {}
+    for metric in ['ppg', 'rpg', 'apg']:
+        sorted_players = sorted(player_avgs, key=lambda x: x[metric], reverse=True)
+        rank = 1
+        for i, p in enumerate(sorted_players):
+            if p['name'] == player_name:
+                rank = i + 1
+                break
+        rankings[metric] = {'rank': rank, 'total': len(sorted_players)}
+    
+    return rankings
 
 def _calculate_enhanced_team_metrics(games, game_ids):
     """Calculate aggregate stats for team report"""
@@ -1376,122 +1561,4 @@ def _calculate_enhanced_team_metrics(games, game_ids):
         'tp_pct': round(tp_pct, 1),
         'ft_pct': round(ft_pct, 1),
         'top_scorers': top_scorers
-    }
-
-def _calculate_player_metrics(stats, game_map, games_played):
-    """Calculate aggregate player metrics for report"""
-    if not stats:
-        return {}
-        
-    total_pts = sum(s.points for s in stats)
-    total_reb = sum(s.reb for s in stats)
-    total_ast = sum(s.ast for s in stats)
-    total_stl = sum(s.stl for s in stats)
-    total_blk = sum(s.blk for s in stats)
-    
-    total_fgm = sum(s.fgm for s in stats)
-    total_fga = sum(s.fga for s in stats)
-    total_tpm = sum(s.tpm for s in stats)
-    total_tpa = sum(s.tpa for s in stats)
-    total_ftm = sum(s.ftm for s in stats)
-    total_fta = sum(s.fta for s in stats)
-    
-    fg_pct = (total_fgm / total_fga * 100) if total_fga > 0 else 0
-    tp_pct = (total_tpm / total_tpa * 100) if total_tpa > 0 else 0
-    ft_pct = (total_ftm / total_fta * 100) if total_fta > 0 else 0
-    
-    # Calculate averages
-    ppg = round(total_pts / games_played, 1) if games_played > 0 else 0
-    rpg = round(total_reb / games_played, 1) if games_played > 0 else 0
-    apg = round(total_ast / games_played, 1) if games_played > 0 else 0
-    spg = round(total_stl / games_played, 1) if games_played > 0 else 0
-    bpg = round(total_blk / games_played, 1) if games_played > 0 else 0
-    
-    # Recent games data
-    recent_games = []
-    # Sort stats by game date (sort_date is also a string)
-    sorted_stats = sorted(stats, key=lambda s: game_map[s.game_id].sort_date if s.game_id in game_map else "", reverse=True)
-    
-    for s in sorted_stats[:5]:
-        game = game_map.get(s.game_id)
-        if game:
-            recent_games.append({
-                'date': game.date,  # Use date string directly
-                'opponent': game.opponent,
-                'result': 'W' if game.team_score > game.opponent_score else 'L',
-                'points': s.points,
-                'rebounds': s.reb,
-                'assists': s.ast
-            })
-            
-    return {
-        'games_played': games_played,
-        'total_points': total_pts,
-        'ppg': ppg,
-        'rpg': rpg,
-        'apg': apg,
-        'spg': spg,
-        'bpg': bpg,
-        'fg_pct': round(fg_pct, 1),
-        'tp_pct': round(tp_pct, 1),
-        'ft_pct': round(ft_pct, 1),
-        'fgm': total_fgm, 'fga': total_fga,
-        'tpm': total_tpm, 'tpa': total_tpa,
-        'ftm': total_ftm, 'fta': total_fta,
-        'recent_games': recent_games
-    }
-
-def _calculate_team_averages(game_ids):
-    """Get team average stats for comparison"""
-    if not game_ids:
-        return {'ppg': 0, 'rpg': 0, 'apg': 0}
-        
-    num_games = len(game_ids)
-    
-    # Total team stats
-    team_pts = db.session.query(func.sum(Game.team_score)).filter(Game.id.in_(game_ids)).scalar() or 0
-    
-    # For rebounds/assists, we sum player stats
-    team_reb = db.session.query(func.sum(PlayerStat.reb)).filter(PlayerStat.game_id.in_(game_ids)).scalar() or 0
-    team_ast = db.session.query(func.sum(PlayerStat.ast)).filter(PlayerStat.game_id.in_(game_ids)).scalar() or 0
-    
-    return {
-        'ppg': round(team_pts / num_games, 1) if num_games > 0 else 0,
-        'rpg': round(team_reb / num_games, 1) if num_games > 0 else 0,
-        'apg': round(team_ast / num_games, 1) if num_games > 0 else 0
-    }
-
-def _calculate_team_rankings(player_name, game_ids, player_metrics):
-    """Calculate player's rank in team"""
-    if not game_ids:
-        return {'ppg_rank': '-', 'eff_rank': '-'}
-        
-    # Get averages for all players
-    stats = db.session.query(
-        PlayerStat.player_name,
-        func.sum(PlayerStat.points).label('total_pts'),
-        func.count(PlayerStat.id).label('games')
-    ).filter(
-        PlayerStat.game_id.in_(game_ids),
-        PlayerStat.minutes != "00:00"
-    ).group_by(PlayerStat.player_name).all()
-    
-    # Calculate PPG for all
-    player_ppg = []
-    for name, pts, games in stats:
-        ppg = pts / games if games > 0 else 0
-        player_ppg.append((name, ppg))
-        
-    # Sort and find rank
-    player_ppg.sort(key=lambda x: x[1], reverse=True)
-    
-    rank = 1
-    for i, (name, _) in enumerate(player_ppg):
-        if name == player_name:
-            rank = i + 1
-            break
-            
-    return {
-        'ppg_rank': rank,
-        'eff_rank': '-' # Placeholder as eff requires more complex calc
     }
