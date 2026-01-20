@@ -1159,7 +1159,7 @@ def _get_team_aggregates(stats):
     }
 
 def draw_court(ax=None, color='black', lw=2, outer_lines=False):
-    \"\"\"Draws a basketball court on a matplotlib axis.\"\"\"
+    """Draws a basketball court on a matplotlib axis."""
     if ax is None:
         ax = plt.gca()
 
@@ -1212,12 +1212,12 @@ def draw_court(ax=None, color='black', lw=2, outer_lines=False):
     return ax
 
 def _generate_team_shot_chart(game_ids):
-    \"\"\"Generate team shot chart for given games\"\"\"
+    """Generate team shot chart for given games"""
     try:
         shots = ShotEvent.query.filter(ShotEvent.game_id.in_(game_ids)).all()
         
         if not shots:
-            return \"\"
+            return ""
 
         plt.figure(figsize=(12, 11))
         draw_court(outer_lines=True)
@@ -1245,12 +1245,12 @@ def _generate_team_shot_chart(game_ids):
         
         return base64.b64encode(img.getvalue()).decode()
     except Exception as e:
-        print(f\"Error generating team shot chart: {e}\")
+        print(f"Error generating team shot chart: {e}")
         plt.close()
-        return \"\"
+        return ""
 
 def _generate_shot_chart(player_name, game_ids):
-    \"\"\"Generate shot chart for a specific player\"\"\"
+    """Generate shot chart for a specific player"""
     try:
         shots = ShotEvent.query.filter(
             ShotEvent.player_name == player_name,
@@ -1258,7 +1258,7 @@ def _generate_shot_chart(player_name, game_ids):
         ).all()
         
         if not shots:
-            return \"\"
+            return ""
 
         plt.figure(figsize=(12, 11))
         draw_court(outer_lines=True)
@@ -1283,12 +1283,12 @@ def _generate_shot_chart(player_name, game_ids):
         
         return base64.b64encode(img.getvalue()).decode()
     except Exception as e:
-        print(f\"Error generating shot chart: {e}\")
+        print(f"Error generating shot chart: {e}")
         plt.close()
-        return \"\"
+        return ""
 
 def _generate_player_charts(stats, game_map, player_name):
-    \"\"\"Generate trend charts for player report\"\"\"
+    """Generate trend charts for player report"""
     charts = {}
     try:
         # PPG Chart
@@ -1321,13 +1321,13 @@ def _generate_player_charts(stats, game_map, player_name):
         plt.close()
         
     except Exception as e:
-        print(f\"Error generating player charts: {e}\")
+        print(f"Error generating player charts: {e}")
         plt.close()
         
     return charts
 
 def _calculate_enhanced_team_metrics(games, game_ids):
-    \"\"\"Calculate aggregate stats for team report\"\"\"
+    """Calculate aggregate stats for team report"""
     if not games:
         return {}
         
@@ -1378,7 +1378,7 @@ def _calculate_enhanced_team_metrics(games, game_ids):
     }
 
 def _calculate_player_metrics(stats, game_map, games_played):
-    \"\"\"Calculate aggregate player metrics for report\"\"\"
+    """Calculate aggregate player metrics for report"""
     if not stats:
         return {}
         
@@ -1441,7 +1441,7 @@ def _calculate_player_metrics(stats, game_map, games_played):
     }
 
 def _calculate_team_averages(game_ids):
-    \"\"\"Get team average stats for comparison\"\"\"
+    """Get team average stats for comparison"""
     if not game_ids:
         return {'ppg': 0, 'rpg': 0, 'apg': 0}
         
@@ -1461,7 +1461,7 @@ def _calculate_team_averages(game_ids):
     }
 
 def _calculate_team_rankings(player_name, game_ids, player_metrics):
-    \"\"\"Calculate player's rank in team\"\"\"
+    """Calculate player's rank in team"""
     if not game_ids:
         return {'ppg_rank': '-', 'eff_rank': '-'}
         
