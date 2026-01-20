@@ -1293,7 +1293,8 @@ def _generate_player_charts(stats, game_map, player_name):
     try:
         # PPG Chart
         plt.figure(figsize=(10, 4))
-        dates = [game_map[s.game_id].date.strftime('%m/%d') for s in stats]
+        # Game.date is a STRING, not datetime - use it directly
+        dates = [game_map[s.game_id].date for s in stats]
         points = [s.points for s in stats]
         
         plt.plot(dates, points, marker='o', linewidth=2, color='#208dd1')
@@ -1408,14 +1409,14 @@ def _calculate_player_metrics(stats, game_map, games_played):
     
     # Recent games data
     recent_games = []
-    # Sort stats by game date
-    sorted_stats = sorted(stats, key=lambda s: game_map[s.game_id].date if s.game_id in game_map else datetime.min, reverse=True)
+    # Sort stats by game date (sort_date is also a string)
+    sorted_stats = sorted(stats, key=lambda s: game_map[s.game_id].sort_date if s.game_id in game_map else "", reverse=True)
     
     for s in sorted_stats[:5]:
         game = game_map.get(s.game_id)
         if game:
             recent_games.append({
-                'date': game.date.strftime('%m/%d'),
+                'date': game.date,  # Use date string directly
                 'opponent': game.opponent,
                 'result': 'W' if game.team_score > game.opponent_score else 'L',
                 'points': s.points,
