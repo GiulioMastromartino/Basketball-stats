@@ -45,7 +45,7 @@ from core.utils import (
     normalize_per_100_possessions
 )
 
-analytics_bp = Blueprint("analytics", __name__")
+analytics_bp = Blueprint("analytics", __name__)
 
 # Constants
 MIN_FGA_PER_GAME = 4.0
