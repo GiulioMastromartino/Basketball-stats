@@ -121,7 +121,76 @@
     .pm-neg { color: #b91c1c; background: #fee2e2; }
     .pm-neu { color: #6b7280; background: #f3f4f6; }
 
+    /* PDF Loading Overlay */
+    #pdf-loading-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+    }
+    #pdf-loading-overlay.active {
+        display: flex;
+    }
+    .pdf-loading-content {
+        background: white;
+        padding: 40px;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+    .pdf-spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .pdf-progress-bar {
+        width: 100%;
+        height: 8px;
+        background: #e2e8f0;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 20px;
+    }
+    .pdf-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        width: 0%;
+        transition: width 0.5s ease;
+        animation: progress-pulse 2s ease-in-out infinite;
+    }
+    @keyframes progress-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
 </style>
+
+<!-- PDF Loading Overlay -->
+<div id="pdf-loading-overlay">
+    <div class="pdf-loading-content">
+        <div class="pdf-spinner"></div>
+        <h4 class="mb-2">Generating Game Report</h4>
+        <p class="text-muted mb-0">Processing player stats, shot charts, and play analysis...</p>
+        <div class="pdf-progress-bar">
+            <div class="pdf-progress-fill" id="pdf-progress-fill"></div>
+        </div>
+        <p class="text-muted mt-3 small">This may take 10-30 seconds</p>
+    </div>
+</div>
 
 <!-- Game Header -->
 <div class="game-header text-center">
@@ -191,7 +260,9 @@
 
         <!-- Action Buttons -->
         <div class="d-flex gap-2">
-            <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-dark shadow-sm">
+            <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" 
+               class="btn btn-outline-dark shadow-sm" 
+               id="download-report-btn">
                 <i class="fas fa-download me-2"></i>Download Report
             </a>
 
@@ -721,6 +792,34 @@
             tooltip.style.left = (e.pageX + 10) + 'px';
             tooltip.style.top = (e.pageY + 10) + 'px';
         }
+
+        // PDF Download Progress Indicator
+        const downloadBtn = document.getElementById('download-report-btn');
+        const loadingOverlay = document.getElementById('pdf-loading-overlay');
+        const progressFill = document.getElementById('pdf-progress-fill');
+
+        downloadBtn.addEventListener('click', function(e) {
+            // Show loading overlay
+            loadingOverlay.classList.add('active');
+            
+            // Simulate progress (since we can't track actual server progress)
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90; // Cap at 90% until download actually completes
+                progressFill.style.width = progress + '%';
+            }, 500);
+
+            // Hide overlay after delay (PDF download should trigger by then)
+            setTimeout(() => {
+                clearInterval(interval);
+                progressFill.style.width = '100%';
+                setTimeout(() => {
+                    loadingOverlay.classList.remove('active');
+                    progressFill.style.width = '0%';
+                }, 500);
+            }, 15000); // 15 seconds timeout
+        });
     });
 </script>
 {% endblock %}
