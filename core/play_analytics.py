@@ -37,7 +37,7 @@ def _calc_metrics(shot_attempts, made_shots, points, turnovers, three_made):
 def get_untracked_percentages(game_id: int):
     """Return untracked coverage percentages (no counts shown in UI).
 
-    Play tagging applies primarily to 2pt/3pt shots and turnovers, so FT are excluded.
+    Play tagging applies primarily to 2pt / 3pt shots and turnovers, so FT are excluded.
     """
 
     # Shots (exclude FT)
@@ -359,3 +359,22 @@ def get_player_play_stats(game_id: int, play_type: str = "Offense"):
 
     out.sort(key=lambda r: sum(p["possessions"] for p in r["plays"]), reverse=True)
     return out
+
+
+def get_player_top_plays_by_points(game_id: int, limit: int = 3, play_type: str = "Offense"):
+    """
+    Get top plays for each player sorted by points scored (descending).
+    
+    Returns dict: { "Player Name": [ {play_stats}, ... ] }
+    """
+    player_plays = get_player_play_stats(game_id, play_type=play_type)
+    
+    result = {}
+    for entry in player_plays:
+        player_name = entry["player_name"]
+        plays = entry["plays"]
+        # Sort by points descending, then possessions descending
+        plays.sort(key=lambda x: (x["points"], x["possessions"]), reverse=True)
+        result[player_name] = plays[:limit]
+        
+    return result
