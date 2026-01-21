@@ -18,6 +18,7 @@ from core.play_analytics import (
     get_play_player_stats,
     get_player_play_stats,
     get_untracked_percentages,
+    get_player_top_plays_by_points,
 )
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
@@ -55,6 +56,9 @@ def game_summary_pdf(game_id):
     plays_players_data = get_play_player_stats(game_id, play_type="Offense")
     players_plays_data = get_player_play_stats(game_id, play_type="Offense")
     untracked = get_untracked_percentages(game_id) or {}
+    
+    # Get top 3 plays per player by points
+    player_top_plays = get_player_top_plays_by_points(game_id, limit=3)
 
     html = render_template(
         "game_summary_pdf.html",
@@ -67,6 +71,7 @@ def game_summary_pdf(game_id):
         plays_data=plays_data,
         plays_players_data=plays_players_data,
         players_plays_data=players_plays_data,
+        player_top_plays=player_top_plays,
         untracked=untracked,
         generated_date=datetime.now().strftime("%B %d, %Y"),
     )
