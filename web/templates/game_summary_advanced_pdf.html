@@ -1,263 +1,287 @@
 <!doctype html>
-<html>
-    <head>
-        <meta charset="utf-8" />
-        <title>Advanced Game Summary</title>
-        <style>
-            @page {
-                size: A4;
-                margin: 1cm;
-            }
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                color: #1a202c;
-                line-height: 1.5;
-                font-size: 11px;
-            }
-            .header-container {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                border-bottom: 2px solid #2c3e50;
-                padding-bottom: 10px;
-                margin-bottom: 20px;
-            }
-            .header-left h1 { margin: 0; font-size: 20px; color: #2c3e50; }
-            .section-title {
-                background: #2c3e50;
-                color: white;
-                padding: 5px 10px;
-                font-size: 12px;
-                font-weight: bold;
-                margin: 15px 0 10px 0;
-                border-radius: 4px;
-            }
-            table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 15px; }
-            th { background: #edf2f7; padding: 6px; border-bottom: 2px solid #cbd5e0; font-weight: 700; color: #4a5568; text-align: center; }
-            td { padding: 5px; border-bottom: 1px solid #e2e8f0; text-align: center; }
-            td.text-left { text-align: left; }
-            .row { display: flex; gap: 20px; }
-            .col { flex: 1; }
-            .stat-box { background: #f7fafc; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }
-            .stat-label { font-size: 10px; color: #718096; text-transform: uppercase; margin-bottom: 4px; }
-            .stat-value { font-size: 18px; font-weight: 800; color: #2c3e50; }
-            .page-break { page-break-after: always; }
-            .chart-container { text-align: center; margin-bottom: 20px; }
-            .chart-container img { max-width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
-            
-            /* Reference PDF Style Colors */
-            .bg-blue { background-color: #ebf8ff; }
-            .bg-green { background-color: #f0fff4; }
-            .text-blue { color: #3182ce; }
-            .text-green { color: #38a169; }
-        </style>
-    </head>
-    <body>
-        <!-- Page 1: Advanced Team Stats -->
-        <div class="header-container">
-            <div class="header-left">
-                <h1>Advanced Game Report</h1>
-                <div style="font-size: 12px; margin-top: 2px">{{ game.date }} vs {{ game.opponent }}</div>
-            </div>
-            <div class="header-right" style="text-align: right">
-                <div>Result: <strong>{{ 'WIN' if game.result == 'W' else 'LOSS' }}</strong> ({{ game.team_score }}-{{ game.opponent_score }})</div>
-                <div>Generated: {{ generated_date }}</div>
-            </div>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Advanced Game Report</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; }
+    h1,h2,h3 { margin: 0 0 6px 0; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 13px; margin-top: 14px; padding-top: 8px; border-top: 1px solid #ddd; }
+    .muted { color: #666; }
+    .row { display: flex; gap: 10px; }
+    .col { flex: 1; min-width: 0; }
+    .card { border: 1px solid #e6e6e6; border-radius: 6px; padding: 10px; }
+    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .kpi { border: 1px solid #efefef; border-radius: 6px; padding: 8px; }
+    .kpi .label { font-size: 10px; color: #666; }
+    .kpi .value { font-size: 16px; font-weight: 700; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #e9e9e9; padding: 6px 7px; vertical-align: middle; }
+    th { background: #f7f7f7; text-align: left; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .center { text-align: center; }
+    .small { font-size: 10px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .bar { height: 10px; background: #eee; border-radius: 999px; overflow: hidden; }
+    .bar > span { display: block; height: 100%; background: #111; }
+    .legend { display: flex; gap: 10px; align-items: center; font-size: 10px; color: #666; }
+    .dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
+    .dot.made { background: #111; }
+    .dot.miss { background: #ccc; }
+    .page-break { page-break-before: always; }
+    .court-wrap { width: 100%; border: 1px solid #e6e6e6; border-radius: 6px; padding: 8px; }
+    .court-title { display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 6px; }
+    .court { width: 100%; height: auto; }
+    .footer { margin-top: 14px; font-size: 9px; color: #777; display:flex; justify-content:space-between; }
+  </style>
+</head>
+
+<body>
+  <header class="card">
+    <div class="row" style="align-items:baseline;">
+      <div class="col">
+        <h1>{{ report.title or "Advanced Game Report" }}</h1>
+        <div class="muted">
+          {% if game and game.date %}Updated {{ game.date }}{% endif %}
+          {% if game and game.location %} · {{ game.location }}{% endif %}
         </div>
-
-        <!-- Four Factors & Efficiency -->
-        <div class="row">
-            <div class="col">
-                <div class="section-title">Efficiency Metrics</div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th class="text-left">Metric</th>
-                            <th>Team</th>
-                            <th>Opponent (Est.)</th>
-                            <th>Diff</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="text-left"><strong>OER</strong> (Off. Eff. Rating)</td>
-                            <td class="bg-blue">{{ team_advanced.oer }}</td>
-                            <td>{{ team_advanced.der }}</td> <!-- Opponent OER is our DER -->
-                            <td>{{ team_advanced.net_rating }}</td>
-                        </tr>
-                        <tr>
-                            <td class="text-left"><strong>DER</strong> (Def. Eff. Rating)</td>
-                            <td class="bg-green">{{ team_advanced.der }}</td>
-                            <td>{{ team_advanced.oer }}</td>
-                            <td>{{ -team_advanced.net_rating }}</td>
-                        </tr>
-                        <tr>
-                            <td class="text-left"><strong>Net Rating</strong></td>
-                            <td style="font-weight: bold">{{ team_advanced.net_rating }}</td>
-                            <td>{{ -team_advanced.net_rating }}</td>
-                            <td>-</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div class="section-title">Four Factors</div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th class="text-left">Factor</th>
-                            <th>Team</th>
-                            <th>Opponent (Est.)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="text-left">eFG% (Effective FG%)</td>
-                            <td>{{ team_advanced.efg_pct }}%</td>
-                            <td>-</td>
-                        </tr>
-                        <tr>
-                            <td class="text-left">TOV% (Turnover Rate)</td>
-                            <td>{{ team_advanced.tov_pct }}%</td>
-                            <td>-</td>
-                        </tr>
-                        <tr>
-                            <td class="text-left">ORB% (Off. Reb. Rate)</td>
-                            <td>{{ team_advanced.orb_pct }}%</td>
-                            <td>-</td>
-                        </tr>
-                        <tr>
-                            <td class="text-left">FTr (Free Throw Rate)</td>
-                            <td>{{ team_advanced.ft_rate }}</td>
-                            <td>-</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="col">
-                <div class="section-title">Shooting Distribution</div>
-                {% if shot_chart %}
-                <div class="chart-container">
-                    <img src="data:image/png;base64,{{ shot_chart }}" alt="Shot Chart" />
-                </div>
-                {% else %}
-                <div class="stat-box">No shot chart data available</div>
-                {% endif %}
-                
-                <table style="margin-top: 10px;">
-                    <tr>
-                        <th>Zone</th>
-                        <th>M/A</th>
-                        <th>%</th>
-                    </tr>
-                    <tr>
-                        <td class="text-left">2 Points</td>
-                        <td>{{ team_shooting.two_pt_made }}/{{ team_shooting.two_pt_att }}</td>
-                        <td>{{ team_shooting.two_pt_pct }}%</td>
-                    </tr>
-                    <tr>
-                        <td class="text-left">3 Points</td>
-                        <td>{{ team_shooting.tpm }}/{{ team_shooting.tpa }}</td>
-                        <td>{{ team_shooting.three_pt_pct }}%</td>
-                    </tr>
-                    <tr>
-                        <td class="text-left">Free Throws</td>
-                        <td>{{ team_shooting.ftm }}/{{ team_shooting.fta }}</td>
-                        <td>{{ team_shooting.ft_pct }}%</td>
-                    </tr>
-                </table>
-            </div>
+      </div>
+      <div class="col" style="text-align:right;">
+        <div style="font-size:14px; font-weight:700;">
+          {{ game.team_name }} {{ game.team_points }} - {{ game.opp_points }} {{ game.opp_name }}
         </div>
-
-        <!-- Advanced Team Stats -->
-        <div class="section-title">Advanced Team Statistics</div>
-        <div class="row" style="flex-wrap: wrap; gap: 10px;">
-            <div class="stat-box col">
-                <div class="stat-label">TS%</div>
-                <div class="stat-value">{{ team_advanced.ts_pct }}%</div>
-            </div>
-            <div class="stat-box col">
-                <div class="stat-label">AST%</div>
-                <div class="stat-value">{{ team_advanced.ast_pct }}%</div>
-            </div>
-            <div class="stat-box col">
-                <div class="stat-label">STL%</div>
-                <div class="stat-value">{{ team_advanced.stl_pct }}%</div>
-            </div>
-            <div class="stat-box col">
-                <div class="stat-label">BLK%</div>
-                <div class="stat-value">{{ team_advanced.blk_pct }}%</div>
-            </div>
-            <div class="stat-box col">
-                <div class="stat-label">3PAr</div>
-                <div class="stat-value">{{ team_advanced.three_par }}</div>
-            </div>
+        <div class="muted small">
+          {% if game and game.competition %}{{ game.competition }}{% endif %}
         </div>
+      </div>
+    </div>
 
-        <div class="page-break"></div>
+    <div class="kpis" style="margin-top:10px;">
+      <div class="kpi">
+        <div class="label">OER</div>
+        <div class="value">{{ report.team.oer|default(0) }}</div>
+        <div class="muted small">Opp: {{ report.opp.oer|default(0) }}</div>
+      </div>
+      <div class="kpi">
+        <div class="label">DER</div>
+        <div class="value">{{ report.team.der|default(0) }}</div>
+        <div class="muted small">Opp: {{ report.opp.der|default(0) }}</div>
+      </div>
+      <div class="kpi">
+        <div class="label">NET</div>
+        <div class="value">{{ report.team.net|default(0) }}</div>
+        <div class="muted small">Opp: {{ report.opp.net|default(0) }}</div>
+      </div>
+    </div>
+  </header>
 
-        <!-- Page 2: Advanced Player Stats -->
-        <div class="header-container">
-            <div class="header-left">
-                <h1>Player Advanced Metrics</h1>
-            </div>
-            <div class="header-right">Page 2</div>
+  <h2>Shot Chart</h2>
+  <div class="row">
+    <div class="col card">
+      <div class="court-title">
+        <div><strong>{{ game.team_name }}</strong></div>
+        <div class="muted small">
+          {% if report.team.fg %}{{ report.team.fg }}{% endif %}
+          {% if report.team.fg_pct is not none %} ({{ report.team.fg_pct }}%) {% endif %}
+          · 3P {% if report.team.tp %}{{ report.team.tp }}{% endif %}
+          {% if report.team.tp_pct is not none %} ({{ report.team.tp_pct }}%) {% endif %}
         </div>
+      </div>
 
-        <div class="section-title">Detailed Advanced Stats</div>
-        <table>
-            <thead>
-                <tr>
-                    <th class="text-left">Player</th>
-                    <th>MIN</th>
-                    <th>PTS</th>
-                    <th>USG%</th>
-                    <th>TS%</th>
-                    <th>eFG%</th>
-                    <th>3PAr</th>
-                    <th>FTr</th>
-                    <th>ORB%</th>
-                    <th>AST%</th>
-                    <th>TOV%</th>
-                    <th>GMSC</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for p in player_stats %}
-                <tr>
-                    <td class="text-left" style="font-weight: bold;">{{ p.player_name }}</td>
-                    <td>{{ p.minutes }}</td>
-                    <td>{{ p.points }}</td>
-                    <td class="{{ 'text-blue' if p.usg_pct > 25 }}">{{ p.usg_pct|round(1) }}%</td>
-                    <td class="{{ 'text-green' if p.ts_pct > 55 }}">{{ p.ts_pct|round(1) }}%</td>
-                    <td>{{ p.efg_pct|round(1) }}%</td>
-                    <td>{{ p.three_par|round(2) }}</td>
-                    <td>{{ p.ft_rate|round(2) }}</td>
-                    <td>{{ p.orb_pct|round(1) }}%</td>
-                    <td>{{ p.ast_pct|round(1) }}%</td>
-                    <td class="{{ 'text-green' if p.tov_pct < 10 else '' }}">{{ p.tov_pct|round(1) }}%</td>
-                    <td>{{ p.game_score|round(1) }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+      <div class="court-wrap">
+        <svg class="court" viewBox="0 0 500 470" xmlns="http://www.w3.org/2000/svg" aria-label="Shot chart">
+          <!-- half-court (simple, printable) -->
+          <rect x="10" y="10" width="480" height="450" fill="#fff" stroke="#ddd" stroke-width="2"/>
+          <line x1="10" y1="235" x2="490" y2="235" stroke="#eee" stroke-width="2"/>
+          <circle cx="250" cy="235" r="60" fill="none" stroke="#eee" stroke-width="2"/>
+          <rect x="190" y="10" width="120" height="190" fill="none" stroke="#eee" stroke-width="2"/>
+          <rect x="215" y="10" width="70" height="190" fill="none" stroke="#eee" stroke-width="2"/>
+          <circle cx="250" cy="60" r="40" fill="none" stroke="#eee" stroke-width="2"/>
+          <circle cx="250" cy="60" r="7" fill="none" stroke="#ddd" stroke-width="2"/>
 
-        <!-- Glossary -->
-        <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-            <div style="font-size: 10px; color: #718096; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div>
-                    <strong>OER:</strong> Offensive Efficiency Rating (Pts per 100 poss)<br>
-                    <strong>DER:</strong> Defensive Efficiency Rating (Opp Pts per 100 poss)<br>
-                    <strong>USG%:</strong> Usage Percentage (Est. % of team plays used)<br>
-                    <strong>TS%:</strong> True Shooting Percentage (Shooting efficiency incl. FTs)
-                </div>
-                <div>
-                    <strong>eFG%:</strong> Effective Field Goal Percentage (Adjusts for 3PT)<br>
-                    <strong>3PAr:</strong> 3-Point Attempt Rate (3PA / FGA)<br>
-                    <strong>FTr:</strong> Free Throw Rate (FTA / FGA)<br>
-                    <strong>GMSC:</strong> Game Score (Hollinger's comprehensive metric)
-                </div>
-            </div>
+          {% if report.team.shots %}
+            {% for s in report.team.shots %}
+              {% set fill = '#111' if s.made else '#bbb' %}
+              <circle cx="{{ s.x }}" cy="{{ s.y }}" r="5" fill="{{ fill }}" opacity="0.9"/>
+            {% endfor %}
+          {% endif %}
+        </svg>
+        <div class="legend" style="margin-top:6px;">
+          <span class="dot made"></span> Made
+          <span class="dot miss"></span> Missed
         </div>
-    </body>
+      </div>
+    </div>
+
+    <div class="col card">
+      <div class="court-title">
+        <div><strong>{{ game.opp_name }}</strong></div>
+        <div class="muted small">
+          {% if report.opp.fg %}{{ report.opp.fg }}{% endif %}
+          {% if report.opp.fg_pct is not none %} ({{ report.opp.fg_pct }}%) {% endif %}
+          · 3P {% if report.opp.tp %}{{ report.opp.tp }}{% endif %}
+          {% if report.opp.tp_pct is not none %} ({{ report.opp.tp_pct }}%) {% endif %}
+        </div>
+      </div>
+
+      <div class="court-wrap">
+        <svg class="court" viewBox="0 0 500 470" xmlns="http://www.w3.org/2000/svg" aria-label="Shot chart">
+          <rect x="10" y="10" width="480" height="450" fill="#fff" stroke="#ddd" stroke-width="2"/>
+          <line x1="10" y1="235" x2="490" y2="235" stroke="#eee" stroke-width="2"/>
+          <circle cx="250" cy="235" r="60" fill="none" stroke="#eee" stroke-width="2"/>
+          <rect x="190" y="10" width="120" height="190" fill="none" stroke="#eee" stroke-width="2"/>
+          <rect x="215" y="10" width="70" height="190" fill="none" stroke="#eee" stroke-width="2"/>
+          <circle cx="250" cy="60" r="40" fill="none" stroke="#eee" stroke-width="2"/>
+          <circle cx="250" cy="60" r="7" fill="none" stroke="#ddd" stroke-width="2"/>
+
+          {% if report.opp.shots %}
+            {% for s in report.opp.shots %}
+              {% set fill = '#111' if s.made else '#bbb' %}
+              <circle cx="{{ s.x }}" cy="{{ s.y }}" r="5" fill="{{ fill }}" opacity="0.9"/>
+            {% endfor %}
+          {% endif %}
+        </svg>
+        <div class="legend" style="margin-top:6px;">
+          <span class="dot made"></span> Made
+          <span class="dot miss"></span> Missed
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Efficiency</h2>
+  <div class="split">
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th class="center">{{ game.team_name }}</th>
+            <th class="center">{{ game.opp_name }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>OER</td><td class="num">{{ report.team.oer }}</td><td class="num">{{ report.opp.oer }}</td></tr>
+          <tr><td>DER</td><td class="num">{{ report.team.der }}</td><td class="num">{{ report.opp.der }}</td></tr>
+          <tr><td>NET</td><td class="num">{{ report.team.net }}</td><td class="num">{{ report.opp.net }}</td></tr>
+          <tr><td>Possessions</td><td class="num">{{ report.team.possessions }}</td><td class="num">{{ report.opp.possessions }}</td></tr>
+        </tbody>
+      </table>
+      <div class="muted small" style="margin-top:6px;">
+        OER/DER per 100 possessions (Dean Oliver formula, poss = FGA + 0.44*FTA - ORB + TOV).
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th class="center">{{ game.team_name }}</th>
+            <th class="center">{{ game.opp_name }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>eFG%</td><td class="num">{{ report.team.efg_pct }}</td><td class="num">{{ report.opp.efg_pct }}</td></tr>
+          <tr><td>TOV%</td><td class="num">{{ report.team.tov_pct }}</td><td class="num">{{ report.opp.tov_pct }}</td></tr>
+          <tr><td>ORB%</td><td class="num">{{ report.team.orb_pct }}</td><td class="num">{{ report.opp.orb_pct }}</td></tr>
+          <tr><td>FTr</td><td class="num">{{ report.team.ftr }}</td><td class="num">{{ report.opp.ftr }}</td></tr>
+        </tbody>
+      </table>
+      <div class="muted small" style="margin-top:6px;">
+        Four Factors: eFG%, TOV%, ORB%, FTr.
+      </div>
+    </div>
+  </div>
+
+  <h2>Points Breakdown</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th class="center">{{ game.team_name }}</th>
+          <th class="center">{{ game.opp_name }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>PPFT (points per free throw attempt)</td><td class="num">{{ report.team.ppft }}</td><td class="num">{{ report.opp.ppft }}</td></tr>
+        <tr><td>PP2PS (points per 2PT shot)</td><td class="num">{{ report.team.pp2ps }}</td><td class="num">{{ report.opp.pp2ps }}</td></tr>
+        <tr><td>PP3PS (points per 3PT shot)</td><td class="num">{{ report.team.pp3ps }}</td><td class="num">{{ report.opp.pp3ps }}</td></tr>
+      </tbody>
+    </table>
+    <div class="muted small" style="margin-top:6px;">
+      Points breakdown per attempt (FT/2P/3P).
+    </div>
+  </div>
+
+  <h2>Advanced</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th class="center">{{ game.team_name }}</th>
+          <th class="center">{{ game.opp_name }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>3PAr</td><td class="num">{{ report.team.tpar }}</td><td class="num">{{ report.opp.tpar }}</td></tr>
+        <tr><td>TS%</td><td class="num">{{ report.team.ts_pct }}</td><td class="num">{{ report.opp.ts_pct }}</td></tr>
+        <tr><td>AST%</td><td class="num">{{ report.team.ast_pct }}</td><td class="num">{{ report.opp.ast_pct }}</td></tr>
+        <tr><td>STL%</td><td class="num">{{ report.team.stl_pct }}</td><td class="num">{{ report.opp.stl_pct }}</td></tr>
+        <tr><td>BLK%</td><td class="num">{{ report.team.blk_pct }}</td><td class="num">{{ report.opp.blk_pct }}</td></tr>
+        <tr><td>DRB%</td><td class="num">{{ report.team.drb_pct }}</td><td class="num">{{ report.opp.drb_pct }}</td></tr>
+        <tr><td>TRB%</td><td class="num">{{ report.team.trb_pct }}</td><td class="num">{{ report.opp.trb_pct }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Players (Advanced)</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th class="num">MIN</th>
+          <th class="num">PTS</th>
+          <th class="num">REB</th>
+          <th class="num">AST</th>
+          <th class="num">TS%</th>
+          <th class="num">eFG%</th>
+          <th class="num">USG%</th>
+          <th class="num">TOV%</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in report.players %}
+          <tr>
+            <td>{{ p.name }}</td>
+            <td class="num">{{ p.min }}</td>
+            <td class="num">{{ p.pts }}</td>
+            <td class="num">{{ p.reb }}</td>
+            <td class="num">{{ p.ast }}</td>
+            <td class="num">{{ p.ts_pct }}</td>
+            <td class="num">{{ p.efg_pct }}</td>
+            <td class="num">{{ p.usg_pct }}</td>
+            <td class="num">{{ p.tov_pct }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="muted small" style="margin-top:6px;">
+      USG% estimated: \((FGA + 0.44*FTA + TOV)\) weighted by minutes.
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>Basketball Stats Assistant</div>
+    <div class="muted">
+      {% if report.generated_at %}{{ report.generated_at }}{% endif %}
+    </div>
+  </div>
+</body>
 </html>
