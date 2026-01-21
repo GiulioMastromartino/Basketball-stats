@@ -33,6 +33,7 @@
                 font-weight: bold;
                 margin: 15px 0 10px 0;
                 border-radius: 4px;
+                page-break-after: avoid; /* Keep title with content */
             }
 
             /* Scoreboard */
@@ -61,6 +62,7 @@
                 width: 100%;
                 border-collapse: collapse;
                 font-size: 10px;
+                page-break-inside: auto; /* Allow breaks inside table */
             }
             th {
                 background: #edf2f7;
@@ -77,6 +79,10 @@
                 text-align: center;
             }
             td.text-left { text-align: left; font-weight: 600; }
+            tr {
+                page-break-inside: avoid; /* Prevent row splitting */
+                page-break-after: auto;
+            }
             tr:nth-child(even) { background-color: #f8fafc; }
 
             /* Specific "Layout Tables" (Invisible borders) */
@@ -90,6 +96,10 @@
                 border: none;
                 background: transparent;
                 vertical-align: top;
+            }
+            /* Do not enforce page break rules on layout tables to prevent layout issues */
+            table.layout-table tr {
+                 page-break-inside: auto;
             }
 
             /* Shooting Table Specifics */
@@ -161,7 +171,8 @@
                 border-radius: 8px;
                 padding: 12px;
                 background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-                break-inside: avoid;
+                break-inside: avoid; /* Avoid breaking player cards */
+                page-break-inside: avoid;
             }
             .player-card-header {
                 font-size: 14px;
@@ -259,6 +270,7 @@
                 background: #f7fafc;
                 border-left: 3px solid #4299e1;
                 border-radius: 4px;
+                page-break-inside: avoid;
             }
             .glossary-term { font-weight: 700; color: #2c5282; font-size: 11px; }
             .glossary-desc { color: #4a5568; margin-top: 3px; font-size: 10px; }
