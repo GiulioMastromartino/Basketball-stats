@@ -191,8 +191,12 @@
 
         <!-- Action Buttons -->
         <div class="d-flex gap-2">
-            <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-dark shadow-sm">
-                <i class="fas fa-download me-2"></i>Download Report
+            <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-primary shadow-sm">
+                <i class="fas fa-file-alt me-2"></i>Summary Report
+            </a>
+            
+            <a href="{{ url_for('analytics.advanced_game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-success shadow-sm">
+                <i class="fas fa-chart-bar me-2"></i>Advanced Report
             </a>
 
             <form method="POST" action="{{ url_for('main.delete_game', game_id=game.id) }}"
