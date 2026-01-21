@@ -197,6 +197,35 @@
                 color: #1f2937;
             }
 
+            /* Top Plays Section */
+            .top-plays-card {
+                background-color: #e5e7eb;
+                border-radius: 8px;
+                padding: 8px 10px;
+                margin-top: 8px;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            }
+            .top-plays-label {
+                font-weight: bold;
+                color: #166534;
+                font-size: 9px;
+                text-transform: uppercase;
+                margin-bottom: 4px;
+            }
+            .top-plays-content {
+                font-size: 10px;
+                color: #1f2937;
+                line-height: 1.4;
+            }
+            .play-item {
+                display: inline;
+                margin-right: 8px;
+            }
+            .play-points {
+                font-weight: bold;
+                color: #2c3e50;
+            }
+
             /* Stats Colors */
             .stat-good { color: #28a745; font-weight: bold; }
             .stat-bad { color: #dc3545; font-weight: bold; }
@@ -823,6 +852,20 @@
                                         </td>
                                     </tr>
                                 </table>
+
+                                <!-- TOP 3 PLAYS SECTION -->
+                                {% if p.top_3_plays and p.top_3_plays|length > 0 %}
+                                <div class="top-plays-card">
+                                    <div class="top-plays-label">Top Plays</div>
+                                    <div class="top-plays-content">
+                                        {% for play in p.top_3_plays %}
+                                        <span class="play-item">
+                                            <span class="play-points">{{ play.points }}pts</span> {{ play.play_name }}{% if not loop.last %} {% endif %}
+                                        </span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -1066,6 +1109,20 @@
                                         </td>
                                     </tr>
                                 </table>
+
+                                <!-- TOP 3 PLAYS SECTION -->
+                                {% if p.top_3_plays and p.top_3_plays|length > 0 %}
+                                <div class="top-plays-card">
+                                    <div class="top-plays-label">Top Plays</div>
+                                    <div class="top-plays-content">
+                                        {% for play in p.top_3_plays %}
+                                        <span class="play-item">
+                                            <span class="play-points">{{ play.points }}pts</span> {{ play.play_name }}{% if not loop.last %} {% endif %}
+                                        </span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
