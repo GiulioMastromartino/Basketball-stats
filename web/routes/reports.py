@@ -173,7 +173,7 @@ def advanced_game_summary_pdf(game_id):
     # Game metadata
     game_meta = {
         "date": game.date,
-        "location": game.location or "",
+        "location": "",  # Game model has no location field
         "competition": game.game_type or "",
         "team_name": "LX",  # TODO: get from config/db
         "opp_name": game.opponent,
