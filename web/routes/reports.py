@@ -59,6 +59,18 @@ def game_summary_pdf(game_id):
     
     # Get top 3 plays per player by points
     player_top_plays = get_player_top_plays_by_points(game_id, limit=3)
+    
+    # Attach top plays to each player stat object
+    for player in stats_with_metrics:
+        top_plays = player_top_plays.get(player.player_name, [])
+        # Transform to format expected by template
+        player.top_3_plays = [
+            {
+                "points": play["points"],
+                "play_name": play["name"]
+            }
+            for play in top_plays
+        ]
 
     html = render_template(
         "game_summary_pdf.html",
@@ -71,7 +83,6 @@ def game_summary_pdf(game_id):
         plays_data=plays_data,
         plays_players_data=plays_players_data,
         players_plays_data=players_plays_data,
-        player_top_plays=player_top_plays,
         untracked=untracked,
         generated_date=datetime.now().strftime("%B %d, %Y"),
     )
@@ -151,12 +162,6 @@ def download_all_reports():
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for player_name in player_names:
                 try:
-                    # Re-use internal logic but inject pre-calculated team_avg to save time?
-                    # Actually _generate_player_report_data calls calculates it again.
-                    # We can optimize by passing it if we refactor _generate_player_report_data, 
-                    # but for now let's just call the helper to be safe and DRY.
-                    # Optimization: The helper fetches stats again. 
-                    
                     context = _generate_player_report_data(player_name, games, game_ids, game_type, team_avg_override=team_avg)
                     html = render_template("player_report_pdf.html", **context)
                     
