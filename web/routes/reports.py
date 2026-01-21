@@ -20,6 +20,7 @@ from core.play_analytics import (
     get_untracked_percentages,
     get_player_top_plays_by_points,
 )
+from core.utils import calculate_possessions, safe_percentage
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
 
@@ -88,6 +89,108 @@ def game_summary_pdf(game_id):
     )
 
     return _render_pdf(html, f"game_{game.opponent}_{game.date}.pdf")
+
+@reports_bp.route("/games/<int:game_id>/advanced_summary.pdf")
+@login_required
+def advanced_game_summary_pdf(game_id):
+    """Generate advanced game summary PDF based on reference"""
+    game = Game.query.get_or_404(game_id)
+    stats = PlayerStat.query.filter_by(game_id=game_id).all()
+
+    if not stats:
+        return jsonify({"error": "No stats for this game"}), 404
+
+    # 1. Team Metrics Calculation
+    t_fga = sum(s.fga for s in stats)
+    t_fta = sum(s.fta for s in stats)
+    t_oreb = sum(s.oreb for s in stats)
+    t_tov = sum(s.tov for s in stats)
+    t_fgm = sum(s.fgm for s in stats)
+    t_pts = sum(s.points for s in stats)
+    t_tpm = sum(s.tpm for s in stats)
+    t_tpa = sum(s.tpa for s in stats)
+    t_ftm = sum(s.ftm for s in stats)
+    
+    # Estimate Possessions
+    team_poss = calculate_possessions(t_fga, t_fta, t_oreb, t_tov)
+    if team_poss == 0: team_poss = 1  # Avoid div by zero
+
+    # Team Advanced
+    oer = (t_pts / team_poss) * 100
+    der = (game.opponent_score / team_poss) * 100  # Estimate: Opp Poss approx Team Poss
+    net = oer - der
+    
+    team_advanced = {
+        'oer': round(oer, 1),
+        'der': round(der, 1),
+        'net_rating': round(net, 1),
+        'efg_pct': round(((t_fgm + 0.5 * t_tpm) / t_fga * 100), 1) if t_fga > 0 else 0,
+        'tov_pct': round((t_tov / team_poss * 100), 1),
+        'orb_pct': 0, # Cannot calculate accurately without Opp DRB, leaving as 0 or placeholder
+        'ft_rate': round((t_fta / t_fga), 2) if t_fga > 0 else 0,
+        'ts_pct': round((t_pts / (2 * (t_fga + 0.44 * t_fta)) * 100), 1) if (t_fga + 0.44 * t_fta) > 0 else 0,
+        'ast_pct': round((sum(s.ast for s in stats) / t_fgm * 100), 1) if t_fgm > 0 else 0, # Simple Team AST%
+        'stl_pct': round((sum(s.stl for s in stats) / team_poss * 100), 1), # Est STL% per 100 poss
+        'blk_pct': round((sum(s.blk for s in stats) / (t_fga) * 100), 1), # Very rough Est BLK% vs Team FGA (should be Opp FGA)
+        'three_par': round((t_tpa / t_fga), 2) if t_fga > 0 else 0
+    }
+
+    # 2. Player Advanced Metrics
+    stats_with_metrics = AnalyticsService.calculate_game_stats(stats)
+    player_advanced = []
+    
+    for s in stats_with_metrics:
+        # Additional per-player adv stats
+        three_par = s.tpa / s.fga if s.fga > 0 else 0
+        ft_rate = s.fta / s.fga if s.fga > 0 else 0
+        
+        # Approximate AST% (Player AST / Team FGM when player is on court - we lack on/off data, using Team FGM total as denominator is significant underestimation, but standard without PBP)
+        # Using a slightly better approximation: AST / (Team FGM - Player FGM) * 100? No, let's stick to simple AST/TeamFGM for this context or omit.
+        # Let's use the one from reference: AST%
+        ast_pct = (s.ast / t_fgm * 100) if t_fgm > 0 else 0 
+        
+        # TOV%
+        denom = s.fga + 0.44 * s.fta + s.tov
+        tov_pct = (s.tov / denom * 100) if denom > 0 else 0
+        
+        player_advanced.append({
+            'player_name': s.player_name,
+            'minutes': s.minutes,
+            'points': s.points,
+            'usg_pct': s.usg_pct * 100, # convert to %
+            'ts_pct': s.ts_pct * 100,
+            'efg_pct': s.efg_pct * 100,
+            'three_par': three_par,
+            'ft_rate': ft_rate,
+            'orb_pct': 0, # Missing Opp stats
+            'ast_pct': ast_pct,
+            'tov_pct': tov_pct,
+            'game_score': s.game_score
+        })
+
+    # 3. Shot Chart
+    shot_events = ShotEvent.query.filter_by(game_id=game_id).first()
+    shot_chart = generate_team_shot_chart([game_id], db.session) if shot_events else ""
+
+    team_shooting = {
+        'two_pt_made': t_fgm - t_tpm,
+        'two_pt_att': t_fga - t_tpa,
+        'two_pt_pct': safe_percentage(t_fgm - t_tpm, t_fga - t_tpa),
+        'tpm': t_tpm, 'tpa': t_tpa, 'three_pt_pct': safe_percentage(t_tpm, t_tpa),
+        'ftm': t_ftm, 'fta': t_fta, 'ft_pct': safe_percentage(t_ftm, t_fta)
+    }
+
+    html = render_template(
+        "game_summary_advanced_pdf.html",
+        game=game,
+        team_advanced=team_advanced,
+        team_shooting=team_shooting,
+        player_stats=player_advanced,
+        shot_chart=shot_chart,
+        generated_date=datetime.now().strftime("%B %d, %Y")
+    )
+
+    return _render_pdf(html, f"advanced_report_{game.opponent}_{game.date}.pdf")
 
 @reports_bp.route("/team/report.pdf")
 @login_required
