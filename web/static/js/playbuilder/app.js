@@ -314,28 +314,114 @@ class PlayBuilder {
     }
     
     /**
-     * Set basketball court as background image
+     * Draw basketball court directly on canvas - simple and always works
      */
     initCourtBackground() {
-        console.log("Loading court background image...");
+        console.log("Drawing court background...");
         
-        const courtImageUrl = '/static/images/basketball-court.svg';
+        // Set white background
+        this.canvas.backgroundColor = '#ffffff';
         
-        fabric.Image.fromURL(courtImageUrl, (img) => {
-            if (img) {
-                // Scale image to fit canvas dimensions
-                img.scaleToWidth(this.canvas.width);
-                img.scaleToHeight(this.canvas.height);
-                
-                this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas));
-                console.log("Court background loaded successfully");
-            } else {
-                console.error("Failed to load court background image");
-                // Fallback to white background
-                this.canvas.backgroundColor = '#ffffff';
-                this.canvas.renderAll();
-            }
-        }, { crossOrigin: 'anonymous' });
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+        const strokeColor = '#000000';
+        const strokeWidth = 2;
+        const margin = 20;
+        
+        // Helper to create non-selectable line
+        const createLine = (x1, y1, x2, y2) => {
+            return new fabric.Line([x1, y1, x2, y2], {
+                stroke: strokeColor,
+                strokeWidth: strokeWidth,
+                selectable: false,
+                evented: false,
+                excludeFromExport: false
+            });
+        };
+        
+        // Helper to create non-selectable rect
+        const createRect = (left, top, width, height) => {
+            return new fabric.Rect({
+                left: left,
+                top: top,
+                width: width,
+                height: height,
+                fill: 'transparent',
+                stroke: strokeColor,
+                strokeWidth: strokeWidth,
+                selectable: false,
+                evented: false,
+                excludeFromExport: false
+            });
+        };
+        
+        // Helper to create non-selectable circle
+        const createCircle = (left, top, radius) => {
+            return new fabric.Circle({
+                left: left,
+                top: top,
+                radius: radius,
+                fill: 'transparent',
+                stroke: strokeColor,
+                strokeWidth: strokeWidth,
+                selectable: false,
+                evented: false,
+                excludeFromExport: false
+            });
+        };
+        
+        const midY = height / 2;
+        
+        // Court lines
+        const lines = [
+            // Top sideline
+            createLine(margin, margin, width - margin, margin),
+            // Bottom sideline
+            createLine(margin, height - margin, width - margin, height - margin),
+            // Left baseline
+            createLine(margin, margin, margin, height - margin),
+            // Key rectangle
+            createRect(margin, midY - 80, 190, 160),
+            // Free throw circle
+            createCircle(margin + 190 - 60, midY - 60, 60),
+            // Backboard
+            createLine(50, midY - 30, 50, midY + 30),
+            // Hoop
+            createCircle(52, midY - 8, 8),
+            // Mid court line
+            createLine(750, margin, 750, height - margin)
+        ];
+        
+        // 3-point line (simplified arc)
+        const threePtPath = new fabric.Path('M 20 60 L 160 60 Q 380 250 160 440 L 20 440', {
+            fill: 'transparent',
+            stroke: strokeColor,
+            strokeWidth: strokeWidth,
+            selectable: false,
+            evented: false,
+            excludeFromExport: false
+        });
+        lines.push(threePtPath);
+        
+        // Mid court circle (half)
+        const midCourtCircle = new fabric.Path('M 750 190 A 60 60 0 0 0 750 310', {
+            fill: 'transparent',
+            stroke: strokeColor,
+            strokeWidth: strokeWidth,
+            selectable: false,
+            evented: false,
+            excludeFromExport: false
+        });
+        lines.push(midCourtCircle);
+        
+        // Add all lines to canvas and send to back
+        lines.forEach(line => {
+            this.canvas.add(line);
+            this.canvas.sendToBack(line);
+        });
+        
+        this.canvas.renderAll();
+        console.log("Court background drawn successfully with", lines.length, "elements");
     }
 }
 
