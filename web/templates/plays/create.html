@@ -11,6 +11,7 @@
         --canvas-bg: #f8f9fa;
         --text-dark: #333;
         --border-color: #e0e0e0;
+        --action-btn-bg: #2c3e50;
     }
 
     body {
@@ -114,6 +115,33 @@
         overflow: auto;
         position: relative;
     }
+    
+    /* Delete button overlay for selected items */
+    #delete-overlay {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 100;
+        display: none; /* Hidden by default */
+    }
+    
+    .btn-delete-selected {
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        font-weight: 600;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .btn-delete-selected:hover {
+        background-color: #c82333;
+    }
 
     /* Inline SVG court background */
     #canvas-wrapper {
@@ -151,7 +179,7 @@
         gap: 5px;
     }
 
-    /* Action Buttons Grid */
+    /* Action Buttons Grid - Custom Icons */
     .action-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -159,17 +187,19 @@
     }
 
     .btn-action {
-        background-color: #2c3e50;
+        background-color: var(--action-btn-bg);
         color: white;
         border: none;
-        padding: 10px;
+        padding: 8px;
         border-radius: 6px;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start; /* Left align for icon + text */
         gap: 8px;
         transition: background 0.2s;
+        position: relative;
+        overflow: hidden;
     }
 
     .btn-action:hover {
@@ -180,6 +210,61 @@
     
     .btn-action.active {
         box-shadow: 0 0 0 2px var(--primary-teal);
+    }
+    
+    /* Custom SVG Icons for Actions */
+    .icon-box {
+        width: 24px;
+        height: 16px; /* Adjust aspect ratio */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Dribble: Wave line */
+    .icon-dribble {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 10' fill='none' stroke='white' stroke-width='2'%3E%3Cpath d='M0 5 Q5 0 10 5 T20 5 T30 5 T40 5' /%3E%3Cpath d='M35 2 L40 5 L35 8' stroke='none' fill='white'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 30px; height: 12px;
+    }
+    
+    /* Pass: Dashed line */
+    .icon-pass {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 10' fill='none' stroke='white' stroke-width='2' stroke-dasharray='4,2'%3E%3Cline x1='0' y1='5' x2='35' y2='5' /%3E%3Cpath d='M35 2 L40 5 L35 8' stroke='none' fill='white'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 30px; height: 12px;
+    }
+    
+    /* Cut: Solid line */
+    .icon-cut {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 10' fill='none' stroke='white' stroke-width='2'%3E%3Cline x1='0' y1='5' x2='35' y2='5' /%3E%3Cpath d='M35 2 L40 5 L35 8' stroke='none' fill='white'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 30px; height: 12px;
+    }
+    
+    /* Screen: T-shape */
+    .icon-screen {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 16' fill='none' stroke='white' stroke-width='2'%3E%3Cline x1='0' y1='8' x2='32' y2='8' /%3E%3Cline x1='32' y1='2' x2='32' y2='14' /%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 30px; height: 16px;
+    }
+    
+    /* Shot: Dotted + Target */
+    .icon-shot {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 16' fill='none' stroke='white' stroke-width='2' stroke-dasharray='2,2'%3E%3Cline x1='0' y1='8' x2='30' y2='8' /%3E%3Ccircle cx='34' cy='8' r='4' stroke='white' stroke-width='1.5'/%3E%3Cline x1='30' y1='8' x2='38' y2='8' stroke-width='1.5'/%3E%3Cline x1='34' y1='4' x2='34' y2='12' stroke-width='1.5'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 30px; height: 16px;
+    }
+    
+    /* Handoff: Plus/H symbol */
+    .icon-handoff {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 16' fill='none' stroke='white' stroke-width='2'%3E%3Cline x1='5' y1='8' x2='15' y2='8' /%3E%3Cline x1='10' y1='3' x2='10' y2='13' /%3E%3Ctext x='22' y='12' fill='white' font-family='Arial' font-size='12' font-weight='bold'%3EHandoff%3C/text%3E%3C/svg%3E"); /* Simplified: Just text Handoff with symbol is hard in bg, using generic H icon */
+         background: none;
     }
 
     /* Player Icons Grid */
@@ -321,6 +406,13 @@
         <div id="canvas-wrapper">
             <canvas id="playCanvas" width="800" height="500"></canvas>
         </div>
+        
+        <!-- Contextual Delete Button Overlay -->
+        <div id="delete-overlay">
+            <button class="btn-delete-selected" onclick="app.deleteSelected()">
+                <i class="fas fa-trash-alt"></i> Delete Selected
+            </button>
+        </div>
     </div>
 
     <!-- Right Sidebar -->
@@ -333,22 +425,22 @@
             </div>
             <div class="action-grid">
                 <button class="btn-action" onclick="app.tools['arrow'].setType('dribble'); app.selectTool('arrow');">
-                    <i class="fas fa-wave-square"></i> Dribble
+                    <span class="icon-dribble"></span> Dribble
                 </button>
                 <button class="btn-action" onclick="app.tools['arrow'].setType('pass'); app.selectTool('arrow');">
-                    <i class="fas fa-long-arrow-alt-right"></i> Pass
+                    <span class="icon-pass"></span> Pass
                 </button>
                 <button class="btn-action" onclick="app.tools['arrow'].setType('cut'); app.selectTool('arrow');">
-                    <i class="fas fa-arrow-right"></i> Cut
+                    <span class="icon-cut"></span> Cut
                 </button>
                 <button class="btn-action" onclick="app.tools['arrow'].setType('screen'); app.selectTool('arrow');">
-                    <i class="fas fa-grip-lines-vertical"></i> Screen
+                    <span class="icon-screen"></span> Screen
                 </button>
                 <button class="btn-action" onclick="app.tools['arrow'].setType('shot'); app.selectTool('arrow');">
-                    <i class="fas fa-basketball-ball"></i> Shot
+                    <span class="icon-shot"></span> Shot
                 </button>
                 <button class="btn-action" onclick="app.tools['arrow'].setType('handoff'); app.selectTool('arrow');">
-                    <i class="fas fa-exchange-alt"></i> Handoff
+                    <i class="fas fa-plus"></i> Handoff
                 </button>
             </div>
         </div>
