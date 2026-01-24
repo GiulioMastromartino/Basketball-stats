@@ -30,26 +30,24 @@
         <div class="col-lg-8">
             <!-- Main Diagram -->
             <div class="card mb-4 shadow-sm">
-                <div class="card-header bg-white font-weight-bold border-bottom">
-                    <i class="fas fa-basketball-ball text-warning mr-2"></i> Play Diagram
+                <div class="card-header bg-white font-weight-bold border-bottom d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-basketball-ball text-warning mr-2"></i> Play Diagram</span>
+                    <button id="btn-animate" class="btn btn-sm btn-success" onclick="playAnimation()">
+                        <i class="fas fa-play mr-1"></i> Animate
+                    </button>
                 </div>
                 <div class="card-body text-center bg-light p-4">
-                    {% if play.diagram_svg %}
-                        <div class="img-fluid bg-white p-2 rounded border" style="max-height: 500px; display: inline-block;">
+                    <div id="diagram-container" style="position: relative; display: inline-block;">
+                        <!-- SVG Static View -->
+                        <div id="static-svg" class="img-fluid bg-white p-2 rounded border" style="display: {% if play.diagram_svg %}block{% else %}none{% endif %};">
                             {{ play.diagram_svg|safe }}
                         </div>
-                    {% elif play.canvas_data %}
-                        <!-- Fallback: Render Canvas client-side if no SVG -->
-                        <div class="bg-white p-2 rounded border" style="display: inline-block;">
+                        
+                        <!-- Canvas Interactive View -->
+                        <div id="interactive-canvas-wrapper" class="bg-white p-2 rounded border" style="display: {% if play.diagram_svg %}none{% else %}block{% endif %};">
                             <canvas id="preview-canvas" width="800" height="500" style="max-width: 100%; height: auto;"></canvas>
                         </div>
-                        <p class="text-muted small mt-2">Preview generated dynamically (edit and save to create static image).</p>
-                    {% else %}
-                        <div class="py-5 text-muted">
-                            <i class="fas fa-image fa-3x mb-3 text-gray-300"></i>
-                            <p>No diagram available</p>
-                        </div>
-                    {% endif %}
+                    </div>
                 </div>
             </div>
 
@@ -101,10 +99,10 @@
                     <i class="fas fa-list-ol text-success mr-2"></i> Phases
                     <span class="badge badge-light ml-auto">{{ play.sequences|length }}</span>
                 </div>
-                <div class="list-group list-group-flush">
+                <div class="list-group list-group-flush" id="phases-list">
                     {% if play.sequences %}
                         {% for seq in play.sequences %}
-                        <div class="list-group-item">
+                        <a href="javascript:void(0)" onclick="loadPhase({{ loop.index0 }})" class="list-group-item list-group-item-action phase-item" id="phase-{{ loop.index0 }}">
                             <div class="d-flex w-100 justify-content-between mb-1">
                                 <h6 class="mb-0 font-weight-bold text-primary">Phase {{ seq.sequence_number }}</h6>
                             </div>
@@ -113,7 +111,7 @@
                             {% else %}
                             <p class="mb-0 text-muted font-italic small">No description</p>
                             {% endif %}
-                        </div>
+                        </a>
                         {% endfor %}
                     {% else %}
                         <div class="list-group-item text-muted text-center py-4">
@@ -127,32 +125,116 @@
     </div>
 </div>
 
-{% if not play.diagram_svg and play.canvas_data %}
-<!-- Scripts for Fallback Rendering -->
+<!-- Scripts for Interactive Rendering -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const canvas = new fabric.StaticCanvas('preview-canvas');
-        const canvasData = {{ play.canvas_data|tojson }};
+    // Data injection from Jinja
+    const frames = [
+        {% for seq in play.sequences %}
+        {
+            index: {{ loop.index0 }},
+            data: {{ seq.element_data|tojson }}
+        },
+        {% endfor %}
+    ];
+    
+    // Fallback if no frames but we have main canvas data
+    const initialCanvasData = {{ play.canvas_data|tojson }};
+
+    let canvas = null;
+    let isAnimating = false;
+
+    // Court Background SVG (Same as builder)
+    const courtUrl = 'data:image/svg+xml;utf8,<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="500" fill="%23e8c89b"/><rect x="150" y="15" width="500" height="470" fill="none" stroke="%23ffffff" stroke-width="3"/><rect x="320" y="15" width="160" height="190" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 1 1 480 205" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 0 0 480 205" fill="none" stroke="%23ffffff" stroke-width="3" stroke-dasharray="10,10"/><line x1="370" y1="55" x2="430" y2="55" stroke="%23ffffff" stroke-width="3"/><circle cx="400" cy="67.5" r="7.5" fill="none" stroke="%23333" stroke-width="2"/><path d="M 180 15 L 180 157 A 237.5 237.5 0 0 0 620 157 L 620 15" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 340 485 A 60 60 0 1 1 460 485" fill="none" stroke="%23ffffff" stroke-width="3"/><line x1="150" y1="485" x2="650" y2="485" stroke="%23ffffff" stroke-width="3"/></svg>';
+
+    function initCanvas() {
+        if (canvas) return;
         
-        // Load custom background similar to builder
-        // Note: In SVG it might be better to just load JSON objects
-        // Here we just replicate visual style if possible or just load objects
+        canvas = new fabric.StaticCanvas('preview-canvas');
         
-        // Add court background image
-        const courtUrl = 'data:image/svg+xml;utf8,<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="500" fill="%23e8c89b"/><rect x="150" y="15" width="500" height="470" fill="none" stroke="%23ffffff" stroke-width="3"/><rect x="320" y="15" width="160" height="190" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 1 1 480 205" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 0 0 480 205" fill="none" stroke="%23ffffff" stroke-width="3" stroke-dasharray="10,10"/><line x1="370" y1="55" x2="430" y2="55" stroke="%23ffffff" stroke-width="3"/><circle cx="400" cy="67.5" r="7.5" fill="none" stroke="%23333" stroke-width="2"/><path d="M 180 15 L 180 157 A 237.5 237.5 0 0 0 620 157 L 620 15" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 340 485 A 60 60 0 1 1 460 485" fill="none" stroke="%23ffffff" stroke-width="3"/><line x1="150" y1="485" x2="650" y2="485" stroke="%23ffffff" stroke-width="3"/></svg>';
-        
+        // Set background
         canvas.setBackgroundImage(courtUrl, canvas.renderAll.bind(canvas), {
             originX: 'left',
             originY: 'top'
         });
+        
+        // If no frames, load initial
+        if (frames.length === 0 && initialCanvasData) {
+            canvas.loadFromJSON(initialCanvasData, () => canvas.renderAll());
+        } else if (frames.length > 0) {
+            // Load first frame by default if switching to canvas view
+            loadFrameData(frames[0].data);
+        }
+    }
 
-        if (canvasData) {
-            canvas.loadFromJSON(canvasData, function() {
-                canvas.renderAll();
+    function switchToCanvas() {
+        document.getElementById('static-svg').style.display = 'none';
+        document.getElementById('interactive-canvas-wrapper').style.display = 'block';
+        initCanvas();
+    }
+
+    function loadFrameData(data) {
+        if (!canvas) initCanvas();
+        canvas.loadFromJSON(data, () => canvas.renderAll());
+    }
+
+    function setActivePhase(index) {
+        // Update UI
+        document.querySelectorAll('.phase-item').forEach(el => el.classList.remove('active', 'bg-light'));
+        const activeEl = document.getElementById(`phase-${index}`);
+        if (activeEl) {
+             activeEl.classList.add('active');
+        }
+    }
+
+    window.loadPhase = function(index) {
+        if (isAnimating) {
+            isAnimating = false; // Stop animation if user clicks manually
+        }
+        
+        switchToCanvas();
+        setActivePhase(index);
+        
+        if (frames[index]) {
+            loadFrameData(frames[index].data);
+        }
+    };
+
+    window.playAnimation = async function() {
+        if (frames.length === 0) return;
+        
+        switchToCanvas();
+        isAnimating = true;
+        const btn = document.getElementById('btn-animate');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-stop"></i> Stop';
+        btn.onclick = () => {
+            isAnimating = false;
+            btn.innerHTML = originalText;
+            btn.onclick = window.playAnimation;
+        };
+
+        for (let i = 0; i < frames.length; i++) {
+            if (!isAnimating) break;
+            
+            setActivePhase(i);
+            await new Promise(resolve => {
+                loadFrameData(frames[i].data);
+                // Wait for render (approx) + delay
+                setTimeout(resolve, 1500); 
             });
+        }
+        
+        isAnimating = false;
+        btn.innerHTML = originalText;
+        btn.onclick = window.playAnimation;
+    };
+
+    // Auto-init if no SVG
+    document.addEventListener("DOMContentLoaded", function() {
+        if (document.getElementById('interactive-canvas-wrapper').style.display !== 'none') {
+            initCanvas();
         }
     });
 </script>
-{% endif %}
 {% endblock %}
