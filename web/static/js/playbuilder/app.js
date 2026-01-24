@@ -9,7 +9,8 @@ class PlayBuilder {
         this.canvas = new fabric.Canvas(canvasId, {
             selection: false, 
             preserveObjectStacking: true,
-            enableRetinaScaling: false  // Fix for high-DPI displays
+            enableRetinaScaling: false,  // Fix for high-DPI displays
+            renderOnAddRemove: false  // Manual rendering control
         });
 
         // Registry for tools
@@ -30,11 +31,13 @@ class PlayBuilder {
         this.initTools();
         this.initHistory();
         this.initLayers();
-        this.initSequence(); 
+        this.initSequence();
+        
+        // Lock history during court initialization
+        this.isHistoryLocked = true;
         this.initEvents();
-
-        // Initialize Court Background
         this.initCourtBackground();
+        this.isHistoryLocked = false;
 
         // Load data if editing
         if (this.config.playId) {
@@ -269,11 +272,17 @@ class PlayBuilder {
 
     clearCanvas() {
         if(confirm("Clear all objects?")) {
+            this.isHistoryLocked = true;
             const objects = this.canvas.getObjects();
             for (let i = objects.length - 1; i >= 0; i--) {
-                this.canvas.remove(objects[i]);
+                const obj = objects[i];
+                // Don't remove court lines
+                if (!obj.evented) continue;
+                this.canvas.remove(obj);
             }
+            this.isHistoryLocked = false;
             this.canvas.renderAll();
+            this.saveStateToHistory();
         }
     }
     
@@ -283,6 +292,7 @@ class PlayBuilder {
         const prevState = this.history.undo();
         if (prevState) {
             this.isHistoryLocked = true;
+            this.canvas.clear();
             this.canvas.loadFromJSON(prevState, () => {
                 this.initCourtBackground();
                 this.canvas.renderAll();
@@ -299,6 +309,7 @@ class PlayBuilder {
         const nextState = this.history.redo();
         if (nextState) {
             this.isHistoryLocked = true;
+            this.canvas.clear();
             this.canvas.loadFromJSON(nextState, () => {
                 this.initCourtBackground();
                 this.canvas.renderAll();
@@ -324,7 +335,7 @@ class PlayBuilder {
         
         const width = this.canvas.width;
         const height = this.canvas.height;
-        const strokeColor = '#000000';
+        const strokeColor = '#333333';
         const strokeWidth = 2;
         const margin = 20;
         
@@ -335,23 +346,29 @@ class PlayBuilder {
                 strokeWidth: strokeWidth,
                 selectable: false,
                 evented: false,
-                excludeFromExport: false
+                hasControls: false,
+                hasBorders: false,
+                lockMovementX: true,
+                lockMovementY: true
             });
         };
         
         // Helper to create non-selectable rect
-        const createRect = (left, top, width, height) => {
+        const createRect = (left, top, w, h) => {
             return new fabric.Rect({
                 left: left,
                 top: top,
-                width: width,
-                height: height,
+                width: w,
+                height: h,
                 fill: 'transparent',
                 stroke: strokeColor,
                 strokeWidth: strokeWidth,
                 selectable: false,
                 evented: false,
-                excludeFromExport: false
+                hasControls: false,
+                hasBorders: false,
+                lockMovementX: true,
+                lockMovementY: true
             });
         };
         
@@ -366,62 +383,64 @@ class PlayBuilder {
                 strokeWidth: strokeWidth,
                 selectable: false,
                 evented: false,
-                excludeFromExport: false
+                hasControls: false,
+                hasBorders: false,
+                lockMovementX: true,
+                lockMovementY: true
             });
         };
         
         const midY = height / 2;
         
-        // Court lines
+        // Court lines array
         const lines = [
-            // Top sideline
             createLine(margin, margin, width - margin, margin),
-            // Bottom sideline
             createLine(margin, height - margin, width - margin, height - margin),
-            // Left baseline
             createLine(margin, margin, margin, height - margin),
-            // Key rectangle
             createRect(margin, midY - 80, 190, 160),
-            // Free throw circle
             createCircle(margin + 190 - 60, midY - 60, 60),
-            // Backboard
             createLine(50, midY - 30, 50, midY + 30),
-            // Hoop
             createCircle(52, midY - 8, 8),
-            // Mid court line
             createLine(750, margin, 750, height - margin)
         ];
         
-        // 3-point line (simplified arc)
+        // 3-point line
         const threePtPath = new fabric.Path('M 20 60 L 160 60 Q 380 250 160 440 L 20 440', {
             fill: 'transparent',
             stroke: strokeColor,
             strokeWidth: strokeWidth,
             selectable: false,
             evented: false,
-            excludeFromExport: false
+            hasControls: false,
+            hasBorders: false,
+            lockMovementX: true,
+            lockMovementY: true
         });
         lines.push(threePtPath);
         
-        // Mid court circle (half)
+        // Mid court circle
         const midCourtCircle = new fabric.Path('M 750 190 A 60 60 0 0 0 750 310', {
             fill: 'transparent',
             stroke: strokeColor,
             strokeWidth: strokeWidth,
             selectable: false,
             evented: false,
-            excludeFromExport: false
+            hasControls: false,
+            hasBorders: false,
+            lockMovementX: true,
+            lockMovementY: true
         });
         lines.push(midCourtCircle);
         
-        // Add all lines to canvas and send to back
+        // Add all lines at once without triggering events
         lines.forEach(line => {
             this.canvas.add(line);
             this.canvas.sendToBack(line);
         });
         
-        this.canvas.renderAll();
-        console.log("Court background drawn successfully with", lines.length, "elements");
+        // Render once after all objects added
+        this.canvas.requestRenderAll();
+        console.log("Court background drawn with", lines.length, "elements");
     }
 }
 
