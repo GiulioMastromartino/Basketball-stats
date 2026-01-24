@@ -8,7 +8,7 @@ builder_api_bp = Blueprint("builder_api", __name__)
 @login_required
 def save_canvas():
     """
-    Save the play metadata and canvas JSON.
+    Save the play metadata, canvas JSON, and animation frames.
     Expected JSON payload:
     {
         "play_id": <int> (optional, if update),
@@ -20,7 +20,15 @@ def save_canvas():
             "personnel": <str>,
             "tags": <str>
         },
-        "canvas_json": <dict> (FabricJS JSON object)
+        "canvas_json": <dict> (FabricJS JSON object),
+        "frames": [
+            {
+                "id": <int>,
+                "data": <dict>,
+                "caption": <str>
+            },
+            ...
+        ]
     }
     """
     payload = request.get_json()
@@ -62,26 +70,61 @@ def save_canvas():
     play.tags = metadata.get("tags")
     play.canvas_data = payload.get("canvas_json")
     
-    # Commit changes
+    # Commit play first to get ID for sequences
     try:
         db.session.commit()
-        return jsonify({
-            "success": True, 
-            "play_id": play.id, 
-            "message": "Play saved successfully"
-        })
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
+    
+    # Handle animation frames (sequences)
+    frames = payload.get("frames", [])
+    
+    if frames:
+        try:
+            # Delete existing sequences
+            PlaySequence.query.filter_by(play_id=play.id).delete()
+            
+            # Create new sequences
+            for idx, frame in enumerate(frames):
+                sequence = PlaySequence(
+                    play_id=play.id,
+                    sequence_number=idx + 1,
+                    element_data=frame.get("data"),
+                    caption=frame.get("caption", f"Frame {idx + 1}")
+                )
+                db.session.add(sequence)
+            
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "error": f"Sequence save failed: {str(e)}"}), 500
+    
+    return jsonify({
+        "success": True, 
+        "play_id": play.id, 
+        "message": "Play saved successfully"
+    })
 
 
 @builder_api_bp.route("/plays/api/load-canvas/<int:play_id>", methods=["GET"])
 @login_required
 def load_canvas(play_id):
     """
-    Return the canvas JSON and metadata for a given play.
+    Return the canvas JSON, metadata, and animation frames for a given play.
     """
     play = Play.query.get_or_404(play_id)
+    
+    # Load sequences
+    sequences = PlaySequence.query.filter_by(play_id=play.id).order_by(PlaySequence.sequence_number).all()
+    
+    frames = []
+    for seq in sequences:
+        frames.append({
+            "id": seq.id,
+            "data": seq.element_data,
+            "caption": seq.caption
+        })
     
     response = {
         "success": True,
@@ -96,7 +139,8 @@ def load_canvas(play_id):
             "created_at": play.created_at.isoformat(),
             "updated_at": play.updated_at.isoformat()
         },
-        "canvas_json": play.canvas_data
+        "canvas_json": play.canvas_data,
+        "frames": frames
     }
     
     return jsonify(response)
