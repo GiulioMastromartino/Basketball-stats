@@ -5,10 +5,11 @@
 
 class PlayBuilder {
     constructor(canvasId) {
+        // Initialize Canvas
         this.canvas = new fabric.Canvas(canvasId, {
             selection: false, 
             preserveObjectStacking: true,
-            backgroundColor: '#ffffff' // Set default
+            backgroundColor: '#ffffff'
         });
 
         // Registry for tools
@@ -25,11 +26,10 @@ class PlayBuilder {
         // Configuration
         this.config = window.PlayBuilderConfig || {};
         
-        // Initialize - Order is critical
-        this.initCourt(); 
-        
-        // Render immediately
-        this.canvas.requestRenderAll();
+        // Initialize Core Components
+        // We draw the court directly onto the background of the canvas
+        // This avoids any "object on top" issues.
+        this.initCourtBackground(); 
         
         this.initTools();
         this.initHistory();
@@ -44,6 +44,7 @@ class PlayBuilder {
             console.log("New play initialized");
             this.selectTool('select');
             
+            // Initial save state
             setTimeout(() => {
                 this.saveStateToHistory(); 
                 if (this.sequence && this.sequence.frames.length === 0) {
@@ -311,117 +312,110 @@ class PlayBuilder {
     }
     
     /**
-     * Draw the basketball court background (Half Court).
-     * Uses setBackgroundColor for white background.
-     * Adds individual line objects.
+     * Draw the basketball court background using a static Image or Group.
+     * CRITICAL: We render this to an off-screen canvas or group first, then set as background image.
      */
-    initCourt() {
+    initCourtBackground() {
         const strokeColor = '#000000'; 
         const strokeWidth = 2;
         const width = 800;
         const height = 500;
         const margin = 20;
 
-        // Force white opaque background
-        this.canvas.setBackgroundColor('#ffffff', this.canvas.renderAll.bind(this.canvas));
+        // Create a temporary static canvas to draw the court
+        // This is a common Fabric.js trick to "flatten" a complex background into a single image
+        const tempCanvas = new fabric.StaticCanvas(null, { width: width, height: height });
+        tempCanvas.setBackgroundColor('#ffffff', () => {}); // Force white
 
+        // --- Draw logic (same as before) ---
         const courtObjects = [];
-
-        // 2. Court Boundaries
         const baseX = margin;
         const midY = height / 2;
         
         // Sidelines
         courtObjects.push(new fabric.Line([baseX, margin, width - margin, margin], {
-            stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+            stroke: strokeColor, strokeWidth: strokeWidth
         }));
         courtObjects.push(new fabric.Line([baseX, height - margin, width - margin, height - margin], {
-            stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+            stroke: strokeColor, strokeWidth: strokeWidth
         }));
         // Baseline
         courtObjects.push(new fabric.Line([baseX, margin, baseX, height - margin], {
-            stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+            stroke: strokeColor, strokeWidth: strokeWidth
         }));
         
-        // 3. The Key
+        // Key
         const keyWidth = 190;
         const keyHeight = 160;
         const keyTop = midY - (keyHeight / 2);
-        
         courtObjects.push(new fabric.Rect({
             left: baseX, top: keyTop,
             width: keyWidth, height: keyHeight,
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth
         }));
         
-        // Free Throw Circle
+        // FT Circle
         const ftRadius = 60;
         courtObjects.push(new fabric.Circle({
             left: baseX + keyWidth - ftRadius, top: midY - ftRadius,
             radius: ftRadius,
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth
         }));
 
-        // 4. Hoop & Backboard
+        // Hoop
         const hoopOffset = 40; 
         const hoopRadius = 8;
-        
-        // Backboard
         courtObjects.push(new fabric.Line([baseX + hoopOffset - 10, midY - 30, baseX + hoopOffset - 10, midY + 30], {
-             stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+             stroke: strokeColor, strokeWidth: strokeWidth
         }));
-        // Hoop
         courtObjects.push(new fabric.Circle({
             left: baseX + hoopOffset - hoopRadius, top: midY - hoopRadius,
             radius: hoopRadius,
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth
         }));
         
-        // 5. 3-Point Line
+        // 3-Point
         const cornerDist = 140; 
         const threePtRadius = 240; 
         const topCornerY = margin + 40;
         const botCornerY = height - margin - 40;
-        
         const path = `M ${baseX} ${topCornerY} ` +
                      `L ${baseX + cornerDist} ${topCornerY} ` + 
                      `Q ${baseX + threePtRadius + 100} ${midY} ${baseX + cornerDist} ${botCornerY} ` +
                      `L ${baseX} ${botCornerY}`;
-                     
         courtObjects.push(new fabric.Path(path, {
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth
         }));
 
-        // 6. Mid Court Line
+        // Mid Court
         const midX = 750;
         courtObjects.push(new fabric.Line([midX, margin, midX, height - margin], {
-             stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+             stroke: strokeColor, strokeWidth: strokeWidth
         }));
-        // Center Circle
         courtObjects.push(new fabric.Path(`M ${midX} ${midY - 60} A 60 60 0 0 0 ${midX} ${midY + 60}`, {
-             fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-             selectable: false, evented: false
+             fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth
         }));
-
-        // Add objects individually
-        courtObjects.forEach(obj => {
-            obj.toObject = (function(toObject) {
-                return function() {
-                    return fabric.util.object.extend(toObject.call(this), {
-                        custom: { kind: 'court-line' }
-                    });
-                };
-            })(obj.toObject);
-            obj.custom = { kind: 'court-line' };
-            
-            this.canvas.add(obj);
+        
+        // Add to temp canvas
+        courtObjects.forEach(o => tempCanvas.add(o));
+        tempCanvas.renderAll();
+        
+        // Export to data URL
+        const courtDataURL = tempCanvas.toDataURL({
+            format: 'png',
+            quality: 1,
+            enableRetinaScaling: false // Ensure exact pixel match
         });
-
-        console.log("InitCourt finished. Canvas Objects:", this.canvas.getObjects().length);
+        
+        // Set as background image of MAIN canvas
+        this.canvas.setBackgroundImage(courtDataURL, this.canvas.renderAll.bind(this.canvas), {
+            originX: 'left',
+            originY: 'top',
+            left: 0,
+            top: 0
+        });
+        
+        console.log("Court background set via DataURL");
     }
 }
 
