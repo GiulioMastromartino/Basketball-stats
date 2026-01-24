@@ -15,6 +15,7 @@ from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
+from sqlalchemy import inspect, text
 
 from config import get_config
 from core.models import User, bcrypt, db
@@ -63,6 +64,28 @@ def create_app(config_name: str = None) -> Flask:
 
     # Register blueprints
     register_blueprints(app)
+    
+    # Auto-fix schema for dev/demo (Plays feature)
+    with app.app_context():
+        try:
+            inspector = inspect(db.engine)
+            if inspector.has_table("plays"):
+                columns = [c['name'] for c in inspector.get_columns("plays")]
+                if "canvas_data" not in columns:
+                    app.logger.warning("Detected outdated Plays schema. Recreating tables...")
+                    # Drop dependent table first
+                    if inspector.has_table("play_sequences"):
+                        db.session.execute(text("DROP TABLE play_sequences"))
+                    
+                    db.session.execute(text("DROP TABLE plays"))
+                    db.session.commit()
+                    db.create_all()
+                    app.logger.info("Plays tables recreated.")
+            else:
+                # Ensure tables exist if they don't
+                db.create_all()
+        except Exception as e:
+            app.logger.error(f"Schema auto-fix failed: {e}")
 
     return app
 
@@ -94,11 +117,11 @@ def register_blueprints(app: Flask):
     from web.routes.auth import auth_bp
     from web.routes.main import main_bp
     from web.routes.plays import plays_bp
-    from web.routes.play_builder_api import builder_api_bp  # <--- NEW IMPORT
+    from web.routes.play_builder_api import builder_api_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api/v1")
     app.register_blueprint(analytics_bp)
     app.register_blueprint(plays_bp)
-    app.register_blueprint(builder_api_bp)  # <--- NEW REGISTRATION
+    app.register_blueprint(builder_api_bp)
