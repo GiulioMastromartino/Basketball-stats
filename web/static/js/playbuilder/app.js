@@ -25,12 +25,16 @@ class PlayBuilder {
         // Configuration
         this.config = window.PlayBuilderConfig || {};
         
-        // Initialize
-        this.initCourt();
+        // Initialize - Order is critical
+        this.initCourt(); // Draw background first
+        
+        // Ensure rendering happens
+        setTimeout(() => this.canvas.requestRenderAll(), 100);
+        
         this.initTools();
         this.initHistory();
         this.initLayers();
-        this.initSequence(); // New
+        this.initSequence(); 
         this.initEvents();
 
         // Load data if editing
@@ -42,8 +46,7 @@ class PlayBuilder {
             this.saveStateToHistory(); 
             // Sequence initialized via timeout in its constructor or we can trigger it
             if (this.sequence && this.sequence.frames.length === 0) {
-                 // Defer slightly
-                 setTimeout(() => this.sequence.captureCurrentAsFrame("Start"), 100);
+                 setTimeout(() => this.sequence.captureCurrentAsFrame("Start"), 500);
             }
         }
     }
@@ -317,25 +320,29 @@ class PlayBuilder {
     
     /**
      * Draw the basketball court background (Half Court - Landscape).
+     * Uses 'group' to ensure single entity or ensures strict layering.
      */
     initCourt() {
-        const strokeColor = '#333';
+        const strokeColor = '#000000'; // Pure black for visibility
         const strokeWidth = 2;
         const width = 800;
         const height = 500;
         const margin = 20;
 
+        // Clear existing just in case
+        // this.canvas.clear(); // Careful, this wipes everything.
+        
         const courtObjects = [];
 
         // 1. Main Floor (White background)
-        courtObjects.push(new fabric.Rect({
+        const floor = new fabric.Rect({
             left: 0, top: 0, width: width, height: height,
-            fill: '#fff', stroke: null,
+            fill: '#ffffff', stroke: null,
             selectable: false, evented: false
-        }));
+        });
+        courtObjects.push(floor);
 
         // 2. Court Boundaries (Left half + extension)
-        // Baseline left, Sidelines top/bottom
         const baseX = margin;
         const midY = height / 2;
         
@@ -374,7 +381,7 @@ class PlayBuilder {
         }));
 
         // 4. Hoop & Backboard
-        const hoopOffset = 40; // 4ft from baseline
+        const hoopOffset = 40; 
         const hoopRadius = 8;
         
         // Backboard
@@ -390,26 +397,13 @@ class PlayBuilder {
         }));
         
         // 5. 3-Point Line
-        // Complex shape: Straight lines near baseline + Arc
-        // Start near baseline. Distance ~220px (22ft approx corner)
-        // Arc radius ~237px (23.75ft)
-        // Let's use simplified path
-        const cornerDist = 140; // Length of straight part
+        const cornerDist = 140; 
         const threePtRadius = 240; 
-        const sideY = 45; // Distance from sideline? No, y-coord.
-        // Corner 1: (baseX + cornerDist, margin + sideY) ??
-        // Let's draw standard arc
         
-        // Path string: 
-        // Move to top corner 3 start
-        // Line to top corner 3 end
-        // Curve to bottom corner 3 start
-        // Line to bottom corner 3 end
-        
-        // Top Corner: y = margin + 30. x = baseX to baseX + cornerDist
         const topCornerY = margin + 40;
         const botCornerY = height - margin - 40;
         
+        // Standard path
         const path = `M ${baseX} ${topCornerY} ` +
                      `L ${baseX + cornerDist} ${topCornerY} ` + 
                      `Q ${baseX + threePtRadius + 100} ${midY} ${baseX + cornerDist} ${botCornerY} ` +
@@ -431,8 +425,9 @@ class PlayBuilder {
              selectable: false, evented: false
         }));
 
+        // Batch add
         courtObjects.forEach(obj => {
-            // Add custom property for serialization/identification
+            // Add custom property
             obj.toObject = (function(toObject) {
                 return function() {
                     return fabric.util.object.extend(toObject.call(this), {
@@ -445,8 +440,9 @@ class PlayBuilder {
             this.canvas.add(obj);
         });
         
-        // Send floor to back
-        this.canvas.sendToBack(courtObjects[0]);
+        // Ensure rendering
+        this.canvas.requestRenderAll();
+        console.log("Court initialized with objects:", courtObjects.length);
     }
 }
 
