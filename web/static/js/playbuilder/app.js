@@ -159,11 +159,17 @@ class PlayBuilder {
             },
             canvas_json: canvasJson
         };
+        
+        // CSRF Token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
         try {
             const res = await fetch(`${this.config.apiBase}/plays/api/save-canvas`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken
+                },
                 body: JSON.stringify(payload)
             });
             const data = await res.json();
