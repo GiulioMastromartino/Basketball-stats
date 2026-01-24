@@ -103,6 +103,7 @@
     .main-workspace {
         display: flex;
         height: calc(100vh - 110px); /* Total height - header - subheader */
+        position: relative; /* For overlays */
     }
 
     /* Canvas Area */
@@ -114,6 +115,29 @@
         align-items: center;
         overflow: auto;
         position: relative;
+    }
+    
+    /* Notes Overlay/Panel */
+    #notes-panel {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255,255,255,0.95);
+        z-index: 50;
+        padding: 40px;
+        display: none; /* Hidden by default */
+        overflow-y: auto;
+    }
+
+    .notes-container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
     
     /* Delete button overlay for selected items */
@@ -350,33 +374,42 @@
     <button class="btn btn-close-app" onclick="history.back()"><i class="fas fa-times"></i> Close</button>
     
     <div class="nav-tabs-custom">
-        <div class="nav-tab-item active" onclick="app.setMode('draw')">
+        <div class="nav-tab-item active" id="tab-draw" onclick="app.setMode('draw')">
             <i class="fas fa-pencil-alt mb-1"></i> Draw
         </div>
-        <div class="nav-tab-item" onclick="app.setMode('animate')">
+        <div class="nav-tab-item" id="tab-animate" onclick="app.setMode('animate')">
             <i class="fas fa-play mb-1"></i> Animate
         </div>
-        <div class="nav-tab-item">
+        <div class="nav-tab-item" id="tab-notes" onclick="app.setMode('notes')">
             <i class="fas fa-sticky-note mb-1"></i> Notes
-        </div>
-        <div class="nav-tab-item">
-            <i class="fas fa-file-export mb-1"></i> Output
         </div>
     </div>
 
     <div class="d-flex align-items-center gap-3">
+        <span id="status-bar" class="text-white-50 small mr-2"></span>
         <button class="btn btn-link text-white p-0 mr-3" onclick="app.undo()"><i class="fas fa-undo"></i></button>
         <button class="btn btn-link text-white p-0 mr-3" onclick="app.redo()"><i class="fas fa-redo"></i></button>
-        <button class="btn btn-link text-white p-0 mr-3"><i class="fas fa-ellipsis-h"></i></button>
         <button class="btn btn-save" id="save-btn"><i class="fas fa-save"></i> Save Play</button>
     </div>
 </div>
 
 <!-- Sub-Header / Timeline Actions -->
 <div class="sub-header">
-    <div class="phase-indicator">
+    <div class="d-flex align-items-center">
+        <!-- Play Name Input -->
+        <input type="text" id="meta-name" class="form-control form-control-sm mr-2" placeholder="Play Name" style="width: 200px;" value="{{ play.name if play else '' }}">
+        
+        <!-- Play Type Select -->
+        <select id="meta-type" class="form-control form-control-sm" style="width: 120px;">
+            {% for pt in play_types %}
+            <option value="{{ pt.name }}" {% if play and play.play_type == pt.name %}selected{% endif %}>{{ pt.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="phase-indicator mx-3">
         <i class="fas fa-arrow-left small cursor-pointer" onclick="app.sequence.prevFrame()"></i>
-        <span class="mx-2" id="frame-indicator">PHASE 1/5</span>
+        <span class="mx-2" id="frame-indicator">PHASE 1/1</span>
         <i class="fas fa-arrow-right small cursor-pointer" onclick="app.sequence.nextFrame()"></i>
     </div>
     
@@ -401,6 +434,24 @@
 
 <!-- Main Workspace -->
 <div class="main-workspace">
+    <!-- Notes Panel (Hidden by default) -->
+    <div id="notes-panel">
+        <div class="notes-container">
+            <h4 class="mb-3">Play Notes & Description</h4>
+            <div class="form-group">
+                <label class="text-muted small text-uppercase font-weight-bold">Description</label>
+                <textarea id="meta-description" class="form-control" rows="8" placeholder="Enter play details, key reads, or instructions here...">{{ play.description if play else '' }}</textarea>
+            </div>
+            <div class="form-group">
+                <label class="text-muted small text-uppercase font-weight-bold">Tags (comma separated)</label>
+                <input type="text" id="meta-tags" class="form-control" placeholder="e.g. baseline, late-game, vs-zone" value="{{ play.tags if play else '' }}">
+            </div>
+            <div class="text-right mt-3">
+                <button class="btn btn-primary" onclick="app.setMode('draw')">Return to Drawing</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Center Canvas -->
     <div class="canvas-area">
         <div id="canvas-wrapper">
