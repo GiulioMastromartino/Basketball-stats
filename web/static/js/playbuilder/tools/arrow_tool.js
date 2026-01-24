@@ -272,7 +272,7 @@ class ArrowTool extends ToolBase {
             });
         } else if (config.endCap === 'T') {
             head = new fabric.Line([0, -15, 0, 15], {
-                stroke: config.stroke, strokeWidth: 3, originX: 'center', originY: 'center', angle: angle + 90
+                stroke: config.stroke, strokeWidth: 3, originX: 'center', originY: 'center', angle: angle
             });
         } else if (config.endCap === 'target') {
              const c = new fabric.Circle({ radius: 8, fill: 'transparent', stroke: config.stroke, strokeWidth: 2, originX: 'center', originY: 'center' });
@@ -332,7 +332,7 @@ class ArrowTool extends ToolBase {
         } else if (config.endCap === 'T') {
              this.arrowHead = new fabric.Line([0, -15, 0, 15], {
                 stroke: config.stroke, strokeWidth: 3,
-                left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle + 90, selectable: false, evented: false
+                left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle, selectable: false, evented: false
             });
         } else if (config.endCap === 'target') {
              const c = new fabric.Circle({ radius: 8, fill: 'transparent', stroke: config.stroke, strokeWidth: 2, originX: 'center', originY: 'center' });
