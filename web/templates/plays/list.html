@@ -14,6 +14,54 @@
     </div>
 </div>
 
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="accordion" id="accordionTypes">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white" id="headingTypes">
+                    <h5 class="mb-0">
+                        <button class="btn btn-link text-decoration-none text-muted" type="button" data-toggle="collapse" data-target="#collapseTypes" aria-expanded="false" aria-controls="collapseTypes">
+                            <i class="fas fa-cog"></i> Manage Play Types
+                        </button>
+                    </h5>
+                </div>
+                <div id="collapseTypes" class="collapse" aria-labelledby="headingTypes" data-parent="#accordionTypes">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-6 mb-3 mb-md-0">
+                                <ul class="list-inline mb-0">
+                                    {% for pt in play_types %}
+                                    <li class="list-inline-item mb-2">
+                                        <span class="badge badge-light border p-2">
+                                            {{ pt.name }}
+                                            <form action="{{ url_for('plays.delete_play_type', type_id=pt.id) }}" method="POST" class="d-inline ml-2" onsubmit="return confirm('Delete this type?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="close text-danger" style="float:none; font-size:1rem;">&times;</button>
+                                            </form>
+                                        </span>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <form action="{{ url_for('plays.add_play_type') }}" method="POST" class="form-inline justify-content-md-end">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <div class="input-group">
+                                        <input type="text" name="name" class="form-control form-control-sm" placeholder="New Type (e.g. BLOB)" required>
+                                        <div class="input-group-append">
+                                            <button type="submit" class="btn btn-sm btn-success"><i class="fas fa-plus"></i> Add</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     {% if plays %}
         {% for play in plays %}
