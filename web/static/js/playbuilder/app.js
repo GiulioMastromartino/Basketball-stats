@@ -34,13 +34,17 @@ class PlayBuilder {
     }
 
     initTools() {
-        // We assume Tool classes are loaded globally via script tags
         if (typeof SelectTool !== 'undefined') {
             this.tools['select'] = new SelectTool(this.canvas);
         } else {
             console.error("SelectTool not loaded");
         }
-        // Future tools: player, arrow, text
+        
+        if (typeof PlayerTool !== 'undefined') {
+            this.tools['player'] = new PlayerTool(this.canvas);
+        } else {
+            console.error("PlayerTool not loaded");
+        }
     }
 
     /**
@@ -222,7 +226,6 @@ class PlayBuilder {
                     this.canvas.loadFromJSON(data.canvas_json, () => {
                         this.canvas.renderAll();
                         statusSpan.innerText = "Ready";
-                        // Default to select tool after load
                         this.selectTool('select');
                     });
                 } else {
