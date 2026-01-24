@@ -57,6 +57,7 @@ class PlayBuilder {
         if (typeof PlayerTool !== 'undefined') this.tools['player'] = new PlayerTool(this.canvas);
         if (typeof ArrowTool !== 'undefined') this.tools['arrow'] = new ArrowTool(this.canvas);
         if (typeof TextTool !== 'undefined') this.tools['text'] = new TextTool(this.canvas);
+        if (typeof ShapeTool !== 'undefined') this.tools['shape'] = new ShapeTool(this.canvas);
     }
 
     initHistory() {
