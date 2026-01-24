@@ -66,3 +66,25 @@ class PlayerStat(db.Model):
     
     # Relationship to Game
     game = db.relationship("Game", backref=db.backref("stats", lazy=True))
+
+
+class Play(db.Model):
+    __tablename__ = "plays"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    play_type = db.Column(db.String(50))
+    setup_data = db.Column(db.Text)  # JSON string storage
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "play_type": self.play_type,
+            "setup_data": self.setup_data,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
