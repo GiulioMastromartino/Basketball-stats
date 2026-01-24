@@ -69,6 +69,7 @@ class ArrowTool extends ToolBase {
         let minDist = snapDist;
         let foundTarget = null;
 
+        // 1. Check Objects (Tokens, Arrows)
         this.canvas.getObjects().forEach(obj => {
             // Snap to Player Tokens
             if (obj.custom && obj.custom.kind === 'player-token' && obj.visible) {
@@ -135,6 +136,28 @@ class ArrowTool extends ToolBase {
                  }
             }
         });
+
+        // 2. Check HOOP locations if this is a 'shot'
+        if (this.currentType === 'shot') {
+            const w = this.canvas.getWidth();
+            const h = this.canvas.getHeight();
+            // Define likely hoop positions (Rim offset approx 40-50px from edge)
+            const hoops = [
+                { x: w / 2, y: 50 },       // Top Hoop
+                { x: w / 2, y: h - 50 },   // Bottom Hoop
+                { x: 50, y: h / 2 },       // Left Hoop
+                { x: w - 50, y: h / 2 }    // Right Hoop
+            ];
+
+            hoops.forEach(hoop => {
+                 const dist = Math.hypot(hoop.x - pointer.x, hoop.y - pointer.y);
+                 if (dist < minDist) {
+                     minDist = dist;
+                     closestPoint = { x: hoop.x, y: hoop.y };
+                     foundTarget = { type: 'hoop', ...hoop };
+                 }
+            });
+        }
 
         return { point: closestPoint, target: foundTarget };
     }
