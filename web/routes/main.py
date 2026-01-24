@@ -520,6 +520,26 @@ def game_detail(game_id):
         "drtg": round(drtg, 0),
     }
 
+    two_pt_att = max(team_stats["fga"] - team_stats["tpa"], 0)
+    two_pt_made = max(team_stats["fgm"] - team_stats["tpm"], 0)
+
+    shot_summary = {
+        "fgm": team_stats["fgm"],
+        "fga": team_stats["fga"],
+        "tpm": team_stats["tpm"],
+        "tpa": team_stats["tpa"],
+        "ftm": team_stats["ftm"],
+        "fta": team_stats["fta"],
+        "two_pt_made": two_pt_made,
+        "two_pt_att": two_pt_att,
+        "fg_pct": safe_percentage(team_stats["fgm"], team_stats["fga"]),
+        "two_pt_pct": safe_percentage(two_pt_made, two_pt_att),
+        "tp_pct": safe_percentage(team_stats["tpm"], team_stats["tpa"]),
+        "ft_pct": safe_percentage(team_stats["ftm"], team_stats["fta"]),
+        "efg_pct": calculate_efg_percent(team_stats["fgm"], team_stats["tpm"], team_stats["fga"]),
+        "ts_pct": calculate_ts_percent(team_stats["points"], team_stats["fga"], team_stats["fta"]),
+    }
+
     return render_template(
         "game_detail.html",
         game=game,
@@ -531,6 +551,7 @@ def game_detail(game_id):
         untracked=untracked,
         team_stats=team_stats,
         advanced=advanced,
+        shot_summary=shot_summary,
     )
 
 
@@ -782,7 +803,7 @@ def players():
     if game_type == "Season":
         game_query = game_query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
-        game_query = game_query.filter(Game.game_type == "Friendly")
+        game_query = game_query.filter(Game.game_type == "game_type".replace('game_type','Friendly'))
     elif game_type == "Playoff":
         game_query = game_query.filter(Game.game_type == "Playoff")
 
