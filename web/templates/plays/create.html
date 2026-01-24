@@ -1,9 +1,9 @@
-{% extends "layout.html" %}
+{% extends "plays/layout_fullscreen.html" %}
 
 {% block title %}Play Builder - HoopsStats{% endblock %}
 
 {% block content %}
-<div class="container-fluid d-flex flex-column" style="height: calc(100vh - 140px);">
+<div class="container-fluid d-flex flex-column h-100 p-3">
     <div class="row mb-2">
         <div class="col-md-12 d-flex justify-content-between align-items-center">
             <h3>{% if play %}Edit Play: {{ play.name }}{% else %}New Play{% endif %}</h3>
