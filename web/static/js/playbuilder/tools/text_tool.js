@@ -1,6 +1,6 @@
 /**
  * Text Tool
- * Adds editable text labels to the canvas.
+ * Adds text objects to the canvas.
  */
 class TextTool extends ToolBase {
     constructor(canvas) {
@@ -14,23 +14,28 @@ class TextTool extends ToolBase {
     }
 
     onMouseDown(opt) {
+        // Enforce one-shot: if clicking existing object, switch to select
+        if (opt.target) {
+            if (window.app) window.app.selectTool('select');
+            return;
+        }
+
         const pointer = this.canvas.getPointer(opt.e);
-        
-        const text = new fabric.IText('Note', {
+        const text = new fabric.IText('Text', {
             left: pointer.x,
             top: pointer.y,
             fontFamily: 'Arial',
             fontSize: 20,
-            fill: '#000',
-            originX: 'left',
-            originY: 'top'
+            originX: 'center',
+            originY: 'center',
+            fill: '#333'
         });
 
-        // Add custom property
+        // Custom serialization
         text.toObject = (function(toObject) {
             return function() {
                 return fabric.util.object.extend(toObject.call(this), {
-                    custom: { kind: 'text' }
+                    custom: { kind: 'text', ...this.custom }
                 });
             };
         })(text.toObject);
@@ -42,13 +47,7 @@ class TextTool extends ToolBase {
         text.selectAll();
         this.canvas.requestRenderAll();
         
-        // Switch back to select tool after adding text so user can move it or finish editing
-        // Alternatively, keep active to add multiple notes. 
-        // For text, usually adding one then editing is the flow, so switching to select is often better.
-        // But for consistency with other tools, let's keep it active or let app handle it.
-        // Let's rely on user manually switching for now, or we can auto-switch.
-        // Given `enterEditing` captures focus, we might want to stay in tool but the interactions are tricky.
-        // A common pattern: Add text -> Auto-switch to Select tool to avoid creating another text box immediately on next click.
+        // Auto-switch to Select tool (One-Shot)
         if (window.app) {
             window.app.selectTool('select');
         }
