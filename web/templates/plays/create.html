@@ -4,180 +4,423 @@
 
 {% block content %}
 <style>
-    /* Inline SVG court background - NBA Official Dimensions */
-    /* Scale: 10px = 1 foot */
-    /* Canvas: 800x500 */
-    /* Court: 50ft x 47ft -> 500px x 470px */
-    /* Margins: X=150, Y=15 */
+    /* UI Theme Colors */
+    :root {
+        --primary-teal: #00a09d;
+        --sidebar-bg: #ffffff;
+        --canvas-bg: #f8f9fa;
+        --text-dark: #333;
+        --border-color: #e0e0e0;
+    }
+
+    body {
+        background-color: var(--canvas-bg);
+        overflow: hidden; /* Prevent body scroll */
+    }
+
+    /* Top Navigation Bar */
+    .top-nav {
+        height: 60px;
+        background-color: var(--primary-teal);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        z-index: 1000;
+    }
+
+    .nav-tabs-custom {
+        display: flex;
+        height: 100%;
+    }
+
+    .nav-tab-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 0 20px;
+        color: rgba(255,255,255,0.8);
+        cursor: pointer;
+        font-size: 0.85rem;
+        border-bottom: 4px solid transparent;
+        transition: all 0.2s;
+    }
+
+    .nav-tab-item.active {
+        background-color: rgba(0,0,0,0.1);
+        color: white;
+        border-bottom-color: white;
+    }
+    
+    .nav-tab-item:hover {
+        color: white;
+        background-color: rgba(0,0,0,0.05);
+    }
+
+    /* Sub-header / Timeline Bar */
+    .sub-header {
+        height: 50px;
+        background-color: white;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+    }
+
+    .phase-indicator {
+        font-weight: bold;
+        color: #555;
+        background: #f0f2f5;
+        padding: 5px 15px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .toolbar-actions .btn-tool {
+        color: #666;
+        font-size: 0.8rem;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        margin-left: 15px;
+        background: none;
+        border: none;
+        cursor: pointer;
+    }
+    
+    .toolbar-actions .btn-tool:hover {
+        color: var(--primary-teal);
+    }
+
+    /* Main Layout */
+    .main-workspace {
+        display: flex;
+        height: calc(100vh - 110px); /* Total height - header - subheader */
+    }
+
+    /* Canvas Area */
+    .canvas-area {
+        flex-grow: 1;
+        background-color: #f4f4f4;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: auto;
+        position: relative;
+    }
+
+    /* Inline SVG court background */
     #canvas-wrapper {
-        background-image: url('data:image/svg+xml;utf8,<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="500" fill="%23ffffff"/><!-- Main Court Boundary (50x47ft) --><rect x="150" y="15" width="500" height="470" fill="none" stroke="%23000" stroke-width="2"/><!-- Key / Paint (16ft wide, 19ft long) --><!-- X: 250 +/- 80 -> 170 to 330 (relative) -> 320 to 480 (absolute) --><!-- Y: 0 to 190 (relative) -> 15 to 205 (absolute) --><rect x="320" y="15" width="160" height="190" fill="none" stroke="%23000" stroke-width="2"/><!-- Free Throw Circle (6ft radius) --><!-- Center: (400, 205) --><!-- Top arc (solid) --><path d="M 320 205 A 60 60 0 1 1 480 205" fill="none" stroke="%23000" stroke-width="2"/><!-- Bottom arc (dashed) --><path d="M 320 205 A 60 60 0 0 0 480 205" fill="none" stroke="%23000" stroke-width="2" stroke-dasharray="10,10"/><!-- Backboard (4ft from baseline, 6ft wide) --><!-- Y: 15 + 40 = 55 --><!-- X: 400 +/- 30 -> 370 to 430 --><line x1="370" y1="55" x2="430" y2="55" stroke="%23000" stroke-width="2"/><!-- Hoop (Center 15 inches in front of backboard) --><!-- 15in = 1.25ft -> 12.5px --><!-- Center Y: 55 + 12.5 = 67.5 --><!-- Radius 9in = 0.75ft -> 7.5px --><circle cx="400" cy="67.5" r="7.5" fill="none" stroke="%23000" stroke-width="2"/><!-- Restricted Area Arc (4ft radius from hoop center) --><!-- Radius 40px --><path d="M 360 67.5 A 40 40 0 0 0 440 67.5" fill="none" stroke="%23000" stroke-width="2"/><!-- 3-Point Line --><!-- Straight lines 3ft from sideline -> X offset 30px --><!-- X: 150+30=180 and 150+500-30=620 --><!-- Distance from center 22ft -> 220px. 23.75ft arc -> 237.5px --><!-- Intersect Y: sqrt(237.5^2 - 220^2) = 89.5px from hoop center --><!-- Y abs: 67.5 + 89.5 = 157 --><path d="M 180 15 L 180 157 A 237.5 237.5 0 0 0 620 157 L 620 15" fill="none" stroke="%23000" stroke-width="2"/><!-- Center Circle (6ft radius) at half court line --><!-- Center (400, 485) --><path d="M 340 485 A 60 60 0 1 1 460 485" fill="none" stroke="%23000" stroke-width="2"/><!-- Mid Court Line --><line x1="150" y1="485" x2="650" y2="485" stroke="%23000" stroke-width="2"/></svg>');
+        background-image: url('data:image/svg+xml;utf8,<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="500" fill="%23e8c89b"/><!-- Wood Floor Color --><!-- Main Court Boundary (50x47ft) --><rect x="150" y="15" width="500" height="470" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Key / Paint --><rect x="320" y="15" width="160" height="190" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Free Throw Circle --><path d="M 320 205 A 60 60 0 1 1 480 205" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Dashed lower arc --><path d="M 320 205 A 60 60 0 0 0 480 205" fill="none" stroke="%23ffffff" stroke-width="3" stroke-dasharray="10,10"/><!-- Backboard --><line x1="370" y1="55" x2="430" y2="55" stroke="%23ffffff" stroke-width="3"/><!-- Hoop --><circle cx="400" cy="67.5" r="7.5" fill="none" stroke="%23333" stroke-width="2"/><!-- 3-Point Line --><path d="M 180 15 L 180 157 A 237.5 237.5 0 0 0 620 157 L 620 15" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Center Circle --><path d="M 340 485 A 60 60 0 1 1 460 485" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Mid Court Line --><line x1="150" y1="485" x2="650" y2="485" stroke="%23ffffff" stroke-width="3"/></svg>');
         background-repeat: no-repeat;
         background-position: center;
         background-size: 800px 500px;
-        display: inline-block;
-        position: relative;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        border-radius: 4px;
+    }
+
+    /* Right Sidebar */
+    .right-sidebar {
+        width: 320px;
+        background-color: var(--sidebar-bg);
+        border-left: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    .sidebar-section {
+        margin-bottom: 30px;
+    }
+
+    .section-title {
+        font-size: 0.75rem;
+        font-weight: bold;
+        text-transform: uppercase;
+        color: #888;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    /* Action Buttons Grid */
+    .action-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .btn-action {
+        background-color: #2c3e50;
+        color: white;
+        border: none;
+        padding: 10px;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: background 0.2s;
+    }
+
+    .btn-action:hover {
+        background-color: #34495e;
+        color: white;
+        text-decoration: none;
     }
     
-    .tool-submenu {
-        display: none;
-        padding-left: 10px;
+    .btn-action.active {
+        box-shadow: 0 0 0 2px var(--primary-teal);
+    }
+
+    /* Player Icons Grid */
+    .player-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
         margin-bottom: 10px;
     }
+
+    .player-icon {
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border: 1px solid #ddd;
+        transition: transform 0.1s;
+    }
+
+    .player-icon:hover {
+        transform: scale(1.1);
+    }
+
+    .p-offense-white { background: white; color: black; border-color: #333; }
+    .p-offense-square { background: white; color: black; border: 1px solid #333; border-radius: 4px; }
+    .p-defense-x { background: #f0f0f0; color: #333; font-family: monospace; }
+    .p-defense-dark { background: #333; color: white; border-color: #333; }
+
+    /* Misc Icons */
+    .misc-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+    }
+
+    .btn-misc {
+        aspect-ratio: 1;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: #555;
+        cursor: pointer;
+    }
     
-    .tool-submenu.active {
-        display: block;
+    .btn-misc:hover {
+        border-color: var(--primary-teal);
+        color: var(--primary-teal);
+    }
+
+    /* Save Button */
+    .btn-save {
+        background-color: white;
+        color: #333;
+        border: none;
+        padding: 6px 15px;
+        border-radius: 4px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .btn-close-app {
+        background: rgba(0,0,0,0.15);
+        border: 1px solid rgba(255,255,255,0.2);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 4px;
     }
 </style>
 
-<div class="container-fluid d-flex flex-column h-100 p-3">
-    <div class="row mb-2">
-        <div class="col-md-12 d-flex justify-content-between align-items-center">
-            <h3>{% if play %}Edit Play: {{ play.name }}{% else %}New Play{% endif %}</h3>
-            <div>
-                <button id="save-btn" class="btn btn-success"><i class="fas fa-save"></i> Save Play</button>
-            </div>
+<!-- Top Navigation -->
+<div class="top-nav">
+    <button class="btn btn-close-app" onclick="history.back()"><i class="fas fa-times"></i> Close</button>
+    
+    <div class="nav-tabs-custom">
+        <div class="nav-tab-item active" onclick="app.setMode('draw')">
+            <i class="fas fa-pencil-alt mb-1"></i> Draw
+        </div>
+        <div class="nav-tab-item" onclick="app.setMode('animate')">
+            <i class="fas fa-play mb-1"></i> Animate
+        </div>
+        <div class="nav-tab-item">
+            <i class="fas fa-sticky-note mb-1"></i> Notes
+        </div>
+        <div class="nav-tab-item">
+            <i class="fas fa-file-export mb-1"></i> Output
         </div>
     </div>
 
-    <div class="row flex-grow-1" style="min-height: 0;">
-        <!-- Sidebar: Tools & Properties -->
-        <div class="col-md-2 d-flex flex-column" style="overflow-y: auto;">
-            <div class="card mb-3">
-                <div class="card-header bg-primary text-white py-2">
-                    <i class="fas fa-tools"></i> Tools
-                </div>
-                <div class="card-body p-2">
-                    <div class="btn-group-vertical w-100" role="group">
-                        <!-- Select Tool -->
-                        <button type="button" class="btn btn-outline-secondary active btn-sm mb-1" id="tool-select" onclick="app.selectTool('select')">
-                            <i class="fas fa-mouse-pointer"></i> Select
-                        </button>
-                        
-                        <!-- Player Tool -->
-                        <button type="button" class="btn btn-outline-secondary btn-sm mb-1" id="tool-player" onclick="app.selectTool('player')">
-                            <i class="fas fa-user-circle"></i> Player
-                        </button>
-                        
-                        <!-- Actions / Movement Lines -->
-                        <div class="mb-1">
-                            <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="tool-arrow" onclick="app.selectTool('arrow'); document.getElementById('actions-submenu').classList.toggle('active');">
-                                <i class="fas fa-bezier-curve"></i> Actions <i class="fas fa-chevron-down small"></i>
-                            </button>
-                            <div id="actions-submenu" class="tool-submenu border-left ml-2 mt-1">
-                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('dribble'); app.selectTool('arrow');">
-                                    <i class="fas fa-wave-square"></i> Dribble
-                                </button>
-                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('pass'); app.selectTool('arrow');">
-                                    <i class="fas fa-long-arrow-alt-right"></i> Pass
-                                </button>
-                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('cut'); app.selectTool('arrow');">
-                                    <i class="fas fa-running"></i> Cut
-                                </button>
-                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('screen'); app.selectTool('arrow');">
-                                    <i class="fas fa-grip-lines-vertical"></i> Screen
-                                </button>
-                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('shot'); app.selectTool('arrow');">
-                                    <i class="fas fa-basketball-ball"></i> Shot
-                                </button>
-                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('handoff'); app.selectTool('arrow');">
-                                    <i class="fas fa-exchange-alt"></i> Handoff
-                                </button>
-                            </div>
-                        </div>
+    <div class="d-flex align-items-center gap-3">
+        <button class="btn btn-link text-white p-0 mr-3" onclick="app.undo()"><i class="fas fa-undo"></i></button>
+        <button class="btn btn-link text-white p-0 mr-3" onclick="app.redo()"><i class="fas fa-redo"></i></button>
+        <button class="btn btn-link text-white p-0 mr-3"><i class="fas fa-ellipsis-h"></i></button>
+        <button class="btn btn-save" id="save-btn"><i class="fas fa-save"></i> Save Play</button>
+    </div>
+</div>
 
-                        <!-- Text Tool -->
-                        <button type="button" class="btn btn-outline-secondary btn-sm mb-1" id="tool-text" onclick="app.selectTool('text')">
-                            <i class="fas fa-font"></i> Text
-                        </button>
-                    </div>
-                    
-                    <hr class="my-2">
-                    
-                    <div class="btn-group w-100 mb-2">
-                        <button class="btn btn-secondary btn-sm" onclick="app.undo()"><i class="fas fa-undo"></i></button>
-                        <button class="btn btn-secondary btn-sm" onclick="app.redo()"><i class="fas fa-redo"></i></button>
-                    </div>
+<!-- Sub-Header / Timeline Actions -->
+<div class="sub-header">
+    <div class="phase-indicator">
+        <i class="fas fa-arrow-left small cursor-pointer" onclick="app.sequence.prevFrame()"></i>
+        <span class="mx-2" id="frame-indicator">PHASE 1/5</span>
+        <i class="fas fa-arrow-right small cursor-pointer" onclick="app.sequence.nextFrame()"></i>
+    </div>
+    
+    <div class="toolbar-actions">
+        <button class="btn-tool" onclick="app.sequence.addFrame()">
+            <i class="fas fa-arrow-right mb-1"></i> Next
+        </button>
+        <button class="btn-tool" onclick="app.sequence.cloneFrame()">
+            <i class="fas fa-copy mb-1"></i> Clone
+        </button>
+        <button class="btn-tool" onclick="app.clearCanvas()">
+            <i class="fas fa-file mb-1"></i> Empty
+        </button>
+        <button class="btn-tool">
+            <i class="fas fa-arrows-alt-h mb-1"></i> Mirror
+        </button>
+        <button class="btn-tool text-danger" onclick="app.sequence.deleteFrame()">
+            <i class="fas fa-trash mb-1"></i> Delete
+        </button>
+    </div>
+</div>
 
-                    <button class="btn btn-outline-danger btn-sm w-100" onclick="app.clearCanvas()">
-                        <i class="fas fa-trash"></i> Clear
-                    </button>
-                </div>
+<!-- Main Workspace -->
+<div class="main-workspace">
+    <!-- Center Canvas -->
+    <div class="canvas-area">
+        <div id="canvas-wrapper">
+            <canvas id="playCanvas" width="800" height="500"></canvas>
+        </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="right-sidebar">
+        
+        <!-- Actions Section -->
+        <div class="sidebar-section">
+            <div class="section-title">
+                ADD ACTIONS <i class="far fa-question-circle ml-1"></i>
             </div>
+            <div class="action-grid">
+                <button class="btn-action" onclick="app.tools['arrow'].setType('dribble'); app.selectTool('arrow');">
+                    <i class="fas fa-wave-square"></i> Dribble
+                </button>
+                <button class="btn-action" onclick="app.tools['arrow'].setType('pass'); app.selectTool('arrow');">
+                    <i class="fas fa-long-arrow-alt-right"></i> Pass
+                </button>
+                <button class="btn-action" onclick="app.tools['arrow'].setType('cut'); app.selectTool('arrow');">
+                    <i class="fas fa-arrow-right"></i> Cut
+                </button>
+                <button class="btn-action" onclick="app.tools['arrow'].setType('screen'); app.selectTool('arrow');">
+                    <i class="fas fa-grip-lines-vertical"></i> Screen
+                </button>
+                <button class="btn-action" onclick="app.tools['arrow'].setType('shot'); app.selectTool('arrow');">
+                    <i class="fas fa-basketball-ball"></i> Shot
+                </button>
+                <button class="btn-action" onclick="app.tools['arrow'].setType('handoff'); app.selectTool('arrow');">
+                    <i class="fas fa-exchange-alt"></i> Handoff
+                </button>
+            </div>
+        </div>
 
-            <!-- Metadata Form -->
-            <div class="card mb-3">
-                <div class="card-header py-2">
-                    <i class="fas fa-info-circle"></i> Details
-                </div>
-                <div class="card-body p-2">
-                    <form id="play-metadata-form">
-                        <input type="hidden" id="play-id" value="{{ play.id if play else '' }}">
-                        <div class="form-group mb-2">
-                            <small>Name</small>
-                            <input type="text" class="form-control form-control-sm" id="meta-name" value="{{ play.name if play else '' }}" required>
-                        </div>
-                        <div class="form-group mb-2">
-                            <small>Type</small>
-                            <select class="form-control form-control-sm" id="meta-type">
-                                <option value="Offense" {% if play and play.play_type == 'Offense' %}selected{% endif %}>Offense</option>
-                                <option value="Defense" {% if play and play.play_type == 'Defense' %}selected{% endif %}>Defense</option>
-                                <option value="Special" {% if play and play.play_type == 'Special' %}selected{% endif %}>Special</option>
-                            </select>
-                        </div>
-                        <div class="form-group mb-2">
-                            <small>Tags</small>
-                            <input type="text" class="form-control form-control-sm" id="meta-tags" value="{{ play.tags if play else '' }}">
-                        </div>
-                    </form>
-                </div>
+        <!-- Players Section -->
+        <div class="sidebar-section">
+            <div class="section-title">
+                ADD PLAYERS <i class="far fa-question-circle ml-1"></i>
             </div>
             
-             <!-- Layers Panel -->
-            <div class="card flex-grow-1">
-                <div class="card-header py-2 d-flex justify-content-between align-items-center">
-                   <span><i class="fas fa-layer-group"></i> Layers</span>
-                   <button class="btn btn-sm btn-link p-0" onclick="app.refreshLayers()"><i class="fas fa-sync"></i></button>
+            <!-- Row 1: Offense White Circles -->
+            <div class="player-grid">
+                {% for i in range(1, 6) %}
+                <div class="player-icon p-offense-white" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'offense', style: 'circle'});">{{i}}</div>
+                {% endfor %}
+                <div class="player-icon p-offense-white" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '?', team: 'offense', style: 'circle'});">?</div>
+            </div>
+
+            <!-- Row 2: Offense Squares -->
+            <div class="player-grid">
+                {% for i in range(1, 6) %}
+                <div class="player-icon p-offense-square" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'offense', style: 'square'});">{{i}}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Row 3: Defense X -->
+            <div class="player-grid">
+                {% for i in range(1, 6) %}
+                <div class="player-icon p-defense-x" onclick="app.selectTool('player'); app.tools['player'].setProps({label: 'x{{i}}', team: 'defense', style: 'text'});">x{{i}}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Row 4: Defense Dark Circles -->
+            <div class="player-grid">
+                {% for i in range(1, 6) %}
+                <div class="player-icon p-defense-dark" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'defense', style: 'dark-circle'});">{{i}}</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Misc Section -->
+        <div class="sidebar-section">
+            <div class="section-title">
+                ADD MISC <i class="far fa-question-circle ml-1"></i>
+            </div>
+            <div class="misc-grid">
+                <button class="btn-misc"><i class="fas fa-map-marker-alt"></i></button> <!-- Cone -->
+                <button class="btn-misc"><i class="fas fa-cone"></i></button> <!-- Tall Cone -->
+                <button class="btn-misc" onclick="app.selectTool('text')"><i class="fas fa-font"></i></button> <!-- Text -->
+                <button class="btn-misc"><i class="far fa-square"></i></button> <!-- Box -->
+                <button class="btn-misc"><i class="far fa-circle"></i></button> <!-- Circle -->
+                <button class="btn-misc"><i class="fas fa-caret-up"></i></button> <!-- Triangle -->
+                <button class="btn-misc"><i class="fas fa-gem"></i></button> <!-- Diamond -->
+                <button class="btn-misc"><i class="fas fa-minus"></i></button> <!-- Line -->
+                <button class="btn-misc"><i class="far fa-image"></i></button> <!-- Image -->
+            </div>
+        </div>
+        
+        <div class="mt-auto text-center pt-4 border-top">
+            <div class="section-title justify-content-center">LET'S GET STARTED!</div>
+            <div class="d-flex justify-content-around mt-2">
+                <div class="text-center small cursor-pointer">
+                    <div class="p-2 bg-light rounded mb-1"><i class="fas fa-film text-success"></i></div>
+                    Watch Tutorial
                 </div>
-                <div class="card-body p-0" style="overflow-y: auto;">
-                    <ul class="list-group list-group-flush small" id="layers-list">
-                        <li class="list-group-item text-muted text-center">No objects</li>
-                    </ul>
+                <div class="text-center small cursor-pointer">
+                    <div class="p-2 bg-light rounded mb-1"><i class="fas fa-laptop text-primary"></i></div>
+                    Load Example
                 </div>
             </div>
         </div>
 
-        <!-- Canvas Workspace -->
-        <div class="col-md-10 d-flex flex-column">
-            <div class="card flex-grow-1 bg-light d-flex align-items-center justify-content-center mb-3" style="overflow: hidden;">
-                <div id="canvas-wrapper">
-                    <canvas id="playCanvas" width="800" height="500" style="border:1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1);"></canvas>
-                </div>
-            </div>
-            
-            <!-- Timeline / Frames -->
-            <div class="card" style="height: 120px;">
-                <div class="card-header py-1 bg-dark text-white d-flex justify-content-between align-items-center">
-                    <small><i class="fas fa-film"></i> Animation Sequence</small>
-                    <div>
-                        <button class="btn btn-sm btn-success" onclick="app.sequence.addFrame()"><i class="fas fa-plus"></i> Add Frame</button>
-                        <button class="btn btn-sm btn-light" onclick="app.sequence.playAnimation()"><i class="fas fa-play"></i> Play</button>
-                    </div>
-                </div>
-                <div class="card-body p-2 d-flex align-items-center" style="overflow-x: auto; white-space: nowrap; background: #343a40;">
-                    <div id="timeline-frames" class="d-flex">
-                        <!-- Frame Items injected by sequence.js -->
-                        <div class="frame-item active bg-light text-dark p-2 mr-2 rounded text-center" style="width: 80px; cursor: pointer;">
-                            <i class="fas fa-image fa-2x mb-1"></i><br>
-                            <small>Start</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="mt-1 text-muted small text-right">
-                <span id="status-bar">Ready</span>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -186,13 +429,11 @@
 
 <!-- App Scripts -->
 <script>
-    // Global App Namespace
     window.PlayBuilderConfig = {
         playId: "{{ play.id if play else '' }}",
         apiBase: "/api/v1"
     };
 </script>
-<!-- Tools loaded before app -->
 <script src="{{ url_for('static', filename='js/playbuilder/tools/tool_base.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/tools/select_tool.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/tools/player_tool.js') }}"></script>
