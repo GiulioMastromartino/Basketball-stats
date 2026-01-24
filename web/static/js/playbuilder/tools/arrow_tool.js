@@ -81,7 +81,18 @@ class ArrowTool extends ToolBase {
                     
                     if (referencePoint) {
                         // Snap to border logic
-                        let radius = (obj.width * obj.scaleX) / 2; 
+                        let radius;
+                        
+                        // Check if it's a number-only token (Text object)
+                        if (obj.type === 'text') {
+                             // "Invisible circle" logic: use max dimension + padding
+                             const dim = Math.max(obj.width, obj.height);
+                             radius = (dim * obj.scaleX) / 2 + 5; 
+                        } else {
+                             // Standard shape/group
+                             radius = (obj.width * obj.scaleX) / 2;
+                        }
+
                         if (isNaN(radius) || radius < 1) radius = 15; // fallback
                         
                         const dx = referencePoint.x - center.x;
@@ -131,21 +142,6 @@ class ArrowTool extends ToolBase {
     // --- Drawing Lifecycle ---
     onMouseDown(opt) {
         if (opt.target) {
-            // Exception: If we click an ENDPOINT of an existing arrow to start a new one, don't select it.
-            // But Fabric's selection logic runs before this? 
-            // We set selectable=false in activate(), so opt.target might be null actually?
-            // If selectable=false, opt.target is usually undefined on empty space, 
-            // but if per-pixel target find is on...
-            // Let's rely on getSnapPoint finding it.
-            
-            // If existing object is clicked, usually we want to select it. 
-            // BUT if we are in DRAW mode, we want to draw FROM it.
-            // Since we set objects unselectable in activate(), opt.target might be null anyway.
-            // So this check is likely fine to remove or ignore if we want to draw on top.
-            
-            // Let's keep the check but maybe relax it if it's an arrow endpoint? 
-            // For now, let's assume 'selectable=false' handles this.
-            
             if (window.app && window.app.selectTool && opt.target && opt.target.selectable) {
                  window.app.selectTool('select');
                  return;
@@ -154,10 +150,6 @@ class ArrowTool extends ToolBase {
 
         this.isDrawing = true;
         const pointer = this.canvas.getPointer(opt.e);
-        // First click: Snap to center usually preferred for start, or border? 
-        // Let's snap to center for start, makes it easier to aim FROM a player.
-        // actually, user asked for border snap. But without a 2nd point, "border closest to what?" is undefined.
-        // We'll snap to center for START point, and border for END point (relative to start).
         const snap = this.getSnapPoint(pointer, null); 
         this.startPoint = snap.point;
         
@@ -173,8 +165,6 @@ class ArrowTool extends ToolBase {
         const snap = this.getSnapPoint(pointer, this.startPoint); 
         const endPoint = snap.point;
 
-        // Default curve: Straight line midpoint
-        // If we want it to act as "point on curve", midpoint is correct for a straight line (t=0.5)
         this.curveControl = {
             x: (this.startPoint.x + endPoint.x) / 2,
             y: (this.startPoint.y + endPoint.y) / 2,
