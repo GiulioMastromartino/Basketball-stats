@@ -8,7 +8,7 @@ class PlayBuilder {
         this.canvas = new fabric.Canvas(canvasId, {
             selection: false, // Default false, enabled by SelectTool
             preserveObjectStacking: true,
-            backgroundColor: '#ffffff'
+            backgroundColor: '#ffffff' // This should set canvas style background
         });
 
         // Registry for tools
@@ -320,7 +320,7 @@ class PlayBuilder {
     
     /**
      * Draw the basketball court background (Half Court - Landscape).
-     * Uses 'group' to ensure single entity or ensures strict layering.
+     * Uses canvas.setBackgroundColor for solid floor.
      */
     initCourt() {
         const strokeColor = '#000000'; // Pure black for visibility
@@ -329,18 +329,11 @@ class PlayBuilder {
         const height = 500;
         const margin = 20;
 
-        // Clear existing just in case
-        // this.canvas.clear(); // Careful, this wipes everything.
-        
-        const courtObjects = [];
+        // Force white opaque background on the canvas instance itself
+        // This is distinct from a rectangle object
+        this.canvas.setBackgroundColor('#ffffff', this.canvas.renderAll.bind(this.canvas));
 
-        // 1. Main Floor (White background)
-        const floor = new fabric.Rect({
-            left: 0, top: 0, width: width, height: height,
-            fill: '#ffffff', stroke: null,
-            selectable: false, evented: false
-        });
-        courtObjects.push(floor);
+        const courtObjects = [];
 
         // 2. Court Boundaries (Left half + extension)
         const baseX = margin;
