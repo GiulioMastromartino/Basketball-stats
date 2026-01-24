@@ -40,21 +40,31 @@ class SequenceManager {
     }
     
     addFrame() {
-        // Before cloning into a new frame, apply phase transition rules:
-        // move connected tokens, apply pass receiver swap, and clear actions.
+        // 1) Ensure current frame is saved with current state (arrows present, tokens at start positions)
+        this.updateCurrentFrameData();
+
+        // 2) Clone current state as the starting point for the new frame
+        const json = this.app.canvas.toJSON(['custom']);
+        const frame = {
+            id: Date.now(),
+            data: json, // Initially identical to previous
+            caption: `Step ${this.frames.length + 1}`
+        };
+        
+        // 3) Push new frame and switch index IMMEDIATELY
+        this.frames.push(frame);
+        this.currentIndex = this.frames.length - 1;
+        
+        // 4) NOW apply phase transition rules.
+        // Because currentIndex is now the NEW frame, and canvas events trigger updateCurrentFrameData(),
+        // the changes (movement, deletion) will be saved to the NEW frame, leaving the OLD frame intact.
         if (this.app?.applyActionsAndClearForNextPhase) {
             this.app.applyActionsAndClearForNextPhase();
         }
 
-        // Clone current state as new frame
-        const json = this.app.canvas.toJSON(['custom']);
-        const frame = {
-            id: Date.now(),
-            data: json,
-            caption: `Step ${this.frames.length + 1}`
-        };
-        this.frames.push(frame);
-        this.currentIndex = this.frames.length - 1;
+        // Force a final update of the new frame data just in case events didn't catch everything
+        this.updateCurrentFrameData();
+        
         this.renderTimeline();
         
         // Flash status
