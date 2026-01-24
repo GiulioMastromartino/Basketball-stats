@@ -17,6 +17,16 @@
         display: inline-block;
         position: relative;
     }
+    
+    .tool-submenu {
+        display: none;
+        padding-left: 10px;
+        margin-bottom: 10px;
+    }
+    
+    .tool-submenu.active {
+        display: block;
+    }
 </style>
 
 <div class="container-fluid d-flex flex-column h-100 p-3">
@@ -38,15 +48,44 @@
                 </div>
                 <div class="card-body p-2">
                     <div class="btn-group-vertical w-100" role="group">
+                        <!-- Select Tool -->
                         <button type="button" class="btn btn-outline-secondary active btn-sm mb-1" id="tool-select" onclick="app.selectTool('select')">
                             <i class="fas fa-mouse-pointer"></i> Select
                         </button>
+                        
+                        <!-- Player Tool -->
                         <button type="button" class="btn btn-outline-secondary btn-sm mb-1" id="tool-player" onclick="app.selectTool('player')">
                             <i class="fas fa-user-circle"></i> Player
                         </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm mb-1" id="tool-arrow" onclick="app.selectTool('arrow')">
-                            <i class="fas fa-long-arrow-alt-right"></i> Arrow
-                        </button>
+                        
+                        <!-- Actions / Movement Lines -->
+                        <div class="mb-1">
+                            <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="tool-arrow" onclick="app.selectTool('arrow'); document.getElementById('actions-submenu').classList.toggle('active');">
+                                <i class="fas fa-bezier-curve"></i> Actions <i class="fas fa-chevron-down small"></i>
+                            </button>
+                            <div id="actions-submenu" class="tool-submenu border-left ml-2 mt-1">
+                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('dribble'); app.selectTool('arrow');">
+                                    <i class="fas fa-wave-square"></i> Dribble
+                                </button>
+                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('pass'); app.selectTool('arrow');">
+                                    <i class="fas fa-long-arrow-alt-right"></i> Pass
+                                </button>
+                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('cut'); app.selectTool('arrow');">
+                                    <i class="fas fa-running"></i> Cut
+                                </button>
+                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('screen'); app.selectTool('arrow');">
+                                    <i class="fas fa-grip-lines-vertical"></i> Screen
+                                </button>
+                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('shot'); app.selectTool('arrow');">
+                                    <i class="fas fa-basketball-ball"></i> Shot
+                                </button>
+                                <button class="btn btn-sm btn-light w-100 text-left mb-1" onclick="app.tools['arrow'].setType('handoff'); app.selectTool('arrow');">
+                                    <i class="fas fa-exchange-alt"></i> Handoff
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Text Tool -->
                         <button type="button" class="btn btn-outline-secondary btn-sm mb-1" id="tool-text" onclick="app.selectTool('text')">
                             <i class="fas fa-font"></i> Text
                         </button>
