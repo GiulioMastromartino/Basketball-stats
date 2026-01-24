@@ -17,7 +17,10 @@ class PlayBuilder {
 
         // History
         this.history = null;
-        this.isHistoryLocked = false; // Prevent save during undo/redo
+        this.isHistoryLocked = false; 
+        
+        // Layers
+        this.layers = null;
 
         // Configuration
         this.config = window.PlayBuilderConfig || {};
@@ -26,6 +29,7 @@ class PlayBuilder {
         this.initCourt();
         this.initTools();
         this.initHistory();
+        this.initLayers();
         this.initEvents();
 
         // Load data if editing
@@ -34,7 +38,7 @@ class PlayBuilder {
         } else {
             console.log("New play initialized");
             this.selectTool('select');
-            this.saveStateToHistory(); // Initial state
+            this.saveStateToHistory(); 
         }
     }
 
@@ -48,8 +52,12 @@ class PlayBuilder {
     initHistory() {
         if (typeof HistoryManager !== 'undefined') {
             this.history = new HistoryManager();
-        } else {
-            console.warn("HistoryManager not loaded");
+        }
+    }
+    
+    initLayers() {
+        if (typeof LayersPanel !== 'undefined') {
+            this.layers = new LayersPanel(this.canvas, 'layers-list');
         }
     }
 
@@ -74,20 +82,28 @@ class PlayBuilder {
             if (this.activeTool) this.activeTool.onMouseUp(opt);
         });
 
-        // History Events
-        this.canvas.on('object:added', (e) => {
+        // Object Events (History & Layers)
+        const updateAll = (e) => {
              // Ignore if adding court lines (initial load)
-             if (e.target?.custom?.kind === 'court-line') return;
+             if (e && e.target?.custom?.kind === 'court-line') return;
+             
              this.saveStateToHistory();
-        });
-        this.canvas.on('object:modified', () => this.saveStateToHistory());
-        this.canvas.on('object:removed', () => this.saveStateToHistory());
+             if (this.layers) this.layers.refresh();
+        };
+
+        this.canvas.on('object:added', updateAll);
+        this.canvas.on('object:modified', updateAll);
+        this.canvas.on('object:removed', updateAll);
+        
+        // Selection events for Layers
+        this.canvas.on('selection:created', () => { if(this.layers) this.layers.refresh(); });
+        this.canvas.on('selection:updated', () => { if(this.layers) this.layers.refresh(); });
+        this.canvas.on('selection:cleared', () => { if(this.layers) this.layers.refresh(); });
     }
 
     saveStateToHistory() {
         if (this.isHistoryLocked || !this.history) return;
         
-        // Serialize
         const json = JSON.stringify(this.canvas.toJSON(['custom']));
         this.history.pushState(json);
     }
@@ -173,7 +189,6 @@ class PlayBuilder {
         const statusSpan = document.getElementById("status-bar");
         statusSpan.innerText = "Loading...";
         
-        // Lock history during load
         this.isHistoryLocked = true;
 
         try {
@@ -193,15 +208,16 @@ class PlayBuilder {
                         statusSpan.innerText = "Ready";
                         this.selectTool('select');
                         
-                        // Initial history state after load
                         this.isHistoryLocked = false;
                         this.saveStateToHistory(); 
+                        if(this.layers) this.layers.refresh();
                     });
                 } else {
                     statusSpan.innerText = "Ready (Empty)";
                     this.selectTool('select');
                     this.isHistoryLocked = false;
                     this.saveStateToHistory();
+                    if(this.layers) this.layers.refresh();
                 }
             } else {
                 statusSpan.innerText = "Error loading play";
@@ -216,7 +232,6 @@ class PlayBuilder {
 
     clearCanvas() {
         if(confirm("Clear all objects?")) {
-            // Keep history unlocked to record the clear
             const objects = this.canvas.getObjects();
             for (let i = objects.length - 1; i >= 0; i--) {
                 const o = objects[i];
@@ -236,6 +251,7 @@ class PlayBuilder {
             this.canvas.loadFromJSON(prevState, () => {
                 this.canvas.renderAll();
                 this.isHistoryLocked = false;
+                if(this.layers) this.layers.refresh();
                 console.log("Undo performed");
             });
         }
@@ -250,12 +266,15 @@ class PlayBuilder {
             this.canvas.loadFromJSON(nextState, () => {
                 this.canvas.renderAll();
                 this.isHistoryLocked = false;
+                if(this.layers) this.layers.refresh();
                 console.log("Redo performed");
             });
         }
     }
     
-    refreshLayers() { console.log("Refresh layers not implemented yet"); }
+    refreshLayers() { 
+        if(this.layers) this.layers.refresh(); 
+    }
     
     /**
      * Draw the basketball court background.
