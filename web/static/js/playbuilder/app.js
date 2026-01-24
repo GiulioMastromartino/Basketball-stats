@@ -5,11 +5,12 @@
 
 class PlayBuilder {
     constructor(canvasId) {
-        // Initialize Canvas - disable high-DPI to fix background rendering
+        // Initialize Canvas
         this.canvas = new fabric.Canvas(canvasId, {
             selection: false, 
             preserveObjectStacking: true,
-            enableRetinaScaling: false  // Fix for high-DPI displays
+            enableRetinaScaling: false,
+            backgroundColor: 'rgba(0,0,0,0)'  // Transparent to show CSS background
         });
 
         // Registry for tools
@@ -31,12 +32,7 @@ class PlayBuilder {
         this.initHistory();
         this.initLayers();
         this.initSequence();
-        
-        // Lock history during court initialization
-        this.isHistoryLocked = true;
         this.initEvents();
-        this.initCourtBackground();
-        this.isHistoryLocked = false;
 
         // Load data if editing
         if (this.config.playId) {
@@ -231,9 +227,6 @@ class PlayBuilder {
 
                 if (data.canvas_json) {
                     this.canvas.loadFromJSON(data.canvas_json, () => {
-                        // Re-apply court background after loading
-                        this.initCourtBackground();
-                        
                         this.canvas.renderAll();
                         statusSpan.innerText = "Ready";
                         this.selectTool('select');
@@ -274,10 +267,7 @@ class PlayBuilder {
             this.isHistoryLocked = true;
             const objects = this.canvas.getObjects();
             for (let i = objects.length - 1; i >= 0; i--) {
-                const obj = objects[i];
-                // Don't remove court lines
-                if (!obj.evented) continue;
-                this.canvas.remove(obj);
+                this.canvas.remove(objects[i]);
             }
             this.isHistoryLocked = false;
             this.canvas.renderAll();
@@ -293,7 +283,6 @@ class PlayBuilder {
             this.isHistoryLocked = true;
             this.canvas.clear();
             this.canvas.loadFromJSON(prevState, () => {
-                this.initCourtBackground();
                 this.canvas.renderAll();
                 this.isHistoryLocked = false;
                 if(this.layers) this.layers.refresh();
@@ -310,7 +299,6 @@ class PlayBuilder {
             this.isHistoryLocked = true;
             this.canvas.clear();
             this.canvas.loadFromJSON(nextState, () => {
-                this.initCourtBackground();
                 this.canvas.renderAll();
                 this.isHistoryLocked = false;
                 if(this.layers) this.layers.refresh();
@@ -321,80 +309,6 @@ class PlayBuilder {
     
     refreshLayers() { 
         if(this.layers) this.layers.refresh(); 
-    }
-    
-    /**
-     * Draw basketball court directly on canvas
-     */
-    initCourtBackground() {
-        console.log("Drawing court background...");
-        
-        // Get the lower canvas context directly
-        const ctx = this.canvas.getContext('2d');
-        const width = this.canvas.width;
-        const height = this.canvas.height;
-        
-        // Clear and set white background
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, width, height);
-        
-        // Draw court lines directly on lower canvas
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 2;
-        const margin = 20;
-        const midY = height / 2;
-        
-        ctx.beginPath();
-        // Top sideline
-        ctx.moveTo(margin, margin);
-        ctx.lineTo(width - margin, margin);
-        // Bottom sideline
-        ctx.moveTo(margin, height - margin);
-        ctx.lineTo(width - margin, height - margin);
-        // Left baseline
-        ctx.moveTo(margin, margin);
-        ctx.lineTo(margin, height - margin);
-        ctx.stroke();
-        
-        // Key rectangle
-        ctx.strokeRect(margin, midY - 80, 190, 160);
-        
-        // Free throw circle
-        ctx.beginPath();
-        ctx.arc(margin + 190, midY, 60, 0, 2 * Math.PI);
-        ctx.stroke();
-        
-        // Backboard
-        ctx.beginPath();
-        ctx.moveTo(50, midY - 30);
-        ctx.lineTo(50, midY + 30);
-        ctx.stroke();
-        
-        // Hoop
-        ctx.beginPath();
-        ctx.arc(60, midY, 8, 0, 2 * Math.PI);
-        ctx.stroke();
-        
-        // Mid court line
-        ctx.beginPath();
-        ctx.moveTo(750, margin);
-        ctx.lineTo(750, height - margin);
-        ctx.stroke();
-        
-        // 3-point line (simplified)
-        ctx.beginPath();
-        ctx.moveTo(20, 60);
-        ctx.lineTo(160, 60);
-        ctx.quadraticCurveTo(380, midY, 160, 440);
-        ctx.lineTo(20, 440);
-        ctx.stroke();
-        
-        // Mid court circle (half)
-        ctx.beginPath();
-        ctx.arc(750, midY, 60, -Math.PI/2, Math.PI/2);
-        ctx.stroke();
-        
-        console.log("Court background drawn directly on canvas context");
     }
 }
 
