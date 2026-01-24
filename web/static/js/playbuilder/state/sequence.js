@@ -6,6 +6,7 @@ class SequenceManager {
     constructor(app, timelineId) {
         this.app = app;
         this.timelineElement = document.getElementById(timelineId);
+        this.indicatorElement = document.getElementById("frame-indicator");
         
         // Array of frames. Each frame: { id: <int>, data: <json_obj>, caption: <str> }
         this.frames = []; 
@@ -29,12 +30,6 @@ class SequenceManager {
         };
         
         if (this.currentIndex >= 0 && this.frames[this.currentIndex]) {
-             // If we are editing an existing frame, update it?
-             // Usually sequence editors work by capturing snapshots.
-             // Let's implement "Auto-update current frame on change" strategy?
-             // Or explicit "Keyframe" strategy. 
-             // For simplicity: explicit "Add Frame" creates NEW frame copy. 
-             // Modifying canvas updates CURRENT frame data live.
              this.frames[this.currentIndex].data = json;
         } else {
              this.frames.push(frame);
@@ -60,30 +55,52 @@ class SequenceManager {
         const statusSpan = document.getElementById("status-bar");
         if(statusSpan) statusSpan.innerText = `Frame ${this.frames.length} added`;
     }
+    
+    cloneFrame() {
+        this.addFrame(); // Alias for now, as addFrame clones current state
+    }
 
     deleteFrame(index, e) {
         if(e) e.stopPropagation();
+        
+        // If index not provided, delete current
+        const targetIndex = (typeof index === 'number') ? index : this.currentIndex;
+
         if (this.frames.length <= 1) {
             alert("Cannot delete the only frame.");
             return;
         }
         
         if (confirm("Delete this frame?")) {
-            this.frames.splice(index, 1);
+            this.frames.splice(targetIndex, 1);
+            
+            // Adjust current index
             if (this.currentIndex >= this.frames.length) {
                 this.currentIndex = this.frames.length - 1;
             }
+            // If we deleted the frame we were on (or one before it), we might need to reload the new current one
+            // But usually we just reload current index
+            
             this.loadFrame(this.currentIndex);
             this.renderTimeline();
+        }
+    }
+    
+    nextFrame() {
+        if (this.currentIndex < this.frames.length - 1) {
+            this.selectFrame(this.currentIndex + 1);
+        }
+    }
+    
+    prevFrame() {
+        if (this.currentIndex > 0) {
+            this.selectFrame(this.currentIndex - 1);
         }
     }
 
     selectFrame(index) {
         if (index === this.currentIndex) return;
-        
-        // Save current before switching? 
-        // We assume current frame is always up to date with canvas via listeners.
-        // But we need to ensure listeners updated `this.frames[this.currentIndex]`.
+        if (index < 0 || index >= this.frames.length) return;
         
         this.currentIndex = index;
         this.loadFrame(index);
@@ -112,6 +129,11 @@ class SequenceManager {
     }
 
     renderTimeline() {
+        // Update text indicator
+        if (this.indicatorElement) {
+            this.indicatorElement.innerText = `PHASE ${this.currentIndex + 1}/${this.frames.length}`;
+        }
+        
         if (!this.timelineElement) return;
         this.timelineElement.innerHTML = '';
 
@@ -142,11 +164,18 @@ class SequenceManager {
         const interval = setInterval(() => {
             if (i >= this.frames.length) {
                 clearInterval(interval);
-                // Return to start or stay at end? Stay at end.
                 return;
             }
             this.selectFrame(i);
             i++;
-        }, 1000); // 1 second per frame for preview
+        }, 1000); 
+        this.animationInterval = interval;
+    }
+    
+    stopAnimation() {
+        if (this.animationInterval) {
+            clearInterval(this.animationInterval);
+            this.animationInterval = null;
+        }
     }
 }
