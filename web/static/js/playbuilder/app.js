@@ -5,10 +5,12 @@
 
 class PlayBuilder {
     constructor(canvasId) {
+        // Initialize Canvas
+        // Note: We use backgroundColor in options to ensure it's set immediately
         this.canvas = new fabric.Canvas(canvasId, {
-            selection: false, // Default false, enabled by SelectTool
+            selection: false, 
             preserveObjectStacking: true,
-            backgroundColor: '#ffffff' // This should set canvas style background
+            backgroundColor: '#ffffff'
         });
 
         // Registry for tools
@@ -25,12 +27,8 @@ class PlayBuilder {
         // Configuration
         this.config = window.PlayBuilderConfig || {};
         
-        // Initialize - Order is critical
-        this.initCourt(); // Draw background first
-        
-        // Ensure rendering happens
-        setTimeout(() => this.canvas.requestRenderAll(), 100);
-        
+        // Initialize Core Components
+        this.initCourt(); 
         this.initTools();
         this.initHistory();
         this.initLayers();
@@ -43,11 +41,14 @@ class PlayBuilder {
         } else {
             console.log("New play initialized");
             this.selectTool('select');
-            this.saveStateToHistory(); 
-            // Sequence initialized via timeout in its constructor or we can trigger it
-            if (this.sequence && this.sequence.frames.length === 0) {
-                 setTimeout(() => this.sequence.captureCurrentAsFrame("Start"), 500);
-            }
+            
+            // Initial save state
+            setTimeout(() => {
+                this.saveStateToHistory(); 
+                if (this.sequence && this.sequence.frames.length === 0) {
+                     this.sequence.captureCurrentAsFrame("Start");
+                }
+            }, 200);
         }
     }
 
@@ -124,10 +125,6 @@ class PlayBuilder {
         this.history.pushState(json);
     }
 
-    /**
-     * Switch the active tool.
-     * @param {string} toolId 
-     */
     selectTool(toolId) {
         if (!this.tools[toolId]) {
             console.warn(`Tool ${toolId} not found`);
@@ -178,7 +175,7 @@ class PlayBuilder {
                 tags: tags
             },
             canvas_json: canvasJson,
-            frames: frames // New field
+            frames: frames 
         };
         
         // CSRF Token
@@ -239,15 +236,11 @@ class PlayBuilder {
                         this.saveStateToHistory(); 
                         if(this.layers) this.layers.refresh();
                         
-                        // Load frames if available
                         if (data.frames && data.frames.length > 0 && this.sequence) {
                              this.sequence.frames = data.frames;
-                             this.sequence.currentIndex = 0; // Or last?
+                             this.sequence.currentIndex = 0;
                              this.sequence.renderTimeline();
-                             // Load first frame?
-                             // Typically we load the "main" canvas_json which matches one of the frames (usually first or last saved)
                         } else if (this.sequence) {
-                             // Initialize if empty
                              this.sequence.captureCurrentAsFrame("Start");
                         }
                     });
@@ -293,7 +286,6 @@ class PlayBuilder {
                 this.isHistoryLocked = false;
                 if(this.layers) this.layers.refresh();
                 if(this.sequence) this.sequence.updateCurrentFrameData();
-                console.log("Undo performed");
             });
         }
     }
@@ -309,7 +301,6 @@ class PlayBuilder {
                 this.isHistoryLocked = false;
                 if(this.layers) this.layers.refresh();
                 if(this.sequence) this.sequence.updateCurrentFrameData();
-                console.log("Redo performed");
             });
         }
     }
@@ -319,40 +310,34 @@ class PlayBuilder {
     }
     
     /**
-     * Draw the basketball court background (Half Court - Landscape).
-     * Uses canvas.setBackgroundColor for solid floor.
+     * Draw the basketball court background (Half Court).
      */
     initCourt() {
-        const strokeColor = '#000000'; // Pure black for visibility
+        const strokeColor = '#000000'; 
         const strokeWidth = 2;
         const width = 800;
         const height = 500;
         const margin = 20;
 
-        // Force white opaque background on the canvas instance itself
-        // This is distinct from a rectangle object
-        this.canvas.setBackgroundColor('#ffffff', this.canvas.renderAll.bind(this.canvas));
-
         const courtObjects = [];
 
-        // 2. Court Boundaries (Left half + extension)
+        // 2. Court Boundaries
         const baseX = margin;
         const midY = height / 2;
         
-        // Draw sidelines
+        // Sidelines
         courtObjects.push(new fabric.Line([baseX, margin, width - margin, margin], {
-            stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+            stroke: strokeColor, strokeWidth: strokeWidth, strokeUniform: true
         }));
         courtObjects.push(new fabric.Line([baseX, height - margin, width - margin, height - margin], {
-            stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+            stroke: strokeColor, strokeWidth: strokeWidth, strokeUniform: true
         }));
         // Baseline
         courtObjects.push(new fabric.Line([baseX, margin, baseX, height - margin], {
-            stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+            stroke: strokeColor, strokeWidth: strokeWidth, strokeUniform: true
         }));
         
-        // 3. The Key (Paint)
-        // Standard Key ~160px wide (16ft), 190px long (19ft)
+        // 3. The Key
         const keyWidth = 190;
         const keyHeight = 160;
         const keyTop = midY - (keyHeight / 2);
@@ -360,8 +345,7 @@ class PlayBuilder {
         courtObjects.push(new fabric.Rect({
             left: baseX, top: keyTop,
             width: keyWidth, height: keyHeight,
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth
         }));
         
         // Free Throw Circle
@@ -369,8 +353,7 @@ class PlayBuilder {
         courtObjects.push(new fabric.Circle({
             left: baseX + keyWidth - ftRadius, top: midY - ftRadius,
             radius: ftRadius,
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth
         }));
 
         // 4. Hoop & Backboard
@@ -379,63 +362,61 @@ class PlayBuilder {
         
         // Backboard
         courtObjects.push(new fabric.Line([baseX + hoopOffset - 10, midY - 30, baseX + hoopOffset - 10, midY + 30], {
-             stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+             stroke: strokeColor, strokeWidth: strokeWidth
         }));
         // Hoop
         courtObjects.push(new fabric.Circle({
             left: baseX + hoopOffset - hoopRadius, top: midY - hoopRadius,
             radius: hoopRadius,
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth
         }));
         
         // 5. 3-Point Line
         const cornerDist = 140; 
         const threePtRadius = 240; 
-        
         const topCornerY = margin + 40;
         const botCornerY = height - margin - 40;
         
-        // Standard path
         const path = `M ${baseX} ${topCornerY} ` +
                      `L ${baseX + cornerDist} ${topCornerY} ` + 
                      `Q ${baseX + threePtRadius + 100} ${midY} ${baseX + cornerDist} ${botCornerY} ` +
                      `L ${baseX} ${botCornerY}`;
                      
         courtObjects.push(new fabric.Path(path, {
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth
         }));
 
-        // 6. Mid Court Line (Right Side)
+        // 6. Mid Court Line
         const midX = 750;
         courtObjects.push(new fabric.Line([midX, margin, midX, height - margin], {
-             stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+             stroke: strokeColor, strokeWidth: strokeWidth
         }));
         // Center Circle
         courtObjects.push(new fabric.Path(`M ${midX} ${midY - 60} A 60 60 0 0 0 ${midX} ${midY + 60}`, {
-             fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-             selectable: false, evented: false
+             fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth
         }));
 
-        // Batch add
-        courtObjects.forEach(obj => {
-            // Add custom property
-            obj.toObject = (function(toObject) {
-                return function() {
-                    return fabric.util.object.extend(toObject.call(this), {
-                        custom: { kind: 'court-line' }
-                    });
-                };
-            })(obj.toObject);
-            obj.custom = { kind: 'court-line' };
-            
-            this.canvas.add(obj);
+        // Group them to ensure integrity
+        const courtGroup = new fabric.Group(courtObjects, {
+            selectable: false,
+            evented: false,
+            // Ensure group coords are correct relative to canvas
+            left: 0, 
+            top: 0,
+            originX: 'left', 
+            originY: 'top'
         });
         
-        // Ensure rendering
-        this.canvas.requestRenderAll();
-        console.log("Court initialized with objects:", courtObjects.length);
+        // Important: Add custom prop to the group so it's filtered out of layers
+        courtGroup.custom = { kind: 'court-line' };
+        // Recursively add to objects in case logic checks children (unlikely for group)
+
+        this.canvas.add(courtGroup);
+        this.canvas.sendToBack(courtGroup);
+        
+        // FORCE RENDER
+        this.canvas.renderAll();
+        console.log("InitCourt finished. Canvas Objects:", this.canvas.getObjects().length);
     }
 }
 
