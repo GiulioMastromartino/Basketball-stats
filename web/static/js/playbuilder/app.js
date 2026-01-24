@@ -510,43 +510,24 @@ class PlayBuilder {
         const canvasJson = this.canvas.toJSON(['custom']);
         
         // --- SVG Generation with Background ---
-        const courtUrl = 'data:image/svg+xml;utf8,<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="500" fill="%23e8c89b"/><rect x="150" y="15" width="500" height="470" fill="none" stroke="%23ffffff" stroke-width="3"/><rect x="320" y="15" width="160" height="190" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 1 1 480 205" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 0 0 480 205" fill="none" stroke="%23ffffff" stroke-width="3" stroke-dasharray="10,10"/><line x1="370" y1="55" x2="430" y2="55" stroke="%23ffffff" stroke-width="3"/><circle cx="400" cy="67.5" r="7.5" fill="none" stroke="%23333" stroke-width="2"/><path d="M 180 15 L 180 157 A 237.5 237.5 0 0 0 620 157 L 620 15" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 340 485 A 60 60 0 1 1 460 485" fill="none" stroke="%23ffffff" stroke-width="3"/><line x1="150" y1="485" x2="650" y2="485" stroke="%23ffffff" stroke-width="3"/></svg>';
-
-        const getSvgWithBackground = () => {
-            return new Promise((resolve) => {
-                fabric.Image.fromURL(courtUrl, (img) => {
-                    // Set as explicit object, not background property to avoid clipping/origin issues
-                    img.set({
-                        left: 0, 
-                        top: 0,
-                        width: 800, 
-                        height: 500,
-                        selectable: false,
-                        evented: false,
-                        excludeFromExport: false 
-                    });
-                    
-                    // Add to bottom
-                    this.canvas.add(img);
-                    this.canvas.sendToBack(img);
-                    
-                    const svg = this.canvas.toSVG({
-                        viewBox: { x: 0, y: 0, width: 800, height: 500 },
-                        width: 800,
-                        height: 500,
-                        suppressPreamble: true
-                    });
-                    
-                    // Cleanup
-                    this.canvas.remove(img);
-                    this.canvas.renderAll();
-                    
-                    resolve(svg);
-                });
-            });
-        };
-
-        const diagramSvg = await getSvgWithBackground();
+        // Raw SVG string of the court
+        const courtSvgContent = '<rect width="800" height="500" fill="#e8c89b"/><rect x="150" y="15" width="500" height="470" fill="none" stroke="#ffffff" stroke-width="3"/><rect x="320" y="15" width="160" height="190" fill="none" stroke="#ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 1 1 480 205" fill="none" stroke="#ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 0 0 480 205" fill="none" stroke="#ffffff" stroke-width="3" stroke-dasharray="10,10"/><line x1="370" y1="55" x2="430" y2="55" stroke="#ffffff" stroke-width="3"/><circle cx="400" cy="67.5" r="7.5" fill="none" stroke="#333" stroke-width="2"/><path d="M 180 15 L 180 157 A 237.5 237.5 0 0 0 620 157 L 620 15" fill="none" stroke="#ffffff" stroke-width="3"/><path d="M 340 485 A 60 60 0 1 1 460 485" fill="none" stroke="#ffffff" stroke-width="3"/><line x1="150" y1="485" x2="650" y2="485" stroke="#ffffff" stroke-width="3"/>';
+        
+        // Get the canvas objects SVG
+        let objectsSvg = this.canvas.toSVG({
+            viewBox: { x: 0, y: 0, width: 800, height: 500 },
+            width: 800,
+            height: 500,
+            suppressPreamble: true // Don't include <?xml ... ?> header
+        });
+        
+        // Manually construct the final SVG
+        // 1. Extract the content inside the <svg> tags from Fabric's output
+        const svgBody = objectsSvg.substring(objectsSvg.indexOf('>') + 1, objectsSvg.lastIndexOf('</svg>'));
+        
+        // 2. Combine: Header + Court + Canvas Objects + Footer
+        const diagramSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500" preserveAspectRatio="xMidYMid meet">${courtSvgContent}${svgBody}</svg>`;
+        
         // ----------------------------------------
         
         // Frames data
