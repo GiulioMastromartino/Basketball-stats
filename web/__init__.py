@@ -93,10 +93,12 @@ def register_blueprints(app: Flask):
     from web.routes.api import api_bp
     from web.routes.auth import auth_bp
     from web.routes.main import main_bp
-    from web.routes.plays import plays_bp  # <--- NEW IMPORT
+    from web.routes.plays import plays_bp
+    from web.routes.play_builder_api import builder_api_bp  # <--- NEW IMPORT
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api/v1")
     app.register_blueprint(analytics_bp)
-    app.register_blueprint(plays_bp)      # <--- NEW REGISTRATION
+    app.register_blueprint(plays_bp)
+    app.register_blueprint(builder_api_bp)  # <--- NEW REGISTRATION
