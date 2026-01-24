@@ -176,6 +176,40 @@ class PlayBuilder {
             if(this.layers) this.layers.refresh();
         }
     }
+    
+    mirror() {
+        if (!this.canvas) return;
+        
+        const width = this.canvas.getWidth();
+        const center = width / 2;
+        
+        // Save state before modification
+        this.saveStateToHistory();
+
+        this.canvas.getObjects().forEach(obj => {
+            // Calculate new left position for originX=center
+            if (obj.originX === 'center') {
+                obj.set('left', width - obj.left);
+            } else {
+                // If originX is left
+                obj.set('left', width - (obj.left + obj.getScaledWidth()));
+            }
+
+            // Mirror angle
+            if (obj.angle !== 0) {
+                obj.set('angle', -obj.angle);
+            }
+            
+            obj.setCoords();
+        });
+        
+        this.canvas.renderAll();
+        // Trigger updates manually since we modified existing objects in batch
+        // and we might be inside a bulk operation
+        this.saveStateToHistory();
+        if(this.layers) this.layers.refresh();
+        if(this.sequence) this.sequence.updateCurrentFrameData();
+    }
 
     undo() {
         if (!this.history || !this.history.canUndo()) return;
