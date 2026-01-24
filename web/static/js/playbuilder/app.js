@@ -514,25 +514,34 @@ class PlayBuilder {
 
         const getSvgWithBackground = () => {
             return new Promise((resolve) => {
-                // 1. Set background image to court
-                this.canvas.setBackgroundImage(courtUrl, () => {
-                    this.canvas.renderAll();
+                fabric.Image.fromURL(courtUrl, (img) => {
+                    // Set as explicit object, not background property to avoid clipping/origin issues
+                    img.set({
+                        left: 0, 
+                        top: 0,
+                        width: 800, 
+                        height: 500,
+                        selectable: false,
+                        evented: false,
+                        excludeFromExport: false 
+                    });
                     
-                    // 2. Export SVG with background
+                    // Add to bottom
+                    this.canvas.add(img);
+                    this.canvas.sendToBack(img);
+                    
                     const svg = this.canvas.toSVG({
                         viewBox: { x: 0, y: 0, width: 800, height: 500 },
                         width: 800,
-                        height: 500
+                        height: 500,
+                        suppressPreamble: true
                     });
                     
-                    // 3. Clear background to restore transparent (CSS handling)
-                    this.canvas.setBackgroundImage(null, () => {
-                        this.canvas.renderAll();
-                        resolve(svg);
-                    });
-                }, {
-                    originX: 'left',
-                    originY: 'top'
+                    // Cleanup
+                    this.canvas.remove(img);
+                    this.canvas.renderAll();
+                    
+                    resolve(svg);
                 });
             });
         };
