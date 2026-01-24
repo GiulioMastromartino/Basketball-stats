@@ -305,7 +305,7 @@
         <button class="btn-tool" onclick="app.clearCanvas()">
             <i class="fas fa-file mb-1"></i> Empty
         </button>
-        <button class="btn-tool">
+        <button class="btn-tool" onclick="app.mirror()">
             <i class="fas fa-arrows-alt-h mb-1"></i> Mirror
         </button>
         <button class="btn-tool text-danger" onclick="app.sequence.deleteFrame()">
@@ -395,15 +395,15 @@
                 ADD MISC <i class="far fa-question-circle ml-1"></i>
             </div>
             <div class="misc-grid">
-                <button class="btn-misc"><i class="fas fa-map-marker-alt"></i></button> <!-- Cone -->
-                <button class="btn-misc"><i class="fas fa-cone"></i></button> <!-- Tall Cone -->
-                <button class="btn-misc" onclick="app.selectTool('text')"><i class="fas fa-font"></i></button> <!-- Text -->
-                <button class="btn-misc"><i class="far fa-square"></i></button> <!-- Box -->
-                <button class="btn-misc"><i class="far fa-circle"></i></button> <!-- Circle -->
-                <button class="btn-misc"><i class="fas fa-caret-up"></i></button> <!-- Triangle -->
-                <button class="btn-misc"><i class="fas fa-gem"></i></button> <!-- Diamond -->
-                <button class="btn-misc"><i class="fas fa-minus"></i></button> <!-- Line -->
-                <button class="btn-misc"><i class="far fa-image"></i></button> <!-- Image -->
+                <button class="btn-misc" onclick="app.tools['shape'].setType('cone'); app.selectTool('shape');" title="Cone"><i class="fas fa-map-marker-alt"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('cone-tall'); app.selectTool('shape');" title="Tall Cone"><i class="fas fa-cone"></i></button>
+                <button class="btn-misc" onclick="app.selectTool('text')" title="Text"><i class="fas fa-font"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('box'); app.selectTool('shape');" title="Box"><i class="far fa-square"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('circle'); app.selectTool('shape');" title="Circle"><i class="far fa-circle"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('triangle'); app.selectTool('shape');" title="Triangle"><i class="fas fa-caret-up"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('diamond'); app.selectTool('shape');" title="Diamond"><i class="fas fa-gem"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('line'); app.selectTool('shape');" title="Line"><i class="fas fa-minus"></i></button>
+                <button class="btn-misc" onclick="alert('Image upload coming soon')" title="Image"><i class="far fa-image"></i></button>
             </div>
         </div>
         
