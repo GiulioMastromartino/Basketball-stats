@@ -26,16 +26,15 @@ class PlayBuilder {
         // Configuration
         this.config = window.PlayBuilderConfig || {};
         
-        // Initialize Core Components
-        // We draw the court directly onto the background of the canvas
-        // This avoids any "object on top" issues.
-        this.initCourtBackground(); 
-        
+        // Initialize Tools & Managers
         this.initTools();
         this.initHistory();
         this.initLayers();
         this.initSequence(); 
         this.initEvents();
+
+        // Initialize Court (First Draw)
+        this.initCourtBackground();
 
         // Load data if editing
         if (this.config.playId) {
@@ -180,11 +179,13 @@ class PlayBuilder {
             frames: frames 
         };
         
-        // CSRF Token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        // CSRF Token - using generic method or meta tag
+        // Assuming meta tag exists from layout
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
         try {
-            const res = await fetch(`${this.config.apiBase}/plays/api/save-canvas`, {
+            // Updated URL to match the backend prefix registration
+            const res = await fetch(`/api/v1/plays/api/save-canvas`, {
                 method: "POST",
                 headers: { 
                     "Content-Type": "application/json",
@@ -192,6 +193,9 @@ class PlayBuilder {
                 },
                 body: JSON.stringify(payload)
             });
+            
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            
             const data = await res.json();
 
             if (data.success) {
@@ -208,6 +212,7 @@ class PlayBuilder {
         } catch (err) {
             console.error(err);
             statusSpan.innerText = "Network Error";
+            alert("Save failed. Check console for details.");
         }
     }
 
@@ -218,7 +223,8 @@ class PlayBuilder {
         this.isHistoryLocked = true;
 
         try {
-            const res = await fetch(`${this.config.apiBase}/plays/api/load-canvas/${playId}`);
+            // Match the URL structure
+            const res = await fetch(`/api/v1/plays/api/load-canvas/${playId}`);
             const data = await res.json();
 
             if (data.success) {
@@ -230,6 +236,10 @@ class PlayBuilder {
 
                 if (data.canvas_json) {
                     this.canvas.loadFromJSON(data.canvas_json, () => {
+                        // CRITICAL: Re-apply court background after loading
+                        // Because the saved JSON might have a blank background from previous bugs
+                        this.initCourtBackground();
+                        
                         this.canvas.renderAll();
                         statusSpan.innerText = "Ready";
                         this.selectTool('select');
@@ -284,6 +294,7 @@ class PlayBuilder {
         if (prevState) {
             this.isHistoryLocked = true;
             this.canvas.loadFromJSON(prevState, () => {
+                this.initCourtBackground(); // Ensure BG persists on undo
                 this.canvas.renderAll();
                 this.isHistoryLocked = false;
                 if(this.layers) this.layers.refresh();
@@ -299,6 +310,7 @@ class PlayBuilder {
         if (nextState) {
             this.isHistoryLocked = true;
             this.canvas.loadFromJSON(nextState, () => {
+                this.initCourtBackground(); // Ensure BG persists on redo
                 this.canvas.renderAll();
                 this.isHistoryLocked = false;
                 if(this.layers) this.layers.refresh();
@@ -312,8 +324,7 @@ class PlayBuilder {
     }
     
     /**
-     * Draw the basketball court background using a static Image or Group.
-     * CRITICAL: We render this to an off-screen canvas or group first, then set as background image.
+     * Draw the basketball court background using a static Image.
      */
     initCourtBackground() {
         const strokeColor = '#000000'; 
@@ -323,11 +334,10 @@ class PlayBuilder {
         const margin = 20;
 
         // Create a temporary static canvas to draw the court
-        // This is a common Fabric.js trick to "flatten" a complex background into a single image
         const tempCanvas = new fabric.StaticCanvas(null, { width: width, height: height });
-        tempCanvas.setBackgroundColor('#ffffff', () => {}); // Force white
+        tempCanvas.setBackgroundColor('#ffffff', () => {}); 
 
-        // --- Draw logic (same as before) ---
+        // --- Draw logic ---
         const courtObjects = [];
         const baseX = margin;
         const midY = height / 2;
@@ -396,18 +406,15 @@ class PlayBuilder {
              fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth
         }));
         
-        // Add to temp canvas
         courtObjects.forEach(o => tempCanvas.add(o));
         tempCanvas.renderAll();
         
-        // Export to data URL
         const courtDataURL = tempCanvas.toDataURL({
             format: 'png',
             quality: 1,
-            enableRetinaScaling: false // Ensure exact pixel match
+            enableRetinaScaling: false 
         });
         
-        // Set as background image of MAIN canvas
         this.canvas.setBackgroundImage(courtDataURL, this.canvas.renderAll.bind(this.canvas), {
             originX: 'left',
             originY: 'top',
@@ -415,7 +422,7 @@ class PlayBuilder {
             top: 0
         });
         
-        console.log("Court background set via DataURL");
+        console.log("Court background set/restored via DataURL");
     }
 }
 
