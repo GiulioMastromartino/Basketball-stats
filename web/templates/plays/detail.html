@@ -38,6 +38,12 @@
                         <div class="img-fluid bg-white p-2 rounded border" style="max-height: 500px; display: inline-block;">
                             {{ play.diagram_svg|safe }}
                         </div>
+                    {% elif play.canvas_data %}
+                        <!-- Fallback: Render Canvas client-side if no SVG -->
+                        <div class="bg-white p-2 rounded border" style="display: inline-block;">
+                            <canvas id="preview-canvas" width="800" height="500" style="max-width: 100%; height: auto;"></canvas>
+                        </div>
+                        <p class="text-muted small mt-2">Preview generated dynamically (edit and save to create static image).</p>
                     {% else %}
                         <div class="py-5 text-muted">
                             <i class="fas fa-image fa-3x mb-3 text-gray-300"></i>
@@ -120,4 +126,33 @@
         </div>
     </div>
 </div>
+
+{% if not play.diagram_svg and play.canvas_data %}
+<!-- Scripts for Fallback Rendering -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const canvas = new fabric.StaticCanvas('preview-canvas');
+        const canvasData = {{ play.canvas_data|tojson }};
+        
+        // Load custom background similar to builder
+        // Note: In SVG it might be better to just load JSON objects
+        // Here we just replicate visual style if possible or just load objects
+        
+        // Add court background image
+        const courtUrl = 'data:image/svg+xml;utf8,<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="500" fill="%23e8c89b"/><rect x="150" y="15" width="500" height="470" fill="none" stroke="%23ffffff" stroke-width="3"/><rect x="320" y="15" width="160" height="190" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 1 1 480 205" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 0 0 480 205" fill="none" stroke="%23ffffff" stroke-width="3" stroke-dasharray="10,10"/><line x1="370" y1="55" x2="430" y2="55" stroke="%23ffffff" stroke-width="3"/><circle cx="400" cy="67.5" r="7.5" fill="none" stroke="%23333" stroke-width="2"/><path d="M 180 15 L 180 157 A 237.5 237.5 0 0 0 620 157 L 620 15" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 340 485 A 60 60 0 1 1 460 485" fill="none" stroke="%23ffffff" stroke-width="3"/><line x1="150" y1="485" x2="650" y2="485" stroke="%23ffffff" stroke-width="3"/></svg>';
+        
+        canvas.setBackgroundImage(courtUrl, canvas.renderAll.bind(canvas), {
+            originX: 'left',
+            originY: 'top'
+        });
+
+        if (canvasData) {
+            canvas.loadFromJSON(canvasData, function() {
+                canvas.renderAll();
+            });
+        }
+    });
+</script>
+{% endif %}
 {% endblock %}
