@@ -64,18 +64,14 @@ class ArrowTool extends ToolBase {
         this.canvas.selection = false;
         this.canvas.defaultCursor = 'crosshair';
         this.canvas.forEachObject(o => {
-            // Allow selecting existing arrows to edit curve
-            if(o.custom && o.custom.kind === 'arrow') {
-                 o.selectable = true;
-            } else {
-                 o.selectable = false;
-            }
+            // Disable selection while drawing new arrows
+             o.selectable = false;
         });
     }
 
     deactivate() {
         super.deactivate();
-        this.canvas.selection = false;
+        this.canvas.selection = true; // Re-enable selection
         this.canvas.defaultCursor = 'default';
         this.canvas.forEachObject(o => o.selectable = true);
         this.hideCurveControls();
@@ -110,11 +106,14 @@ class ArrowTool extends ToolBase {
     }
 
     onMouseDown(opt) {
-        // If clicking on an existing control point, let Fabric handle it
-        if (opt.target && opt.target.custom && opt.target.custom.isControlPoint) return;
-        
-        // If clicking on existing arrow, select it (handled by Fabric), don't draw new
-        if (opt.target && opt.target.custom && opt.target.custom.kind === 'arrow') return;
+        // Enforce one-shot: if clicking existing object, switch to select
+        if (opt.target) {
+            if (window.app) window.app.selectTool('select');
+            // We can return here, but better to let select tool handle the selection immediately if possible.
+            // But since we just switched tools, the current click might be lost for selection purposes.
+            // That's acceptable for "switching modes".
+            return;
+        }
 
         this.isDrawing = true;
         this.hideCurveControls(); // Clear any existing controls
@@ -152,13 +151,6 @@ class ArrowTool extends ToolBase {
         
         if (this.line) {
             // Finalize arrow group
-            // We store the control point relative to the group center or as custom property
-            // Actually, for editable curves, it's better to NOT group the path yet, 
-            // OR use a custom class. 
-            // For simplicity, we'll create a group but attach metadata for reconstruction
-            
-            // Re-find end point from last line state? 
-            // Better: use the last pointer.
             const pointer = this.canvas.getPointer(opt.e);
             const snap = this.getSnapPoint(pointer);
             const endPoint = snap.point;
@@ -174,15 +166,38 @@ class ArrowTool extends ToolBase {
             this.canvas.renderAll();
             
             // Show controls for the new curve immediately
-            this.showCurveControls(group);
+            // But wait! We are switching to select tool immediately.
+            // The select tool will pick up the selection:created/updated event?
+            // Actually, if we switch tools, we deactivate this one.
+            // So we rely on SelectTool to handle the selection.
         }
         
         this.line = null;
         this.arrowHead = null;
         this.startPoint = null;
+        
+        // ALWAYS switch to select tool after drawing
+        if (window.app) {
+            window.app.selectTool('select');
+            
+            // If we just created an object and selected it, 
+            // the new SelectTool should ideally show the curve controls if applicable.
+            // Since we set active object above, SelectTool's activate might need to check selection.
+        }
     }
     
-    // Create the persistent object on canvas
+    // ... (rest of methods: createArrowGroup, updateVisuals, getQuadPath, onSelect, onDeselect, showCurveControls, hideCurveControls, onObjectMove, updateArrowShape, calculateAngle) ...
+    // Note: onSelect/onDeselect will still work even if tool is not active? 
+    // No, tools usually unbind events on deactivate. 
+    // Wait, the constructor binds them. But deactivate should probably stop listening or 
+    // the SelectTool should handle curve logic?
+    // Actually, curve editing is a property of the object, but the interaction is tool-specific.
+    // If we want to edit curves in "Select Mode", the SelectTool needs to know about it,
+    // OR we leave these listeners active globally.
+    // For now, let's assume listeners are bound in constructor and stick around.
+    // BUT checking `this.canvas.on` in constructor means they are always on.
+    // That's fine if we want curve editing to be available whenever an arrow is selected.
+    
     createArrowGroup(start, end, control) {
         const config = this.typeConfig[this.currentType];
         
@@ -197,13 +212,7 @@ class ArrowTool extends ToolBase {
             originX: 'center', originY: 'center'
         });
         
-        // If wavy, we need special handling (complex path generation)
-        // For now, let's keep wavy simple (straight line sine wave) or curve it?
-        // Curving a sine wave is hard. Let's disable curve editing for wavy lines for now,
-        // or just apply curve to the base line.
-        // Let's stick to standard paths for now.
-        
-        const angle = this.calculateAngle(control, end); // Angle at end comes from control point
+        const angle = this.calculateAngle(control, end); 
         let head;
         
         if (config.arrow) {
@@ -224,21 +233,8 @@ class ArrowTool extends ToolBase {
              head = new fabric.Text("H", { fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', fill: config.stroke, originX: 'center', originY: 'center', angle: angle });
         }
         
-        // Position head at end point
-        // Group logic: Center is (start + end)/2 usually, but with curves it varies.
-        // Simplest: Add to canvas as a group
-        // We need to store world coordinates for reconstruction
-        
         const objs = [path];
         if (head) {
-            // Position head relative to path center? 
-            // Easier: Group them at 0,0 relative, then set group pos.
-            // But Fabric groups are tricky.
-            // Alternative: use a custom subclass or just a group with metadata.
-            
-            // Let's place head correctly relative to path bounding box center?
-            // Actually, we can just position the head at 'end' coordinates, path at its center.
-            // Then group them.
             head.left = end.x;
             head.top = end.y;
             objs.push(head);
@@ -246,12 +242,11 @@ class ArrowTool extends ToolBase {
         
         const group = new fabric.Group(objs, {
             selectable: true,
-            hasControls: false, // We use custom control point
+            hasControls: false, 
             hasBorders: true,
             lockScalingX: true, lockScalingY: true, lockRotation: true
         });
         
-        // Save metadata for editing
         group.custom = {
             kind: 'arrow',
             type: this.currentType,
@@ -269,23 +264,14 @@ class ArrowTool extends ToolBase {
         if (this.line) this.canvas.remove(this.line);
         if (this.arrowHead) this.canvas.remove(this.arrowHead);
         
-        // For drawing phase, we draw components directly (not grouped)
-        
-        if (config.wave) {
-             // Wavy line along the curve?
-             // Complex. Fallback to straight wavy line for now.
-             this.line = this.createWavePath(this.startPoint, endPoint, config);
-        } else {
-             const pathData = this.getQuadPath(this.startPoint, endPoint, controlPoint);
-             this.line = new fabric.Path(pathData, {
-                stroke: config.stroke, strokeWidth: 2, strokeDashArray: config.strokeDashArray,
-                fill: 'transparent', selectable: false
-             });
-        }
+        const pathData = this.getQuadPath(this.startPoint, endPoint, controlPoint);
+        this.line = new fabric.Path(pathData, {
+           stroke: config.stroke, strokeWidth: 2, strokeDashArray: config.strokeDashArray,
+           fill: 'transparent', selectable: false
+        });
         this.canvas.add(this.line);
 
-        // Head
-        const angle = config.wave ? this.calculateAngle(this.startPoint, endPoint) : this.calculateAngle(controlPoint, endPoint);
+        const angle = this.calculateAngle(controlPoint, endPoint);
         
         if (config.arrow) {
             this.arrowHead = new fabric.Triangle({
@@ -294,19 +280,38 @@ class ArrowTool extends ToolBase {
                 angle: angle + 90, selectable: false
             });
             this.canvas.add(this.arrowHead);
+        } else if (config.endCap === 'T') {
+             this.arrowHead = new fabric.Line([0, -15, 0, 15], {
+                stroke: config.stroke, strokeWidth: 3,
+                left: endPoint.x, top: endPoint.y,
+                originX: 'center', originY: 'center',
+                angle: angle + 90,
+                selectable: false
+            });
+            this.canvas.add(this.arrowHead);
+        } else if (config.endCap === 'target') {
+             const c = new fabric.Circle({ radius: 8, fill: 'transparent', stroke: config.stroke, strokeWidth: 2, originX: 'center', originY: 'center' });
+             const l1 = new fabric.Line([0, -8, 0, 8], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
+             const l2 = new fabric.Line([-8, 0, 8, 0], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
+             this.arrowHead = new fabric.Group([c, l1, l2], { 
+                 left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle, selectable: false 
+             });
+             this.canvas.add(this.arrowHead);
+        } else if (config.endCap === 'handoff') {
+             this.arrowHead = new fabric.Text("H", { 
+                 fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', fill: config.stroke, 
+                 left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle, selectable: false 
+             });
+             this.canvas.add(this.arrowHead);
         }
-        // ... (other end caps similar to createArrowGroup) ...
         
         this.canvas.requestRenderAll();
     }
     
-    // Generate Quadratic Bezier path string: M startX startY Q cpX cpY endX endY
     getQuadPath(start, end, cp) {
         return `M ${start.x} ${start.y} Q ${cp.x} ${cp.y} ${end.x} ${end.y}`;
     }
 
-    // --- Curve Editing Logic ---
-    
     onSelect(e) {
         if (e.selected && e.selected.length === 1) {
             const obj = e.selected[0];
@@ -321,12 +326,11 @@ class ArrowTool extends ToolBase {
     }
     
     showCurveControls(arrowGroup) {
-        this.hideCurveControls(); // Clear old
+        this.hideCurveControls(); 
         
         const data = arrowGroup.custom;
         if (!data || !data.control) return;
         
-        // Create a draggable control point
         const cp = new fabric.Circle({
             left: data.control.x,
             top: data.control.y,
@@ -360,43 +364,23 @@ class ArrowTool extends ToolBase {
     
     onObjectMove(e) {
         const obj = e.target;
-        
-        // If moving the control point
         if (obj.custom && obj.custom.isControlPoint) {
             const arrowGroup = obj.arrowRef;
             if (arrowGroup) {
-                // Update the arrow's shape based on new control point
                 this.updateArrowShape(arrowGroup, obj);
             }
         }
-        
-        // If moving the arrow group itself?
-        // We'd need to update stored coordinates (start, end, control) by delta
-        // For now, let's just focus on curve editing.
     }
     
     updateArrowShape(group, controlPointObj) {
-        // We need to re-generate the path inside the group
-        // This is tricky with Fabric groups. 
-        // Easiest is to destroy and recreate the group, 
-        // OR just update metadata and re-render if we were drawing from scratch.
-        
-        // Simple approach: Remove old group, create new one with new CP, select it.
         const data = group.custom;
         const newControl = { x: controlPointObj.left, y: controlPointObj.top };
         
         const newGroup = this.createArrowGroup(data.start, data.end, newControl);
         
-        // Preserve selection
         this.canvas.remove(group);
         this.canvas.add(newGroup);
-        
-        // Update reference
         controlPointObj.arrowRef = newGroup;
-        
-        // We don't want to re-select immediately or it might interrupt drag?
-        // Actually, replacing object while dragging another object (cp) is fine.
-        // But we shouldn't change selection to newGroup, keep focus on cp.
     }
 
     calculateAngle(start, end) {
@@ -405,7 +389,11 @@ class ArrowTool extends ToolBase {
         return Math.atan2(dy, dx) * 180 / Math.PI;
     }
     
-    // ... createWavePath (updated to curve?) ...
-    // For now, keep createWavePath as linear to avoid complexity, 
-    // or implement simple quad curve for wave baseline.
+    createWavePath(start, end, config) {
+        // Fallback for visual update during draw if needed, 
+        // but we are using curve now. Keep if needed or remove.
+        // For now, implementing simple line for wave preview or curve?
+        // Let's use getQuadPath logic even for dribble for consistency.
+        return null;
+    }
 }
