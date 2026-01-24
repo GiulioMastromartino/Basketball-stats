@@ -102,10 +102,11 @@ class ShapeTool extends ToolBase {
             this.canvas.add(shape);
             this.canvas.setActiveObject(shape);
             this.canvas.requestRenderAll();
-            // Removed manual fire('object:added') to prevent double history entry
         }
         
-        // Auto-switch back to select tool for convenience?
-        // Let's stick to tool remaining active for placing multiple cones
+        // Auto-switch to Select tool
+        if (window.app) {
+            window.app.selectTool('select');
+        }
     }
 }
