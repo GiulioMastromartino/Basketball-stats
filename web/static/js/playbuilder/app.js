@@ -316,52 +316,123 @@ class PlayBuilder {
     }
     
     /**
-     * Draw the basketball court background.
+     * Draw the basketball court background (Half Court - Landscape).
      */
     initCourt() {
         const strokeColor = '#333';
         const strokeWidth = 2;
         const width = 800;
-        const height = 500; // Adjusted for timeline space
+        const height = 500;
+        const margin = 20;
 
         const courtObjects = [];
 
-        // 1. Full Court Outline
+        // 1. Main Floor (White background)
         courtObjects.push(new fabric.Rect({
             left: 0, top: 0, width: width, height: height,
-            fill: '#fff', stroke: strokeColor, strokeWidth: strokeWidth,
+            fill: '#fff', stroke: null,
             selectable: false, evented: false
         }));
 
-        // 2. Center Circle
-        courtObjects.push(new fabric.Circle({
-            left: 350, top: -50, radius: 50,
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
+        // 2. Court Boundaries (Left half + extension)
+        // Baseline left, Sidelines top/bottom
+        const baseX = margin;
+        const midY = height / 2;
+        
+        // Draw sidelines
+        courtObjects.push(new fabric.Line([baseX, margin, width - margin, margin], {
+            stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
         }));
-
-        // 3. 3-Point Line (Simplified)
-        const pathData = `M 50 0 C 50 300, 750 300, 750 0`; 
-        courtObjects.push(new fabric.Path(pathData, {
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
+        courtObjects.push(new fabric.Line([baseX, height - margin, width - margin, height - margin], {
+            stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
         }));
-
-        // 4. Paint
+        // Baseline
+        courtObjects.push(new fabric.Line([baseX, margin, baseX, height - margin], {
+            stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+        }));
+        
+        // 3. The Key (Paint)
+        // Standard Key ~160px wide (16ft), 190px long (19ft)
+        const keyWidth = 190;
+        const keyHeight = 160;
+        const keyTop = midY - (keyHeight / 2);
+        
         courtObjects.push(new fabric.Rect({
-            left: 300, top: 0, width: 200, height: 250,
+            left: baseX, top: keyTop,
+            width: keyWidth, height: keyHeight,
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
+            selectable: false, evented: false
+        }));
+        
+        // Free Throw Circle
+        const ftRadius = 60;
+        courtObjects.push(new fabric.Circle({
+            left: baseX + keyWidth - ftRadius, top: midY - ftRadius,
+            radius: ftRadius,
             fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
             selectable: false, evented: false
         }));
 
-        // 5. Hoop
+        // 4. Hoop & Backboard
+        const hoopOffset = 40; // 4ft from baseline
+        const hoopRadius = 8;
+        
+        // Backboard
+        courtObjects.push(new fabric.Line([baseX + hoopOffset - 10, midY - 30, baseX + hoopOffset - 10, midY + 30], {
+             stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+        }));
+        // Hoop
         courtObjects.push(new fabric.Circle({
-            left: 390, top: 40, radius: 10,
+            left: baseX + hoopOffset - hoopRadius, top: midY - hoopRadius,
+            radius: hoopRadius,
             fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
             selectable: false, evented: false
+        }));
+        
+        // 5. 3-Point Line
+        // Complex shape: Straight lines near baseline + Arc
+        // Start near baseline. Distance ~220px (22ft approx corner)
+        // Arc radius ~237px (23.75ft)
+        // Let's use simplified path
+        const cornerDist = 140; // Length of straight part
+        const threePtRadius = 240; 
+        const sideY = 45; // Distance from sideline? No, y-coord.
+        // Corner 1: (baseX + cornerDist, margin + sideY) ??
+        // Let's draw standard arc
+        
+        // Path string: 
+        // Move to top corner 3 start
+        // Line to top corner 3 end
+        // Curve to bottom corner 3 start
+        // Line to bottom corner 3 end
+        
+        // Top Corner: y = margin + 30. x = baseX to baseX + cornerDist
+        const topCornerY = margin + 40;
+        const botCornerY = height - margin - 40;
+        
+        const path = `M ${baseX} ${topCornerY} ` +
+                     `L ${baseX + cornerDist} ${topCornerY} ` + 
+                     `Q ${baseX + threePtRadius + 100} ${midY} ${baseX + cornerDist} ${botCornerY} ` +
+                     `L ${baseX} ${botCornerY}`;
+                     
+        courtObjects.push(new fabric.Path(path, {
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
+            selectable: false, evented: false
+        }));
+
+        // 6. Mid Court Line (Right Side)
+        const midX = 750;
+        courtObjects.push(new fabric.Line([midX, margin, midX, height - margin], {
+             stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false
+        }));
+        // Center Circle
+        courtObjects.push(new fabric.Path(`M ${midX} ${midY - 60} A 60 60 0 0 0 ${midX} ${midY + 60}`, {
+             fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
+             selectable: false, evented: false
         }));
 
         courtObjects.forEach(obj => {
+            // Add custom property for serialization/identification
             obj.toObject = (function(toObject) {
                 return function() {
                     return fabric.util.object.extend(toObject.call(this), {
@@ -370,15 +441,12 @@ class PlayBuilder {
                 };
             })(obj.toObject);
             obj.custom = { kind: 'court-line' };
+            
             this.canvas.add(obj);
         });
         
-        // Ensure court objects are sent to back but kept below user drawings
-        // Fabric doesn't automatically "lock" layering unless logic enforces it.
-        // We rely on 'evented: false' so user can't select them, 
-        // and 'preserveObjectStacking: true' on canvas init.
-        
-        // Fix for blank canvas: Ensure stroke is visible and fill is transparent (except main rect)
+        // Send floor to back
+        this.canvas.sendToBack(courtObjects[0]);
     }
 }
 
