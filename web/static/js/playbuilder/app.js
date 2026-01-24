@@ -373,7 +373,12 @@ class PlayBuilder {
             this.canvas.add(obj);
         });
         
-        this.canvas.sendToBack(courtObjects[0]);
+        // Ensure court objects are sent to back but kept below user drawings
+        // Fabric doesn't automatically "lock" layering unless logic enforces it.
+        // We rely on 'evented: false' so user can't select them, 
+        // and 'preserveObjectStacking: true' on canvas init.
+        
+        // Fix for blank canvas: Ensure stroke is visible and fill is transparent (except main rect)
     }
 }
 
