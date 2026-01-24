@@ -106,7 +106,10 @@ class PlayerTool extends ToolBase {
         this.canvas.setActiveObject(visual);
         this.canvas.requestRenderAll();
         
-        // Removed manual fire('object:added') to prevent double history entry
+        // Auto-switch to Select tool
+        if (window.app) {
+            window.app.selectTool('select');
+        }
     }
     
     setProps(props) {
