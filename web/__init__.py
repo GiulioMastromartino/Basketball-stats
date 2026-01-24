@@ -86,12 +86,15 @@ def setup_logging(app: Flask, config):
 def register_blueprints(app: Flask):
     """Register all blueprints"""
     # Import blueprints here to avoid circular imports
-    from web.routes.analytics import analytics_bp  # <--- NEW IMPORT
+    from web.routes.analytics import analytics_bp
     from web.routes.api import api_bp
     from web.routes.auth import auth_bp
     from web.routes.main import main_bp
+    from web.routes.play_builder_api import builder_api_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api/v1")
-    app.register_blueprint(analytics_bp)  # <--- NEW REGISTRATION
+    app.register_blueprint(analytics_bp)
+    # Mount the builder API under /api/v1 (resulting in /api/v1/plays/api/...)
+    app.register_blueprint(builder_api_bp, url_prefix="/api/v1")
