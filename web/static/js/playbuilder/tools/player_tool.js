@@ -106,8 +106,7 @@ class PlayerTool extends ToolBase {
         this.canvas.setActiveObject(visual);
         this.canvas.requestRenderAll();
         
-        // Trigger history save
-        this.canvas.fire('object:added', { target: visual });
+        // Removed manual fire('object:added') to prevent double history entry
     }
     
     setProps(props) {
