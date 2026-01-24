@@ -9,7 +9,7 @@ class ArrowTool extends ToolBase {
         this.arrowHead = null; // preview end-cap
 
         this.startPoint = null;
-        this.curveControl = null; // control point (for quadratic curve)
+        this.curveControl = null; // This is now the "Point On Curve" (peak), not the raw Bezier CP
 
         this.currentType = 'pass';
         this.controlHandles = []; // Array to store active edit handles
@@ -48,8 +48,22 @@ class ArrowTool extends ToolBase {
         if (this.typeConfig[type]) this.currentType = type;
     }
 
+    // --- Math Helpers ---
+    
+    // Convert a "Point on Curve" (t=0.5) to the necessary Quadratic Bezier Control Point
+    // B(0.5) = 0.25*P0 + 0.5*P1 + 0.25*P2 = PointOnCurve
+    // P1 = 2 * PointOnCurve - 0.5 * P0 - 0.5 * P2
+    getBezierControlPoint(start, end, pointOnCurve) {
+        return {
+            x: 2 * pointOnCurve.x - 0.5 * start.x - 0.5 * end.x,
+            y: 2 * pointOnCurve.y - 0.5 * start.y - 0.5 * end.y
+        };
+    }
+
     // --- Snapping ---
-    getSnapPoint(pointer) {
+    // referencePoint: The "other end" of the line. If provided, we snap to the token's BORDER closest to this point.
+    // If null, we snap to center (useful for first click).
+    getSnapPoint(pointer, referencePoint = null) {
         const snapDist = 40;
         let closestPoint = { x: pointer.x, y: pointer.y };
         let minDist = snapDist;
@@ -59,10 +73,35 @@ class ArrowTool extends ToolBase {
             if (obj.custom && obj.custom.kind === 'player-token' && obj.visible) {
                 const center = obj.getCenterPoint();
                 const dist = Math.hypot(center.x - pointer.x, center.y - pointer.y);
+                
                 if (dist < minDist) {
                     minDist = dist;
-                    closestPoint = { x: center.x, y: center.y };
                     foundTarget = obj;
+                    
+                    if (referencePoint) {
+                        // Snap to border logic
+                        // Assume typical radius if not found (player tokens usually scaled circles)
+                        let radius = (obj.width * obj.scaleX) / 2; 
+                        if (isNaN(radius) || radius < 1) radius = 15; // fallback
+                        
+                        // Vector from center to reference
+                        const dx = referencePoint.x - center.x;
+                        const dy = referencePoint.y - center.y;
+                        const len = Math.hypot(dx, dy);
+                        
+                        if (len > 0) {
+                            // Point on border towards reference
+                            closestPoint = {
+                                x: center.x + (dx / len) * radius,
+                                y: center.y + (dy / len) * radius
+                            };
+                        } else {
+                            closestPoint = { x: center.x, y: center.y };
+                        }
+                    } else {
+                        // No reference (e.g. first click), snap to center
+                        closestPoint = { x: center.x, y: center.y };
+                    }
                 }
             }
         });
@@ -72,7 +111,6 @@ class ArrowTool extends ToolBase {
 
     // --- Drawing Lifecycle ---
     onMouseDown(opt) {
-        // One-shot exit if clicking existing object
         if (opt.target) {
             if (window.app) window.app.selectTool('select');
             return;
@@ -80,10 +118,13 @@ class ArrowTool extends ToolBase {
 
         this.isDrawing = true;
         const pointer = this.canvas.getPointer(opt.e);
-        const snap = this.getSnapPoint(pointer);
+        // First click: Snap to center usually preferred for start, or border? 
+        // Let's snap to center for start, makes it easier to aim FROM a player.
+        // Actually, user asked for border snap. But without a 2nd point, "border closest to what?" is undefined.
+        // We'll snap to center for START point, and border for END point (relative to start).
+        const snap = this.getSnapPoint(pointer, null); 
         this.startPoint = snap.point;
         
-        // Initial control point at start
         this.curveControl = { x: this.startPoint.x, y: this.startPoint.y };
         this.updateVisuals(this.startPoint, this.curveControl);
     }
@@ -91,10 +132,13 @@ class ArrowTool extends ToolBase {
     onMouseMove(opt) {
         if (!this.isDrawing) return;
         const pointer = this.canvas.getPointer(opt.e);
-        const snap = this.getSnapPoint(pointer);
+        
+        // Pass startPoint as reference to snap to border facing the start point
+        const snap = this.getSnapPoint(pointer, this.startPoint); 
         const endPoint = snap.point;
 
-        // Default curve control is midpoint
+        // Default curve: Straight line midpoint
+        // If we want it to act as "point on curve", midpoint is correct for a straight line (t=0.5)
         this.curveControl = {
             x: (this.startPoint.x + endPoint.x) / 2,
             y: (this.startPoint.y + endPoint.y) / 2,
@@ -109,7 +153,7 @@ class ArrowTool extends ToolBase {
 
         if (this.line) {
             const pointer = this.canvas.getPointer(opt.e);
-            const snap = this.getSnapPoint(pointer);
+            const snap = this.getSnapPoint(pointer, this.startPoint);
             const endPoint = snap.point;
             
             const group = this.createArrowGroup(this.startPoint, endPoint, this.curveControl);
@@ -130,8 +174,13 @@ class ArrowTool extends ToolBase {
     }
 
     // --- Visuals & Path ---
-    getPathDataForCurrentType(start, end, cp) {
+    // pointOnCurve is the handle the user drags (t=0.5)
+    getPathDataForCurrentType(start, end, pointOnCurve) {
         const config = this.typeConfig[this.currentType];
+        
+        // Transform user handle -> mathematical Bezier Control Point
+        const cp = this.getBezierControlPoint(start, end, pointOnCurve);
+
         if (config.wave) {
             return this.buildWavyQuadPath(start, cp, end);
         }
@@ -143,7 +192,6 @@ class ArrowTool extends ToolBase {
         const pts = [];
         let totalLen = 0;
         
-        // Helper to get point on quadratic bezier
         const getPt = (t) => {
              const u = 1 - t;
              return {
@@ -163,7 +211,6 @@ class ArrowTool extends ToolBase {
             prev = p;
         }
         
-        // Helper for tangent
         const getTan = (t) => {
             return {
                 x: 2 * (1 - t) * (cp.x - start.x) + 2 * t * (end.x - cp.x),
@@ -191,28 +238,31 @@ class ArrowTool extends ToolBase {
         return path;
     }
     
-    endAngle(start, cp, end) {
+    endAngle(start, cpRaw, end) {
+        // Must use actual bezier CP for tangent calc
+        const cp = this.getBezierControlPoint(start, end, cpRaw);
+
         const tan = {
-            x: 2 * (1 - 1) * (cp.x - start.x) + 2 * 1 * (end.x - cp.x), // t=1 simplified
-            y: 2 * (1 - 1) * (cp.y - start.y) + 2 * 1 * (end.y - cp.y)  // t=1 simplified
+            x: 2 * (1 - 1) * (cp.x - start.x) + 2 * 1 * (end.x - cp.x), 
+            y: 2 * (1 - 1) * (cp.y - start.y) + 2 * 1 * (end.y - cp.y) 
         };
-        // If end == cp, fallback to straight line angle
         if (Math.abs(tan.x) < 0.001 && Math.abs(tan.y) < 0.001) {
              return Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI;
         }
         return Math.atan2(tan.y, tan.x) * 180 / Math.PI;
     }
 
-    createArrowGroup(start, end, control) {
+    createArrowGroup(start, end, pointOnCurve) {
         const config = this.typeConfig[this.currentType];
-        const pathData = this.getPathDataForCurrentType(start, end, control);
+        // Generate path using the pointOnCurve -> BezierCP transformation
+        const pathData = this.getPathDataForCurrentType(start, end, pointOnCurve);
         
         const path = new fabric.Path(pathData, {
             stroke: config.stroke, strokeWidth: 2, strokeDashArray: config.strokeDashArray,
             fill: 'transparent', originX: 'center', originY: 'center'
         });
 
-        const angle = this.endAngle(start, control, end);
+        const angle = this.endAngle(start, pointOnCurve, end);
         let head;
 
         if (config.arrow) {
@@ -249,31 +299,31 @@ class ArrowTool extends ToolBase {
         });
 
         // Store geometric data
+        // We store pointOnCurve as 'control' so the handle spawns exactly where the line is
         group.custom = {
             kind: 'arrow',
             type: this.currentType,
             start: start,
             end: end,
-            control: control
+            control: pointOnCurve
         };
         return group;
     }
     
-    updateVisuals(endPoint, controlPoint) {
-        // Used during creation
+    updateVisuals(endPoint, pointOnCurve) {
         const config = this.typeConfig[this.currentType];
         if (this.line) this.canvas.remove(this.line);
         if (this.arrowHead) this.canvas.remove(this.arrowHead);
 
-        const pathData = this.getPathDataForCurrentType(this.startPoint, endPoint, controlPoint);
+        const pathData = this.getPathDataForCurrentType(this.startPoint, endPoint, pointOnCurve);
         this.line = new fabric.Path(pathData, {
             stroke: config.stroke, strokeWidth: 2, strokeDashArray: config.strokeDashArray,
             fill: 'transparent', selectable: false, evented: false
         });
         this.canvas.add(this.line);
 
-        const angle = this.endAngle(this.startPoint, controlPoint, endPoint);
-        // ... (head creation logic same as above, just added to canvas directly)
+        const angle = this.endAngle(this.startPoint, pointOnCurve, endPoint);
+        // ... Heads ...
         if (config.arrow) {
              this.arrowHead = new fabric.Triangle({
                 width: 12, height: 12, fill: config.stroke,
@@ -319,7 +369,7 @@ class ArrowTool extends ToolBase {
         const data = arrowGroup.custom;
         if (!data || !data.control || !data.start || !data.end) return;
 
-        // 1. Control Point (Middle)
+        // 1. Point On Curve Handle (White)
         const cp = new fabric.Circle({
             left: data.control.x, top: data.control.y,
             radius: 6, fill: '#ffffff', stroke: '#00a09d', strokeWidth: 2,
@@ -329,7 +379,7 @@ class ArrowTool extends ToolBase {
         cp.arrowRef = arrowGroup;
         cp.custom = { isControlPoint: true };
         
-        // 2. Start Point Handle
+        // 2. Start Handle
         const sp = new fabric.Circle({
             left: data.start.x, top: data.start.y,
             radius: 5, fill: '#00a09d', stroke: '#ffffff', strokeWidth: 1,
@@ -339,7 +389,7 @@ class ArrowTool extends ToolBase {
         sp.arrowRef = arrowGroup;
         sp.custom = { isStartPoint: true };
 
-        // 3. End Point Handle
+        // 3. End Handle
         const ep = new fabric.Circle({
             left: data.end.x, top: data.end.y,
             radius: 5, fill: '#00a09d', stroke: '#ffffff', strokeWidth: 1,
@@ -350,7 +400,7 @@ class ArrowTool extends ToolBase {
         ep.custom = { isEndPoint: true };
 
         this.canvas.add(sp, ep, cp);
-        this.controlHandles = [sp, ep, cp]; // Track all
+        this.controlHandles = [sp, ep, cp]; 
         this.canvas.requestRenderAll();
     }
     
@@ -369,51 +419,43 @@ class ArrowTool extends ToolBase {
         const arrowGroup = obj.arrowRef;
         const data = arrowGroup.custom;
 
-        // Determine what we are dragging
         let newStart = data.start;
         let newEnd = data.end;
         let newControl = data.control;
 
         if (obj.custom.isControlPoint) {
-            // Dragging control: updates curve only
+            // Dragging point-on-curve: just update position
             newControl = { x: obj.left, y: obj.top };
         } 
         else if (obj.custom.isStartPoint) {
-            // Dragging start: Snap support + Endpoint move
-            const snap = this.getSnapPoint({ x: obj.left, y: obj.top });
+            // Dragging start: Snap relative to End
+            const snap = this.getSnapPoint({ x: obj.left, y: obj.top }, newEnd);
             newStart = snap.point;
             
-            // Visual feedback for snap (move handle to snapped pos)
             obj.left = newStart.x;
             obj.top = newStart.y;
-            
-            // Optional: Adjust control point to keep relative shape? 
-            // For now, keep absolute control point stable unless it looks broken.
         } 
         else if (obj.custom.isEndPoint) {
-            // Dragging end: Snap support + Endpoint move
-            const snap = this.getSnapPoint({ x: obj.left, y: obj.top });
+            // Dragging end: Snap relative to Start
+            const snap = this.getSnapPoint({ x: obj.left, y: obj.top }, newStart);
             newEnd = snap.point;
             
             obj.left = newEnd.x;
             obj.top = newEnd.y;
         } else {
-            return; // Not our handle
+            return;
         }
 
-        // Re-create group
         const originalType = this.currentType;
         this.currentType = data.type; 
 
         const newGroup = this.createArrowGroup(newStart, newEnd, newControl);
-        this.currentType = originalType; // Restore
+        this.currentType = originalType; 
         
-        // Swap objects
         this.canvas.remove(arrowGroup);
         this.canvas.add(newGroup);
         this.canvas.sendToBack(newGroup);
 
-        // Update references on ALL handles to point to new group
         this.controlHandles.forEach(h => h.arrowRef = newGroup);
     }
 }
