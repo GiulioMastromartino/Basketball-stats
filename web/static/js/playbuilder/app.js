@@ -168,7 +168,7 @@ class PlayBuilder {
      * - Swap Pass Sender -> Square (Number Only)
      * - Swap Pass Receiver -> Circle (Ball Holder)
      * - Handle chaining: If Pass starts from Cut End, it uses the cutter token.
-     * - Order: Identify logical changes first, then apply to avoid "missing token because it moved" bugs.
+     * - Handle receive on cut: If Pass ends at Cut End, it targets the cutter token.
      */
     applyActionsAndClearForNextPhase() {
         const objs = this.canvas.getObjects();
@@ -199,7 +199,6 @@ class PlayBuilder {
 
         // --- Phase 1: Analyze & Plan Updates ---
         // We map Token -> { pos: {x,y}, style: 'circle'|'square' }
-        // We use a Map to accumulate changes (last write wins for style, movement is cumulative if needed but usually single move)
         const updates = new Map();
 
         const getUpdate = (tok) => {
@@ -215,7 +214,7 @@ class PlayBuilder {
         };
 
         // 1a) Identify Cuts/Dribbles (Movement)
-        const cutEnds = []; // Store cut ends to resolve Pass chaining
+        const cutEnds = []; // Store cut ends to resolve Pass chaining/receiving
 
         for (const a of arrows) {
             const type = a.custom?.type;
@@ -229,7 +228,7 @@ class PlayBuilder {
                 const up = getUpdate(tok);
                 up.pos = { x: endPt.x, y: endPt.y };
                 
-                // Track this token's "end location" for chaining
+                // Track this token's "end location" for chaining/receiving
                 cutEnds.push({ 
                     end: endPt, 
                     token: tok,
@@ -247,7 +246,7 @@ class PlayBuilder {
             
             let sender = findConnectedToken(passStart);
 
-            // If no direct sender, check if it chains from a Cut/Dribble
+            // SENDER CHECK: If no direct sender, check if it chains from a Cut/Dribble
             if (!sender) {
                 for (const ce of cutEnds) {
                     if (near(passStart, ce.end, ARROW_CHAIN_EPS)) {
@@ -261,14 +260,24 @@ class PlayBuilder {
             if (sender) {
                 const up = getUpdate(sender);
                 // Only change if it's currently a ball-holder (circle)
-                // or if we just want to enforce "Passed = No Ball"
                 if (up.style === 'circle' || up.style === 'dark-circle') {
                     up.style = 'square';
                 }
             }
 
-            // Receiver gets the ball -> Circle
-            const receiver = findConnectedToken(passEnd);
+            // RECEIVER CHECK:
+            let receiver = findConnectedToken(passEnd);
+            
+            // If not found at current position, check if it's a token cutting TO this position
+            if (!receiver) {
+                for (const ce of cutEnds) {
+                    if (near(passEnd, ce.end, ARROW_CHAIN_EPS)) {
+                        receiver = ce.token;
+                        break;
+                    }
+                }
+            }
+
             if (receiver) {
                 const up = getUpdate(receiver);
                 up.style = 'circle'; 
@@ -309,7 +318,6 @@ class PlayBuilder {
                         fontSize: 20, fontFamily: 'Arial', fontWeight: 'bold', fill: '#000000'
                     });
                 } else {
-                     // Fallback (keep original if unknown style requested, though we only set circle/square above)
                      return; 
                 }
 
