@@ -21,6 +21,12 @@ class ShapeTool extends ToolBase {
     }
 
     onMouseDown(opt) {
+        // Enforce one-shot: if clicking existing object, switch to select
+        if (opt.target) {
+            if (window.app) window.app.selectTool('select');
+            return;
+        }
+
         const pointer = this.canvas.getPointer(opt.e);
         let shape;
 
@@ -104,7 +110,7 @@ class ShapeTool extends ToolBase {
             this.canvas.requestRenderAll();
         }
         
-        // Auto-switch to Select tool
+        // Auto-switch to Select tool (One-Shot)
         if (window.app) {
             window.app.selectTool('select');
         }
