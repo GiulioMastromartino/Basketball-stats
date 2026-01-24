@@ -202,7 +202,6 @@ class ArrowTool extends ToolBase {
         this.startPoint = null;
         
         this.canvas.renderAll();
-        // Trigger history save
-        this.canvas.fire('object:added', { target: this.line });
+        // Removed manual fire('object:added') to prevent double history entry
     }
 }
