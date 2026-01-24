@@ -45,6 +45,12 @@ class PlayBuilder {
         } else {
             console.error("PlayerTool not loaded");
         }
+
+        if (typeof ArrowTool !== 'undefined') {
+            this.tools['arrow'] = new ArrowTool(this.canvas);
+        } else {
+            console.error("ArrowTool not loaded");
+        }
     }
 
     /**
