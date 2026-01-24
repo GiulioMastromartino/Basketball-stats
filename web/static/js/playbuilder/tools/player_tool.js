@@ -91,7 +91,8 @@ class PlayerTool extends ToolBase {
             playerObj.custom = { 
                 kind: 'player-token', 
                 team: this.currentProps.team,
-                label: this.currentProps.label
+                label: this.currentProps.label,
+                style: this.currentProps.style // PERSIST STYLE
             };
             
             this.canvas.add(playerObj);
