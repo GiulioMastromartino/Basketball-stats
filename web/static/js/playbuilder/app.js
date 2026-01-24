@@ -509,20 +509,36 @@ class PlayBuilder {
         // Current canvas state
         const canvasJson = this.canvas.toJSON(['custom']);
         
-        // Generate SVG preview (using court background as background image is tricky in SVG export usually,
-        // but Fabric exports objects. We might want to render the background rect ourselves if it's CSS.
-        // For now, let's just export the objects. The detail view has CSS background.
-        // Actually, let's try to export with viewBox matching canvas size)
-        const diagramSvg = this.canvas.toSVG({
-            viewBox: {
-                x: 0,
-                y: 0,
-                width: 800,
-                height: 500
-            },
-            width: 800,
-            height: 500
-        });
+        // --- SVG Generation with Background ---
+        const courtUrl = 'data:image/svg+xml;utf8,<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="500" fill="%23e8c89b"/><rect x="150" y="15" width="500" height="470" fill="none" stroke="%23ffffff" stroke-width="3"/><rect x="320" y="15" width="160" height="190" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 1 1 480 205" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 0 0 480 205" fill="none" stroke="%23ffffff" stroke-width="3" stroke-dasharray="10,10"/><line x1="370" y1="55" x2="430" y2="55" stroke="%23ffffff" stroke-width="3"/><circle cx="400" cy="67.5" r="7.5" fill="none" stroke="%23333" stroke-width="2"/><path d="M 180 15 L 180 157 A 237.5 237.5 0 0 0 620 157 L 620 15" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 340 485 A 60 60 0 1 1 460 485" fill="none" stroke="%23ffffff" stroke-width="3"/><line x1="150" y1="485" x2="650" y2="485" stroke="%23ffffff" stroke-width="3"/></svg>';
+
+        const getSvgWithBackground = () => {
+            return new Promise((resolve) => {
+                // 1. Set background image to court
+                this.canvas.setBackgroundImage(courtUrl, () => {
+                    this.canvas.renderAll();
+                    
+                    // 2. Export SVG with background
+                    const svg = this.canvas.toSVG({
+                        viewBox: { x: 0, y: 0, width: 800, height: 500 },
+                        width: 800,
+                        height: 500
+                    });
+                    
+                    // 3. Clear background to restore transparent (CSS handling)
+                    this.canvas.setBackgroundImage(null, () => {
+                        this.canvas.renderAll();
+                        resolve(svg);
+                    });
+                }, {
+                    originX: 'left',
+                    originY: 'top'
+                });
+            });
+        };
+
+        const diagramSvg = await getSvgWithBackground();
+        // ----------------------------------------
         
         // Frames data
         const frames = this.sequence ? this.sequence.frames : [];
