@@ -53,8 +53,7 @@ class PlayBuilder {
         }
     }
     
-    // ... (previous methods: initTools, initHistory, initLayers, initSequence) ...
-
+    // ... (previous methods: initTools, initHistory, initLayers, initSequence, initEvents, deleteSelected, etc.) ...
     initTools() {
         if (typeof SelectTool !== 'undefined') this.tools['select'] = new SelectTool(this.canvas);
         if (typeof PlayerTool !== 'undefined') this.tools['player'] = new PlayerTool(this.canvas);
@@ -166,22 +165,21 @@ class PlayBuilder {
     /**
      * Apply phase rules:
      * - Move tokens only when action is connected to a token
-     * - For passes: swap "number-only" token into circled-number token at the end
-     * - If pass starts from end of a cut, treat it as the cut continuation (pass start becomes cut start)
-     * - Delete all action arrows after applying (clean next phase)
+     * - Swap Pass Sender -> Square (Number Only)
+     * - Swap Pass Receiver -> Circle (Ball Holder)
+     * - Handle chaining: If Pass starts from Cut End, it uses the cutter token.
+     * - Order: Identify logical changes first, then apply to avoid "missing token because it moved" bugs.
      */
     applyActionsAndClearForNextPhase() {
         const objs = this.canvas.getObjects();
-
-        // Collect tokens and arrows
         const tokens = objs.filter(o => o.custom?.kind === 'player-token');
         const arrows = objs.filter(o => o.custom?.kind === 'arrow');
 
         const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
         const near = (a, b, eps) => dist(a, b) <= eps;
 
-        const TOKEN_ATTACH_EPS = 22; // how close must a line endpoint be to count as "connected" to a token
-        const ARROW_CHAIN_EPS = 10;  // how close to chain pass start to cut end
+        const TOKEN_ATTACH_EPS = 22; 
+        const ARROW_CHAIN_EPS = 10;
 
         const getTokenCenter = (tok) => tok.getCenterPoint();
 
@@ -199,12 +197,26 @@ class PlayBuilder {
             return best;
         };
 
-        // 1) Build quick index of cut ends (for pass chaining)
-        const cutEnds = arrows
-            .filter(a => a.custom?.type === 'cut')
-            .map(a => ({ arrow: a, end: a.custom.end, start: a.custom.start }));
+        // --- Phase 1: Analyze & Plan Updates ---
+        // We map Token -> { pos: {x,y}, style: 'circle'|'square' }
+        // We use a Map to accumulate changes (last write wins for style, movement is cumulative if needed but usually single move)
+        const updates = new Map();
 
-        // 2) Apply movement actions (cut/dribble) ONLY if connected to a token
+        const getUpdate = (tok) => {
+            if (!updates.has(tok)) {
+                updates.set(tok, { 
+                    pos: tok.getCenterPoint(), 
+                    style: tok.custom?.style || 'circle',
+                    label: tok.custom?.label || (tok.text || '1'),
+                    team: tok.custom?.team || 'offense'
+                });
+            }
+            return updates.get(tok);
+        };
+
+        // 1a) Identify Cuts/Dribbles (Movement)
+        const cutEnds = []; // Store cut ends to resolve Pass chaining
+
         for (const a of arrows) {
             const type = a.custom?.type;
             if (type !== 'cut' && type !== 'dribble') continue;
@@ -213,62 +225,102 @@ class PlayBuilder {
             const endPt = a.custom.end;
 
             const tok = findConnectedToken(startPt);
-            if (!tok) continue; // safer: only move if action is connected
-
-            tok.set({ left: endPt.x, top: endPt.y });
-            tok.setCoords();
+            if (tok) {
+                const up = getUpdate(tok);
+                up.pos = { x: endPt.x, y: endPt.y };
+                
+                // Track this token's "end location" for chaining
+                cutEnds.push({ 
+                    end: endPt, 
+                    token: tok,
+                    type: type 
+                });
+            }
         }
 
-        // 3) Apply pass visuals rule: at end of pass, swap number-only token -> circled token
-        // Also: if pass starts from end of a cut, treat it as cut continuation (pass start = cut start)
+        // 1b) Identify Passes (Style Swap)
         for (const a of arrows) {
             if (a.custom?.type !== 'pass') continue;
 
             let passStart = a.custom.start;
             const passEnd = a.custom.end;
+            
+            let sender = findConnectedToken(passStart);
 
-            // If pass starts at cut end, use cut start for "connection" evaluation (combine)
-            for (const ce of cutEnds) {
-                if (near(passStart, ce.end, ARROW_CHAIN_EPS)) {
-                    passStart = ce.start;
-                    break;
+            // If no direct sender, check if it chains from a Cut/Dribble
+            if (!sender) {
+                for (const ce of cutEnds) {
+                    if (near(passStart, ce.end, ARROW_CHAIN_EPS)) {
+                        sender = ce.token;
+                        break;
+                    }
                 }
             }
 
-            // Find the receiver token connected to pass end
+            // If we found a sender, they lose the ball -> Square
+            if (sender) {
+                const up = getUpdate(sender);
+                // Only change if it's currently a ball-holder (circle)
+                // or if we just want to enforce "Passed = No Ball"
+                if (up.style === 'circle' || up.style === 'dark-circle') {
+                    up.style = 'square';
+                }
+            }
+
+            // Receiver gets the ball -> Circle
             const receiver = findConnectedToken(passEnd);
-            if (!receiver) continue;
+            if (receiver) {
+                const up = getUpdate(receiver);
+                up.style = 'circle'; 
+            }
+        }
 
-            // Swap number-only (square style) -> circled number
-            if (receiver.custom?.style === 'square' && receiver.type === 'text') {
-                const label = receiver.text || receiver.custom?.label || '';
-                const center = receiver.getCenterPoint();
-
-                const newTok = new fabric.Group([
-                    new fabric.Circle({
-                        radius: 15, fill: '#ffffff', stroke: '#000000', strokeWidth: 1, originX: 'center', originY: 'center'
-                    }),
-                    new fabric.Text(label, {
-                        fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', originX: 'center', originY: 'center'
-                    })
-                ], {
-                    left: center.x,
-                    top: center.y,
+        // --- Phase 2: Execute Updates ---
+        
+        updates.forEach((data, tok) => {
+            // Check if we need to replace the object (style change)
+            // or just move it.
+            const needsReplacement = (data.style !== (tok.custom?.style));
+            
+            if (needsReplacement) {
+                // Remove old, Create new
+                let newTok;
+                const commonProps = {
+                    left: data.pos.x,
+                    top: data.pos.y,
                     originX: 'center',
                     originY: 'center',
                     selectable: true,
                     hasControls: true
-                });
-
-                // Preserve custom metadata
-                newTok.custom = {
-                    kind: 'player-token',
-                    team: receiver.custom?.team,
-                    label: receiver.custom?.label || label,
-                    style: 'circle'
                 };
 
-                // Preserve serialization of custom
+                if (data.style === 'circle') {
+                    newTok = new fabric.Group([
+                        new fabric.Circle({
+                            radius: 15, fill: '#ffffff', stroke: '#000000', strokeWidth: 1, originX: 'center', originY: 'center'
+                        }),
+                        new fabric.Text(data.label, {
+                            fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', originX: 'center', originY: 'center'
+                        })
+                    ], commonProps);
+                } else if (data.style === 'square') {
+                    newTok = new fabric.Text(data.label, {
+                        ...commonProps,
+                        fontSize: 20, fontFamily: 'Arial', fontWeight: 'bold', fill: '#000000'
+                    });
+                } else {
+                     // Fallback (keep original if unknown style requested, though we only set circle/square above)
+                     return; 
+                }
+
+                // Restore Metadata
+                newTok.custom = {
+                    kind: 'player-token',
+                    team: data.team,
+                    label: data.label,
+                    style: data.style
+                };
+
                 newTok.toObject = (function(toObject) {
                     return function() {
                         return fabric.util.object.extend(toObject.call(this), {
@@ -277,15 +329,19 @@ class PlayBuilder {
                     };
                 })(newTok.toObject);
 
-                this.canvas.remove(receiver);
+                this.canvas.remove(tok);
                 this.canvas.add(newTok);
                 newTok.setCoords();
+
+            } else {
+                // Just Move
+                tok.set({ left: data.pos.x, top: data.pos.y });
+                tok.setCoords();
             }
-        }
+        });
 
-        // 4) Delete all actions (arrows) for the next phase
+        // --- Phase 3: Cleanup ---
         arrows.forEach(a => this.canvas.remove(a));
-
         this.canvas.discardActiveObject();
         this.canvas.requestRenderAll();
     }
@@ -298,13 +354,11 @@ class PlayBuilder {
         document.querySelectorAll('.nav-tab-item').forEach(el => {
             el.classList.remove('active');
         });
-        // Find tab matching mode (simple implementation based on index/text or add data-mode to HTML)
-        // For now, assume drawing is default
         
         console.log(`Switched to ${mode} mode`);
         
         if (mode === 'animate') {
-             if (this.sequence) this.sequence.playAnimation(); // Example
+             if (this.sequence) this.sequence.playAnimation(); 
         } else {
              if (this.sequence) this.sequence.stopAnimation();
         }
@@ -343,7 +397,6 @@ class PlayBuilder {
         if(confirm("Clear all objects?")) {
             this.isHistoryLocked = true;
             this.canvas.clear();
-            // Retain background if set manually, or just clear objects
             this.canvas.backgroundColor = 'rgba(0,0,0,0)'; 
             
             this.isHistoryLocked = false;
