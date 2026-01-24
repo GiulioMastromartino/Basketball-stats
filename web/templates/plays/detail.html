@@ -152,18 +152,18 @@
         
         canvas = new fabric.StaticCanvas('preview-canvas');
         
-        // Set background
-        canvas.setBackgroundImage(courtUrl, canvas.renderAll.bind(canvas), {
-            originX: 'left',
-            originY: 'top'
-        });
-        
         // If no frames, load initial
         if (frames.length === 0 && initialCanvasData) {
-            canvas.loadFromJSON(initialCanvasData, () => canvas.renderAll());
+            loadFrameData(initialCanvasData);
         } else if (frames.length > 0) {
             // Load first frame by default if switching to canvas view
             loadFrameData(frames[0].data);
+        } else {
+            // Just background if nothing else
+            canvas.setBackgroundImage(courtUrl, canvas.renderAll.bind(canvas), {
+                originX: 'left',
+                originY: 'top'
+            });
         }
     }
 
@@ -174,8 +174,17 @@
     }
 
     function loadFrameData(data) {
-        if (!canvas) initCanvas();
-        canvas.loadFromJSON(data, () => canvas.renderAll());
+        if (!canvas) {
+            canvas = new fabric.StaticCanvas('preview-canvas');
+        }
+        
+        canvas.loadFromJSON(data, () => {
+             // Always re-apply background after load, as JSON load wipes it
+             canvas.setBackgroundImage(courtUrl, canvas.renderAll.bind(canvas), {
+                originX: 'left',
+                originY: 'top'
+            });
+        });
     }
 
     function setActivePhase(index) {
