@@ -1,7 +1,7 @@
 /**
  * ArrowTool - Handles drawing of movement lines (Cut, Pass, Dribble, Screen, etc.)
  */
-class ArrowTool extends Tool {
+class ArrowTool extends ToolBase {
     constructor(canvas) {
         super(canvas);
         this.isDrawing = false;
@@ -17,7 +17,7 @@ class ArrowTool extends Tool {
             'dribble': { 
                 strokeDashArray: [5, 5], 
                 stroke: '#000000', 
-                wave: true,          // Zig-zag/wavy line
+                wave: true,          // Zig-zag/wavy line (simulated)
                 arrow: true 
             },
             'pass': { 
@@ -57,6 +57,7 @@ class ArrowTool extends Tool {
     }
 
     activate() {
+        super.activate();
         this.canvas.selection = false;
         this.canvas.defaultCursor = 'crosshair';
         this.canvas.forEachObject(o => o.selectable = false);
@@ -64,6 +65,7 @@ class ArrowTool extends Tool {
     }
 
     deactivate() {
+        super.deactivate();
         this.canvas.selection = false;
         this.canvas.defaultCursor = 'default';
         this.canvas.forEachObject(o => o.selectable = true);
@@ -85,31 +87,17 @@ class ArrowTool extends Tool {
         const config = this.typeConfig[this.currentType];
 
         // Create the line object
-        if (config.wave) {
-             // For dribble (wavy/zig-zag), we start with a straight line and will process it later or use a Polyline
-             // Simulating zig-zag with a path would be complex, for now using dashed line as placeholder or custom path
-             this.line = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-                stroke: config.stroke,
-                strokeWidth: 2,
-                strokeDashArray: config.strokeDashArray,
-                selectable: false,
-                evented: false,
-                originX: 'center',
-                originY: 'center',
-                type: 'arrowLine' // Custom type tag
-            });
-        } else {
-            this.line = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-                stroke: config.stroke,
-                strokeWidth: 2,
-                strokeDashArray: config.strokeDashArray,
-                selectable: false,
-                evented: false,
-                originX: 'center',
-                originY: 'center',
-                type: 'arrowLine'
-            });
-        }
+        // Note: For 'wave' (dribble), ideal is a Path or Polyline, but using simple Line for prototype consistency
+        this.line = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
+            stroke: config.stroke,
+            strokeWidth: 2,
+            strokeDashArray: config.strokeDashArray,
+            selectable: false,
+            evented: false,
+            originX: 'center',
+            originY: 'center',
+            type: 'arrowLine'
+        });
 
         this.canvas.add(this.line);
 
@@ -188,13 +176,23 @@ class ArrowTool extends Tool {
                 selectable: true,
                 evented: true,
                 hasControls: true,
-                hasBorders: true,
-                customType: this.currentType // Tag for serialization
+                hasBorders: true
             });
+            
+            // Add custom property for serialization
+            group.toObject = (function(toObject) {
+                return function() {
+                    return fabric.util.object.extend(toObject.call(this), {
+                        custom: { kind: 'arrow', type: this.custom?.type || 'unknown' }
+                    });
+                };
+            })(group.toObject);
+            group.custom = { kind: 'arrow', type: this.currentType };
             
             this.canvas.remove(this.line);
             this.canvas.remove(this.arrowHead);
             this.canvas.add(group);
+            this.canvas.setActiveObject(group);
         } else if (this.line) {
              this.line.set({ selectable: true, evented: true });
         }
