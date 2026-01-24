@@ -16,9 +16,9 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from sqlalchemy import inspect, text
-
 from config import get_config
 from core.models import User, bcrypt, db
+
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -64,51 +64,51 @@ def create_app(config_name: str = None) -> Flask:
 
     # Register blueprints
     register_blueprints(app)
-    
+
     # Auto-fix schema for dev/demo (Plays feature)
     with app.app_context():
         try:
             inspector = inspect(db.engine)
-            
+
             # Check for plays table
             if inspector.has_table("plays"):
                 columns = [c['name'] for c in inspector.get_columns("plays")]
-                
+
                 # Check for critical new columns
                 missing_columns = []
                 if "canvas_data" not in columns:
                     missing_columns.append("canvas_data")
                 if "diagram_svg" not in columns:
                     missing_columns.append("diagram_svg")
-                    
+
                 if missing_columns:
                     app.logger.warning(f"Detected outdated Plays schema (missing: {missing_columns}). Recreating tables...")
-                    
+
                     # Drop dependent table first
                     if inspector.has_table("play_sequences"):
                         db.session.execute(text("DROP TABLE play_sequences"))
                         app.logger.info("Dropped play_sequences table.")
-                    
+
                     if inspector.has_table("shot_events"):
                         # Only drop/recreate shots if strictly necessary or handle fk constraints
-                        # For now, let's just focus on plays. 
+                        # For now, let's just focus on plays.
                         # SQLite doesn't enforce FKs by default unless enabled, so might be okay.
                         pass
 
                     db.session.execute(text("DROP TABLE plays"))
                     db.session.commit()
                     app.logger.info("Dropped plays table.")
-                    
+
                     db.create_all()
                     app.logger.info("Plays tables recreated with correct schema.")
             else:
                 # Ensure tables exist if they don't
                 db.create_all()
-                
+
             # Double check play_sequences exists now
             if not inspector.has_table("play_sequences"):
                  db.create_all()
-                 
+
         except Exception as e:
             app.logger.error(f"Schema auto-fix failed: {e}")
 
@@ -143,11 +143,12 @@ def register_blueprints(app: Flask):
     from web.routes.main import main_bp
     from web.routes.plays import plays_bp
     from web.routes.play_builder_api import builder_api_bp
+    from web.routes.reports import reports_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api/v1")
     app.register_blueprint(analytics_bp)
     app.register_blueprint(plays_bp)
-    # Fix: Register builder API under /api/v1 to match frontend expectations
     app.register_blueprint(builder_api_bp, url_prefix="/api/v1")
+    app.register_blueprint(reports_bp)
