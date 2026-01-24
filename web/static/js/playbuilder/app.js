@@ -23,6 +23,7 @@ class PlayBuilder {
         this.sequence = null;
         
         this.isHistoryLocked = false; 
+        this.currentMode = 'draw'; // 'draw' | 'animate'
 
         // Configuration
         this.config = window.PlayBuilderConfig || {};
@@ -114,6 +115,25 @@ class PlayBuilder {
         this.canvas.on('selection:cleared', () => { if(this.layers) this.layers.refresh(); });
     }
 
+    setMode(mode) {
+        this.currentMode = mode;
+        
+        // Update UI Tabs
+        document.querySelectorAll('.nav-tab-item').forEach(el => {
+            el.classList.remove('active');
+        });
+        // Find tab matching mode (simple implementation based on index/text or add data-mode to HTML)
+        // For now, assume drawing is default
+        
+        console.log(`Switched to ${mode} mode`);
+        
+        if (mode === 'animate') {
+             if (this.sequence) this.sequence.playAnimation(); // Example
+        } else {
+             if (this.sequence) this.sequence.stopAnimation();
+        }
+    }
+
     saveStateToHistory() {
         if (this.isHistoryLocked || !this.history) return;
         
@@ -142,18 +162,65 @@ class PlayBuilder {
         this.activeTool = this.tools[toolId];
         this.activeTool.activate();
     }
+    
+    clearCanvas() {
+        if(confirm("Clear all objects?")) {
+            this.isHistoryLocked = true;
+            this.canvas.clear();
+            // Retain background if set manually, or just clear objects
+            this.canvas.backgroundColor = 'rgba(0,0,0,0)'; 
+            
+            this.isHistoryLocked = false;
+            this.saveStateToHistory();
+            if(this.layers) this.layers.refresh();
+        }
+    }
+
+    undo() {
+        if (!this.history || !this.history.canUndo()) return;
+        
+        const prevState = this.history.undo();
+        if (prevState) {
+            this.isHistoryLocked = true;
+            this.canvas.loadFromJSON(prevState, () => {
+                this.canvas.renderAll();
+                this.isHistoryLocked = false;
+                if(this.layers) this.layers.refresh();
+                if(this.sequence) this.sequence.updateCurrentFrameData();
+            });
+        }
+    }
+
+    redo() {
+        if (!this.history || !this.history.canRedo()) return;
+
+        const nextState = this.history.redo();
+        if (nextState) {
+            this.isHistoryLocked = true;
+            this.canvas.loadFromJSON(nextState, () => {
+                this.canvas.renderAll();
+                this.isHistoryLocked = false;
+                if(this.layers) this.layers.refresh();
+                if(this.sequence) this.sequence.updateCurrentFrameData();
+            });
+        }
+    }
 
     async savePlay() {
         const statusSpan = document.getElementById("status-bar");
-        statusSpan.innerText = "Saving...";
+        if(statusSpan) statusSpan.innerText = "Saving...";
 
-        const name = document.getElementById("meta-name").value;
-        const type = document.getElementById("meta-type").value;
-        const tags = document.getElementById("meta-tags").value;
+        const nameInput = document.getElementById("meta-name");
+        const typeInput = document.getElementById("meta-type");
+        const tagsInput = document.getElementById("meta-tags");
+        
+        const name = nameInput ? nameInput.value : "Untitled Play";
+        const type = typeInput ? typeInput.value : "Offense";
+        const tags = tagsInput ? tagsInput.value : "";
 
         if (!name) {
             alert("Please enter a Play Name.");
-            statusSpan.innerText = "Error: Name required";
+            if(statusSpan) statusSpan.innerText = "Error: Name required";
             return;
         }
 
@@ -177,7 +244,7 @@ class PlayBuilder {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
         try {
-            const res = await fetch(`/api/v1/plays/api/save-canvas`, {
+            const res = await fetch(`${this.config.apiBase}/plays/api/save-canvas`, {
                 method: "POST",
                 headers: { 
                     "Content-Type": "application/json",
@@ -191,44 +258,49 @@ class PlayBuilder {
             const data = await res.json();
 
             if (data.success) {
-                statusSpan.innerText = "Saved!";
+                if(statusSpan) statusSpan.innerText = "Saved!";
                 if (!this.config.playId && data.play_id) {
                     window.history.pushState({}, "", `/plays/${data.play_id}/edit-builder`);
                     this.config.playId = data.play_id;
-                    document.getElementById("play-id").value = data.play_id;
+                    const idField = document.getElementById("play-id");
+                    if(idField) idField.value = data.play_id;
                 }
             } else {
-                statusSpan.innerText = "Error: " + data.error;
+                if(statusSpan) statusSpan.innerText = "Error: " + data.error;
                 alert("Save failed: " + data.error);
             }
         } catch (err) {
             console.error(err);
-            statusSpan.innerText = "Network Error";
+            if(statusSpan) statusSpan.innerText = "Network Error";
             alert("Save failed. Check console for details.");
         }
     }
 
     async loadPlay(playId) {
         const statusSpan = document.getElementById("status-bar");
-        statusSpan.innerText = "Loading...";
+        if(statusSpan) statusSpan.innerText = "Loading...";
         
         this.isHistoryLocked = true;
 
         try {
-            const res = await fetch(`/api/v1/plays/api/load-canvas/${playId}`);
+            const res = await fetch(`${this.config.apiBase}/plays/api/load-canvas/${playId}`);
             const data = await res.json();
 
             if (data.success) {
                 if (data.metadata) {
-                    document.getElementById("meta-name").value = data.metadata.name || "";
-                    document.getElementById("meta-type").value = data.metadata.play_type || "Offense";
-                    document.getElementById("meta-tags").value = data.metadata.tags || "";
+                    const nameInput = document.getElementById("meta-name");
+                    const typeInput = document.getElementById("meta-type");
+                    const tagsInput = document.getElementById("meta-tags");
+                    
+                    if(nameInput) nameInput.value = data.metadata.name || "";
+                    if(typeInput) typeInput.value = data.metadata.play_type || "Offense";
+                    if(tagsInput) tagsInput.value = data.metadata.tags || "";
                 }
 
                 if (data.canvas_json) {
                     this.canvas.loadFromJSON(data.canvas_json, () => {
                         this.canvas.renderAll();
-                        statusSpan.innerText = "Ready";
+                        if(statusSpan) statusSpan.innerText = "Ready";
                         this.selectTool('select');
                         
                         this.isHistoryLocked = false;
@@ -244,7 +316,7 @@ class PlayBuilder {
                         }
                     });
                 } else {
-                    statusSpan.innerText = "Ready (Empty)";
+                    if(statusSpan) statusSpan.innerText = "Ready (Empty)";
                     this.selectTool('select');
                     this.isHistoryLocked = false;
                     this.saveStateToHistory();
@@ -252,63 +324,14 @@ class PlayBuilder {
                     if (this.sequence) this.sequence.captureCurrentAsFrame("Start");
                 }
             } else {
-                statusSpan.innerText = "Error loading play";
+                if(statusSpan) statusSpan.innerText = "Error loading play";
                 this.isHistoryLocked = false;
             }
         } catch (err) {
             console.error(err);
-            statusSpan.innerText = "Error loading play";
+            if(statusSpan) statusSpan.innerText = "Error loading play";
             this.isHistoryLocked = false;
         }
-    }
-
-    clearCanvas() {
-        if(confirm("Clear all objects?")) {
-            this.isHistoryLocked = true;
-            const objects = this.canvas.getObjects();
-            for (let i = objects.length - 1; i >= 0; i--) {
-                this.canvas.remove(objects[i]);
-            }
-            this.isHistoryLocked = false;
-            this.canvas.renderAll();
-            this.saveStateToHistory();
-        }
-    }
-    
-    undo() {
-        if (!this.history || !this.history.canUndo()) return;
-        
-        const prevState = this.history.undo();
-        if (prevState) {
-            this.isHistoryLocked = true;
-            this.canvas.clear();
-            this.canvas.loadFromJSON(prevState, () => {
-                this.canvas.renderAll();
-                this.isHistoryLocked = false;
-                if(this.layers) this.layers.refresh();
-                if(this.sequence) this.sequence.updateCurrentFrameData();
-            });
-        }
-    }
-
-    redo() {
-        if (!this.history || !this.history.canRedo()) return;
-
-        const nextState = this.history.redo();
-        if (nextState) {
-            this.isHistoryLocked = true;
-            this.canvas.clear();
-            this.canvas.loadFromJSON(nextState, () => {
-                this.canvas.renderAll();
-                this.isHistoryLocked = false;
-                if(this.layers) this.layers.refresh();
-                if(this.sequence) this.sequence.updateCurrentFrameData();
-            });
-        }
-    }
-    
-    refreshLayers() { 
-        if(this.layers) this.layers.refresh(); 
     }
 }
 
