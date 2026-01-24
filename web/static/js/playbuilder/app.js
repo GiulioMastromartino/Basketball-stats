@@ -15,12 +15,12 @@ class PlayBuilder {
         this.tools = {};
         this.activeTool = null;
 
-        // History
+        // Managers
         this.history = null;
-        this.isHistoryLocked = false; 
-        
-        // Layers
         this.layers = null;
+        this.sequence = null;
+        
+        this.isHistoryLocked = false; 
 
         // Configuration
         this.config = window.PlayBuilderConfig || {};
@@ -30,6 +30,7 @@ class PlayBuilder {
         this.initTools();
         this.initHistory();
         this.initLayers();
+        this.initSequence(); // New
         this.initEvents();
 
         // Load data if editing
@@ -39,6 +40,11 @@ class PlayBuilder {
             console.log("New play initialized");
             this.selectTool('select');
             this.saveStateToHistory(); 
+            // Sequence initialized via timeout in its constructor or we can trigger it
+            if (this.sequence && this.sequence.frames.length === 0) {
+                 // Defer slightly
+                 setTimeout(() => this.sequence.captureCurrentAsFrame("Start"), 100);
+            }
         }
     }
 
@@ -58,6 +64,12 @@ class PlayBuilder {
     initLayers() {
         if (typeof LayersPanel !== 'undefined') {
             this.layers = new LayersPanel(this.canvas, 'layers-list');
+        }
+    }
+    
+    initSequence() {
+        if (typeof SequenceManager !== 'undefined') {
+            this.sequence = new SequenceManager(this, 'timeline-frames');
         }
     }
 
@@ -82,13 +94,14 @@ class PlayBuilder {
             if (this.activeTool) this.activeTool.onMouseUp(opt);
         });
 
-        // Object Events (History & Layers)
+        // Object Events (History & Layers & Sequence)
         const updateAll = (e) => {
              // Ignore if adding court lines (initial load)
              if (e && e.target?.custom?.kind === 'court-line') return;
              
              this.saveStateToHistory();
              if (this.layers) this.layers.refresh();
+             if (this.sequence) this.sequence.updateCurrentFrameData();
         };
 
         this.canvas.on('object:added', updateAll);
@@ -148,7 +161,11 @@ class PlayBuilder {
             return;
         }
 
+        // Current canvas state is the "thumbnail" or main view
         const canvasJson = this.canvas.toJSON(['custom']);
+        
+        // Frames data
+        const frames = this.sequence ? this.sequence.frames : [];
 
         const payload = {
             play_id: this.config.playId ? parseInt(this.config.playId) : null,
@@ -157,7 +174,8 @@ class PlayBuilder {
                 play_type: type,
                 tags: tags
             },
-            canvas_json: canvasJson
+            canvas_json: canvasJson,
+            frames: frames // New field
         };
         
         // CSRF Token
@@ -217,6 +235,18 @@ class PlayBuilder {
                         this.isHistoryLocked = false;
                         this.saveStateToHistory(); 
                         if(this.layers) this.layers.refresh();
+                        
+                        // Load frames if available
+                        if (data.frames && data.frames.length > 0 && this.sequence) {
+                             this.sequence.frames = data.frames;
+                             this.sequence.currentIndex = 0; // Or last?
+                             this.sequence.renderTimeline();
+                             // Load first frame?
+                             // Typically we load the "main" canvas_json which matches one of the frames (usually first or last saved)
+                        } else if (this.sequence) {
+                             // Initialize if empty
+                             this.sequence.captureCurrentAsFrame("Start");
+                        }
                     });
                 } else {
                     statusSpan.innerText = "Ready (Empty)";
@@ -224,6 +254,7 @@ class PlayBuilder {
                     this.isHistoryLocked = false;
                     this.saveStateToHistory();
                     if(this.layers) this.layers.refresh();
+                    if (this.sequence) this.sequence.captureCurrentAsFrame("Start");
                 }
             } else {
                 statusSpan.innerText = "Error loading play";
@@ -258,6 +289,7 @@ class PlayBuilder {
                 this.canvas.renderAll();
                 this.isHistoryLocked = false;
                 if(this.layers) this.layers.refresh();
+                if(this.sequence) this.sequence.updateCurrentFrameData();
                 console.log("Undo performed");
             });
         }
@@ -273,6 +305,7 @@ class PlayBuilder {
                 this.canvas.renderAll();
                 this.isHistoryLocked = false;
                 if(this.layers) this.layers.refresh();
+                if(this.sequence) this.sequence.updateCurrentFrameData();
                 console.log("Redo performed");
             });
         }
@@ -289,7 +322,7 @@ class PlayBuilder {
         const strokeColor = '#333';
         const strokeWidth = 2;
         const width = 800;
-        const height = 600;
+        const height = 500; // Adjusted for timeline space
 
         const courtObjects = [];
 
