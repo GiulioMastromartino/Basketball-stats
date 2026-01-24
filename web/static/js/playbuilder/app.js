@@ -32,7 +32,7 @@ class PlayBuilder {
         this.initSequence(); 
         this.initEvents();
 
-        // Initialize Court (First Draw) - must happen after canvas is ready
+        // Initialize Court Background
         this.initCourtBackground();
 
         // Load data if editing
@@ -100,9 +100,6 @@ class PlayBuilder {
 
         // Object Events (History & Layers & Sequence)
         const updateAll = (e) => {
-             // Ignore if adding court lines (initial load)
-             if (e && e.target?.custom?.kind === 'court-line') return;
-             
              this.saveStateToHistory();
              if (this.layers) this.layers.refresh();
              if (this.sequence) this.sequence.updateCurrentFrameData();
@@ -161,7 +158,7 @@ class PlayBuilder {
             return;
         }
 
-        // Current canvas state is the "thumbnail" or main view
+        // Current canvas state
         const canvasJson = this.canvas.toJSON(['custom']);
         
         // Frames data
@@ -178,12 +175,9 @@ class PlayBuilder {
             frames: frames 
         };
         
-        // CSRF Token - using generic method or meta tag
-        // Assuming meta tag exists from layout
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
         try {
-            // Updated URL to match the backend prefix registration
             const res = await fetch(`/api/v1/plays/api/save-canvas`, {
                 method: "POST",
                 headers: { 
@@ -222,7 +216,6 @@ class PlayBuilder {
         this.isHistoryLocked = true;
 
         try {
-            // Match the URL structure
             const res = await fetch(`/api/v1/plays/api/load-canvas/${playId}`);
             const data = await res.json();
 
@@ -235,7 +228,7 @@ class PlayBuilder {
 
                 if (data.canvas_json) {
                     this.canvas.loadFromJSON(data.canvas_json, () => {
-                        // CRITICAL: Re-apply court background after loading
+                        // Re-apply court background after loading
                         this.initCourtBackground();
                         
                         this.canvas.renderAll();
@@ -277,11 +270,9 @@ class PlayBuilder {
         if(confirm("Clear all objects?")) {
             const objects = this.canvas.getObjects();
             for (let i = objects.length - 1; i >= 0; i--) {
-                const o = objects[i];
-                if (o.custom?.kind !== 'court-line') {
-                    this.canvas.remove(o);
-                }
+                this.canvas.remove(objects[i]);
             }
+            this.canvas.renderAll();
         }
     }
     
@@ -322,150 +313,27 @@ class PlayBuilder {
     }
     
     /**
-     * Draw basketball court as background - simplified version using fabric objects with selectable:false
+     * Set basketball court as background image - simple and efficient
      */
     initCourtBackground() {
-        console.log("Initializing court background...");
+        console.log("Loading court background image...");
         
-        const strokeColor = '#000000'; 
-        const strokeWidth = 2;
-        const width = this.canvas.width || 800;
-        const height = this.canvas.height || 500;
-        const margin = 20;
-
-        // Set white background color
-        this.canvas.backgroundColor = '#ffffff';
-
-        // Remove old court objects
-        const oldCourtObjects = this.canvas.getObjects().filter(obj => obj.custom?.kind === 'court-line');
-        oldCourtObjects.forEach(obj => this.canvas.remove(obj));
-
-        const courtObjects = [];
-        const baseX = margin;
-        const midY = height / 2;
+        const courtImageUrl = '/static/images/basketball-court.svg';
         
-        // Sidelines
-        courtObjects.push(new fabric.Line([baseX, margin, width - margin, margin], {
-            stroke: strokeColor, 
-            strokeWidth: strokeWidth,
-            selectable: false,
-            evented: false,
-            custom: { kind: 'court-line' }
-        }));
-        courtObjects.push(new fabric.Line([baseX, height - margin, width - margin, height - margin], {
-            stroke: strokeColor, 
-            strokeWidth: strokeWidth,
-            selectable: false,
-            evented: false,
-            custom: { kind: 'court-line' }
-        }));
-        
-        // Baseline
-        courtObjects.push(new fabric.Line([baseX, margin, baseX, height - margin], {
-            stroke: strokeColor, 
-            strokeWidth: strokeWidth,
-            selectable: false,
-            evented: false,
-            custom: { kind: 'court-line' }
-        }));
-        
-        // Key
-        const keyWidth = 190;
-        const keyHeight = 160;
-        const keyTop = midY - (keyHeight / 2);
-        courtObjects.push(new fabric.Rect({
-            left: baseX, 
-            top: keyTop,
-            width: keyWidth, 
-            height: keyHeight,
-            fill: 'transparent', 
-            stroke: strokeColor, 
-            strokeWidth: strokeWidth,
-            selectable: false,
-            evented: false,
-            custom: { kind: 'court-line' }
-        }));
-        
-        // FT Circle
-        const ftRadius = 60;
-        courtObjects.push(new fabric.Circle({
-            left: baseX + keyWidth - ftRadius, 
-            top: midY - ftRadius,
-            radius: ftRadius,
-            fill: 'transparent', 
-            stroke: strokeColor, 
-            strokeWidth: strokeWidth,
-            selectable: false,
-            evented: false,
-            custom: { kind: 'court-line' }
-        }));
-
-        // Hoop
-        const hoopOffset = 40; 
-        const hoopRadius = 8;
-        courtObjects.push(new fabric.Line([baseX + hoopOffset - 10, midY - 30, baseX + hoopOffset - 10, midY + 30], {
-             stroke: strokeColor, 
-             strokeWidth: strokeWidth,
-             selectable: false,
-             evented: false,
-             custom: { kind: 'court-line' }
-        }));
-        courtObjects.push(new fabric.Circle({
-            left: baseX + hoopOffset - hoopRadius, 
-            top: midY - hoopRadius,
-            radius: hoopRadius,
-            fill: 'transparent', 
-            stroke: strokeColor, 
-            strokeWidth: strokeWidth,
-            selectable: false,
-            evented: false,
-            custom: { kind: 'court-line' }
-        }));
-        
-        // 3-Point
-        const cornerDist = 140; 
-        const threePtRadius = 240; 
-        const topCornerY = margin + 40;
-        const botCornerY = height - margin - 40;
-        const path = `M ${baseX} ${topCornerY} ` +
-                     `L ${baseX + cornerDist} ${topCornerY} ` + 
-                     `Q ${baseX + threePtRadius + 100} ${midY} ${baseX + cornerDist} ${botCornerY} ` +
-                     `L ${baseX} ${botCornerY}`;
-        courtObjects.push(new fabric.Path(path, {
-            fill: 'transparent', 
-            stroke: strokeColor, 
-            strokeWidth: strokeWidth,
-            selectable: false,
-            evented: false,
-            custom: { kind: 'court-line' }
-        }));
-
-        // Mid Court
-        const midX = 750;
-        courtObjects.push(new fabric.Line([midX, margin, midX, height - margin], {
-             stroke: strokeColor, 
-             strokeWidth: strokeWidth,
-             selectable: false,
-             evented: false,
-             custom: { kind: 'court-line' }
-        }));
-        courtObjects.push(new fabric.Path(`M ${midX} ${midY - 60} A 60 60 0 0 0 ${midX} ${midY + 60}`, {
-             fill: 'transparent', 
-             stroke: strokeColor, 
-             strokeWidth: strokeWidth,
-             selectable: false,
-             evented: false,
-             custom: { kind: 'court-line' }
-        }));
-        
-        // Add all court objects to canvas and send to back
-        courtObjects.forEach(obj => {
-            this.canvas.add(obj);
-            this.canvas.sendToBack(obj);
-        });
-        
-        this.canvas.renderAll();
-        console.log("Court background initialized with", courtObjects.length, "objects");
+        fabric.Image.fromURL(courtImageUrl, (img) => {
+            if (img) {
+                this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas), {
+                    scaleX: this.canvas.width / img.width,
+                    scaleY: this.canvas.height / img.height
+                });
+                console.log("Court background loaded successfully");
+            } else {
+                console.error("Failed to load court background image");
+                // Fallback to white background
+                this.canvas.backgroundColor = '#ffffff';
+                this.canvas.renderAll();
+            }
+        }, { crossOrigin: 'anonymous' });
     }
 }
 
