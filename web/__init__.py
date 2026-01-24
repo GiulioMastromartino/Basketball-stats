@@ -149,4 +149,5 @@ def register_blueprints(app: Flask):
     app.register_blueprint(api_bp, url_prefix="/api/v1")
     app.register_blueprint(analytics_bp)
     app.register_blueprint(plays_bp)
-    app.register_blueprint(builder_api_bp)
+    # Fix: Register builder API under /api/v1 to match frontend expectations
+    app.register_blueprint(builder_api_bp, url_prefix="/api/v1")
