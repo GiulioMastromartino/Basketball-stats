@@ -6,12 +6,12 @@
 class PlayBuilder {
     constructor(canvasId) {
         this.canvas = new fabric.Canvas(canvasId, {
-            selection: true,
+            selection: false, // Default false, enabled by SelectTool
             preserveObjectStacking: true,
             backgroundColor: '#ffffff'
         });
 
-        // Registry for tools (populated by separate files)
+        // Registry for tools
         this.tools = {};
         this.activeTool = null;
 
@@ -20,6 +20,7 @@ class PlayBuilder {
         
         // Initialize
         this.initCourt();
+        this.initTools(); // Register tools
         this.initEvents();
 
         // Load data if editing
@@ -27,12 +28,23 @@ class PlayBuilder {
             this.loadPlay(this.config.playId);
         } else {
             console.log("New play initialized");
+            // Activate default tool
+            this.selectTool('select');
         }
+    }
+
+    initTools() {
+        // We assume Tool classes are loaded globally via script tags
+        if (typeof SelectTool !== 'undefined') {
+            this.tools['select'] = new SelectTool(this.canvas);
+        } else {
+            console.error("SelectTool not loaded");
+        }
+        // Future tools: player, arrow, text
     }
 
     /**
      * Draw the basketball court background.
-     * Objects are locked and non-interactive.
      */
     initCourt() {
         const strokeColor = '#333';
@@ -40,32 +52,30 @@ class PlayBuilder {
         const width = 800;
         const height = 600;
 
-        // Group for all court lines
         const courtObjects = [];
 
-        // 1. Full Court Outline (Half court visible mainly)
+        // 1. Full Court Outline
         courtObjects.push(new fabric.Rect({
             left: 0, top: 0, width: width, height: height,
             fill: '#fff', stroke: strokeColor, strokeWidth: strokeWidth,
             selectable: false, evented: false
         }));
 
-        // 2. Center Circle (Top middle)
+        // 2. Center Circle
         courtObjects.push(new fabric.Circle({
             left: 350, top: -50, radius: 50,
             fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
             selectable: false, evented: false
         }));
 
-        // 3. 3-Point Line (Simplified Arc)
+        // 3. 3-Point Line (Simplified)
         const pathData = `M 50 0 C 50 300, 750 300, 750 0`; 
-        // NOTE: A real court is more complex, this is a placeholder visual
         courtObjects.push(new fabric.Path(pathData, {
             fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
             selectable: false, evented: false
         }));
 
-        // 4. Paint / Key
+        // 4. Paint
         courtObjects.push(new fabric.Rect({
             left: 300, top: 0, width: 200, height: 250,
             fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
@@ -79,8 +89,6 @@ class PlayBuilder {
             selectable: false, evented: false
         }));
 
-        // Add all to canvas as a background group or individual items
-        // We use individual items marked as 'court-line' in custom properties
         courtObjects.forEach(obj => {
             obj.toObject = (function(toObject) {
                 return function() {
@@ -89,11 +97,10 @@ class PlayBuilder {
                     });
                 };
             })(obj.toObject);
-            obj.custom = { kind: 'court-line' }; // Tag for serializer to ignore
+            obj.custom = { kind: 'court-line' };
             this.canvas.add(obj);
         });
         
-        // Ensure they are at the bottom
         this.canvas.sendToBack(courtObjects[0]);
     }
 
@@ -106,6 +113,17 @@ class PlayBuilder {
                 this.savePlay();
             });
         }
+
+        // Canvas Events Delegation to Active Tool
+        this.canvas.on('mouse:down', (opt) => {
+            if (this.activeTool) this.activeTool.onMouseDown(opt);
+        });
+        this.canvas.on('mouse:move', (opt) => {
+            if (this.activeTool) this.activeTool.onMouseMove(opt);
+        });
+        this.canvas.on('mouse:up', (opt) => {
+            if (this.activeTool) this.activeTool.onMouseUp(opt);
+        });
     }
 
     /**
@@ -113,36 +131,31 @@ class PlayBuilder {
      * @param {string} toolId 
      */
     selectTool(toolId) {
-        console.log(`Selecting tool: ${toolId}`);
-        
-        // 1. UI Update
+        if (!this.tools[toolId]) {
+            console.warn(`Tool ${toolId} not found`);
+            return;
+        }
+
+        if (this.activeTool) {
+            this.activeTool.deactivate();
+        }
+
+        // UI Update
         document.querySelectorAll("#tool-select, #tool-player, #tool-arrow, #tool-text").forEach(el => {
             el.classList.remove("active");
         });
         const btn = document.getElementById(`tool-${toolId}`);
         if (btn) btn.classList.add("active");
 
-        // 2. Logic Update (Phase 2 will implement activate/deactivate)
-        // Placeholder logic for now:
-        if (toolId === 'select') {
-            this.canvas.selection = true;
-            this.canvas.forEachObject(o => {
-                if(o.custom?.kind !== 'court-line') o.selectable = true;
-            });
-        } else {
-            this.canvas.selection = false;
-            this.canvas.forEachObject(o => o.selectable = false);
-        }
+        // Activate new tool
+        this.activeTool = this.tools[toolId];
+        this.activeTool.activate();
     }
 
-    /**
-     * Save current play state to backend.
-     */
     async savePlay() {
         const statusSpan = document.getElementById("status-bar");
         statusSpan.innerText = "Saving...";
 
-        // 1. Gather Metadata
         const name = document.getElementById("meta-name").value;
         const type = document.getElementById("meta-type").value;
         const tags = document.getElementById("meta-tags").value;
@@ -153,21 +166,14 @@ class PlayBuilder {
             return;
         }
 
-        // 2. Serialize Canvas
-        // We exclude court lines usually, but for MVP let's just save everything 
-        // or filter if we want clean data. 
-        // Fabric's toJSON automatically includes everything.
-        // We include 'custom' property to persist our tags.
         const canvasJson = this.canvas.toJSON(['custom']);
 
-        // 3. Send API Request
         const payload = {
             play_id: this.config.playId ? parseInt(this.config.playId) : null,
             metadata: {
                 name: name,
                 play_type: type,
-                tags: tags,
-                // description: ... (add later)
+                tags: tags
             },
             canvas_json: canvasJson
         };
@@ -182,7 +188,6 @@ class PlayBuilder {
 
             if (data.success) {
                 statusSpan.innerText = "Saved!";
-                // Update URL if new play
                 if (!this.config.playId && data.play_id) {
                     window.history.pushState({}, "", `/plays/${data.play_id}/edit-builder`);
                     this.config.playId = data.play_id;
@@ -198,10 +203,6 @@ class PlayBuilder {
         }
     }
 
-    /**
-     * Load a play from backend.
-     * @param {number} playId 
-     */
     async loadPlay(playId) {
         const statusSpan = document.getElementById("status-bar");
         statusSpan.innerText = "Loading...";
@@ -211,21 +212,22 @@ class PlayBuilder {
             const data = await res.json();
 
             if (data.success) {
-                // Restore Metadata
                 if (data.metadata) {
                     document.getElementById("meta-name").value = data.metadata.name || "";
                     document.getElementById("meta-type").value = data.metadata.play_type || "Offense";
                     document.getElementById("meta-tags").value = data.metadata.tags || "";
                 }
 
-                // Restore Canvas
                 if (data.canvas_json) {
                     this.canvas.loadFromJSON(data.canvas_json, () => {
                         this.canvas.renderAll();
                         statusSpan.innerText = "Ready";
+                        // Default to select tool after load
+                        this.selectTool('select');
                     });
                 } else {
                     statusSpan.innerText = "Ready (Empty)";
+                    this.selectTool('select');
                 }
             } else {
                 statusSpan.innerText = "Error loading play";
@@ -238,9 +240,7 @@ class PlayBuilder {
 
     clearCanvas() {
         if(confirm("Clear all objects?")) {
-            // Remove everything except court lines
             const objects = this.canvas.getObjects();
-            // We iterate backwards when removing
             for (let i = objects.length - 1; i >= 0; i--) {
                 const o = objects[i];
                 if (o.custom?.kind !== 'court-line') {
@@ -255,7 +255,6 @@ class PlayBuilder {
     refreshLayers() { console.log("Refresh layers not implemented yet"); }
 }
 
-// Initialize on load
 document.addEventListener("DOMContentLoaded", () => {
     window.app = new PlayBuilder("playCanvas");
 });
