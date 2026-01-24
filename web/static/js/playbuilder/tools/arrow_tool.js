@@ -12,6 +12,7 @@ class ArrowTool extends ToolBase {
         this.curveControl = null; // control point (for quadratic curve)
 
         this.currentType = 'pass';
+        this.controlHandles = []; // Array to store active edit handles
 
         this.typeConfig = {
             dribble: { stroke: '#000000', wave: true, arrow: true, strokeDashArray: null },
@@ -316,9 +317,9 @@ class ArrowTool extends ToolBase {
     showCurveControls(arrowGroup) {
         this.hideCurveControls();
         const data = arrowGroup.custom;
-        if (!data || !data.control) return;
+        if (!data || !data.control || !data.start || !data.end) return;
 
-        // Control point handle
+        // 1. Control Point (Middle)
         const cp = new fabric.Circle({
             left: data.control.x, top: data.control.y,
             radius: 6, fill: '#ffffff', stroke: '#00a09d', strokeWidth: 2,
@@ -328,58 +329,91 @@ class ArrowTool extends ToolBase {
         cp.arrowRef = arrowGroup;
         cp.custom = { isControlPoint: true };
         
-        this.canvas.add(cp);
-        this.currentControlPoint = cp;
+        // 2. Start Point Handle
+        const sp = new fabric.Circle({
+            left: data.start.x, top: data.start.y,
+            radius: 5, fill: '#00a09d', stroke: '#ffffff', strokeWidth: 1,
+            originX: 'center', originY: 'center',
+            hasControls: false, hasBorders: false, selectable: true, evented: true
+        });
+        sp.arrowRef = arrowGroup;
+        sp.custom = { isStartPoint: true };
+
+        // 3. End Point Handle
+        const ep = new fabric.Circle({
+            left: data.end.x, top: data.end.y,
+            radius: 5, fill: '#00a09d', stroke: '#ffffff', strokeWidth: 1,
+            originX: 'center', originY: 'center',
+            hasControls: false, hasBorders: false, selectable: true, evented: true
+        });
+        ep.arrowRef = arrowGroup;
+        ep.custom = { isEndPoint: true };
+
+        this.canvas.add(sp, ep, cp);
+        this.controlHandles = [sp, ep, cp]; // Track all
         this.canvas.requestRenderAll();
     }
     
     hideCurveControls() {
-        if (this.currentControlPoint) {
-            this.canvas.remove(this.currentControlPoint);
-            this.currentControlPoint = null;
+        if (this.controlHandles.length > 0) {
+            this.controlHandles.forEach(h => this.canvas.remove(h));
+            this.controlHandles = [];
             this.canvas.requestRenderAll();
         }
     }
     
     onObjectMove(e) {
         const obj = e.target;
-        if (obj?.custom?.isControlPoint) {
-            // Dragging control point: update curve shape ONLY
-            const arrowGroup = obj.arrowRef;
-            if (arrowGroup) {
-                // IMPORTANT: preserve original start/end, only update control
-                const data = arrowGroup.custom;
-                // No snapping for control point usually
-                const newControl = { x: obj.left, y: obj.top };
-                
-                // Re-create group with new control, same start/end
-                // We need to know the 'type' to use correct renderer
-                // But wait, the tool's currentType might have changed!
-                // We should rely on stored type in group.custom.type
-                // For now, let's assume tool active type matches or store it.
-                // Ah, we stored type in group.custom.type.
-                
-                // Temporarily set tool type to match the object being edited
-                const originalType = this.currentType;
-                this.currentType = data.type; 
-                
-                const newGroup = this.createArrowGroup(data.start, data.end, newControl);
-                this.currentType = originalType; // Restore
-                
-                this.canvas.remove(arrowGroup);
-                this.canvas.add(newGroup);
-                
-                // Keep selection on the new group? 
-                // Or just keep the control point active?
-                // The control point is what we are dragging, so that stays active.
-                // But we need to update the ref on the control point.
-                obj.arrowRef = newGroup;
-                
-                // Also ensure the new group is "behind" the control point if needed?
-                // Fabric usually puts new objects on top.
-                // But control point is active, so it should stay on top.
-                this.canvas.sendToBack(newGroup); // Or maintain z-index
-            }
+        if (!obj.custom || !obj.arrowRef) return;
+        
+        const arrowGroup = obj.arrowRef;
+        const data = arrowGroup.custom;
+
+        // Determine what we are dragging
+        let newStart = data.start;
+        let newEnd = data.end;
+        let newControl = data.control;
+
+        if (obj.custom.isControlPoint) {
+            // Dragging control: updates curve only
+            newControl = { x: obj.left, y: obj.top };
+        } 
+        else if (obj.custom.isStartPoint) {
+            // Dragging start: Snap support + Endpoint move
+            const snap = this.getSnapPoint({ x: obj.left, y: obj.top });
+            newStart = snap.point;
+            
+            // Visual feedback for snap (move handle to snapped pos)
+            obj.left = newStart.x;
+            obj.top = newStart.y;
+            
+            // Optional: Adjust control point to keep relative shape? 
+            // For now, keep absolute control point stable unless it looks broken.
+        } 
+        else if (obj.custom.isEndPoint) {
+            // Dragging end: Snap support + Endpoint move
+            const snap = this.getSnapPoint({ x: obj.left, y: obj.top });
+            newEnd = snap.point;
+            
+            obj.left = newEnd.x;
+            obj.top = newEnd.y;
+        } else {
+            return; // Not our handle
         }
+
+        // Re-create group
+        const originalType = this.currentType;
+        this.currentType = data.type; 
+
+        const newGroup = this.createArrowGroup(newStart, newEnd, newControl);
+        this.currentType = originalType; // Restore
+        
+        // Swap objects
+        this.canvas.remove(arrowGroup);
+        this.canvas.add(newGroup);
+        this.canvas.sendToBack(newGroup);
+
+        // Update references on ALL handles to point to new group
+        this.controlHandles.forEach(h => h.arrowRef = newGroup);
     }
 }
