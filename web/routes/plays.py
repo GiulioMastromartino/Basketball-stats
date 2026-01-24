@@ -17,6 +17,15 @@ def create_play():
     """Render the Play Builder for a new play"""
     return render_template("plays/create.html", play=None)
 
+@plays_bp.route("/plays/<int:play_id>")
+@login_required
+def view_play(play_id):
+    """View play details"""
+    play = Play.query.get_or_404(play_id)
+    # Sort sequences by sequence_number just in case
+    play.sequences.sort(key=lambda x: x.sequence_number)
+    return render_template("plays/detail.html", play=play)
+
 @plays_bp.route("/plays/<int:play_id>/edit-builder")
 @login_required
 def edit_play_builder(play_id):
