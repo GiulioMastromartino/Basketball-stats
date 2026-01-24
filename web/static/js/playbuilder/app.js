@@ -509,6 +509,21 @@ class PlayBuilder {
         // Current canvas state
         const canvasJson = this.canvas.toJSON(['custom']);
         
+        // Generate SVG preview (using court background as background image is tricky in SVG export usually,
+        // but Fabric exports objects. We might want to render the background rect ourselves if it's CSS.
+        // For now, let's just export the objects. The detail view has CSS background.
+        // Actually, let's try to export with viewBox matching canvas size)
+        const diagramSvg = this.canvas.toSVG({
+            viewBox: {
+                x: 0,
+                y: 0,
+                width: 800,
+                height: 500
+            },
+            width: 800,
+            height: 500
+        });
+        
         // Frames data
         const frames = this.sequence ? this.sequence.frames : [];
 
@@ -521,6 +536,7 @@ class PlayBuilder {
                 tags: tags
             },
             canvas_json: canvasJson,
+            diagram_svg: diagramSvg,
             frames: frames 
         };
         
