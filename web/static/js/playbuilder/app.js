@@ -51,6 +51,12 @@ class PlayBuilder {
         } else {
             console.error("ArrowTool not loaded");
         }
+
+        if (typeof TextTool !== 'undefined') {
+            this.tools['text'] = new TextTool(this.canvas);
+        } else {
+            console.error("TextTool not loaded");
+        }
     }
 
     /**
