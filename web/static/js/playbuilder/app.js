@@ -5,10 +5,11 @@
 
 class PlayBuilder {
     constructor(canvasId) {
-        // Initialize Canvas
+        // Initialize Canvas - disable high-DPI to fix background rendering
         this.canvas = new fabric.Canvas(canvasId, {
             selection: false, 
-            preserveObjectStacking: true
+            preserveObjectStacking: true,
+            enableRetinaScaling: false  // Fix for high-DPI displays
         });
 
         // Registry for tools
@@ -313,7 +314,7 @@ class PlayBuilder {
     }
     
     /**
-     * Set basketball court as background image - simple and efficient
+     * Set basketball court as background image
      */
     initCourtBackground() {
         console.log("Loading court background image...");
@@ -322,10 +323,11 @@ class PlayBuilder {
         
         fabric.Image.fromURL(courtImageUrl, (img) => {
             if (img) {
-                this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas), {
-                    scaleX: this.canvas.width / img.width,
-                    scaleY: this.canvas.height / img.height
-                });
+                // Scale image to fit canvas dimensions
+                img.scaleToWidth(this.canvas.width);
+                img.scaleToHeight(this.canvas.height);
+                
+                this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas));
                 console.log("Court background loaded successfully");
             } else {
                 console.error("Failed to load court background image");
