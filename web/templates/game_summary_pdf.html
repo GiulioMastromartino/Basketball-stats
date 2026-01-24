@@ -33,6 +33,7 @@
                 font-weight: bold;
                 margin: 15px 0 10px 0;
                 border-radius: 4px;
+                page-break-after: avoid; /* Keep title with content */
             }
 
             /* Scoreboard */
@@ -55,12 +56,21 @@
                 font-size: 10px;
                 background: {% if game.result == 'W' %}#28a745{% else %}#dc3545{% endif %};
             }
+            
+            /* Table Wrapper to force keep-together */
+            .table-container {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
 
             /* Global Table Styles */
             table {
                 width: 100%;
                 border-collapse: collapse;
                 font-size: 10px;
+                /* Force table to not split if possible */
+                page-break-inside: avoid; 
+                break-inside: avoid;
             }
             th {
                 background: #edf2f7;
@@ -77,6 +87,11 @@
                 text-align: center;
             }
             td.text-left { text-align: left; font-weight: 600; }
+            tr {
+                page-break-inside: avoid;
+                break-inside: avoid;
+                page-break-after: auto;
+            }
             tr:nth-child(even) { background-color: #f8fafc; }
 
             /* Specific "Layout Tables" (Invisible borders) */
@@ -84,6 +99,8 @@
                 width: 100%;
                 margin: 0;
                 border: none;
+                page-break-inside: auto; /* Layout tables can break if needed */
+                break-inside: auto;
             }
             table.layout-table td {
                 padding: 0;
@@ -91,11 +108,17 @@
                 background: transparent;
                 vertical-align: top;
             }
+            /* Do not enforce page break rules on layout tables to prevent layout issues */
+            table.layout-table tr {
+                 page-break-inside: auto;
+                 break-inside: auto;
+            }
 
             /* Shooting Table Specifics */
             .shooting-table {
                 margin: 0;
                 width: 100%;
+                page-break-inside: avoid;
             }
             .shooting-table th {
                 background: transparent;
@@ -161,7 +184,8 @@
                 border-radius: 8px;
                 padding: 12px;
                 background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-                break-inside: avoid;
+                break-inside: avoid; /* Avoid breaking player cards */
+                page-break-inside: avoid;
             }
             .player-card-header {
                 font-size: 14px;
@@ -259,6 +283,7 @@
                 background: #f7fafc;
                 border-left: 3px solid #4299e1;
                 border-radius: 4px;
+                page-break-inside: avoid;
             }
             .glossary-term { font-weight: 700; color: #2c5282; font-size: 11px; }
             .glossary-desc { color: #4a5568; margin-top: 3px; font-size: 10px; }
@@ -409,41 +434,91 @@
             </div>
         </div>
 
-        <div class="section-title">Box Score: Basic Stats</div>
-        <table>
-            <thead>
-                <tr>
-                    <th class="text-left" style="width: 20%">Player</th>
-                    <th>MIN</th>
-                    <th>PTS</th>
-                    <th>REB</th>
-                    <th>AST</th>
-                    <th>STL</th>
-                    <th>BLK</th>
-                    <th>TOV</th>
-                    <th>PF</th>
-                    <th>EFF</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for p in stats %}
-                <tr>
-                    <td class="text-left">{{ p.player_name }}</td>
-                    <td>{{ p.minutes }}</td>
-                    <td style="font-weight: bold">{{ p.points }}</td>
-                    <td>{{ p.reb }}</td>
-                    <td>{{ p.ast }}</td>
-                    <td>{{ p.stl }}</td>
-                    <td>{{ p.blk }}</td>
-                    <td>{{ p.tov }}</td>
-                    <td class="{{ 'stat-bad' if p.pf >= 4 }}">{{ p.pf }}</td>
-                    <td style="background: #edf2f7; font-weight: bold">
-                        {{ p.eff }}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-container">
+            <div class="section-title">Box Score: Basic Stats</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th class="text-left" style="width: 20%">Player</th>
+                        <th>MIN</th>
+                        <th>PTS</th>
+                        <th>REB</th>
+                        <th>AST</th>
+                        <th>STL</th>
+                        <th>BLK</th>
+                        <th>TOV</th>
+                        <th>PF</th>
+                        <th>EFF</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in stats %}
+                    <tr>
+                        <td class="text-left">{{ p.player_name }}</td>
+                        <td>{{ p.minutes }}</td>
+                        <td style="font-weight: bold">{{ p.points }}</td>
+                        <td>{{ p.reb }}</td>
+                        <td>{{ p.ast }}</td>
+                        <td>{{ p.stl }}</td>
+                        <td>{{ p.blk }}</td>
+                        <td>{{ p.tov }}</td>
+                        <td class="{{ 'stat-bad' if p.pf >= 4 }}">{{ p.pf }}</td>
+                        <td style="background: #edf2f7; font-weight: bold">
+                            {{ p.eff }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="table-container">
+            <div class="section-title">Box Score: Shooting Breakdown</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th class="text-left" style="width: 20%">Player</th>
+                        <th>Field Goals</th>
+                        <th>2-Points</th>
+                        <th>3-Points</th>
+                        <th>Free Throws</th>
+                        <th>eFG%</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in stats %}
+                    <tr>
+                        <td class="text-left">{{ p.player_name }}</td>
+                        <td>
+                            {{ p.fgm }}/{{ p.fga }}
+                            <span style="color: #718096; font-size: 9px"
+                                >({{ p.fg_percent|int }}%)</span
+                            >
+                        </td>
+                        <td>
+                            {{ p.two_pt_made }}/{{ p.two_pt_att }}
+                            <span style="color: #718096; font-size: 9px"
+                                >({{ p.two_pt_pct|round(0)|int }}%)</span
+                            >
+                        </td>
+                        <td>
+                            {{ p.tpm }}/{{ p.tpa }}
+                            <span style="color: #718096; font-size: 9px"
+                                >({{ p.tp_percent|int }}%)</span
+                            >
+                        </td>
+                        <td>
+                            {{ p.ftm }}/{{ p.fta }}
+                            <span style="color: #718096; font-size: 9px"
+                                >({{ p.ft_percent|int }}%)</span
+                            >
+                        </td>
+                        <td>{{ p.efg_pct|round(1) }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
         <div class="page-break"></div>
 
@@ -464,97 +539,45 @@
         {% else %}
         <div class="small-note">No shot chart data available.</div>
         {% endif %}
-
-        <div class="section-title">Play Efficiency (Offense)</div>
-        {% if plays_data and plays_data|length > 0 %}
-        <table>
-            <thead>
-                <tr>
-                    <th class="text-left" style="width: 30%">Play</th>
-                    <th>POSS</th>
-                    <th>PTS</th>
-                    <th>PPP</th>
-                    <th>TOV</th>
-                    <th>FG%</th>
-                    <th>eFG%</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for play in plays_data %}
-                <tr>
-                    <td class="text-left">
-                        {% if play.name %}{{ play.name }}{% endif %} {% if not
-                        play.name %}{{ play.description|default('Unnamed Play')
-                        }}{% endif %} {% if play.play_number %} #{{
-                        play.play_number }}{% endif %}
-                    </td>
-                    <td>{{ play.possessions|default(play.poss) }}</td>
-                    <td>{{ play.points }}</td>
-                    <td>{{ play.ppp|round(2) }}</td>
-                    <td>{{ play.turnovers|default(play.tov) }}</td>
-                    <td>{{ play.fg_pct|round(1) }}%</td>
-                    <td>{{ play.efg_pct|round(1) }}%</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <div class="small-note">No play events recorded.</div>
-        {% endif %}
-
-        <div class="page-break"></div>
-
-        <!-- Page 3: Detailed Analysis -->
-        <div class="header-container">
-            <div class="header-left"><h1>Detailed Analysis</h1></div>
-            <div class="header-right">Page 3/5</div>
+        
+        <div class="table-container">
+            <div class="section-title">Play Efficiency (Offense)</div>
+            {% if plays_data and plays_data|length > 0 %}
+            <table>
+                <thead>
+                    <tr>
+                        <th class="text-left" style="width: 30%">Play</th>
+                        <th>POSS</th>
+                        <th>PTS</th>
+                        <th>PPP</th>
+                        <th>TOV</th>
+                        <th>FG%</th>
+                        <th>eFG%</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for play in plays_data %}
+                    <tr>
+                        <td class="text-left">
+                            {% if play.name %}{{ play.name }}{% endif %} {% if not
+                            play.name %}{{ play.description|default('Unnamed Play')
+                            }}{% endif %} {% if play.play_number %} #{{
+                            play.play_number }}{% endif %}
+                        </td>
+                        <td>{{ play.possessions|default(play.poss) }}</td>
+                        <td>{{ play.points }}</td>
+                        <td>{{ play.ppp|round(2) }}</td>
+                        <td>{{ play.turnovers|default(play.tov) }}</td>
+                        <td>{{ play.fg_pct|round(1) }}%</td>
+                        <td>{{ play.efg_pct|round(1) }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="small-note">No play events recorded.</div>
+            {% endif %}
         </div>
-
-        <div class="section-title">Shooting Breakdown</div>
-        <table>
-            <thead>
-                <tr>
-                    <th class="text-left" style="width: 20%">Player</th>
-                    <th>Field Goals</th>
-                    <th>2-Points</th>
-                    <th>3-Points</th>
-                    <th>Free Throws</th>
-                    <th>eFG%</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for p in stats %}
-                <tr>
-                    <td class="text-left">{{ p.player_name }}</td>
-                    <td>
-                        {{ p.fgm }}/{{ p.fga }}
-                        <span style="color: #718096; font-size: 9px"
-                            >({{ p.fg_percent|int }}%)</span
-                        >
-                    </td>
-                    <td>
-                        {{ p.two_pt_made }}/{{ p.two_pt_att }}
-                        <span style="color: #718096; font-size: 9px"
-                            >({{ p.two_pt_pct|round(0)|int }}%)</span
-                        >
-                    </td>
-                    <td>
-                        {{ p.tpm }}/{{ p.tpa }}
-                        <span style="color: #718096; font-size: 9px"
-                            >({{ p.tp_percent|int }}%)</span
-                        >
-                    </td>
-                    <td>
-                        {{ p.ftm }}/{{ p.fta }}
-                        <span style="color: #718096; font-size: 9px"
-                            >({{ p.ft_percent|int }}%)</span
-                        >
-                    </td>
-                    <td>{{ p.efg_pct|round(1) }}%</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
 
         <!-- Game Alerts -->
         {% if alerts.foul_trouble or alerts.inefficient %}
@@ -565,6 +588,7 @@
                 background: #fff5f5;
                 padding: 15px;
                 border-radius: 6px;
+                page-break-inside: avoid;
             "
         >
             {% if alerts.foul_trouble %}
@@ -592,10 +616,13 @@
 
         <div class="page-break"></div>
 
+        <!-- Page 3: Detailed Analysis (Removed as shooting moved to P1) -->
+        <!-- You can rename this page or reuse it for advanced stats -->
+        
         <!-- Page 4: Player Cards -->
         <div class="header-container">
             <div class="header-left"><h1>Individual Player Analysis</h1></div>
-            <div class="header-right">Page 4/5</div>
+            <div class="header-right">Page 3/4</div>
         </div>
 
         <div class="section-title">Player Performance Cards</div>
@@ -1139,7 +1166,7 @@
             <div class="header-left">
                 <h1>Metrics Glossary</h1>
             </div>
-            <div class="header-right">Page 5/5</div>
+            <div class="header-right">Page 4/4</div>
         </div>
 
         <div class="section-title">Basic Statistics</div>

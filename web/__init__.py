@@ -8,19 +8,17 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
-import click
 from flask import Flask
 from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
-from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
-from sqlalchemy import text
+from flask_migrate import Migrate
+from sqlalchemy import inspect, text
 
 from config import get_config
-from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, Play, bcrypt, db
-from core.seed_plays import seed_plays
+from core.models import User, bcrypt, db
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -48,11 +46,11 @@ def create_app(config_name: str = None) -> Flask:
 
     # Initialize extensions
     db.init_app(app)
+    migrate.init_app(app, db)
     bcrypt.init_app(app)
     csrf.init_app(app)
     cache.init_app(app)
     limiter.init_app(app)
-    migrate.init_app(app, db)
 
     # Configure login manager
     login_manager.init_app(app)
@@ -66,49 +64,55 @@ def create_app(config_name: str = None) -> Flask:
 
     # Register blueprints
     register_blueprints(app)
-
-    # Register CLI commands
-    register_commands(app)
-
-    # Auto-migrate database schema on startup
+    
+    # Auto-fix schema for dev/demo (Plays feature)
     with app.app_context():
-        # Ensure all tables exist (creates new tables like game_events, plays if missing)
-        db.create_all()
-        # Perform schema migrations for existing tables
-        auto_migrate_schema()
+        try:
+            inspector = inspect(db.engine)
+            
+            # Check for plays table
+            if inspector.has_table("plays"):
+                columns = [c['name'] for c in inspector.get_columns("plays")]
+                
+                # Check for critical new columns
+                missing_columns = []
+                if "canvas_data" not in columns:
+                    missing_columns.append("canvas_data")
+                if "diagram_svg" not in columns:
+                    missing_columns.append("diagram_svg")
+                    
+                if missing_columns:
+                    app.logger.warning(f"Detected outdated Plays schema (missing: {missing_columns}). Recreating tables...")
+                    
+                    # Drop dependent table first
+                    if inspector.has_table("play_sequences"):
+                        db.session.execute(text("DROP TABLE play_sequences"))
+                        app.logger.info("Dropped play_sequences table.")
+                    
+                    if inspector.has_table("shot_events"):
+                        # Only drop/recreate shots if strictly necessary or handle fk constraints
+                        # For now, let's just focus on plays. 
+                        # SQLite doesn't enforce FKs by default unless enabled, so might be okay.
+                        pass
+
+                    db.session.execute(text("DROP TABLE plays"))
+                    db.session.commit()
+                    app.logger.info("Dropped plays table.")
+                    
+                    db.create_all()
+                    app.logger.info("Plays tables recreated with correct schema.")
+            else:
+                # Ensure tables exist if they don't
+                db.create_all()
+                
+            # Double check play_sequences exists now
+            if not inspector.has_table("play_sequences"):
+                 db.create_all()
+                 
+        except Exception as e:
+            app.logger.error(f"Schema auto-fix failed: {e}")
 
     return app
-
-
-def auto_migrate_schema():
-    """
-    Automatically detect and add missing columns to existing tables.
-    This prevents OperationalError when the code expects columns that don't exist.
-    """
-    try:
-        with db.engine.connect() as conn:
-            # --- Check 'games' table ---
-            result_games = conn.execute(text("PRAGMA table_info(games)"))
-            games_columns = [row[1] for row in result_games.fetchall()]
-            
-            if 'source' not in games_columns:
-                print("[AUTO-MIGRATION] Adding 'source' column to 'games' table...")
-                conn.execute(text("ALTER TABLE games ADD COLUMN source VARCHAR(20) DEFAULT 'IMPORT'"))
-                conn.commit()
-                print("[AUTO-MIGRATION] Successfully added 'source' column.")
-
-            # --- Check 'player_stats' table ---
-            result_stats = conn.execute(text("PRAGMA table_info(player_stats)"))
-            stats_columns = [row[1] for row in result_stats.fetchall()]
-            
-            if 'plus_minus' not in stats_columns:
-                print("[AUTO-MIGRATION] Adding 'plus_minus' column to 'player_stats' table...")
-                conn.execute(text("ALTER TABLE player_stats ADD COLUMN plus_minus INTEGER DEFAULT 0"))
-                conn.commit()
-                print("[AUTO-MIGRATION] Successfully added 'plus_minus' column.")
-            
-    except Exception as e:
-        print(f"[AUTO-MIGRATION] Warning: {e}")
 
 
 def setup_logging(app: Flask, config):
@@ -137,47 +141,13 @@ def register_blueprints(app: Flask):
     from web.routes.api import api_bp
     from web.routes.auth import auth_bp
     from web.routes.main import main_bp
-    from web.routes.plays import plays_bp  # <--- NEW
+    from web.routes.plays import plays_bp
+    from web.routes.play_builder_api import builder_api_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api/v1")
     app.register_blueprint(analytics_bp)
-    app.register_blueprint(plays_bp)  # <--- NEW
-
-
-def register_commands(app: Flask):
-    """Register custom CLI commands"""
-    
-    @app.cli.command("seed")
-    def seed():
-        """Seed the database with initial data."""
-        seed_plays()
-        click.echo("[CLI] Database seeded successfully.")
-
-    @app.cli.command("reset-stats-db")
-    def reset_stats_db():
-        """
-        Drops Game, PlayerStat, ShotEvent, GameEvent, Play tables 
-        to apply new schema changes, but PRESERVES the User table.
-        """
-        click.echo("WARNING: This will delete all GAMES and STATS.")
-        if not click.confirm("Are you sure you want to continue? Users will be preserved."):
-            return
-
-        with app.app_context():
-            try:
-                # Drop tables in dependency order
-                click.echo("Dropping tables...")
-                ShotEvent.__table__.drop(db.engine, checkfirst=True)
-                GameEvent.__table__.drop(db.engine, checkfirst=True)
-                PlayerStat.__table__.drop(db.engine, checkfirst=True)
-                Game.__table__.drop(db.engine, checkfirst=True)
-                Play.__table__.drop(db.engine, checkfirst=True)
-                
-                click.echo("Recreating all tables...")
-                db.create_all()
-                
-                click.echo("Done! DB reset. User table preserved.")
-            except Exception as e:
-                click.echo(f"Error resetting DB: {e}")
+    app.register_blueprint(plays_bp)
+    # Fix: Register builder API under /api/v1 to match frontend expectations
+    app.register_blueprint(builder_api_bp, url_prefix="/api/v1")

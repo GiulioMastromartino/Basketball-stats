@@ -10,7 +10,7 @@ from sqlalchemy import case, func
 from core.models import Game, PlayerStat, ShotEvent, db, Play
 from core.csv_processor import CSVProcessor
 from core.parser import parse_game_pdf
-from core.services import create_game_from_live_data
+from core.services import create_game_from_live_data  # This now imports from core/services/__init__.py
 from core.play_analytics import (
     get_play_stats,
     get_play_player_stats,
