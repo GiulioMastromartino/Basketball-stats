@@ -15,12 +15,17 @@ class PlayBuilder {
         this.tools = {};
         this.activeTool = null;
 
+        // History
+        this.history = null;
+        this.isHistoryLocked = false; // Prevent save during undo/redo
+
         // Configuration
         this.config = window.PlayBuilderConfig || {};
         
         // Initialize
         this.initCourt();
-        this.initTools(); // Register tools
+        this.initTools();
+        this.initHistory();
         this.initEvents();
 
         // Load data if editing
@@ -28,96 +33,24 @@ class PlayBuilder {
             this.loadPlay(this.config.playId);
         } else {
             console.log("New play initialized");
-            // Activate default tool
             this.selectTool('select');
+            this.saveStateToHistory(); // Initial state
         }
     }
 
     initTools() {
-        if (typeof SelectTool !== 'undefined') {
-            this.tools['select'] = new SelectTool(this.canvas);
-        } else {
-            console.error("SelectTool not loaded");
-        }
-        
-        if (typeof PlayerTool !== 'undefined') {
-            this.tools['player'] = new PlayerTool(this.canvas);
-        } else {
-            console.error("PlayerTool not loaded");
-        }
-
-        if (typeof ArrowTool !== 'undefined') {
-            this.tools['arrow'] = new ArrowTool(this.canvas);
-        } else {
-            console.error("ArrowTool not loaded");
-        }
-
-        if (typeof TextTool !== 'undefined') {
-            this.tools['text'] = new TextTool(this.canvas);
-        } else {
-            console.error("TextTool not loaded");
-        }
+        if (typeof SelectTool !== 'undefined') this.tools['select'] = new SelectTool(this.canvas);
+        if (typeof PlayerTool !== 'undefined') this.tools['player'] = new PlayerTool(this.canvas);
+        if (typeof ArrowTool !== 'undefined') this.tools['arrow'] = new ArrowTool(this.canvas);
+        if (typeof TextTool !== 'undefined') this.tools['text'] = new TextTool(this.canvas);
     }
 
-    /**
-     * Draw the basketball court background.
-     */
-    initCourt() {
-        const strokeColor = '#333';
-        const strokeWidth = 2;
-        const width = 800;
-        const height = 600;
-
-        const courtObjects = [];
-
-        // 1. Full Court Outline
-        courtObjects.push(new fabric.Rect({
-            left: 0, top: 0, width: width, height: height,
-            fill: '#fff', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
-        }));
-
-        // 2. Center Circle
-        courtObjects.push(new fabric.Circle({
-            left: 350, top: -50, radius: 50,
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
-        }));
-
-        // 3. 3-Point Line (Simplified)
-        const pathData = `M 50 0 C 50 300, 750 300, 750 0`; 
-        courtObjects.push(new fabric.Path(pathData, {
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
-        }));
-
-        // 4. Paint
-        courtObjects.push(new fabric.Rect({
-            left: 300, top: 0, width: 200, height: 250,
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
-        }));
-
-        // 5. Hoop
-        courtObjects.push(new fabric.Circle({
-            left: 390, top: 40, radius: 10,
-            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
-            selectable: false, evented: false
-        }));
-
-        courtObjects.forEach(obj => {
-            obj.toObject = (function(toObject) {
-                return function() {
-                    return fabric.util.object.extend(toObject.call(this), {
-                        custom: { kind: 'court-line' }
-                    });
-                };
-            })(obj.toObject);
-            obj.custom = { kind: 'court-line' };
-            this.canvas.add(obj);
-        });
-        
-        this.canvas.sendToBack(courtObjects[0]);
+    initHistory() {
+        if (typeof HistoryManager !== 'undefined') {
+            this.history = new HistoryManager();
+        } else {
+            console.warn("HistoryManager not loaded");
+        }
     }
 
     initEvents() {
@@ -140,6 +73,23 @@ class PlayBuilder {
         this.canvas.on('mouse:up', (opt) => {
             if (this.activeTool) this.activeTool.onMouseUp(opt);
         });
+
+        // History Events
+        this.canvas.on('object:added', (e) => {
+             // Ignore if adding court lines (initial load)
+             if (e.target?.custom?.kind === 'court-line') return;
+             this.saveStateToHistory();
+        });
+        this.canvas.on('object:modified', () => this.saveStateToHistory());
+        this.canvas.on('object:removed', () => this.saveStateToHistory());
+    }
+
+    saveStateToHistory() {
+        if (this.isHistoryLocked || !this.history) return;
+        
+        // Serialize
+        const json = JSON.stringify(this.canvas.toJSON(['custom']));
+        this.history.pushState(json);
     }
 
     /**
@@ -222,6 +172,9 @@ class PlayBuilder {
     async loadPlay(playId) {
         const statusSpan = document.getElementById("status-bar");
         statusSpan.innerText = "Loading...";
+        
+        // Lock history during load
+        this.isHistoryLocked = true;
 
         try {
             const res = await fetch(`${this.config.apiBase}/plays/api/load-canvas/${playId}`);
@@ -239,22 +192,31 @@ class PlayBuilder {
                         this.canvas.renderAll();
                         statusSpan.innerText = "Ready";
                         this.selectTool('select');
+                        
+                        // Initial history state after load
+                        this.isHistoryLocked = false;
+                        this.saveStateToHistory(); 
                     });
                 } else {
                     statusSpan.innerText = "Ready (Empty)";
                     this.selectTool('select');
+                    this.isHistoryLocked = false;
+                    this.saveStateToHistory();
                 }
             } else {
                 statusSpan.innerText = "Error loading play";
+                this.isHistoryLocked = false;
             }
         } catch (err) {
             console.error(err);
             statusSpan.innerText = "Error loading play";
+            this.isHistoryLocked = false;
         }
     }
 
     clearCanvas() {
         if(confirm("Clear all objects?")) {
+            // Keep history unlocked to record the clear
             const objects = this.canvas.getObjects();
             for (let i = objects.length - 1; i >= 0; i--) {
                 const o = objects[i];
@@ -265,9 +227,96 @@ class PlayBuilder {
         }
     }
     
-    undo() { console.log("Undo not implemented yet"); }
-    redo() { console.log("Redo not implemented yet"); }
+    undo() {
+        if (!this.history || !this.history.canUndo()) return;
+        
+        const prevState = this.history.undo();
+        if (prevState) {
+            this.isHistoryLocked = true;
+            this.canvas.loadFromJSON(prevState, () => {
+                this.canvas.renderAll();
+                this.isHistoryLocked = false;
+                console.log("Undo performed");
+            });
+        }
+    }
+
+    redo() {
+        if (!this.history || !this.history.canRedo()) return;
+
+        const nextState = this.history.redo();
+        if (nextState) {
+            this.isHistoryLocked = true;
+            this.canvas.loadFromJSON(nextState, () => {
+                this.canvas.renderAll();
+                this.isHistoryLocked = false;
+                console.log("Redo performed");
+            });
+        }
+    }
+    
     refreshLayers() { console.log("Refresh layers not implemented yet"); }
+    
+    /**
+     * Draw the basketball court background.
+     */
+    initCourt() {
+        const strokeColor = '#333';
+        const strokeWidth = 2;
+        const width = 800;
+        const height = 600;
+
+        const courtObjects = [];
+
+        // 1. Full Court Outline
+        courtObjects.push(new fabric.Rect({
+            left: 0, top: 0, width: width, height: height,
+            fill: '#fff', stroke: strokeColor, strokeWidth: strokeWidth,
+            selectable: false, evented: false
+        }));
+
+        // 2. Center Circle
+        courtObjects.push(new fabric.Circle({
+            left: 350, top: -50, radius: 50,
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
+            selectable: false, evented: false
+        }));
+
+        // 3. 3-Point Line (Simplified)
+        const pathData = `M 50 0 C 50 300, 750 300, 750 0`; 
+        courtObjects.push(new fabric.Path(pathData, {
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
+            selectable: false, evented: false
+        }));
+
+        // 4. Paint
+        courtObjects.push(new fabric.Rect({
+            left: 300, top: 0, width: 200, height: 250,
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
+            selectable: false, evented: false
+        }));
+
+        // 5. Hoop
+        courtObjects.push(new fabric.Circle({
+            left: 390, top: 40, radius: 10,
+            fill: 'transparent', stroke: strokeColor, strokeWidth: strokeWidth,
+            selectable: false, evented: false
+        }));
+
+        courtObjects.forEach(obj => {
+            obj.toObject = (function(toObject) {
+                return function() {
+                    return fabric.util.object.extend(toObject.call(this), {
+                        custom: { kind: 'court-line' }
+                    });
+                };
+            })(obj.toObject);
+            obj.custom = { kind: 'court-line' };
+            this.canvas.add(obj);
+        });
+        
+        this.canvas.sendToBack(courtObjects[0]);
+    }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
