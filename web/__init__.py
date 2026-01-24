@@ -69,21 +69,46 @@ def create_app(config_name: str = None) -> Flask:
     with app.app_context():
         try:
             inspector = inspect(db.engine)
+            
+            # Check for plays table
             if inspector.has_table("plays"):
                 columns = [c['name'] for c in inspector.get_columns("plays")]
+                
+                # Check for critical new columns
+                missing_columns = []
                 if "canvas_data" not in columns:
-                    app.logger.warning("Detected outdated Plays schema. Recreating tables...")
+                    missing_columns.append("canvas_data")
+                if "diagram_svg" not in columns:
+                    missing_columns.append("diagram_svg")
+                    
+                if missing_columns:
+                    app.logger.warning(f"Detected outdated Plays schema (missing: {missing_columns}). Recreating tables...")
+                    
                     # Drop dependent table first
                     if inspector.has_table("play_sequences"):
                         db.session.execute(text("DROP TABLE play_sequences"))
+                        app.logger.info("Dropped play_sequences table.")
                     
+                    if inspector.has_table("shot_events"):
+                        # Only drop/recreate shots if strictly necessary or handle fk constraints
+                        # For now, let's just focus on plays. 
+                        # SQLite doesn't enforce FKs by default unless enabled, so might be okay.
+                        pass
+
                     db.session.execute(text("DROP TABLE plays"))
                     db.session.commit()
+                    app.logger.info("Dropped plays table.")
+                    
                     db.create_all()
-                    app.logger.info("Plays tables recreated.")
+                    app.logger.info("Plays tables recreated with correct schema.")
             else:
                 # Ensure tables exist if they don't
                 db.create_all()
+                
+            # Double check play_sequences exists now
+            if not inspector.has_table("play_sequences"):
+                 db.create_all()
+                 
         except Exception as e:
             app.logger.error(f"Schema auto-fix failed: {e}")
 
