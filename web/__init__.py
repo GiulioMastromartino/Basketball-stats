@@ -17,7 +17,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from sqlalchemy import inspect, text
 from config import get_config
-from core.models import User, bcrypt, db
+from core.models import User, bcrypt, db, PlayType
 
 
 # Initialize extensions
@@ -109,6 +109,17 @@ def create_app(config_name: str = None) -> Flask:
             if not inspector.has_table("play_sequences"):
                  db.create_all()
 
+            # Ensure PlayType table exists and is seeded
+            if not inspector.has_table("play_types"):
+                db.create_all()
+            
+            if PlayType.query.count() == 0:
+                default_types = ["Offense", "Defense", "Special"]
+                for t in default_types:
+                    db.session.add(PlayType(name=t))
+                db.session.commit()
+                app.logger.info("Seeded default PlayTypes: Offense, Defense, Special")
+
         except Exception as e:
             app.logger.error(f"Schema auto-fix failed: {e}")
 
@@ -122,7 +133,7 @@ def setup_logging(app: Flask, config):
     # File handler
     file_handler = RotatingFileHandler(
         config.LOG_FILE,
-        maxBytes=config.LOG_MAX_BYTES,
+        maxBytes=config.LOG_BACKUP_COUNT,
         backupCount=config.LOG_BACKUP_COUNT,
     )
     file_handler.setLevel(log_level)
