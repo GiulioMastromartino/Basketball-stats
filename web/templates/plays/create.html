@@ -403,7 +403,7 @@
                 <button class="btn-misc" onclick="app.tools['shape'].setType('triangle'); app.selectTool('shape');" title="Triangle"><i class="fas fa-caret-up"></i></button>
                 <button class="btn-misc" onclick="app.tools['shape'].setType('diamond'); app.selectTool('shape');" title="Diamond"><i class="fas fa-gem"></i></button>
                 <button class="btn-misc" onclick="app.tools['shape'].setType('line'); app.selectTool('shape');" title="Line"><i class="fas fa-minus"></i></button>
-                <button class="btn-misc" onclick="alert('Image upload coming soon')" title="Image"><i class="far fa-image"></i></button>
+                <button class="btn-misc" onclick="app.selectTool('image')" title="Image"><i class="far fa-image"></i></button>
             </div>
         </div>
         
@@ -440,6 +440,7 @@
 <script src="{{ url_for('static', filename='js/playbuilder/tools/arrow_tool.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/tools/text_tool.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/tools/shape_tool.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/tools/image_tool.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/state/history.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/state/sequence.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/services/layers.js') }}"></script>
