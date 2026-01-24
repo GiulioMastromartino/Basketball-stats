@@ -53,14 +53,14 @@ class PlayerTool extends ToolBase {
                 })
             ], commonProps);
         } else if (this.currentProps.style === 'square') {
-             playerObj = new fabric.Group([
-                new fabric.Rect({
-                    width: 30, height: 30, fill: '#ffffff', stroke: '#000000', strokeWidth: 1, originX: 'center', originY: 'center', rx: 4, ry: 4
-                }),
-                new fabric.Text(this.currentProps.label, {
-                    fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', originX: 'center', originY: 'center'
-                })
-            ], commonProps);
+             // "Just number" style as requested
+             playerObj = new fabric.Text(this.currentProps.label, {
+                ...commonProps,
+                fontSize: 20, 
+                fontFamily: 'Arial', 
+                fontWeight: 'bold', 
+                fill: '#000000'
+             });
         } else if (this.currentProps.style === 'text') {
              // Defense 'x' usually
              playerObj = new fabric.Text(this.currentProps.label, {
