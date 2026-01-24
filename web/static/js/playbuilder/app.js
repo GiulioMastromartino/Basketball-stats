@@ -24,7 +24,7 @@ class PlayBuilder {
         this.sequence = null;
         
         this.isHistoryLocked = false; 
-        this.currentMode = 'draw'; // 'draw' | 'animate'
+        this.currentMode = 'draw'; // 'draw' | 'animate' | 'notes'
 
         // Configuration
         this.config = window.PlayBuilderConfig || {};
@@ -363,6 +363,15 @@ class PlayBuilder {
             el.classList.remove('active');
         });
         
+        const activeTab = document.getElementById(`tab-${mode}`);
+        if(activeTab) activeTab.classList.add('active');
+        
+        // Handle UI Panels
+        const notesPanel = document.getElementById('notes-panel');
+        if (notesPanel) {
+            notesPanel.style.display = (mode === 'notes') ? 'block' : 'none';
+        }
+        
         console.log(`Switched to ${mode} mode`);
         
         if (mode === 'animate') {
@@ -483,10 +492,12 @@ class PlayBuilder {
 
         const nameInput = document.getElementById("meta-name");
         const typeInput = document.getElementById("meta-type");
+        const descInput = document.getElementById("meta-description");
         const tagsInput = document.getElementById("meta-tags");
         
         const name = nameInput ? nameInput.value : "Untitled Play";
         const type = typeInput ? typeInput.value : "Offense";
+        const desc = descInput ? descInput.value : "";
         const tags = tagsInput ? tagsInput.value : "";
 
         if (!name) {
@@ -506,6 +517,7 @@ class PlayBuilder {
             metadata: {
                 name: name,
                 play_type: type,
+                description: desc,
                 tags: tags
             },
             canvas_json: canvasJson,
@@ -533,8 +545,6 @@ class PlayBuilder {
                 if (!this.config.playId && data.play_id) {
                     window.history.pushState({}, "", `/plays/${data.play_id}/edit-builder`);
                     this.config.playId = data.play_id;
-                    const idField = document.getElementById("play-id");
-                    if(idField) idField.value = data.play_id;
                 }
             } else {
                 if(statusSpan) statusSpan.innerText = "Error: " + data.error;
@@ -561,10 +571,12 @@ class PlayBuilder {
                 if (data.metadata) {
                     const nameInput = document.getElementById("meta-name");
                     const typeInput = document.getElementById("meta-type");
+                    const descInput = document.getElementById("meta-description");
                     const tagsInput = document.getElementById("meta-tags");
                     
                     if(nameInput) nameInput.value = data.metadata.name || "";
                     if(typeInput) typeInput.value = data.metadata.play_type || "Offense";
+                    if(descInput) descInput.value = data.metadata.description || "";
                     if(tagsInput) tagsInput.value = data.metadata.tags || "";
                 }
 
