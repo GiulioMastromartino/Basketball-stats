@@ -70,6 +70,7 @@ class ArrowTool extends ToolBase {
         let foundTarget = null;
 
         this.canvas.getObjects().forEach(obj => {
+            // Snap to Player Tokens
             if (obj.custom && obj.custom.kind === 'player-token' && obj.visible) {
                 const center = obj.getCenterPoint();
                 const dist = Math.hypot(center.x - pointer.x, center.y - pointer.y);
@@ -80,17 +81,14 @@ class ArrowTool extends ToolBase {
                     
                     if (referencePoint) {
                         // Snap to border logic
-                        // Assume typical radius if not found (player tokens usually scaled circles)
                         let radius = (obj.width * obj.scaleX) / 2; 
                         if (isNaN(radius) || radius < 1) radius = 15; // fallback
                         
-                        // Vector from center to reference
                         const dx = referencePoint.x - center.x;
                         const dy = referencePoint.y - center.y;
                         const len = Math.hypot(dx, dy);
                         
                         if (len > 0) {
-                            // Point on border towards reference
                             closestPoint = {
                                 x: center.x + (dx / len) * radius,
                                 y: center.y + (dy / len) * radius
@@ -99,10 +97,31 @@ class ArrowTool extends ToolBase {
                             closestPoint = { x: center.x, y: center.y };
                         }
                     } else {
-                        // No reference (e.g. first click), snap to center
                         closestPoint = { x: center.x, y: center.y };
                     }
                 }
+            }
+            
+            // Snap to Arrow Endpoints (e.g. chaining Cut -> Pass)
+            else if (obj.custom && obj.custom.kind === 'arrow' && obj.visible && obj !== this.line) { // Avoid self-snap during draw
+                 const start = obj.custom.start;
+                 const end = obj.custom.end;
+                 
+                 // Check Start
+                 const distStart = Math.hypot(start.x - pointer.x, start.y - pointer.y);
+                 if (distStart < minDist) {
+                     minDist = distStart;
+                     closestPoint = { x: start.x, y: start.y };
+                     foundTarget = obj;
+                 }
+                 
+                 // Check End
+                 const distEnd = Math.hypot(end.x - pointer.x, end.y - pointer.y);
+                 if (distEnd < minDist) {
+                     minDist = distEnd;
+                     closestPoint = { x: end.x, y: end.y };
+                     foundTarget = obj;
+                 }
             }
         });
 
@@ -112,15 +131,32 @@ class ArrowTool extends ToolBase {
     // --- Drawing Lifecycle ---
     onMouseDown(opt) {
         if (opt.target) {
-            if (window.app) window.app.selectTool('select');
-            return;
+            // Exception: If we click an ENDPOINT of an existing arrow to start a new one, don't select it.
+            // But Fabric's selection logic runs before this? 
+            // We set selectable=false in activate(), so opt.target might be null actually?
+            // If selectable=false, opt.target is usually undefined on empty space, 
+            // but if per-pixel target find is on...
+            // Let's rely on getSnapPoint finding it.
+            
+            // If existing object is clicked, usually we want to select it. 
+            // BUT if we are in DRAW mode, we want to draw FROM it.
+            // Since we set objects unselectable in activate(), opt.target might be null anyway.
+            // So this check is likely fine to remove or ignore if we want to draw on top.
+            
+            // Let's keep the check but maybe relax it if it's an arrow endpoint? 
+            // For now, let's assume 'selectable=false' handles this.
+            
+            if (window.app && window.app.selectTool && opt.target && opt.target.selectable) {
+                 window.app.selectTool('select');
+                 return;
+            }
         }
 
         this.isDrawing = true;
         const pointer = this.canvas.getPointer(opt.e);
         // First click: Snap to center usually preferred for start, or border? 
         // Let's snap to center for start, makes it easier to aim FROM a player.
-        // Actually, user asked for border snap. But without a 2nd point, "border closest to what?" is undefined.
+        // actually, user asked for border snap. But without a 2nd point, "border closest to what?" is undefined.
         // We'll snap to center for START point, and border for END point (relative to start).
         const snap = this.getSnapPoint(pointer, null); 
         this.startPoint = snap.point;
