@@ -18,22 +18,26 @@
     {% if plays %}
         {% for play in plays %}
         <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title">{{ play.name }}</h5>
+            <div class="card h-100 shadow-sm play-card">
+                <div class="card-body" onclick="window.location.href='{{ url_for('plays.view_play', play_id=play.id) }}'" style="cursor: pointer;">
+                    <h5 class="card-title text-primary">{{ play.name }}</h5>
                     <h6 class="card-subtitle mb-2 text-muted">{{ play.play_type }}</h6>
                     
+                    {% if play.difficulty %}
+                    <span class="badge badge-light border mb-2">{{ play.difficulty }}</span>
+                    {% endif %}
+
                     {% if play.tags %}
-                    <p class="card-text">
+                    <p class="card-text mt-2">
                         <small class="text-muted"><i class="fas fa-tags"></i> {{ play.tags }}</small>
                     </p>
                     {% endif %}
                     
-                    <p class="card-text text-muted small">
+                    <p class="card-text text-muted small mt-auto">
                         Updated: {{ play.updated_at.strftime('%Y-%m-%d') }}
                     </p>
                 </div>
-                <div class="card-footer bg-white border-top-0 d-flex justify-content-between">
+                <div class="card-footer bg-white border-top-0 d-flex justify-content-between align-items-center">
                     <a href="{{ url_for('plays.edit_play_builder', play_id=play.id) }}" class="btn btn-sm btn-outline-primary">
                         <i class="fas fa-edit"></i> Edit
                     </a>
@@ -59,4 +63,18 @@
         </div>
     {% endif %}
 </div>
+
+<style>
+    .play-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .play-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+    /* Ensure hover on body indicates clickability */
+    .play-card .card-body:hover {
+        background-color: #f8f9fa;
+    }
+</style>
 {% endblock %}
