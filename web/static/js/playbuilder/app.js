@@ -5,6 +5,7 @@
 
 class PlayBuilder {
     constructor(canvasId) {
+        // ... (previous constructor code) ...
         // Initialize Canvas
         this.canvas = new fabric.Canvas(canvasId, {
             selection: false, 
@@ -51,6 +52,8 @@ class PlayBuilder {
             }, 200);
         }
     }
+    
+    // ... (previous methods: initTools, initHistory, initLayers, initSequence) ...
 
     initTools() {
         if (typeof SelectTool !== 'undefined') this.tools['select'] = new SelectTool(this.canvas);
@@ -88,6 +91,17 @@ class PlayBuilder {
                 this.savePlay();
             });
         }
+        
+        // Delete key handling
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'Delete' || e.key === 'Backspace') && this.canvas.getActiveObject()) {
+                // Prevent backspace from navigating back if not in an input
+                const tag = e.target.tagName.toLowerCase();
+                if (tag !== 'input' && tag !== 'textarea') {
+                    this.deleteSelected();
+                }
+            }
+        });
 
         // Canvas Events Delegation to Active Tool
         this.canvas.on('mouse:down', (opt) => {
@@ -111,12 +125,45 @@ class PlayBuilder {
         this.canvas.on('object:modified', updateAll);
         this.canvas.on('object:removed', updateAll);
         
-        // Selection events for Layers
-        this.canvas.on('selection:created', () => { if(this.layers) this.layers.refresh(); });
-        this.canvas.on('selection:updated', () => { if(this.layers) this.layers.refresh(); });
-        this.canvas.on('selection:cleared', () => { if(this.layers) this.layers.refresh(); });
+        // Selection events for Layers & UI Overlay
+        const onSelectionChange = () => {
+             if(this.layers) this.layers.refresh();
+             this.updateSelectionUI();
+        };
+
+        this.canvas.on('selection:created', onSelectionChange);
+        this.canvas.on('selection:updated', onSelectionChange);
+        this.canvas.on('selection:cleared', onSelectionChange);
+    }
+    
+    updateSelectionUI() {
+        const overlay = document.getElementById('delete-overlay');
+        const activeObj = this.canvas.getActiveObject();
+        
+        if (activeObj && overlay) {
+            overlay.style.display = 'block';
+        } else if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+    
+    deleteSelected() {
+        const activeObj = this.canvas.getActiveObject();
+        if (activeObj) {
+            // If multiple objects are selected
+            if (activeObj.type === 'activeSelection') {
+                activeObj.forEachObject(obj => {
+                    this.canvas.remove(obj);
+                });
+                this.canvas.discardActiveObject();
+            } else {
+                this.canvas.remove(activeObj);
+            }
+            this.canvas.requestRenderAll();
+        }
     }
 
+    // ... (rest of the methods: setMode, saveStateToHistory, selectTool, clearCanvas, mirror, undo, redo, savePlay, loadPlay) ...
     setMode(mode) {
         this.currentMode = mode;
         
