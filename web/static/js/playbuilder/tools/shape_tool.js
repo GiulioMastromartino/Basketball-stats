@@ -102,7 +102,7 @@ class ShapeTool extends ToolBase {
             this.canvas.add(shape);
             this.canvas.setActiveObject(shape);
             this.canvas.requestRenderAll();
-            this.canvas.fire('object:added', { target: shape });
+            // Removed manual fire('object:added') to prevent double history entry
         }
         
         // Auto-switch back to select tool for convenience?
