@@ -40,6 +40,12 @@ class SequenceManager {
     }
     
     addFrame() {
+        // Before cloning into a new frame, apply phase transition rules:
+        // move connected tokens, apply pass receiver swap, and clear actions.
+        if (this.app?.applyActionsAndClearForNextPhase) {
+            this.app.applyActionsAndClearForNextPhase();
+        }
+
         // Clone current state as new frame
         const json = this.app.canvas.toJSON(['custom']);
         const frame = {
@@ -78,8 +84,6 @@ class SequenceManager {
             if (this.currentIndex >= this.frames.length) {
                 this.currentIndex = this.frames.length - 1;
             }
-            // If we deleted the frame we were on (or one before it), we might need to reload the new current one
-            // But usually we just reload current index
             
             this.loadFrame(this.currentIndex);
             this.renderTimeline();
