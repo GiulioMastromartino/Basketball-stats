@@ -1,9 +1,5 @@
 /**
  * ArrowTool - Handles drawing of movement lines (Cut, Pass, Dribble, Screen, etc.)
- *
- * NOTE:
- * - All tools are one-shot: after creating an action we immediately switch back to Select.
- * - Action visuals must match the sidebar icons (dribble=wavy, pass=dashed, cut=solid, etc.).
  */
 class ArrowTool extends ToolBase {
     constructor(canvas) {
@@ -18,48 +14,15 @@ class ArrowTool extends ToolBase {
         this.currentType = 'pass';
 
         this.typeConfig = {
-            dribble: {
-                stroke: '#000000',
-                wave: true,
-                arrow: true,
-                strokeDashArray: null,
-            },
-            pass: {
-                stroke: '#000000',
-                wave: false,
-                arrow: true,
-                strokeDashArray: [10, 5],
-            },
-            cut: {
-                stroke: '#000000',
-                wave: false,
-                arrow: true,
-                strokeDashArray: null,
-            },
-            screen: {
-                stroke: '#000000',
-                wave: false,
-                arrow: false,
-                endCap: 'T',
-                strokeDashArray: null,
-            },
-            shot: {
-                stroke: '#000000',
-                wave: false,
-                arrow: false,
-                endCap: 'target',
-                strokeDashArray: [4, 4],
-            },
-            handoff: {
-                stroke: '#000000',
-                wave: false,
-                arrow: false,
-                endCap: 'handoff',
-                strokeDashArray: null,
-            },
+            dribble: { stroke: '#000000', wave: true, arrow: true, strokeDashArray: null },
+            pass: { stroke: '#000000', wave: false, arrow: true, strokeDashArray: [10, 5] },
+            cut: { stroke: '#000000', wave: false, arrow: true, strokeDashArray: null },
+            screen: { stroke: '#000000', wave: false, arrow: false, endCap: 'T', strokeDashArray: null },
+            shot: { stroke: '#000000', wave: false, arrow: false, endCap: 'target', strokeDashArray: [4, 4] },
+            handoff: { stroke: '#000000', wave: false, arrow: false, endCap: 'handoff', strokeDashArray: null },
         };
 
-        // Always-on listeners for curve controls (available when selecting an action)
+        // Listeners
         this.canvas.on('selection:created', this.onSelect.bind(this));
         this.canvas.on('selection:updated', this.onSelect.bind(this));
         this.canvas.on('selection:cleared', this.onDeselect.bind(this));
@@ -78,8 +41,6 @@ class ArrowTool extends ToolBase {
         this.canvas.selection = true;
         this.canvas.defaultCursor = 'default';
         this.canvas.forEachObject(o => (o.selectable = true));
-        // Do not hide curve controls here: those are useful in select mode too.
-        // (They are removed via selection:cleared)
     }
 
     setType(type) {
@@ -108,34 +69,31 @@ class ArrowTool extends ToolBase {
         return { point: closestPoint, target: foundTarget };
     }
 
-    // --- Mouse lifecycle (one-shot) ---
+    // --- Drawing Lifecycle ---
     onMouseDown(opt) {
-        // One-shot rule: if user clicks an existing object, exit to select.
+        // One-shot exit if clicking existing object
         if (opt.target) {
             if (window.app) window.app.selectTool('select');
             return;
         }
 
         this.isDrawing = true;
-
         const pointer = this.canvas.getPointer(opt.e);
         const snap = this.getSnapPoint(pointer);
         this.startPoint = snap.point;
-
-        // Start with control point at start, then update on move.
+        
+        // Initial control point at start
         this.curveControl = { x: this.startPoint.x, y: this.startPoint.y };
-
         this.updateVisuals(this.startPoint, this.curveControl);
     }
 
     onMouseMove(opt) {
         if (!this.isDrawing) return;
-
         const pointer = this.canvas.getPointer(opt.e);
         const snap = this.getSnapPoint(pointer);
         const endPoint = snap.point;
 
-        // default curve control = midpoint (user can edit after creation)
+        // Default curve control is midpoint
         this.curveControl = {
             x: (this.startPoint.x + endPoint.x) / 2,
             y: (this.startPoint.y + endPoint.y) / 2,
@@ -152,12 +110,12 @@ class ArrowTool extends ToolBase {
             const pointer = this.canvas.getPointer(opt.e);
             const snap = this.getSnapPoint(pointer);
             const endPoint = snap.point;
-
+            
             const group = this.createArrowGroup(this.startPoint, endPoint, this.curveControl);
-
+            
             this.canvas.remove(this.line);
             if (this.arrowHead) this.canvas.remove(this.arrowHead);
-
+            
             this.canvas.add(group);
             this.canvas.setActiveObject(group);
             this.canvas.requestRenderAll();
@@ -167,59 +125,55 @@ class ArrowTool extends ToolBase {
         this.arrowHead = null;
         this.startPoint = null;
 
-        // ALWAYS one-shot
         if (window.app) window.app.selectTool('select');
     }
 
-    // --- Geometry helpers ---
-    quadPoint(start, cp, end, t) {
-        const u = 1 - t;
-        return {
-            x: u * u * start.x + 2 * u * t * cp.x + t * t * end.x,
-            y: u * u * start.y + 2 * u * t * cp.y + t * t * end.y,
-        };
+    // --- Visuals & Path ---
+    getPathDataForCurrentType(start, end, cp) {
+        const config = this.typeConfig[this.currentType];
+        if (config.wave) {
+            return this.buildWavyQuadPath(start, cp, end);
+        }
+        return `M ${start.x} ${start.y} Q ${cp.x} ${cp.y} ${end.x} ${end.y}`;
     }
 
-    quadTangent(start, cp, end, t) {
-        // derivative of quadratic bezier
-        return {
-            x: 2 * (1 - t) * (cp.x - start.x) + 2 * t * (end.x - cp.x),
-            y: 2 * (1 - t) * (cp.y - start.y) + 2 * t * (end.y - cp.y),
-        };
-    }
-
-    angleFromVector(v) {
-        return Math.atan2(v.y, v.x) * 180 / Math.PI;
-    }
-
-    endAngle(start, cp, end) {
-        const tan = this.quadTangent(start, cp, end, 1);
-        return this.angleFromVector(tan);
-    }
-
-    // Build a wavy polyline that follows the quadratic curve.
-    // This keeps Dribble matching the wavy icon even when the action is curved.
     buildWavyQuadPath(start, cp, end, amplitude = 5, wavelength = 18) {
-        // sample curve and build cumulative length
         const samples = 60;
         const pts = [];
         let totalLen = 0;
-        let prev = this.quadPoint(start, cp, end, 0);
+        
+        // Helper to get point on quadratic bezier
+        const getPt = (t) => {
+             const u = 1 - t;
+             return {
+                 x: u * u * start.x + 2 * u * t * cp.x + t * t * end.x,
+                 y: u * u * start.y + 2 * u * t * cp.y + t * t * end.y
+             };
+        };
+
+        let prev = getPt(0);
         pts.push({ t: 0, p: prev, s: 0 });
 
         for (let i = 1; i <= samples; i++) {
             const t = i / samples;
-            const p = this.quadPoint(start, cp, end, t);
+            const p = getPt(t);
             totalLen += Math.hypot(p.x - prev.x, p.y - prev.y);
             pts.push({ t, p, s: totalLen });
             prev = p;
         }
+        
+        // Helper for tangent
+        const getTan = (t) => {
+            return {
+                x: 2 * (1 - t) * (cp.x - start.x) + 2 * t * (end.x - cp.x),
+                y: 2 * (1 - t) * (cp.y - start.y) + 2 * t * (end.y - cp.y)
+            };
+        };
 
-        // Build wavy offset points
         let path = '';
         for (let i = 0; i < pts.length; i++) {
             const { t, p, s } = pts[i];
-            const tan = this.quadTangent(start, cp, end, t);
+            const tan = getTan(t);
             const mag = Math.hypot(tan.x, tan.y) || 1;
             const nx = -tan.y / mag;
             const ny = tan.x / mag;
@@ -233,30 +187,28 @@ class ArrowTool extends ToolBase {
             if (i === 0) path = `M ${x} ${y}`;
             else path += ` L ${x} ${y}`;
         }
-
         return path;
     }
-
-    getPathDataForCurrentType(start, end, cp) {
-        const config = this.typeConfig[this.currentType];
-        if (config.wave) {
-            return this.buildWavyQuadPath(start, cp, end);
+    
+    endAngle(start, cp, end) {
+        const tan = {
+            x: 2 * (1 - 1) * (cp.x - start.x) + 2 * 1 * (end.x - cp.x), // t=1 simplified
+            y: 2 * (1 - 1) * (cp.y - start.y) + 2 * 1 * (end.y - cp.y)  // t=1 simplified
+        };
+        // If end == cp, fallback to straight line angle
+        if (Math.abs(tan.x) < 0.001 && Math.abs(tan.y) < 0.001) {
+             return Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI;
         }
-        return `M ${start.x} ${start.y} Q ${cp.x} ${cp.y} ${end.x} ${end.y}`;
+        return Math.atan2(tan.y, tan.x) * 180 / Math.PI;
     }
 
-    // --- Rendering ---
     createArrowGroup(start, end, control) {
         const config = this.typeConfig[this.currentType];
-
         const pathData = this.getPathDataForCurrentType(start, end, control);
+        
         const path = new fabric.Path(pathData, {
-            stroke: config.stroke,
-            strokeWidth: 2,
-            strokeDashArray: config.strokeDashArray,
-            fill: 'transparent',
-            originX: 'center',
-            originY: 'center',
+            stroke: config.stroke, strokeWidth: 2, strokeDashArray: config.strokeDashArray,
+            fill: 'transparent', originX: 'center', originY: 'center'
         });
 
         const angle = this.endAngle(start, control, end);
@@ -264,36 +216,23 @@ class ArrowTool extends ToolBase {
 
         if (config.arrow) {
             head = new fabric.Triangle({
-                width: 12,
-                height: 12,
-                fill: config.stroke,
-                originX: 'center',
-                originY: 'center',
-                angle: angle + 90,
+                width: 12, height: 12, fill: config.stroke,
+                originX: 'center', originY: 'center', angle: angle + 90
             });
         } else if (config.endCap === 'T') {
             head = new fabric.Line([0, -15, 0, 15], {
-                stroke: config.stroke,
-                strokeWidth: 3,
-                originX: 'center',
-                originY: 'center',
-                angle: angle + 90,
+                stroke: config.stroke, strokeWidth: 3, originX: 'center', originY: 'center', angle: angle + 90
             });
         } else if (config.endCap === 'target') {
-            const c = new fabric.Circle({ radius: 8, fill: 'transparent', stroke: config.stroke, strokeWidth: 2, originX: 'center', originY: 'center' });
-            const l1 = new fabric.Line([0, -8, 0, 8], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
-            const l2 = new fabric.Line([-8, 0, 8, 0], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
-            head = new fabric.Group([c, l1, l2], { originX: 'center', originY: 'center', angle: angle });
+             const c = new fabric.Circle({ radius: 8, fill: 'transparent', stroke: config.stroke, strokeWidth: 2, originX: 'center', originY: 'center' });
+             const l1 = new fabric.Line([0, -8, 0, 8], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
+             const l2 = new fabric.Line([-8, 0, 8, 0], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
+             head = new fabric.Group([c, l1, l2], { originX: 'center', originY: 'center', angle: angle });
         } else if (config.endCap === 'handoff') {
-            head = new fabric.Text('H', {
-                fontSize: 16,
-                fontFamily: 'Arial',
-                fontWeight: 'bold',
-                fill: config.stroke,
-                originX: 'center',
-                originY: 'center',
-                angle: angle,
-            });
+             head = new fabric.Text('H', {
+                 fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', fill: config.stroke,
+                 originX: 'center', originY: 'center', angle: angle
+             });
         }
 
         const objs = [path];
@@ -304,107 +243,63 @@ class ArrowTool extends ToolBase {
         }
 
         const group = new fabric.Group(objs, {
-            selectable: true,
-            hasControls: false,
-            hasBorders: true,
-            lockScalingX: true,
-            lockScalingY: true,
-            lockRotation: true,
+            selectable: true, hasControls: false, hasBorders: true,
+            lockScalingX: true, lockScalingY: true, lockRotation: true
         });
 
+        // Store geometric data
         group.custom = {
             kind: 'arrow',
             type: this.currentType,
-            start,
-            end,
-            control,
+            start: start,
+            end: end,
+            control: control
         };
-
         return group;
     }
-
+    
     updateVisuals(endPoint, controlPoint) {
+        // Used during creation
         const config = this.typeConfig[this.currentType];
-
         if (this.line) this.canvas.remove(this.line);
         if (this.arrowHead) this.canvas.remove(this.arrowHead);
 
         const pathData = this.getPathDataForCurrentType(this.startPoint, endPoint, controlPoint);
-
         this.line = new fabric.Path(pathData, {
-            stroke: config.stroke,
-            strokeWidth: 2,
-            strokeDashArray: config.strokeDashArray,
-            fill: 'transparent',
-            selectable: false,
-            evented: false,
+            stroke: config.stroke, strokeWidth: 2, strokeDashArray: config.strokeDashArray,
+            fill: 'transparent', selectable: false, evented: false
         });
         this.canvas.add(this.line);
 
         const angle = this.endAngle(this.startPoint, controlPoint, endPoint);
-
+        // ... (head creation logic same as above, just added to canvas directly)
         if (config.arrow) {
-            this.arrowHead = new fabric.Triangle({
-                width: 12,
-                height: 12,
-                fill: config.stroke,
-                left: endPoint.x,
-                top: endPoint.y,
-                originX: 'center',
-                originY: 'center',
-                angle: angle + 90,
-                selectable: false,
-                evented: false,
+             this.arrowHead = new fabric.Triangle({
+                width: 12, height: 12, fill: config.stroke,
+                left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle + 90, selectable: false, evented: false
             });
-            this.canvas.add(this.arrowHead);
         } else if (config.endCap === 'T') {
-            this.arrowHead = new fabric.Line([0, -15, 0, 15], {
-                stroke: config.stroke,
-                strokeWidth: 3,
-                left: endPoint.x,
-                top: endPoint.y,
-                originX: 'center',
-                originY: 'center',
-                angle: angle + 90,
-                selectable: false,
-                evented: false,
+             this.arrowHead = new fabric.Line([0, -15, 0, 15], {
+                stroke: config.stroke, strokeWidth: 3,
+                left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle + 90, selectable: false, evented: false
             });
-            this.canvas.add(this.arrowHead);
         } else if (config.endCap === 'target') {
-            const c = new fabric.Circle({ radius: 8, fill: 'transparent', stroke: config.stroke, strokeWidth: 2, originX: 'center', originY: 'center' });
-            const l1 = new fabric.Line([0, -8, 0, 8], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
-            const l2 = new fabric.Line([-8, 0, 8, 0], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
-            this.arrowHead = new fabric.Group([c, l1, l2], {
-                left: endPoint.x,
-                top: endPoint.y,
-                originX: 'center',
-                originY: 'center',
-                angle: angle,
-                selectable: false,
-                evented: false,
-            });
-            this.canvas.add(this.arrowHead);
+             const c = new fabric.Circle({ radius: 8, fill: 'transparent', stroke: config.stroke, strokeWidth: 2, originX: 'center', originY: 'center' });
+             const l1 = new fabric.Line([0, -8, 0, 8], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
+             const l2 = new fabric.Line([-8, 0, 8, 0], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
+             this.arrowHead = new fabric.Group([c, l1, l2], { left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle, selectable: false, evented: false });
         } else if (config.endCap === 'handoff') {
-            this.arrowHead = new fabric.Text('H', {
-                fontSize: 16,
-                fontFamily: 'Arial',
-                fontWeight: 'bold',
-                fill: config.stroke,
-                left: endPoint.x,
-                top: endPoint.y,
-                originX: 'center',
-                originY: 'center',
-                angle: angle,
-                selectable: false,
-                evented: false,
-            });
-            this.canvas.add(this.arrowHead);
+             this.arrowHead = new fabric.Text('H', {
+                 fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', fill: config.stroke,
+                 left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle, selectable: false, evented: false
+             });
         }
-
+        
+        if (this.arrowHead) this.canvas.add(this.arrowHead);
         this.canvas.requestRenderAll();
     }
 
-    // --- Curve controls ---
+    // --- Curve Control Logic ---
     onSelect(e) {
         if (e.selected && e.selected.length === 1) {
             const obj = e.selected[0];
@@ -413,40 +308,31 @@ class ArrowTool extends ToolBase {
             }
         }
     }
-
+    
     onDeselect() {
         this.hideCurveControls();
     }
 
     showCurveControls(arrowGroup) {
         this.hideCurveControls();
-
         const data = arrowGroup.custom;
         if (!data || !data.control) return;
 
+        // Control point handle
         const cp = new fabric.Circle({
-            left: data.control.x,
-            top: data.control.y,
-            radius: 6,
-            fill: '#ffffff',
-            stroke: '#00a09d',
-            strokeWidth: 2,
-            originX: 'center',
-            originY: 'center',
-            hasControls: false,
-            hasBorders: false,
-            selectable: true,
-            evented: true,
+            left: data.control.x, top: data.control.y,
+            radius: 6, fill: '#ffffff', stroke: '#00a09d', strokeWidth: 2,
+            originX: 'center', originY: 'center',
+            hasControls: false, hasBorders: false, selectable: true, evented: true
         });
-
         cp.arrowRef = arrowGroup;
         cp.custom = { isControlPoint: true };
-
+        
         this.canvas.add(cp);
         this.currentControlPoint = cp;
         this.canvas.requestRenderAll();
     }
-
+    
     hideCurveControls() {
         if (this.currentControlPoint) {
             this.canvas.remove(this.currentControlPoint);
@@ -454,27 +340,46 @@ class ArrowTool extends ToolBase {
             this.canvas.requestRenderAll();
         }
     }
-
+    
     onObjectMove(e) {
         const obj = e.target;
         if (obj?.custom?.isControlPoint) {
+            // Dragging control point: update curve shape ONLY
             const arrowGroup = obj.arrowRef;
-            if (arrowGroup) this.updateArrowShape(arrowGroup, obj);
+            if (arrowGroup) {
+                // IMPORTANT: preserve original start/end, only update control
+                const data = arrowGroup.custom;
+                // No snapping for control point usually
+                const newControl = { x: obj.left, y: obj.top };
+                
+                // Re-create group with new control, same start/end
+                // We need to know the 'type' to use correct renderer
+                // But wait, the tool's currentType might have changed!
+                // We should rely on stored type in group.custom.type
+                // For now, let's assume tool active type matches or store it.
+                // Ah, we stored type in group.custom.type.
+                
+                // Temporarily set tool type to match the object being edited
+                const originalType = this.currentType;
+                this.currentType = data.type; 
+                
+                const newGroup = this.createArrowGroup(data.start, data.end, newControl);
+                this.currentType = originalType; // Restore
+                
+                this.canvas.remove(arrowGroup);
+                this.canvas.add(newGroup);
+                
+                // Keep selection on the new group? 
+                // Or just keep the control point active?
+                // The control point is what we are dragging, so that stays active.
+                // But we need to update the ref on the control point.
+                obj.arrowRef = newGroup;
+                
+                // Also ensure the new group is "behind" the control point if needed?
+                // Fabric usually puts new objects on top.
+                // But control point is active, so it should stay on top.
+                this.canvas.sendToBack(newGroup); // Or maintain z-index
+            }
         }
-    }
-
-    updateArrowShape(group, controlPointObj) {
-        const data = group.custom;
-        const newControl = { x: controlPointObj.left, y: controlPointObj.top };
-
-        const newGroup = this.createArrowGroup(data.start, data.end, newControl);
-
-        this.canvas.remove(group);
-        this.canvas.add(newGroup);
-
-        controlPointObj.arrowRef = newGroup;
-        newGroup.custom.control = newControl;
-
-        this.canvas.requestRenderAll();
     }
 }
