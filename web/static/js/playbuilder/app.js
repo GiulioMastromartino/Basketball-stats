@@ -9,8 +9,7 @@ class PlayBuilder {
         this.canvas = new fabric.Canvas(canvasId, {
             selection: false, 
             preserveObjectStacking: true,
-            enableRetinaScaling: false,  // Fix for high-DPI displays
-            renderOnAddRemove: false  // Manual rendering control
+            enableRetinaScaling: false  // Fix for high-DPI displays
         });
 
         // Registry for tools
@@ -325,122 +324,77 @@ class PlayBuilder {
     }
     
     /**
-     * Draw basketball court directly on canvas - simple and always works
+     * Draw basketball court directly on canvas
      */
     initCourtBackground() {
         console.log("Drawing court background...");
         
-        // Set white background
-        this.canvas.backgroundColor = '#ffffff';
-        
+        // Get the lower canvas context directly
+        const ctx = this.canvas.getContext('2d');
         const width = this.canvas.width;
         const height = this.canvas.height;
-        const strokeColor = '#333333';
-        const strokeWidth = 2;
+        
+        // Clear and set white background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        
+        // Draw court lines directly on lower canvas
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
         const margin = 20;
-        
-        // Helper to create non-selectable line
-        const createLine = (x1, y1, x2, y2) => {
-            return new fabric.Line([x1, y1, x2, y2], {
-                stroke: strokeColor,
-                strokeWidth: strokeWidth,
-                selectable: false,
-                evented: false,
-                hasControls: false,
-                hasBorders: false,
-                lockMovementX: true,
-                lockMovementY: true
-            });
-        };
-        
-        // Helper to create non-selectable rect
-        const createRect = (left, top, w, h) => {
-            return new fabric.Rect({
-                left: left,
-                top: top,
-                width: w,
-                height: h,
-                fill: 'transparent',
-                stroke: strokeColor,
-                strokeWidth: strokeWidth,
-                selectable: false,
-                evented: false,
-                hasControls: false,
-                hasBorders: false,
-                lockMovementX: true,
-                lockMovementY: true
-            });
-        };
-        
-        // Helper to create non-selectable circle
-        const createCircle = (left, top, radius) => {
-            return new fabric.Circle({
-                left: left,
-                top: top,
-                radius: radius,
-                fill: 'transparent',
-                stroke: strokeColor,
-                strokeWidth: strokeWidth,
-                selectable: false,
-                evented: false,
-                hasControls: false,
-                hasBorders: false,
-                lockMovementX: true,
-                lockMovementY: true
-            });
-        };
-        
         const midY = height / 2;
         
-        // Court lines array
-        const lines = [
-            createLine(margin, margin, width - margin, margin),
-            createLine(margin, height - margin, width - margin, height - margin),
-            createLine(margin, margin, margin, height - margin),
-            createRect(margin, midY - 80, 190, 160),
-            createCircle(margin + 190 - 60, midY - 60, 60),
-            createLine(50, midY - 30, 50, midY + 30),
-            createCircle(52, midY - 8, 8),
-            createLine(750, margin, 750, height - margin)
-        ];
+        ctx.beginPath();
+        // Top sideline
+        ctx.moveTo(margin, margin);
+        ctx.lineTo(width - margin, margin);
+        // Bottom sideline
+        ctx.moveTo(margin, height - margin);
+        ctx.lineTo(width - margin, height - margin);
+        // Left baseline
+        ctx.moveTo(margin, margin);
+        ctx.lineTo(margin, height - margin);
+        ctx.stroke();
         
-        // 3-point line
-        const threePtPath = new fabric.Path('M 20 60 L 160 60 Q 380 250 160 440 L 20 440', {
-            fill: 'transparent',
-            stroke: strokeColor,
-            strokeWidth: strokeWidth,
-            selectable: false,
-            evented: false,
-            hasControls: false,
-            hasBorders: false,
-            lockMovementX: true,
-            lockMovementY: true
-        });
-        lines.push(threePtPath);
+        // Key rectangle
+        ctx.strokeRect(margin, midY - 80, 190, 160);
         
-        // Mid court circle
-        const midCourtCircle = new fabric.Path('M 750 190 A 60 60 0 0 0 750 310', {
-            fill: 'transparent',
-            stroke: strokeColor,
-            strokeWidth: strokeWidth,
-            selectable: false,
-            evented: false,
-            hasControls: false,
-            hasBorders: false,
-            lockMovementX: true,
-            lockMovementY: true
-        });
-        lines.push(midCourtCircle);
+        // Free throw circle
+        ctx.beginPath();
+        ctx.arc(margin + 190, midY, 60, 0, 2 * Math.PI);
+        ctx.stroke();
         
-        // Add all lines at once without triggering events
-        lines.forEach(line => {
-            this.canvas.add(line);
-            this.canvas.sendToBack(line);
-        });
+        // Backboard
+        ctx.beginPath();
+        ctx.moveTo(50, midY - 30);
+        ctx.lineTo(50, midY + 30);
+        ctx.stroke();
         
-        // Render once after all objects added
-        this.canvas.requestRenderAll();
-        console.log("Court background drawn with", lines.length, "elements");
+        // Hoop
+        ctx.beginPath();
+        ctx.arc(60, midY, 8, 0, 2 * Math.PI);
+        ctx.stroke();
+        
+        // Mid court line
+        ctx.beginPath();
+        ctx.moveTo(750, margin);
+        ctx.lineTo(750, height - margin);
+        ctx.stroke();
+        
+        // 3-point line (simplified)
+        ctx.beginPath();
+        ctx.moveTo(20, 60);
+        ctx.lineTo(160, 60);
+        ctx.quadraticCurveTo(380, midY, 160, 440);
+        ctx.lineTo(20, 440);
+        ctx.stroke();
+        
+        // Mid court circle (half)
+        ctx.beginPath();
+        ctx.arc(750, midY, 60, -Math.PI/2, Math.PI/2);
+        ctx.stroke();
+        
+        console.log("Court background drawn directly on canvas context");
     }
 }
 
