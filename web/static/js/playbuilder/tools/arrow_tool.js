@@ -202,6 +202,10 @@ class ArrowTool extends ToolBase {
         this.startPoint = null;
         
         this.canvas.renderAll();
-        // Removed manual fire('object:added') to prevent double history entry
+        
+        // Auto-switch to Select tool
+        if (window.app) {
+            window.app.selectTool('select');
+        }
     }
 }
