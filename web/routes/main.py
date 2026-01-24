@@ -39,7 +39,7 @@ from core.utils import (
 main_bp = Blueprint("main", __name__)
 
 VALID_GAME_TYPES = {"ALL", "Season", "Friendly", "Playoff"}
-ALLOWED_EXTENSIONS = {"csv", "pdf"}
+ALLOWED_EXTENSIONS = {"csv", "pdf", "json"}
 
 
 def allowed_file(filename):
@@ -183,10 +183,10 @@ def save_live_game():
 @main_bp.route("/upload-game", methods=["GET", "POST"])
 @login_required
 def upload_game():
-    """Upload a CSV or PDF file to add a game"""
+    """Upload a CSV, PDF, or JSON file to add a game"""
     if request.method == "POST":
         import_type = request.form.get("import_type", "csv").lower().strip()
-        if import_type not in {"csv", "pdf"}:
+        if import_type not in {"csv", "pdf", "json"}:
             import_type = "csv"
 
         upload_folder = current_app.config["UPLOAD_FOLDER"]
@@ -195,6 +195,7 @@ def upload_game():
         filepath = None
 
         try:
+            # --- CSV Import ---
             if import_type == "csv":
                 if "csv_file" not in request.files:
                     flash("No CSV file uploaded", "danger")
@@ -279,118 +280,198 @@ def upload_game():
                 return redirect(url_for("main.game_detail", game_id=game.id))
 
             # --- PDF import ---
-            if "pdf_file" not in request.files:
-                flash("No PDF file uploaded", "danger")
-                return redirect(request.url)
+            elif import_type == "pdf":
+                if "pdf_file" not in request.files:
+                    flash("No PDF file uploaded", "danger")
+                    return redirect(request.url)
 
-            file = request.files["pdf_file"]
-            if file.filename == "":
-                flash("No file selected", "danger")
-                return redirect(request.url)
+                file = request.files["pdf_file"]
+                if file.filename == "":
+                    flash("No file selected", "danger")
+                    return redirect(request.url)
 
-            if not allowed_file(file.filename) or not file.filename.lower().endswith(".pdf"):
-                flash("Only PDF files are allowed for PDF import", "danger")
-                return redirect(request.url)
+                if not allowed_file(file.filename) or not file.filename.lower().endswith(".pdf"):
+                    flash("Only PDF files are allowed for PDF import", "danger")
+                    return redirect(request.url)
 
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(upload_folder, filename)
-            file.save(filepath)
+                filename = secure_filename(file.filename)
+                filepath = os.path.join(upload_folder, filename)
+                file.save(filepath)
 
-            parsed = parse_game_pdf(filepath)
+                parsed = parse_game_pdf(filepath)
 
-            # Overrides (optional)
-            override_opponent = (request.form.get("pdf_opponent") or "").strip()
-            override_date = (request.form.get("pdf_date") or "").strip()
-            override_team_score = (request.form.get("pdf_team_score") or "").strip()
-            override_opponent_score = (request.form.get("pdf_opponent_score") or "").strip()
-            override_game_type = (request.form.get("pdf_game_type") or "").strip()
+                # Overrides (optional)
+                override_opponent = (request.form.get("pdf_opponent") or "").strip()
+                override_date = (request.form.get("pdf_date") or "").strip()
+                override_team_score = (request.form.get("pdf_team_score") or "").strip()
+                override_opponent_score = (request.form.get("pdf_opponent_score") or "").strip()
+                override_game_type = (request.form.get("pdf_game_type") or "").strip()
 
-            opponent = override_opponent or parsed.get("opponent") or "Unknown"
+                opponent = override_opponent or parsed.get("opponent") or "Unknown"
 
-            date_display = normalize_date_to_display(override_date) if override_date else (parsed.get("date") or "")
-            if override_date and not date_display:
-                flash("Invalid date format. Use DD-MM-YYYY or DD/MM/YYYY.", "danger")
-                return redirect(request.url)
+                date_display = normalize_date_to_display(override_date) if override_date else (parsed.get("date") or "")
+                if override_date and not date_display:
+                    flash("Invalid date format. Use DD-MM-YYYY or DD/MM/YYYY.", "danger")
+                    return redirect(request.url)
 
-            sort_date = normalize_date_to_sort(override_date) if override_date else (parsed.get("sort_date") or "")
+                sort_date = normalize_date_to_sort(override_date) if override_date else (parsed.get("sort_date") or "")
 
-            # Scores
-            team_score = parsed.get("team_score") or 0
-            opp_score = parsed.get("opponent_score") or 0
-            if override_team_score:
-                team_score = int(override_team_score)
-            if override_opponent_score:
-                opp_score = int(override_opponent_score)
+                # Scores
+                team_score = parsed.get("team_score") or 0
+                opp_score = parsed.get("opponent_score") or 0
+                if override_team_score:
+                    team_score = int(override_team_score)
+                if override_opponent_score:
+                    opp_score = int(override_opponent_score)
 
-            if not date_display or not sort_date:
-                flash("Could not determine game date from PDF. Please fill the Date override.", "danger")
-                return redirect(request.url)
+                if not date_display or not sort_date:
+                    flash("Could not determine game date from PDF. Please fill the Date override.", "danger")
+                    return redirect(request.url)
 
-            if team_score == opp_score:
-                flash("Team score and opponent score cannot be equal. Please verify overrides.", "danger")
-                return redirect(request.url)
+                if team_score == opp_score:
+                    flash("Team score and opponent score cannot be equal. Please verify overrides.", "danger")
+                    return redirect(request.url)
 
-            result = "W" if team_score > opp_score else "L"
+                result = "W" if team_score > opp_score else "L"
 
-            game_type = override_game_type if override_game_type in {"Season", "Friendly", "Playoff"} else (parsed.get("game_type") or "Season")
+                game_type = override_game_type if override_game_type in {"Season", "Friendly", "Playoff"} else (parsed.get("game_type") or "Season")
 
-            # Duplicate check
-            existing = Game.query.filter_by(sort_date=sort_date, opponent=opponent).first()
-            if existing:
-                flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
-                return redirect(url_for("main.index"))
+                # Duplicate check
+                existing = Game.query.filter_by(sort_date=sort_date, opponent=opponent).first()
+                if existing:
+                    flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
+                    return redirect(url_for("main.index"))
 
-            players = parsed.get("players") or []
-            if not players:
-                flash("No player rows detected in the PDF. Please check PDF format.", "danger")
-                return redirect(request.url)
+                players = parsed.get("players") or []
+                if not players:
+                    flash("No player rows detected in the PDF. Please check PDF format.", "danger")
+                    return redirect(request.url)
 
-            game = Game(
-                date=date_display,
-                opponent=opponent,
-                team_score=team_score,
-                opponent_score=opp_score,
-                result=result,
-                game_type=game_type,
-                sort_date=sort_date,
-                source="IMPORT",
-            )
-            db.session.add(game)
-            db.session.flush()
-
-            for player in players:
-                if not player.get("name"):
-                    continue
-
-                stat = PlayerStat(
-                    game_id=game.id,
-                    player_name=player.get("name", "").strip(),
-                    minutes=player.get("minutes", "0"),
-                    points=int(player.get("points", 0) or 0),
-                    fgm=int(player.get("fgm", 0) or 0),
-                    fga=int(player.get("fga", 0) or 0),
-                    fg_percent=float(player.get("fg_percent", 0) or 0),
-                    tpm=int(player.get("tpm", 0) or 0),
-                    tpa=int(player.get("tpa", 0) or 0),
-                    tp_percent=float(player.get("tp_percent", 0) or 0),
-                    ftm=int(player.get("ftm", 0) or 0),
-                    fta=int(player.get("fta", 0) or 0),
-                    ft_percent=float(player.get("ft_percent", 0) or 0),
-                    oreb=int(player.get("oreb", 0) or 0),
-                    dreb=int(player.get("dreb", 0) or 0),
-                    reb=int(player.get("reb", 0) or 0),
-                    ast=int(player.get("ast", 0) or 0),
-                    tov=int(player.get("tov", 0) or 0),
-                    stl=int(player.get("stl", 0) or 0),
-                    blk=int(player.get("blk", 0) or 0),
-                    pf=int(player.get("pf", 0) or 0),
-                    plus_minus=int(player.get("plus_minus", 0) or 0),
+                game = Game(
+                    date=date_display,
+                    opponent=opponent,
+                    team_score=team_score,
+                    opponent_score=opp_score,
+                    result=result,
+                    game_type=game_type,
+                    sort_date=sort_date,
+                    source="IMPORT",
                 )
-                db.session.add(stat)
+                db.session.add(game)
+                db.session.flush()
 
-            db.session.commit()
-            flash(f"Successfully imported game (PDF): {game.opponent} ({game.result})", "success")
-            return redirect(url_for("main.game_detail", game_id=game.id))
+                for player in players:
+                    if not player.get("name"):
+                        continue
+
+                    stat = PlayerStat(
+                        game_id=game.id,
+                        player_name=player.get("name", "").strip(),
+                        minutes=player.get("minutes", "0"),
+                        points=int(player.get("points", 0) or 0),
+                        fgm=int(player.get("fgm", 0) or 0),
+                        fga=int(player.get("fga", 0) or 0),
+                        fg_percent=float(player.get("fg_percent", 0) or 0),
+                        tpm=int(player.get("tpm", 0) or 0),
+                        tpa=int(player.get("tpa", 0) or 0),
+                        tp_percent=float(player.get("tp_percent", 0) or 0),
+                        ftm=int(player.get("ftm", 0) or 0),
+                        fta=int(player.get("fta", 0) or 0),
+                        ft_percent=float(player.get("ft_percent", 0) or 0),
+                        oreb=int(player.get("oreb", 0) or 0),
+                        dreb=int(player.get("dreb", 0) or 0),
+                        reb=int(player.get("reb", 0) or 0),
+                        ast=int(player.get("ast", 0) or 0),
+                        tov=int(player.get("tov", 0) or 0),
+                        stl=int(player.get("stl", 0) or 0),
+                        blk=int(player.get("blk", 0) or 0),
+                        pf=int(player.get("pf", 0) or 0),
+                        plus_minus=int(player.get("plus_minus", 0) or 0),
+                    )
+                    db.session.add(stat)
+
+                db.session.commit()
+                flash(f"Successfully imported game (PDF): {game.opponent} ({game.result})", "success")
+                return redirect(url_for("main.game_detail", game_id=game.id))
+
+            # --- JSON Import ---
+            elif import_type == "json":
+                if "json_file" not in request.files:
+                    flash("No JSON file uploaded", "danger")
+                    return redirect(request.url)
+
+                file = request.files["json_file"]
+                if file.filename == "":
+                    flash("No file selected", "danger")
+                    return redirect(request.url)
+
+                if not allowed_file(file.filename) or not file.filename.lower().endswith(".json"):
+                    flash("Only JSON files are allowed for JSON import", "danger")
+                    return redirect(request.url)
+
+                filename = secure_filename(file.filename)
+                
+                # Load JSON
+                try:
+                    data = json.load(file)
+                except json.JSONDecodeError:
+                    flash("Invalid JSON file format.", "danger")
+                    return redirect(request.url)
+
+                # Validate structure
+                game_data = data.get("game")
+                if not game_data:
+                    flash("JSON file is missing required 'game' data.", "danger")
+                    return redirect(request.url)
+
+                # Duplicate check
+                existing = Game.query.filter_by(sort_date=game_data.get("sort_date"), opponent=game_data.get("opponent")).first()
+                if existing:
+                    flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
+                    return redirect(url_for("main.index"))
+
+                # Create Game
+                game = Game(
+                    date=game_data.get("date"),
+                    opponent=game_data.get("opponent"),
+                    team_score=game_data.get("team_score", 0),
+                    opponent_score=game_data.get("opponent_score", 0),
+                    result=game_data.get("result", "W"),
+                    game_type=game_data.get("game_type", "Season"),
+                    sort_date=game_data.get("sort_date"),
+                    source="IMPORT_JSON",
+                )
+                db.session.add(game)
+                db.session.flush()
+
+                # Process PlayerStat
+                for p_data in data.get("player_stats", []):
+                    # Filter valid fields for PlayerStat model
+                    valid_keys = {c.name for c in PlayerStat.__table__.columns if c.name not in ('id', 'game_id')}
+                    stat_kwargs = {k: v for k, v in p_data.items() if k in valid_keys}
+                    
+                    stat = PlayerStat(game_id=game.id, **stat_kwargs)
+                    db.session.add(stat)
+
+                # Process ShotEvent
+                for s_data in data.get("shot_events", []):
+                    valid_keys = {c.name for c in ShotEvent.__table__.columns if c.name not in ('id', 'game_id', 'play_id')}
+                    shot_kwargs = {k: v for k, v in s_data.items() if k in valid_keys}
+                    
+                    shot = ShotEvent(game_id=game.id, play_id=None, **shot_kwargs)
+                    db.session.add(shot)
+
+                # Process GameEvent (if present)
+                for e_data in data.get("game_events", []):
+                    valid_keys = {c.name for c in GameEvent.__table__.columns if c.name not in ('id', 'game_id', 'play_id')}
+                    event_kwargs = {k: v for k, v in e_data.items() if k in valid_keys}
+                    
+                    event = GameEvent(game_id=game.id, play_id=None, **event_kwargs)
+                    db.session.add(event)
+
+                db.session.commit()
+                flash(f"Successfully imported game (JSON): {game.opponent} ({game.result})", "success")
+                return redirect(url_for("main.game_detail", game_id=game.id))
 
         except Exception as e:
             db.session.rollback()
