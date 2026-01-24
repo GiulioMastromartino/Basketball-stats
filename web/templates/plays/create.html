@@ -1,0 +1,122 @@
+{% extends "layout.html" %}
+
+{% block title %}Play Builder - HoopsStats{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-12 d-flex justify-content-between align-items-center">
+            <h3>{% if play %}Edit Play: {{ play.name }}{% else %}New Play{% endif %}</h3>
+            <div>
+                <button id="save-btn" class="btn btn-success"><i class="fas fa-save"></i> Save Play</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Sidebar: Tools & Properties -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <i class="fas fa-tools"></i> Tools
+                </div>
+                <div class="card-body">
+                    <div class="btn-group-vertical w-100" role="group" aria-label="Tools">
+                        <button type="button" class="btn btn-outline-secondary active" id="tool-select" onclick="app.selectTool('select')">
+                            <i class="fas fa-mouse-pointer"></i> Select
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="tool-player" onclick="app.selectTool('player')">
+                            <i class="fas fa-user-circle"></i> Player Token
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="tool-arrow" onclick="app.selectTool('arrow')">
+                            <i class="fas fa-long-arrow-alt-right"></i> Arrow
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="tool-text" onclick="app.selectTool('text')">
+                            <i class="fas fa-font"></i> Text Note
+                        </button>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="btn-group w-100 mb-3">
+                        <button class="btn btn-secondary" onclick="app.undo()"><i class="fas fa-undo"></i> Undo</button>
+                        <button class="btn btn-secondary" onclick="app.redo()"><i class="fas fa-redo"></i> Redo</button>
+                    </div>
+
+                    <button class="btn btn-outline-danger w-100" onclick="app.clearCanvas()">
+                        <i class="fas fa-trash"></i> Clear Canvas
+                    </button>
+                </div>
+            </div>
+
+            <!-- Metadata Form -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <i class="fas fa-info-circle"></i> Play Details
+                </div>
+                <div class="card-body">
+                    <form id="play-metadata-form">
+                        <input type="hidden" id="play-id" value="{{ play.id if play else '' }}">
+                        <div class="form-group">
+                            <label>Play Name</label>
+                            <input type="text" class="form-control" id="meta-name" value="{{ play.name if play else '' }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select class="form-control" id="meta-type">
+                                <option value="Offense" {% if play and play.play_type == 'Offense' %}selected{% endif %}>Offense</option>
+                                <option value="Defense" {% if play and play.play_type == 'Defense' %}selected{% endif %}>Defense</option>
+                                <option value="Special" {% if play and play.play_type == 'Special' %}selected{% endif %}>Special</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Tags</label>
+                            <input type="text" class="form-control" id="meta-tags" placeholder="Pick & Roll, Baseline..." value="{{ play.tags if play else '' }}">
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+             <!-- Layers Panel -->
+            <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                   <span><i class="fas fa-layer-group"></i> Layers</span>
+                   <button class="btn btn-sm btn-link" onclick="app.refreshLayers()"><i class="fas fa-sync"></i></button>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush" id="layers-list" style="max-height: 200px; overflow-y: auto;">
+                        <!-- Layer items injected by JS -->
+                        <li class="list-group-item text-muted text-center">No objects</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Workspace -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-body bg-light text-center p-0" style="overflow: hidden;">
+                    <!-- Canvas container -->
+                    <canvas id="playCanvas" width="800" height="600" style="border:1px solid #ccc; background: #fff;"></canvas>
+                </div>
+            </div>
+            <div class="mt-2 text-muted small text-right">
+                Canvas Size: 800x600 px | <span id="status-bar">Ready</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fabric.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+
+<!-- App Scripts -->
+<script>
+    // Global App Namespace
+    window.PlayBuilderConfig = {
+        playId: "{{ play.id if play else '' }}",
+        apiBase: "/api/v1"
+    };
+</script>
+<script src="{{ url_for('static', filename='js/playbuilder/app.js') }}"></script>
+{% endblock %}
