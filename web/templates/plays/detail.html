@@ -1,0 +1,123 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ play.name }} - HoopsStats{% endblock %}
+
+{% block content %}
+<div class="container pb-5">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">{{ play.name }}</h2>
+            <div class="text-muted">
+                <span class="badge badge-primary mr-2">{{ play.play_type }}</span>
+                {% if play.difficulty %}
+                <span class="badge badge-info mr-2">{{ play.difficulty }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <a href="{{ url_for('plays.edit_play_builder', play_id=play.id) }}" class="btn btn-outline-primary mr-2">
+                <i class="fas fa-edit"></i> Edit
+            </a>
+            <a href="{{ url_for('plays.list_plays') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Left Column: Diagram & Details -->
+        <div class="col-lg-8">
+            <!-- Main Diagram -->
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-white font-weight-bold border-bottom">
+                    <i class="fas fa-basketball-ball text-warning mr-2"></i> Play Diagram
+                </div>
+                <div class="card-body text-center bg-light p-4">
+                    {% if play.diagram_svg %}
+                        <div class="img-fluid bg-white p-2 rounded border" style="max-height: 500px; display: inline-block;">
+                            {{ play.diagram_svg|safe }}
+                        </div>
+                    {% else %}
+                        <div class="py-5 text-muted">
+                            <i class="fas fa-image fa-3x mb-3 text-gray-300"></i>
+                            <p>No diagram available</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Description / Notes -->
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-white font-weight-bold border-bottom">
+                    <i class="fas fa-align-left text-primary mr-2"></i> Notes & Description
+                </div>
+                <div class="card-body">
+                    {% if play.description %}
+                        <div style="white-space: pre-wrap;">{{ play.description }}</div>
+                    {% else %}
+                        <p class="text-muted font-italic mb-0">No description provided.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Phases & Info -->
+        <div class="col-lg-4">
+            <!-- Info Card -->
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-white font-weight-bold border-bottom">
+                    Play Info
+                </div>
+                <div class="list-group list-group-flush">
+                    {% if play.personnel_required %}
+                    <div class="list-group-item">
+                        <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.75rem;">Personnel</small>
+                        {{ play.personnel_required }}
+                    </div>
+                    {% endif %}
+                    {% if play.tags %}
+                    <div class="list-group-item">
+                        <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.75rem;">Tags</small>
+                        <i class="fas fa-tags text-muted mr-1"></i> {{ play.tags }}
+                    </div>
+                    {% endif %}
+                    <div class="list-group-item">
+                        <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.75rem;">Last Updated</small>
+                        {{ play.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phases / Sequences -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-white font-weight-bold border-bottom d-flex align-items-center">
+                    <i class="fas fa-list-ol text-success mr-2"></i> Phases
+                    <span class="badge badge-light ml-auto">{{ play.sequences|length }}</span>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% if play.sequences %}
+                        {% for seq in play.sequences %}
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between mb-1">
+                                <h6 class="mb-0 font-weight-bold text-primary">Phase {{ seq.sequence_number }}</h6>
+                            </div>
+                            {% if seq.caption %}
+                            <p class="mb-0 text-muted small">{{ seq.caption }}</p>
+                            {% else %}
+                            <p class="mb-0 text-muted font-italic small">No description</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="list-group-item text-muted text-center py-4">
+                            <i class="fas fa-layer-group mb-2 d-block"></i>
+                            No phases defined
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
