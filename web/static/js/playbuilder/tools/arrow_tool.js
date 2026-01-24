@@ -71,20 +71,50 @@ class ArrowTool extends ToolBase {
             this.currentType = type;
         }
     }
+    
+    // Helper: Find closest snap target (player tokens)
+    getSnapPoint(pointer) {
+        const snapDist = 40; // Snap threshold radius
+        let closestPoint = { x: pointer.x, y: pointer.y };
+        let minDist = snapDist;
+        let foundTarget = null;
+        
+        this.canvas.getObjects().forEach(obj => {
+            if (obj.custom && obj.custom.kind === 'player-token' && obj.visible) {
+                const center = obj.getCenterPoint();
+                const dist = Math.sqrt(Math.pow(center.x - pointer.x, 2) + Math.pow(center.y - pointer.y, 2));
+                
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestPoint = { x: center.x, y: center.y };
+                    foundTarget = obj;
+                }
+            }
+        });
+        
+        return { point: closestPoint, target: foundTarget };
+    }
 
     onMouseDown(opt) {
         this.isDrawing = true;
         const pointer = this.canvas.getPointer(opt.e);
-        this.startPoint = { x: pointer.x, y: pointer.y };
         
-        // Initialize drawing
-        this.updateVisuals(pointer);
+        // Snap start point
+        const snap = this.getSnapPoint(pointer);
+        this.startPoint = snap.point;
+        
+        // Initialize drawing with snapped point
+        this.updateVisuals(this.startPoint);
     }
 
     onMouseMove(opt) {
         if (!this.isDrawing) return;
         const pointer = this.canvas.getPointer(opt.e);
-        this.updateVisuals(pointer);
+        
+        // Snap end point
+        const snap = this.getSnapPoint(pointer);
+        
+        this.updateVisuals(snap.point);
     }
 
     onMouseUp(opt) {
@@ -198,7 +228,7 @@ class ArrowTool extends ToolBase {
                 fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', fill: config.stroke,
                 left: endPoint.x, top: endPoint.y,
                 originX: 'center', originY: 'center',
-                angle: angle, // Rotate with line? Usually text stays upright, but for 'action' symbols rotation is often better.
+                angle: angle,
                 selectable: false
              });
              this.canvas.add(this.arrowHead);
@@ -215,9 +245,7 @@ class ArrowTool extends ToolBase {
         
         // Wave params
         const amplitude = 5;
-        const frequency = 0.2; // 1 wave per ~30px? 
-        // Or fixed wave count based on distance?
-        // Let's iterate points
+        // let frequency = 0.2; 
         
         let pathData = `M ${start.x} ${start.y}`;
         
@@ -229,13 +257,7 @@ class ArrowTool extends ToolBase {
             const cx = start.x + dx * t;
             const cy = start.y + dy * t;
             
-            // Sine wave offset
-            // We need perpendicular vector: (-dy, dx) normalized
-            // offset = sin(t * freq * PI * 2) * amp
-            // Freq needs to scale so we have complete waves. 
-            // Let's say we want a wave every 20px.
-            
-            const wavePhase = (dist * t) / 10; // Adjust for density
+            const wavePhase = (dist * t) / 10; 
             const offset = Math.sin(wavePhase) * amplitude;
             
             const perpX = -Math.sin(angle) * offset;
