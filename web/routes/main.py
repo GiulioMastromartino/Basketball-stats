@@ -1,13 +1,15 @@
 import os
+import json
 import statistics
+from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify, make_response
 from flask_login import login_required
 from sqlalchemy import case, func
 
-from core.models import Game, PlayerStat, ShotEvent, db, Play
+from core.models import Game, PlayerStat, ShotEvent, GameEvent, db, Play
 from core.csv_processor import CSVProcessor
 from core.parser import parse_game_pdf
 from core.services import create_game_from_live_data  # This now imports from core/services/__init__.py
@@ -404,6 +406,62 @@ def upload_game():
                     pass
 
     return render_template("upload_game.html")
+
+
+def serialize_model_instance(instance):
+    """Serialize a single SQLAlchemy model instance to a dict of column values."""
+    if not instance:
+        return None
+    data = {}
+    for column in instance.__table__.columns:
+        data[column.name] = getattr(instance, column.name)
+    return data
+
+
+@main_bp.route("/game/<int:game_id>/export-raw")
+@login_required
+def export_game_raw(game_id):
+    """Export raw DB data for a specific game as JSON"""
+    game = Game.query.get_or_404(game_id)
+    
+    # Collect data from DB only
+    stats = PlayerStat.query.filter_by(game_id=game.id).all()
+    shot_events = ShotEvent.query.filter_by(game_id=game.id).all()
+    
+    # Try importing GameEvent if available (future proofing)
+    game_events = []
+    try:
+        # We need to query this if the table exists and is populated
+        game_events_rows = GameEvent.query.filter_by(game_id=game.id).order_by(GameEvent.timestamp).all()
+        game_events = [serialize_model_instance(ev) for ev in game_events_rows]
+    except Exception:
+        # Table might be empty or query failing, just skip
+        game_events = []
+
+    # Build payload
+    payload = {
+        "schema_version": "1.0",
+        "exported_at": datetime.utcnow().isoformat(),
+        "source": {
+            "app": "HoopsStats",
+            "branch": "Dev"
+        },
+        "game": serialize_model_instance(game),
+        "player_stats": [serialize_model_instance(s) for s in stats],
+        "shot_events": [serialize_model_instance(se) for se in shot_events],
+        "game_events": game_events
+    }
+
+    # Format filename
+    safe_opponent = secure_filename(game.opponent)
+    filename = f"game_raw_{game.sort_date}_{safe_opponent}.json"
+
+    # Create response
+    response = make_response(jsonify(payload))
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    response.headers["Content-Type"] = "application/json"
+    
+    return response
 
 
 @main_bp.route("/game/<int:game_id>")
