@@ -8,27 +8,14 @@ builder_api_bp = Blueprint("builder_api", __name__)
 @login_required
 def save_canvas():
     """
-    Save the play metadata, canvas JSON, and animation frames.
+    Save the play metadata, canvas JSON, SVG preview, and animation frames.
     Expected JSON payload:
     {
         "play_id": <int> (optional, if update),
-        "metadata": {
-            "name": <str>,
-            "description": <str>,
-            "play_type": <str>,
-            "difficulty": <str>,
-            "personnel": <str>,
-            "tags": <str>
-        },
-        "canvas_json": <dict> (FabricJS JSON object),
-        "frames": [
-            {
-                "id": <int>,
-                "data": <dict>,
-                "caption": <str>
-            },
-            ...
-        ]
+        "metadata": { ... },
+        "canvas_json": <dict>,
+        "diagram_svg": <str>,
+        "frames": [ ... ]
     }
     """
     payload = request.get_json()
@@ -69,6 +56,10 @@ def save_canvas():
     play.personnel_required = metadata.get("personnel")
     play.tags = metadata.get("tags")
     play.canvas_data = payload.get("canvas_json")
+    
+    # Save SVG preview if provided
+    if "diagram_svg" in payload:
+        play.diagram_svg = payload["diagram_svg"]
     
     # Commit play first to get ID for sequences
     try:
