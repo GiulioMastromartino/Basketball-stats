@@ -100,6 +100,12 @@ class PlaySequence(db.Model):
     caption = db.Column(db.String(255), nullable=True)
 
 
+class PlayType(db.Model):
+    __tablename__ = "play_types"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+
+
 class ShotEvent(db.Model):
     __tablename__ = "shot_events"
     id = db.Column(db.Integer, primary_key=True)
