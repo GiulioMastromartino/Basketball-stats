@@ -183,7 +183,7 @@
             {% if shot_events %}
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="shots-tab" data-bs-toggle="pill" data-bs-target="#shots" type="button" role="tab">
-                    <i class="fas fa-crosshairs me-2"></i>Shot Chart
+                    <i class="fas fa-crosshairs me-2"></i>Shot Stats
                 </button>
             </li>
             {% endif %}
@@ -191,8 +191,16 @@
 
         <!-- Action Buttons -->
         <div class="d-flex gap-2">
-            <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-dark shadow-sm">
-                <i class="fas fa-download me-2"></i>Download Report
+            <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-primary shadow-sm">
+                <i class="fas fa-file-alt me-2"></i>Summary Report
+            </a>
+            
+            <a href="{{ url_for('reports.advanced_game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-success shadow-sm">
+                <i class="fas fa-chart-bar me-2"></i>Advanced Report
+            </a>
+
+            <a href="{{ url_for('main.export_game_raw', game_id=game.id) }}" class="btn btn-outline-secondary shadow-sm">
+                <i class="fas fa-database me-2"></i>Export Raw Data
             </a>
 
             <a href="{{ url_for('main.export_game_raw', game_id=game.id) }}" class="btn btn-outline-secondary shadow-sm">
@@ -649,11 +657,11 @@
         </div>
         {% endif %}
 
-        <!-- Tab 5: Shot Chart -->
+        <!-- Tab 5: Shot Stats -->
         {% if shot_events %}
         <div class="tab-pane fade" id="shots" role="tabpanel">
             <div class="text-center py-3">
-                <h6 class="text-uppercase text-muted fw-bold mb-3">Field Goal Locations</h6>
+                <h6 class="text-uppercase text-muted fw-bold mb-3">Shot Stats</h6>
 
                 <div class="shot-chart-wrapper">
                     <!-- Half Court SVG Background -->
@@ -685,6 +693,97 @@
                 <div class="mt-3">
                     <span class="badge bg-success me-2">● Made</span>
                     <span class="badge bg-danger">● Missed</span>
+                </div>
+            </div>
+
+            <div class="table-container mt-4">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Type</th>
+                                <th class="text-center">Made</th>
+                                <th class="text-center">Att</th>
+                                <th class="text-center">%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="ps-4 fw-bold">FG</td>
+                                <td class="text-center">{{ shot_summary.fgm }}</td>
+                                <td class="text-center">{{ shot_summary.fga }}</td>
+                                <td class="text-center">{{ "%.1f"|format(shot_summary.fg_pct) }}%</td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4 fw-bold">2PT</td>
+                                <td class="text-center">{{ shot_summary.two_pt_made }}</td>
+                                <td class="text-center">{{ shot_summary.two_pt_att }}</td>
+                                <td class="text-center">{{ "%.1f"|format(shot_summary.two_pt_pct) }}%</td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4 fw-bold">3PT</td>
+                                <td class="text-center">{{ shot_summary.tpm }}</td>
+                                <td class="text-center">{{ shot_summary.tpa }}</td>
+                                <td class="text-center">{{ "%.1f"|format(shot_summary.tp_pct) }}%</td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4 fw-bold">FT</td>
+                                <td class="text-center">{{ shot_summary.ftm }}</td>
+                                <td class="text-center">{{ shot_summary.fta }}</td>
+                                <td class="text-center">{{ "%.1f"|format(shot_summary.ft_pct) }}%</td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4 fw-bold">eFG%</td>
+                                <td class="text-center" colspan="3">{{ "%.1f"|format(shot_summary.efg_pct) }}%</td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4 fw-bold">TS%</td>
+                                <td class="text-center" colspan="3">{{ "%.1f"|format(shot_summary.ts_pct) }}%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="table-container mt-4">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Player</th>
+                                <th class="text-center">FG</th>
+                                <th class="text-center">FG%</th>
+                                <th class="text-center">2PT</th>
+                                <th class="text-center">2PT%</th>
+                                <th class="text-center">3PT</th>
+                                <th class="text-center">3PT%</th>
+                                <th class="text-center">FT</th>
+                                <th class="text-center">FT%</th>
+                                <th class="text-center">eFG%</th>
+                                <th class="text-center">TS%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in stats %}
+                            {% set fg_pct = (p.fgm / p.fga * 100) if p.fga > 0 else 0 %}
+                            {% set tp_pct = (p.tpm / p.tpa * 100) if p.tpa > 0 else 0 %}
+                            {% set ft_pct = (p.ftm / p.fta * 100) if p.fta > 0 else 0 %}
+                            <tr>
+                                <td class="ps-4 fw-bold">{{ p.player_name }}</td>
+                                <td class="text-center">{{ p.fgm }}-{{ p.fga }}</td>
+                                <td class="text-center">{{ "%.1f"|format(fg_pct) }}%</td>
+                                <td class="text-center">{{ p.two_pt_made }}-{{ p.two_pt_att }}</td>
+                                <td class="text-center">{{ "%.1f"|format(p.two_pt_pct) }}%</td>
+                                <td class="text-center">{{ p.tpm }}-{{ p.tpa }}</td>
+                                <td class="text-center">{{ "%.1f"|format(tp_pct) }}%</td>
+                                <td class="text-center">{{ p.ftm }}-{{ p.fta }}</td>
+                                <td class="text-center">{{ "%.1f"|format(ft_pct) }}%</td>
+                                <td class="text-center">{{ "%.1f"|format(p.efg_pct) }}%</td>
+                                <td class="text-center">{{ "%.1f"|format(p.ts_pct) }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

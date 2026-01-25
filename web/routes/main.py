@@ -942,7 +942,7 @@ def players():
     if game_type == "Season":
         game_query = game_query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
-        game_query = game_query.filter(Game.game_type == "Friendly")
+        game_query = game_query.filter(Game.game_type == "game_type".replace('game_type','Friendly'))
     elif game_type == "Playoff":
         game_query = game_query.filter(Game.game_type == "Playoff")
 

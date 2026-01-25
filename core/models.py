@@ -70,6 +70,42 @@ class PlayerStat(db.Model):
     game = db.relationship("Game", backref=db.backref("stats", lazy=True))
 
 
+class Play(db.Model):
+    __tablename__ = "plays"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    play_type = db.Column(db.String(50), default="Offense")  # Offense, Defense, Special
+    image_filename = db.Column(db.String(255), nullable=True) # Stored in uploads/plays/
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Phase 1 fields for Builder
+    canvas_data = db.Column(db.JSON, nullable=True)     # Fabric.js JSON (Source of Truth)
+    diagram_svg = db.Column(db.Text, nullable=True)     # Server-rendered SVG
+    difficulty = db.Column(db.String(20), server_default="Medium", nullable=False)
+    personnel_required = db.Column(db.Text, nullable=True)
+    tags = db.Column(db.Text, nullable=True)
+
+    # Relationship to sequences
+    sequences = db.relationship("PlaySequence", backref="play", cascade="all, delete-orphan", lazy=True)
+
+
+class PlaySequence(db.Model):
+    __tablename__ = "play_sequences"
+    id = db.Column(db.Integer, primary_key=True)
+    play_id = db.Column(db.Integer, db.ForeignKey("plays.id"), nullable=False)
+    sequence_number = db.Column(db.Integer, nullable=False)
+    element_data = db.Column(db.JSON, nullable=True)  # Full snapshot for animation frame
+    caption = db.Column(db.String(255), nullable=True)
+
+
+class PlayType(db.Model):
+    __tablename__ = "play_types"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+
+
 class ShotEvent(db.Model):
     __tablename__ = "shot_events"
     id = db.Column(db.Integer, primary_key=True)
@@ -100,14 +136,3 @@ class GameEvent(db.Model):
     
     game = db.relationship("Game", backref=db.backref("events", lazy=True))
     play = db.relationship("Play", backref=db.backref("game_events", lazy=True))
-
-
-class Play(db.Model):
-    __tablename__ = "plays"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    play_type = db.Column(db.String(50), default="Offense")  # Offense, Defense, Special
-    image_filename = db.Column(db.String(255), nullable=True) # Stored in uploads/plays/
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

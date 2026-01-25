@@ -747,3 +747,27 @@ tr:hover td {
   .game-card { flex-direction: column; align-items: flex-start; gap: var(--spacing-sm); }
   .game-card-score { width: 100%; text-align: left; }
 }
+
+/* --- Canvas Fixes --- */
+.canvas-container {
+    background-color: #ffffff !important;
+    border: 1px solid #ccc;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+}
+#timeline-frames {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 5px;
+    gap: 10px;
+}
+.frame-item {
+    min-width: 100px;
+    background: white;
+    border: 1px solid var(--border-color);
+    transition: all 0.2s;
+    cursor: pointer;
+}
+.frame-item.active {
+    border-color: var(--secondary);
+    background: #e0e7ff;
+}
