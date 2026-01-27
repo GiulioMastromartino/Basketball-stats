@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     libopenjp2-7-dev \
     libffi-dev \
     shared-mime-info \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -26,11 +27,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
-# Create directories for data persistence
-RUN mkdir -p /app/Games /app/Output /app/uploads
+# Create directories for data persistence and logs
+RUN mkdir -p /app/Games /app/Output /app/uploads /app/instance
+
+# Make entrypoint executable
+RUN chmod +x entrypoint.sh
 
 # Expose the application port
 EXPOSE 8080
 
-# Run the application
-CMD ["python", "run.py", "--host", "0.0.0.0", "--port", "8080"]
+# Use the entrypoint script to run migrations and start the server
+CMD ["./entrypoint.sh"]
