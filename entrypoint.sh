@@ -9,7 +9,11 @@ set -e
 echo "Applying database migrations..."
 flask --app run.py db upgrade
 
-# 2. Start the production server
+# 2. Ensure admin user exists (run after migration so tables exist)
+echo "Checking for admin user..."
+python seed_admin.py
+
+# 3. Start the production server
 # -w 1: One worker (sufficient for hobby tier)
 # --bind: Listen on the correct port
 # --access-logfile - : Log access to stdout
