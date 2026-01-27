@@ -5,8 +5,9 @@
 set -e
 
 # 1. Apply database migrations
+# We use --app run.py explicitly to ensure Flask finds the app instance
 echo "Applying database migrations..."
-flask db upgrade
+flask --app run.py db upgrade
 
 # 2. Start the production server
 # -w 1: One worker (sufficient for hobby tier)
