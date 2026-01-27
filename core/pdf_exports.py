@@ -10,27 +10,33 @@ Requirements:
 - python-dateutil: Date handling
 """
 
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
-from reportlab.lib import colors
-from reportlab.pdfgen import canvas
+# Import styles and base classes only - keep heavy imports inside methods
 from io import BytesIO
 from datetime import datetime
 from flask import current_app
-
 from core.models import Game, Player, ShotEvent, GameEvent, Play, PlayerStat
 from sqlalchemy import func, and_
-
 
 class PlaysBasedPDFGenerator:
     """Generate professional PDF reports with plays-based statistics."""
 
     def __init__(self):
         """Initialize PDF generator with style definitions."""
+        # Lazy import of reportlab components
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+        from reportlab.lib import colors
+
+        self.colors = colors
         self.styles = getSampleStyleSheet()
+        self.ParagraphStyle = ParagraphStyle
+        self.TA_CENTER = TA_CENTER
+        self.TA_LEFT = TA_LEFT
+        self.TA_RIGHT = TA_RIGHT
+        self.inch = inch
+        
         self.setup_custom_styles()
         self.pagesize = letter
         self.left_margin = 0.5 * inch
@@ -41,42 +47,42 @@ class PlaysBasedPDFGenerator:
     def setup_custom_styles(self):
         """Define custom paragraph styles for reports."""
         # Title style
-        self.styles.add(ParagraphStyle(
+        self.styles.add(self.ParagraphStyle(
             name='CustomTitle',
             parent=self.styles['Heading1'],
             fontSize=24,
-            textColor=colors.HexColor('#1f2937'),
+            textColor=self.colors.HexColor('#1f2937'),
             spaceAfter=12,
-            alignment=TA_CENTER,
+            alignment=self.TA_CENTER,
             fontName='Helvetica-Bold'
         ))
 
         # Subtitle style
-        self.styles.add(ParagraphStyle(
+        self.styles.add(self.ParagraphStyle(
             name='CustomSubtitle',
             parent=self.styles['Heading2'],
             fontSize=14,
-            textColor=colors.HexColor('#4b5563'),
+            textColor=self.colors.HexColor('#4b5563'),
             spaceAfter=10,
-            alignment=TA_CENTER
+            alignment=self.TA_CENTER
         ))
 
         # Section heading
-        self.styles.add(ParagraphStyle(
+        self.styles.add(self.ParagraphStyle(
             name='SectionHeading',
             parent=self.styles['Heading2'],
             fontSize=12,
-            textColor=colors.HexColor('#1f2937'),
+            textColor=self.colors.HexColor('#1f2937'),
             spaceAfter=8,
             spaceBefore=10,
             fontName='Helvetica-Bold',
-            borderColor=colors.HexColor('#208dd1'),
+            borderColor=self.colors.HexColor('#208dd1'),
             borderWidth=2,
             borderPadding=5
         ))
 
         # Normal body text
-        self.styles.add(ParagraphStyle(
+        self.styles.add(self.ParagraphStyle(
             name='BodyText',
             parent=self.styles['Normal'],
             fontSize=10,
@@ -84,11 +90,11 @@ class PlaysBasedPDFGenerator:
         ))
 
         # Player name style
-        self.styles.add(ParagraphStyle(
+        self.styles.add(self.ParagraphStyle(
             name='PlayerName',
             parent=self.styles['Heading3'],
             fontSize=11,
-            textColor=colors.HexColor('#1f2937'),
+            textColor=self.colors.HexColor('#1f2937'),
             spaceAfter=4,
             fontName='Helvetica-Bold'
         ))
@@ -102,6 +108,9 @@ class PlaysBasedPDFGenerator:
         Returns:
             BytesIO: PDF document in memory
         """
+        # Lazy import reportlab components
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
+        
         game = Game.query.get(game_id)
         if not game:
             raise ValueError(f"Game {game_id} not found")
@@ -129,7 +138,7 @@ class PlaysBasedPDFGenerator:
             f"{game_date} | {game.team_score} - {game.opponent_score}",
             self.styles['CustomSubtitle']
         ))
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Basic Stats Section
         story.append(Paragraph("Game Summary", self.styles['SectionHeading']))
@@ -142,31 +151,31 @@ class PlaysBasedPDFGenerator:
             ['Opponent Score', str(game.opponent_score)],
             ['Result', 'W' if game.team_score > game.opponent_score else 'L'],
         ]
-        basic_stats_table = Table(basic_stats_data, colWidths=[2 * inch, 2 * inch])
+        basic_stats_table = Table(basic_stats_data, colWidths=[2 * self.inch, 2 * self.inch])
         basic_stats_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 11),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('BACKGROUND', (0, 1), (-1, -1), self.colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black)
         ]))
         story.append(basic_stats_table)
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Plays-Based Analysis
         story.extend(self._generate_plays_analysis(game))
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Shot Events Analysis
         story.extend(self._generate_shot_events_analysis(game))
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Player Analysis Section - NEW
         story.extend(self._generate_player_analysis_section(game))
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Game Events Timeline
         story.extend(self._generate_game_events_section(game))
@@ -174,6 +183,11 @@ class PlaysBasedPDFGenerator:
         # Build PDF
         doc.build(story)
         pdf_buffer.seek(0)
+        
+        # Explicitly clean up
+        del doc
+        del story
+        
         return pdf_buffer
 
     def generate_player_report_pdf(self, player_id):
@@ -185,6 +199,8 @@ class PlaysBasedPDFGenerator:
         Returns:
             BytesIO: PDF document in memory
         """
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+        
         player = Player.query.get(player_id)
         if not player:
             raise ValueError(f"Player {player_id} not found")
@@ -210,21 +226,21 @@ class PlaysBasedPDFGenerator:
             f"Generated on {datetime.now().strftime('%B %d, %Y')}",
             self.styles['CustomSubtitle']
         ))
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Career Stats
         story.append(Paragraph("Career Statistics", self.styles['SectionHeading']))
         career_stats = self._calculate_player_career_stats(player)
         story.append(self._create_player_stats_table(career_stats))
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Plays-Based Performance
         story.extend(self._generate_player_plays_analysis(player))
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Shot Performance by Play
         story.extend(self._generate_player_shot_by_play_analysis(player))
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Recent Games
         story.extend(self._generate_player_recent_games(player))
@@ -232,6 +248,11 @@ class PlaysBasedPDFGenerator:
         # Build PDF
         doc.build(story)
         pdf_buffer.seek(0)
+        
+        # Explicit cleanup
+        del doc
+        del story
+        
         return pdf_buffer
 
     def generate_team_report_pdf(self):
@@ -240,6 +261,8 @@ class PlaysBasedPDFGenerator:
         Returns:
             BytesIO: PDF document in memory
         """
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        
         pdf_buffer = BytesIO()
         doc = SimpleDocTemplate(
             pdf_buffer,
@@ -261,21 +284,21 @@ class PlaysBasedPDFGenerator:
             f"Generated on {datetime.now().strftime('%B %d, %Y')}",
             self.styles['CustomSubtitle']
         ))
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Season Overview
         story.append(Paragraph("Season Overview", self.styles['SectionHeading']))
         team_stats = self._calculate_team_stats()
         story.append(self._create_team_summary_table(team_stats))
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Plays-Based Team Analysis
         story.extend(self._generate_team_plays_analysis())
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Player Performance Summary
         story.extend(self._generate_team_player_summary())
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.2 * self.inch))
 
         # Plays Effectiveness
         story.extend(self._generate_plays_effectiveness())
@@ -283,19 +306,19 @@ class PlaysBasedPDFGenerator:
         # Build PDF
         doc.build(story)
         pdf_buffer.seek(0)
+        
+        # Explicit cleanup
+        del doc
+        del story
+        
         return pdf_buffer
 
     # ============ Helper Methods for Games ============
 
     def _generate_plays_analysis(self, game):
-        """Generate plays analysis section for a game.
-
-        Args:
-            game (Game): Game object
-
-        Returns:
-            list: Story elements
-        """
+        """Generate plays analysis section for a game."""
+        from reportlab.platypus import Table, TableStyle, Paragraph
+        
         story = []
         story.append(Paragraph("Plays Analysis", self.styles['SectionHeading']))
 
@@ -318,30 +341,25 @@ class PlaysBasedPDFGenerator:
                 f"{fg_pct:.1f}%"
             ])
 
-        plays_table = Table(plays_data, colWidths=[2 * inch, 0.8 * inch, 0.8 * inch, 0.8 * inch, 0.8 * inch])
+        plays_table = Table(plays_data, colWidths=[2 * self.inch, 0.8 * self.inch, 0.8 * self.inch, 0.8 * self.inch, 0.8 * self.inch])
         plays_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 10),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 1), (-1, -1), self.colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black),
             ('FONTSIZE', (0, 1), (-1, -1), 9)
         ]))
         story.append(plays_table)
         return story
 
     def _generate_shot_events_analysis(self, game):
-        """Generate shot events analysis for a game.
-
-        Args:
-            game (Game): Game object
-
-        Returns:
-            list: Story elements
-        """
+        """Generate shot events analysis for a game."""
+        from reportlab.platypus import Table, TableStyle, Paragraph
+        
         story = []
         story.append(Paragraph("Shot Events Analysis", self.styles['SectionHeading']))
 
@@ -364,26 +382,21 @@ class PlaysBasedPDFGenerator:
             ['FG %', f"{fg_pct:.1f}%"],
         ]
 
-        shot_table = Table(shot_data, colWidths=[2 * inch, 2 * inch])
+        shot_table = Table(shot_data, colWidths=[2 * self.inch, 2 * self.inch])
         shot_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black)
         ]))
         story.append(shot_table)
         return story
 
     def _generate_player_analysis_section(self, game):
-        """Generate comprehensive player analysis for all players in game.
+        """Generate comprehensive player analysis for all players in game."""
+        from reportlab.platypus import Paragraph, Spacer, PageBreak
         
-        Args:
-            game (Game): Game object
-            
-        Returns:
-            list: Story elements
-        """
         story = []
         story.append(Paragraph("Player Analysis", self.styles['SectionHeading']))
         
@@ -404,19 +417,14 @@ class PlaysBasedPDFGenerator:
             if (idx + 1) % 3 == 0 and idx + 1 < len(player_stats):
                 story.append(PageBreak())
             else:
-                story.append(Spacer(1, 0.15 * inch))
+                story.append(Spacer(1, 0.15 * self.inch))
         
         return story
 
     def _create_player_stat_card(self, player_stat):
-        """Create a single player stat card for game report.
+        """Create a single player stat card for game report."""
+        from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
         
-        Args:
-            player_stat (PlayerStat): PlayerStat object
-            
-        Returns:
-            list: Story elements for one player card
-        """
         story = []
         
         # Player name header
@@ -440,47 +448,24 @@ class PlaysBasedPDFGenerator:
             ]
         ]
         
-        shooting_table = Table(shooting_data, colWidths=[1.2 * inch, 1.2 * inch, 1.2 * inch, 1.2 * inch])
+        shooting_table = Table(shooting_data, colWidths=[1.2 * self.inch, 1.2 * self.inch, 1.2 * self.inch, 1.2 * self.inch])
         shooting_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f3f4f6')),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 1), (-1, -1), self.colors.HexColor('#f3f4f6')),
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
         ]))
         story.append(shooting_table)
-        story.append(Spacer(1, 0.1 * inch))
+        story.append(Spacer(1, 0.1 * self.inch))
         
         # Detailed stats grid
         minutes_display = player_stat.minutes if player_stat.minutes else "N/A"
         efficiency = (player_stat.points / player_stat.fga * 100) if player_stat.fga > 0 else 0
-        
-        # Left column: Minutes, +/-, Efficiency
-        left_stats = [
-            ['Minuti', minutes_display],
-            ['+/-', str(player_stat.plus_minus)],
-            ['Efficienza', f"{efficiency:.1f}"]
-        ]
-        
-        # Right column: Defensive, Offensive, Steals, Blocks, Fouls, Turnovers
-        right_stats = [
-            ['R. difensivi', str(player_stat.dreb)],
-            ['R. offensivi', str(player_stat.oreb)],
-            ['Assist', str(player_stat.ast)],
-            ['Perse', str(player_stat.tov)],
-            ['Rubate', str(player_stat.stl)],
-            ['Falli', str(player_stat.pf)],
-            ['Falli subiti', str(player_stat.blk)]
-        ]
-        
-        # Create mini stat boxes
-        stats_data = [
-            left_stats + [[''], [''], ['']] + right_stats  # Padding for alignment
-        ]
         
         # More readable layout - use two columns
         detailed_stats = [
@@ -491,14 +476,14 @@ class PlaysBasedPDFGenerator:
             ['Rubate', str(player_stat.stl), 'Falli', str(player_stat.pf)]
         ]
         
-        details_table = Table(detailed_stats, colWidths=[1 * inch, 1 * inch, 1 * inch, 1 * inch])
+        details_table = Table(detailed_stats, colWidths=[1 * self.inch, 1 * self.inch, 1 * self.inch, 1 * self.inch])
         details_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e5e7eb')),
-            ('BACKGROUND', (2, 0), (2, -1), colors.HexColor('#e5e7eb')),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
+            ('BACKGROUND', (0, 0), (0, -1), self.colors.HexColor('#e5e7eb')),
+            ('BACKGROUND', (2, 0), (2, -1), self.colors.HexColor('#e5e7eb')),
+            ('GRID', (0, 0), (-1, -1), 0.5, self.colors.HexColor('#d1d5db')),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
         ]))
         story.append(details_table)
@@ -506,14 +491,9 @@ class PlaysBasedPDFGenerator:
         return story
 
     def _generate_game_events_section(self, game):
-        """Generate game events section.
-
-        Args:
-            game (Game): Game object
-
-        Returns:
-            list: Story elements
-        """
+        """Generate game events section."""
+        from reportlab.platypus import Table, TableStyle, Paragraph
+        
         story = []
         story.append(Paragraph("Game Events", self.styles['SectionHeading']))
 
@@ -533,29 +513,22 @@ class PlaysBasedPDFGenerator:
                 play_name
             ])
 
-        events_table = Table(events_data, colWidths=[1.5 * inch, 1.5 * inch, 0.8 * inch, 2 * inch])
+        events_table = Table(events_data, colWidths=[1.5 * self.inch, 1.5 * self.inch, 0.8 * self.inch, 2 * self.inch])
         events_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 1), (-1, -1), self.colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black),
             ('FONTSIZE', (0, 1), (-1, -1), 8)
         ]))
         story.append(events_table)
         return story
 
     def _calculate_game_plays_stats(self, game_id):
-        """Calculate plays statistics for a game.
-
-        Args:
-            game_id (int): Game ID
-
-        Returns:
-            list: List of play statistics dictionaries
-        """
+        """Calculate plays statistics for a game."""
         plays_data = {}
 
         # Get shot events
@@ -594,14 +567,7 @@ class PlaysBasedPDFGenerator:
     # ============ Helper Methods for Players ============
 
     def _calculate_player_career_stats(self, player):
-        """Calculate player career statistics.
-
-        Args:
-            player (Player): Player object
-
-        Returns:
-            dict: Career statistics
-        """
+        """Calculate player career statistics."""
         total_points = 0
         total_games = 0
         total_shots = 0
@@ -632,14 +598,9 @@ class PlaysBasedPDFGenerator:
         }
 
     def _create_player_stats_table(self, stats):
-        """Create player statistics table.
-
-        Args:
-            stats (dict): Player statistics
-
-        Returns:
-            Table: ReportLab table object
-        """
+        """Create player statistics table."""
+        from reportlab.platypus import Table, TableStyle
+        
         stats_data = [
             ['Metric', 'Value'],
             ['Games Played', str(stats['total_games'])],
@@ -650,25 +611,20 @@ class PlaysBasedPDFGenerator:
             ['PPG', f"{stats['ppg']:.1f}"],
         ]
 
-        table = Table(stats_data, colWidths=[2.5 * inch, 1.5 * inch])
+        table = Table(stats_data, colWidths=[2.5 * self.inch, 1.5 * self.inch])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black)
         ]))
         return table
 
     def _generate_player_plays_analysis(self, player):
-        """Generate plays performance analysis for player.
-
-        Args:
-            player (Player): Player object
-
-        Returns:
-            list: Story elements
-        """
+        """Generate plays performance analysis for player."""
+        from reportlab.platypus import Table, TableStyle, Paragraph
+        
         story = []
         story.append(Paragraph("Performance by Play", self.styles['SectionHeading']))
 
@@ -705,29 +661,24 @@ class PlaysBasedPDFGenerator:
                 str(perf['points'])
             ])
 
-        plays_table = Table(plays_data, colWidths=[1.8 * inch, 0.9 * inch, 0.9 * inch, 0.9 * inch, 0.9 * inch])
+        plays_table = Table(plays_data, colWidths=[1.8 * self.inch, 0.9 * self.inch, 0.9 * self.inch, 0.9 * self.inch, 0.9 * self.inch])
         plays_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 1), (-1, -1), self.colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black),
             ('FONTSIZE', (0, 1), (-1, -1), 8)
         ]))
         story.append(plays_table)
         return story
 
     def _generate_player_shot_by_play_analysis(self, player):
-        """Generate shot type analysis by play.
-
-        Args:
-            player (Player): Player object
-
-        Returns:
-            list: Story elements
-        """
+        """Generate shot type analysis by play."""
+        from reportlab.platypus import Table, TableStyle, Paragraph
+        
         story = []
         story.append(Paragraph("Shot Breakdown", self.styles['SectionHeading']))
 
@@ -753,26 +704,21 @@ class PlaysBasedPDFGenerator:
                 f"{fg_pct:.1f}%"
             ])
 
-        shot_table = Table(shot_data, colWidths=[1.5 * inch, 1.5 * inch, 1.5 * inch, 1.5 * inch])
+        shot_table = Table(shot_data, colWidths=[1.5 * self.inch, 1.5 * self.inch, 1.5 * self.inch, 1.5 * self.inch])
         shot_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black)
         ]))
         story.append(shot_table)
         return story
 
     def _generate_player_recent_games(self, player):
-        """Generate recent games summary.
-
-        Args:
-            player (Player): Player object
-
-        Returns:
-            list: Story elements
-        """
+        """Generate recent games summary."""
+        from reportlab.platypus import Table, TableStyle, Paragraph
+        
         story = []
         story.append(Paragraph("Recent Games", self.styles['SectionHeading']))
 
@@ -798,14 +744,14 @@ class PlaysBasedPDFGenerator:
                 result
             ])
 
-        games_table = Table(games_data, colWidths=[1 * inch, 1.2 * inch, 0.8 * inch, 0.8 * inch, 0.8 * inch, 0.6 * inch])
+        games_table = Table(games_data, colWidths=[1 * self.inch, 1.2 * self.inch, 0.8 * self.inch, 0.8 * self.inch, 0.8 * self.inch, 0.6 * self.inch])
         games_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black),
             ('FONTSIZE', (0, 1), (-1, -1), 8)
         ]))
         story.append(games_table)
@@ -814,11 +760,7 @@ class PlaysBasedPDFGenerator:
     # ============ Helper Methods for Team ============
 
     def _calculate_team_stats(self):
-        """Calculate team statistics.
-
-        Returns:
-            dict: Team statistics
-        """
+        """Calculate team statistics."""
         games = Game.query.all()
         total_games = len(games)
         wins = sum(1 for g in games if g.team_score > g.opponent_score)
@@ -839,14 +781,9 @@ class PlaysBasedPDFGenerator:
         }
 
     def _create_team_summary_table(self, stats):
-        """Create team summary table.
-
-        Args:
-            stats (dict): Team statistics
-
-        Returns:
-            Table: ReportLab table object
-        """
+        """Create team summary table."""
+        from reportlab.platypus import Table, TableStyle
+        
         stats_data = [
             ['Metric', 'Value'],
             ['Games Played', str(stats['total_games'])],
@@ -857,22 +794,20 @@ class PlaysBasedPDFGenerator:
             ['PPG Allowed', f"{stats['ppg_allowed']:.1f}"],
         ]
 
-        table = Table(stats_data, colWidths=[2.5 * inch, 1.5 * inch])
+        table = Table(stats_data, colWidths=[2.5 * self.inch, 1.5 * self.inch])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black)
         ]))
         return table
 
     def _generate_team_plays_analysis(self):
-        """Generate team-wide plays analysis.
-
-        Returns:
-            list: Story elements
-        """
+        """Generate team-wide plays analysis."""
+        from reportlab.platypus import Table, TableStyle, Paragraph
+        
         story = []
         story.append(Paragraph("Team Plays Analysis", self.styles['SectionHeading']))
 
@@ -906,26 +841,24 @@ class PlaysBasedPDFGenerator:
                 f"{fg_pct:.1f}%"
             ])
 
-        plays_table = Table(plays_data, colWidths=[2 * inch, 1.2 * inch, 1.2 * inch, 1.2 * inch])
+        plays_table = Table(plays_data, colWidths=[2 * self.inch, 1.2 * self.inch, 1.2 * self.inch, 1.2 * self.inch])
         plays_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 1), (-1, -1), self.colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black),
             ('FONTSIZE', (0, 1), (-1, -1), 8)
         ]))
         story.append(plays_table)
         return story
 
     def _generate_team_player_summary(self):
-        """Generate team player performance summary.
-
-        Returns:
-            list: Story elements
-        """
+        """Generate team player performance summary."""
+        from reportlab.platypus import Table, TableStyle, Paragraph
+        
         story = []
         story.append(Paragraph("Top Performers", self.styles['SectionHeading']))
 
@@ -955,26 +888,24 @@ class PlaysBasedPDFGenerator:
                 f"{fg_pct:.1f}%"
             ])
 
-        players_table = Table(players_data, colWidths=[1.2 * inch, 1 * inch, 1 * inch, 1 * inch, 1 * inch])
+        players_table = Table(players_data, colWidths=[1.2 * self.inch, 1 * self.inch, 1 * self.inch, 1 * self.inch, 1 * self.inch])
         players_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 1), (-1, -1), self.colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black),
             ('FONTSIZE', (0, 1), (-1, -1), 8)
         ]))
         story.append(players_table)
         return story
 
     def _generate_plays_effectiveness(self):
-        """Generate plays effectiveness analysis.
-
-        Returns:
-            list: Story elements
-        """
+        """Generate plays effectiveness analysis."""
+        from reportlab.platypus import Table, TableStyle, Paragraph
+        
         story = []
         story.append(Paragraph("Plays Effectiveness Ranking", self.styles['SectionHeading']))
 
@@ -1007,15 +938,15 @@ class PlaysBasedPDFGenerator:
                 f"{fg_pct:.1f}%"
             ])
 
-        effectiveness_table = Table(effectiveness_data, colWidths=[0.6 * inch, 2.2 * inch, 1 * inch, 1 * inch])
+        effectiveness_table = Table(effectiveness_data, colWidths=[0.6 * self.inch, 2.2 * self.inch, 1 * self.inch, 1 * self.inch])
         effectiveness_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#208dd1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors.HexColor('#208dd1')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 1), (-1, -1), self.colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, self.colors.black),
             ('FONTSIZE', (0, 1), (-1, -1), 8)
         ]))
         story.append(effectiveness_table)
