@@ -12,7 +12,14 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = 3600
-    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'basketball_stats.db'}")
+    
+    # Fix for SQLAlchemy 1.4+ which dropped support for 'postgres://'
+    # Koyeb (and others) often provide DATABASE_URL as 'postgres://'
+    _db_url = os.getenv("DATABASE_URL")
+    if _db_url and _db_url.startswith("postgres://"):
+        _db_url = _db_url.replace("postgres://", "postgresql://", 1)
+        
+    SQLALCHEMY_DATABASE_URI = _db_url or f"sqlite:///{BASE_DIR / 'basketball_stats.db'}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 300}
     GAMES_DIR = os.getenv("GAMES_DIR", str(BASE_DIR / "Games"))
