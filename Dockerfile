@@ -33,6 +33,9 @@ RUN mkdir -p /app/Games /app/Output /app/uploads /app/instance
 # Make entrypoint executable
 RUN chmod +x entrypoint.sh
 
+# Set the FLASK_APP environment variable explicitly
+ENV FLASK_APP=run.py
+
 # Expose the application port
 EXPOSE 8080
 
