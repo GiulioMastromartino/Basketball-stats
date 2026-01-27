@@ -4,8 +4,13 @@ services:
     image: giuliomastromartino/basketball-stats:latest
     ports:
       - "8080:8080"
+    environment:
+      # Set explicit environment for local testing
+      - FLASK_ENV=development
+      - PORT=8080
     volumes:
-      # Mount the instance folder for persistent database storage
-      # Ensure your flask config uses 'sqlite:///instance/database.db'
+      # Mount the instance folder for persistent database storage (for local SQLite dev)
       - ./instance:/app/instance
+      # Optional: mount source code for hot reloading if we were running flask dev server,
+      # but here we are testing the production build with gunicorn
     restart: unless-stopped
