@@ -12,9 +12,9 @@ services:
     volumes:
       - .:/app
       - ./instance:/app/instance
-    # Run migrations -> Sync Admin Password -> Start Server
+    # Run migrations -> Seed DB (PlayTypes + Admin) -> Start Server
     command: >
       sh -c "flask db upgrade &&
-             python scripts/reset_admin_password.py &&
+             python scripts/seed_db.py &&
              exec gunicorn --config gunicorn_config.py run:app"
     restart: unless-stopped
