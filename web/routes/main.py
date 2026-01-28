@@ -798,6 +798,28 @@ def player_detail(player_name):
         .all()
     )
 
+    # --- Normalize shot coordinates for player_detail.html ---
+    # player_detail.html expects x/y as percentages (0-100)
+    # DB/model expects x_loc in 0-500 and y_loc in 0-470
+    for s in shot_events:
+        if s.x_loc is not None and s.y_loc is not None:
+            x = float(s.x_loc)
+            y = float(s.y_loc)
+
+            # If values look like court-coordinates (>100), convert to percent
+            if x > 100 or y > 100:
+                x = (x / 500.0) * 100.0
+                y = (y / 470.0) * 100.0
+            
+            # If values look like normalized 0..1, convert to percent
+            elif 0 <= x <= 1 and 0 <= y <= 1:
+                x *= 100.0
+                y *= 100.0
+
+            # Clamp to safe bounds
+            s.x_loc = max(0.0, min(100.0, x))
+            s.y_loc = max(0.0, min(100.0, y))
+
     gp = len(player_stats)
     total_minutes = sum(parse_minutes(s.minutes) for s in player_stats)
 
