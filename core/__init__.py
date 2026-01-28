@@ -40,8 +40,6 @@ def create_app(config_name="default"):
         app.logger.addHandler(handler)
         
     # Register blueprints
-    # We use local imports inside the factory to prevent circular import issues
-    # but we must ensure the models are loaded before we query them
     with app.app_context():
         from web.routes.main import main_bp
         from web.routes.auth import auth_bp
@@ -54,5 +52,9 @@ def create_app(config_name="default"):
         app.register_blueprint(games_bp, url_prefix="/games")
         app.register_blueprint(plays_bp, url_prefix="/plays")
         app.register_blueprint(reports_bp, url_prefix="/reports")
+        
+        # Register CLI Commands
+        from core.commands import seed_command
+        app.cli.add_command(seed_command)
 
     return app
