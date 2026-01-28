@@ -10,10 +10,11 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required
 from sqlalchemy import case, func
 
-from core.models import Game, PlayerStat, ShotEvent, GameEvent, db, Play
+from core.models import Game, PlayerStat, ShotEvent, GameEvent, db, Play, User, SystemSetting
 from core.csv_processor import CSVProcessor
 from core.parser import parse_game_pdf
 from core.services import create_game_from_live_data
+from core.services.email_service import send_game_notification
 from core.play_analytics import (
     get_play_stats,
     get_play_player_stats,
@@ -77,6 +78,40 @@ def coerce_json_game_dates(game_data: dict) -> tuple[str, str]:
         date_display = normalize_date_to_display(raw_date) or raw_date
 
     return date_display, sort_date
+
+
+def _notify_users_game_saved(game: Game):
+    """Notify non-admin users that a game was saved (optional PDF attachment)."""
+    try:
+        enabled = SystemSetting.get_value("notify_game_added", default="false")
+        if enabled != "true":
+            return
+
+        recipients = [
+            u.email
+            for u in User.query.filter(User.role != "admin", User.is_admin.is_(False)).all()
+            if u.email
+        ]
+        if not recipients:
+            return
+
+        pdf_attachment = None
+        attach_pdf = SystemSetting.get_value("attach_game_pdf", default="false")
+        if attach_pdf == "true":
+            try:
+                # Local import to avoid heavy dependency on route module at import-time
+                from web.routes.reports import generate_game_pdf_bytes
+
+                filename, pdf_bytes = generate_game_pdf_bytes(game.id)
+                if filename and pdf_bytes:
+                    pdf_attachment = (filename, pdf_bytes)
+            except Exception as e:
+                current_app.logger.error(f"Failed to generate game PDF for email (Game ID {game.id}): {e}")
+
+        send_game_notification(recipients, game, pdf_attachment=pdf_attachment)
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to send game notification (Game ID {getattr(game, 'id', None)}): {e}")
 
 
 @main_bp.route("/")
@@ -178,6 +213,10 @@ def save_live_game():
     try:
         game = create_game_from_live_data(data)
         current_app.logger.info(f"Live game saved successfully: Game ID {game.id}")
+
+        # Notify non-admin users (optional PDF attachment)
+        _notify_users_game_saved(game)
+
         return (
             jsonify(
                 {
@@ -316,6 +355,10 @@ def upload_game():
                     db.session.add(stat)
 
                 db.session.commit()
+
+                # Notify non-admin users (optional PDF attachment)
+                _notify_users_game_saved(game)
+
                 flash(f"Successfully imported game (CSV): {game.opponent} ({game.result})", "success")
                 return redirect(url_for("main.game_detail", game_id=game.id))
 
@@ -435,6 +478,10 @@ def upload_game():
                     db.session.add(stat)
 
                 db.session.commit()
+
+                # Notify non-admin users (optional PDF attachment)
+                _notify_users_game_saved(game)
+
                 flash(f"Successfully imported game (PDF): {game.opponent} ({game.result})", "success")
                 return redirect(url_for("main.game_detail", game_id=game.id))
 
@@ -517,6 +564,10 @@ def upload_game():
                     db.session.add(GameEvent(game_id=game.id, play_id=None, **event_kwargs))
 
                 db.session.commit()
+
+                # Notify non-admin users (optional PDF attachment)
+                _notify_users_game_saved(game)
+
                 flash(f"Successfully imported game (JSON): {game.opponent} ({game.result})", "success")
                 return redirect(url_for("main.game_detail", game_id=game.id))
 
