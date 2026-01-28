@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required
 from core.models import db, Play, PlayType
+from web.decorators import admin_required
 
 plays_bp = Blueprint("plays", __name__)
 
@@ -38,6 +39,7 @@ def edit_play_builder(play_id):
 
 @plays_bp.route("/plays/<int:play_id>/delete", methods=["POST"])
 @login_required
+@admin_required
 def delete_play(play_id):
     play = Play.query.get_or_404(play_id)
     db.session.delete(play)
@@ -60,6 +62,7 @@ def add_play_type():
 
 @plays_bp.route("/plays/types/<int:type_id>/delete", methods=["POST"])
 @login_required
+@admin_required
 def delete_play_type(type_id):
     play_type = PlayType.query.get_or_404(type_id)
     # Don't delete if used by plays (optional safety, or just let it default to something else)
