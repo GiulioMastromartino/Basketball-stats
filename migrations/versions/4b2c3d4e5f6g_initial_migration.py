@@ -137,7 +137,7 @@ def upgrade():
         sa.Column('event_type', sa.String(length=50), nullable=True),
         sa.Column('player_name', sa.String(length=100), nullable=True),
         sa.Column('detail', sa.String(length=255), nullable=True),
-        sa.Column('timestamp', sa.Integer(), nullable=True),
+        sa.Column('timestamp', sa.BigInteger(), nullable=True),
         sa.Column('shot_attempt', sa.String(length=10), nullable=True),
         sa.Column('play_id', sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(['game_id'], ['games.id'], ),
