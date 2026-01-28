@@ -28,15 +28,21 @@ reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
 VALID_GAME_TYPES = {"ALL", "Season", "Friendly"}
 MAX_PLAYERS_IN_ZIP = 50
 
-@reports_bp.route("/games/<int:game_id>/summary.pdf")
-@login_required
-def game_summary_pdf(game_id):
-    """Generate full game summary PDF"""
-    game = Game.query.get_or_404(game_id)
-    stats = PlayerStat.query.filter_by(game_id=game_id).all()
+def generate_game_pdf_bytes(game_id):
+    """
+    Generates the PDF bytes for a game summary.
+    Returns (filename, pdf_bytes).
+    """
+    game = Game.query.get(game_id)
+    if not game:
+        return None, None
 
+    stats = PlayerStat.query.filter_by(game_id=game_id).all()
     if not stats:
-        return jsonify({"error": "No stats for this game"}), 404
+        # Generate a minimal PDF or return None? 
+        # For now, let's assume if no stats, we might just fail gracefully or print basic info.
+        # But existing route returns 404. Let's return None.
+        return None, None
 
     # Enrich stats
     stats_with_metrics = AnalyticsService.calculate_game_stats(stats)
@@ -89,7 +95,31 @@ def game_summary_pdf(game_id):
         generated_date=datetime.now().strftime("%B %d, %Y"),
     )
 
-    return _render_pdf(html, f"game_{game.opponent}_{game.date}.pdf")
+    pdf_doc = HTML(string=html)
+    pdf_bytes = pdf_doc.write_pdf()
+    filename = f"game_{game.opponent}_{game.date}.pdf"
+    
+    return filename, pdf_bytes
+
+
+@reports_bp.route("/games/<int:game_id>/summary.pdf")
+@login_required
+def game_summary_pdf(game_id):
+    """Generate full game summary PDF"""
+    filename, pdf_bytes = generate_game_pdf_bytes(game_id)
+    
+    if not pdf_bytes:
+        return jsonify({"error": "No stats for this game or game not found"}), 404
+
+    pdf_io = BytesIO(pdf_bytes)
+    pdf_io.seek(0)
+    
+    return send_file(
+        pdf_io,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
 
 @reports_bp.route("/games/<int:game_id>/advanced_summary.pdf")
 @login_required
