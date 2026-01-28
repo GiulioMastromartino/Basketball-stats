@@ -8,6 +8,21 @@
                 <h4 class="mb-0"><i class="fas fa-shield-alt"></i> Verify Identity</h4>
             </div>
             <div class="card-body">
+                {# Flash messages handled by base.html usually, but ensuring visibility here #}
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                  {% if messages %}
+                    {% for category, message in messages %}
+                      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {% if category == 'info' or category == 'success' %}
+                            <i class="fas fa-paper-plane me-2"></i>
+                        {% endif %}
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                      </div>
+                    {% endfor %}
+                  {% endif %}
+                {% endwith %}
+
                 <p class="text-muted mb-4">
                     For your security, we've sent a 6-digit verification code to your email address. 
                     Please enter it below to complete your login.
