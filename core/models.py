@@ -130,7 +130,7 @@ class GameEvent(db.Model):
     event_type = db.Column(db.String(50)) # SHOT_2PT, SHOT_3PT, TURNOVER, SUB_IN, SUB_OUT, OPP_SCORE
     player_name = db.Column(db.String(100), nullable=True)
     detail = db.Column(db.String(255), nullable=True) # e.g. amount of points for opp score
-    timestamp = db.Column(db.Integer, default=0) # generic ordering index
+    timestamp = db.Column(db.BigInteger, default=0) # generic ordering index
     shot_attempt = db.Column(db.String(10), nullable=True) # 'attempted' or 'made' for shots
     play_id = db.Column(db.Integer, db.ForeignKey("plays.id"), nullable=True) # Tagged play
     
