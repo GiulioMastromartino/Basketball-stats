@@ -36,6 +36,7 @@ from core.utils import (
     safe_percentage,
     normalize_date_to_display,
 )
+from web.decorators import admin_required
 
 main_bp = Blueprint("main", __name__)
 
@@ -733,6 +734,7 @@ def game_detail(game_id):
 
 @main_bp.route("/game/<int:game_id>/delete", methods=["POST"])
 @login_required
+@admin_required
 def delete_game(game_id):
     """Delete a game and all associated stats/events."""
     game = Game.query.get_or_404(game_id)
@@ -1127,7 +1129,7 @@ def games():
     for r in results:
         opp_name = r[0]
         opp_games = Game.query.filter_by(opponent=opp_name).all()
-        wins = sum(1 for g in opp_games if g.result == "W")
+        wins = sum(1 for g in games if g.result == "W")
         losses = len(opp_games) - wins
 
         if len(opp_games) > 0:
