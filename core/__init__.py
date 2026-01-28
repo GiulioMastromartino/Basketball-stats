@@ -88,7 +88,12 @@ def create_app(config_name="default"):
             )
             db.session.add(new_admin)
             db.session.commit()
-            app.logger.info(f"✓ Admin user created. Username: '{env_user}' Password: '{create_pass}'")
+            # Explicitly log the password so user knows what to use
+            app.logger.info("="*50)
+            app.logger.info(f"✓ ADMIN CREATED")
+            app.logger.info(f"Username: {env_user}")
+            app.logger.info(f"Password: {create_pass}")
+            app.logger.info("="*50)
         else:
             # Auto-healing logic
             updates = False
@@ -100,11 +105,10 @@ def create_app(config_name="default"):
                  app.logger.info(f"✓ Fix: Updated admin email to {env_email}")
             
             # Update Password if Env var is set
-            # CRITICAL: We only reset the password if the check FAILS.
             if env_pass and not user.check_password(env_pass):
                 user.password_hash = bcrypt.generate_password_hash(env_pass).decode('utf-8')
                 updates = True
-                app.logger.info("✓ Fix: Updated admin password to match environment variable")
+                app.logger.info(f"✓ Fix: Updated admin password to match env: {env_pass}")
                 
             if updates:
                 db.session.commit()
