@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-shield-alt"></i> Verify Identity</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">
+                    For your security, we've sent a 6-digit verification code to your email address. 
+                    Please enter it below to complete your login.
+                </p>
+
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    
+                    <div class="mb-3">
+                        <label for="otp_code" class="form-label">Verification Code</label>
+                        <input type="text" class="form-control form-control-lg text-center letter-spacing-2" 
+                               id="otp_code" name="otp_code" 
+                               placeholder="123456" 
+                               pattern="\d{6}" 
+                               required 
+                               autofocus
+                               autocomplete="one-time-code">
+                        <div class="form-text">Code expires in 5 minutes.</div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">Verify</button>
+                        <a href="{{ url_for('auth.login') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .letter-spacing-2 {
+        letter-spacing: 0.5em;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
