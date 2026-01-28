@@ -42,15 +42,15 @@ def create_app(config_name="default"):
     # Register blueprints
     from web.routes.main import main_bp
     from web.routes.auth import auth_bp
-    from web.routes.games import games_bp
-    from web.routes.plays import plays_bp
-    from web.routes.reports import reports_bp
+    # from web.routes.games import games_bp
+    # from web.routes.plays import plays_bp
+    # from web.routes.reports import reports_bp
     
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(games_bp, url_prefix="/games")
-    app.register_blueprint(plays_bp, url_prefix="/plays")
-    app.register_blueprint(reports_bp, url_prefix="/reports")
+    # app.register_blueprint(games_bp, url_prefix="/games")
+    # app.register_blueprint(plays_bp, url_prefix="/plays")
+    # app.register_blueprint(reports_bp, url_prefix="/reports")
     
     # Create tables & Seed default data (Development/Production friendly)
     with app.app_context():
@@ -59,13 +59,16 @@ def create_app(config_name="default"):
         db.create_all()
         
         # Seed PlayTypes if missing
-        from core.models import PlayType
-        if not PlayType.query.first():
-            types = ["Offense", "Defense", "Special"]
-            for t_name in types:
-                db.session.add(PlayType(name=t_name))
-            db.session.commit()
-            app.logger.info(f"Seeded default PlayTypes: {', '.join(types)}")
+        try:
+            from core.models import PlayType
+            if not PlayType.query.first():
+                types = ["Offense", "Defense", "Special"]
+                for t_name in types:
+                    db.session.add(PlayType(name=t_name))
+                db.session.commit()
+                app.logger.info(f"Seeded default PlayTypes: {', '.join(types)}")
+        except Exception:
+            pass # Skip if models aren't ready
             
         # Seed Admin User if missing
         # Uses env vars: ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD
