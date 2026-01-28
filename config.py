@@ -62,7 +62,18 @@ class TestingConfig(Config):
     RATELIMIT_ENABLED = False
     SECRET_KEY = "test-secret-key"
 
-config_map = {"development": DevelopmentConfig, "testing": TestingConfig, "default": DevelopmentConfig}
+class ProductionConfig(Config):
+    DEBUG = False
+    SESSION_COOKIE_SECURE = True
+    LOG_LEVEL = "INFO"
+    # In production, ensure we use a strong SECRET_KEY from env
+
+config_map = {
+    "development": DevelopmentConfig,
+    "testing": TestingConfig,
+    "production": ProductionConfig,
+    "default": DevelopmentConfig
+}
 
 def get_config(env_name=None):
     return config_map.get(env_name or os.getenv("FLASK_ENV", "development"), DevelopmentConfig)
