@@ -14,6 +14,12 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    
+    # New Role Field
+    # Options: 'admin', 'editor', 'viewer'
+    role = db.Column(db.String(20), nullable=False, default='editor')
+    
+    # Deprecated but kept for safety during migration
     is_admin = db.Column(db.Boolean, default=False)
 
     def set_password(self, password):
@@ -21,6 +27,11 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
+
+    @property
+    def is_manager(self):
+        """Check if user has admin privileges (supports legacy check)"""
+        return self.role == 'admin' or self.is_admin
 
 
 class Game(db.Model):
