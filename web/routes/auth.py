@@ -81,6 +81,25 @@ def create_user():
 
     return render_template("auth/create_user.html")
 
+@auth_bp.route("/users/<int:user_id>/change-password", methods=["GET", "POST"])
+@login_required
+@admin_required
+def change_password(user_id):
+    """Admin route to change any user's password"""
+    user = User.query.get_or_404(user_id)
+    
+    if request.method == "POST":
+        password = request.form.get("password")
+        if not password:
+            flash("Password cannot be empty", "danger")
+        else:
+            user.password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
+            db.session.commit()
+            flash(f"Password for {user.username} updated successfully.", "success")
+            return redirect(url_for("auth.manage_users"))
+            
+    return render_template("auth/change_password.html", user=user)
+
 @auth_bp.route("/users/<int:user_id>/delete", methods=["POST"])
 @login_required
 @admin_required
