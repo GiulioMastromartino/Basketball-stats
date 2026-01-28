@@ -7,7 +7,7 @@ plays_bp = Blueprint('plays', __name__)
 
 @plays_bp.route('/')
 @login_required
-def index():
+def list_plays():
     plays = Play.query.all()
     return render_template('plays/index.html', plays=plays)
 
