@@ -5,9 +5,11 @@
 echo "Applying database migrations..."
 flask db upgrade
 
-# Seed Admin & Data (using our new safe logic)
-# This will run the logic inside core/__init__.py or we could call a script
-# For now, just starting the app triggers the seed in __init__.py
+# Force Admin Credential Sync from Environment
+# This ensures that even if Gunicorn swallows logs or app factory behaves oddly,
+# the password is STRICTLY enforced from the .env file before the server starts.
+echo "Syncing admin credentials..."
+python scripts/reset_admin_password.py
 
 # Start Gunicorn
 echo "Starting Gunicorn with smart memory monitoring..."
