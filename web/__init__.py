@@ -66,6 +66,9 @@ def create_app(config_name: str = None) -> Flask:
 
     # Register blueprints
     register_blueprints(app)
+    
+    # Register CLI commands
+    register_commands(app)
 
     # Auto-fix schema for dev/demo (Plays feature)
     # WARNING: Only run this in DEBUG mode or if explicitly enabled
@@ -161,3 +164,9 @@ def register_blueprints(app: Flask):
     app.register_blueprint(plays_bp)
     app.register_blueprint(builder_api_bp, url_prefix="/api/v1")
     app.register_blueprint(reports_bp)
+
+
+def register_commands(app: Flask):
+    """Register CLI commands"""
+    from core.commands import seed_command
+    app.cli.add_command(seed_command)
