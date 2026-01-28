@@ -1,1 +1,3 @@
-# This file is intentionally left empty.
+from flask_mail import Mail
+
+mail = Mail()
