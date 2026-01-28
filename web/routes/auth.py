@@ -1,10 +1,13 @@
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from datetime import datetime, timedelta
+import random
+from flask import Blueprint, flash, redirect, render_template, request, url_for, session
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_wtf import FlaskForm
 from wtforms import BooleanField, PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired
 
 from core.models import User, db, bcrypt
+from core.services.email_service import send_otp_email
 from web.decorators import admin_required
 
 auth_bp = Blueprint("auth", __name__)
@@ -26,12 +29,78 @@ def login():
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
         if user and user.check_password(form.password.data):
+            
+            # 1. If user is Admin, trigger OTP flow
+            if user.role == 'admin':
+                # Generate OTP
+                otp_code = f"{random.randint(100000, 999999)}"
+                user.otp_code = otp_code
+                user.otp_expiry = datetime.utcnow() + timedelta(minutes=5)
+                db.session.commit()
+                
+                # Send Email
+                if send_otp_email(user.email, otp_code):
+                    # Store temp user ID in session for the next step
+                    session['2fa_user_id'] = user.id
+                    session['remember_me'] = form.remember_me.data
+                    flash(f"Verification code sent to {user.email}", "info")
+                    return redirect(url_for("auth.verify_otp"))
+                else:
+                    flash("Failed to send verification email. Check logs.", "danger")
+                    return redirect(url_for("auth.login"))
+
+            # 2. Non-admin users login directly
             login_user(user, remember=form.remember_me.data)
             flash(f"Welcome back, {user.username}!", "success")
             return redirect(url_for("main.index"))
+            
         flash("Invalid username or password", "danger")
 
     return render_template("auth/login.html", form=form)
+
+
+@auth_bp.route("/verify-otp", methods=["GET", "POST"])
+def verify_otp():
+    """Step 2 of Admin Login"""
+    if current_user.is_authenticated:
+        return redirect(url_for("main.index"))
+        
+    user_id = session.get('2fa_user_id')
+    if not user_id:
+        return redirect(url_for("auth.login"))
+        
+    if request.method == "POST":
+        otp_input = request.form.get("otp_code")
+        user = User.query.get(user_id)
+        
+        if not user:
+            session.pop('2fa_user_id', None)
+            return redirect(url_for("auth.login"))
+            
+        # Check Expiry
+        if user.otp_expiry and user.otp_expiry < datetime.utcnow():
+            flash("OTP has expired. Please login again.", "warning")
+            return redirect(url_for("auth.login"))
+            
+        # Check Code
+        if user.otp_code and user.otp_code == otp_input:
+            # Clear OTP fields
+            user.otp_code = None
+            user.otp_expiry = None
+            db.session.commit()
+            
+            # Complete Login
+            remember = session.get('remember_me', False)
+            login_user(user, remember=remember)
+            session.pop('2fa_user_id', None)
+            session.pop('remember_me', None)
+            
+            flash("Verification successful!", "success")
+            return redirect(url_for("main.index"))
+        else:
+            flash("Invalid verification code.", "danger")
+            
+    return render_template("auth/verify_otp.html")
 
 
 @auth_bp.route("/logout")
@@ -53,7 +122,10 @@ def manage_users():
 @login_required
 @admin_required
 def create_user():
-    """Admin-only user creation"""
+    """Admin-only user creation (Protected by 2FA if sensitive role)"""
+    # Note: For strict security, you could require re-auth here too,
+    # but the checklist only specified Admin Login 2FA.
+    
     if request.method == "POST":
         username = request.form.get("username")
         email = request.form.get("email")
