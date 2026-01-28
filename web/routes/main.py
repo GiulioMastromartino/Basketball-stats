@@ -810,7 +810,7 @@ def player_detail(player_name):
             if x > 100 or y > 100:
                 x = (x / 500.0) * 100.0
                 y = (y / 470.0) * 100.0
-            
+
             # If values look like normalized 0..1, convert to percent
             elif 0 <= x <= 1 and 0 <= y <= 1:
                 x *= 100.0
@@ -1151,7 +1151,7 @@ def games():
     for r in results:
         opp_name = r[0]
         opp_games = Game.query.filter_by(opponent=opp_name).all()
-        wins = sum(1 for g in games if g.result == "W")
+        wins = sum(1 for g in opp_games if g.result == "W")
         losses = len(opp_games) - wins
 
         if len(opp_games) > 0:
