@@ -6,7 +6,7 @@ from flask_wtf import FlaskForm
 from wtforms import BooleanField, PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired
 
-from core.models import User, db, bcrypt
+from core.models import User, SystemSetting, db, bcrypt
 from core.services.email_service import send_otp_email
 from web.decorators import admin_required
 
@@ -117,7 +117,31 @@ def logout():
 def manage_users():
     """List all users for management"""
     users = User.query.order_by(User.username).all()
-    return render_template("auth/manage_users.html", users=users)
+    
+    # Fetch Settings (default to 'true' if not set, or handle in template)
+    settings_data = SystemSetting.query.all()
+    settings = {s.key: s.value for s in settings_data}
+    
+    return render_template("auth/manage_users.html", users=users, settings=settings)
+
+@auth_bp.route("/settings/update", methods=["POST"])
+@login_required
+@admin_required
+def update_settings():
+    """Update system settings"""
+    try:
+        # Checkbox handling: if checked, present in form; else absent
+        notify_game = request.form.get("notify_game_added") == "on"
+        attach_pdf = request.form.get("attach_game_pdf") == "on"
+        
+        SystemSetting.set_value("notify_game_added", "true" if notify_game else "false", "Send email when game added")
+        SystemSetting.set_value("attach_game_pdf", "true" if attach_pdf else "false", "Attach PDF to game email")
+        
+        flash("System settings updated.", "success")
+    except Exception as e:
+        flash(f"Error updating settings: {e}", "danger")
+        
+    return redirect(url_for("auth.manage_users"))
 
 @auth_bp.route("/users/create", methods=["GET", "POST"])
 @login_required
