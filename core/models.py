@@ -38,6 +38,32 @@ class User(UserMixin, db.Model):
         return self.role == 'admin' or self.is_admin
 
 
+class SystemSetting(db.Model):
+    __tablename__ = "system_settings"
+    key = db.Column(db.String(50), primary_key=True)
+    value = db.Column(db.String(255), nullable=True)
+    description = db.Column(db.String(255), nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @classmethod
+    def get_value(cls, key, default=None):
+        setting = cls.query.get(key)
+        return setting.value if setting else default
+
+    @classmethod
+    def set_value(cls, key, value, description=None):
+        setting = cls.query.get(key)
+        if not setting:
+            setting = cls(key=key, value=value, description=description)
+            db.session.add(setting)
+        else:
+            setting.value = value
+            if description:
+                setting.description = description
+        db.session.commit()
+        return setting
+
+
 class Game(db.Model):
     __tablename__ = "games"
     id = db.Column(db.Integer, primary_key=True)
