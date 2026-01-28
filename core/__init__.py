@@ -71,27 +71,46 @@ def create_app(config_name="default"):
             app.logger.info(f"Seeded default PlayTypes: {', '.join(types)}")
             
         # 3. Seed/Fix Admin
-        admin_email = os.getenv("ADMIN_EMAIL", "admin@local.com")
-        admin_user = os.getenv("ADMIN_USERNAME", "admin")
-        admin_pass = os.getenv("ADMIN_PASSWORD", "admin123")
+        # We only use defaults for CREATION. For UPDATES, we strictly require the env var to be present.
+        env_email = os.getenv("ADMIN_EMAIL")
+        env_user = os.getenv("ADMIN_USERNAME", "admin")
+        env_pass = os.getenv("ADMIN_PASSWORD")
         
-        user = User.query.filter_by(username=admin_user).first()
+        # Fallbacks for initial creation only
+        create_email = env_email or "admin@local.com"
+        create_pass = env_pass or "admin123"
+        
+        user = User.query.filter_by(username=env_user).first()
         if not user:
             app.logger.info(f"Seeding admin for environment: {os.getenv('FLASK_ENV', 'unknown')}")
-            hashed_pw = bcrypt.generate_password_hash(admin_pass).decode('utf-8')
+            hashed_pw = bcrypt.generate_password_hash(create_pass).decode('utf-8')
             new_admin = User(
-                username=admin_user,
-                email=admin_email,
+                username=env_user,
+                email=create_email,
                 password_hash=hashed_pw,
                 role='admin',
                 is_admin=True
             )
             db.session.add(new_admin)
             db.session.commit()
-            app.logger.info(f"✓ Admin user created. Username: '{admin_user}'")
-        elif user.email != admin_email and admin_email != "admin@local.com":
-             user.email = admin_email
-             db.session.commit()
-             app.logger.info(f"✓ Updated admin email to match environment: {admin_email}")
+            app.logger.info(f"✓ Admin user created. Username: '{env_user}'")
+        else:
+            # Auto-healing: Update credentials if Env Vars are explicitly set
+            updates_made = False
+            
+            # Check Email (Only if ADMIN_EMAIL is in env)
+            if env_email and user.email != env_email:
+                 user.email = env_email
+                 updates_made = True
+                 app.logger.info(f"✓ Updated admin email to match environment: {env_email}")
+            
+            # Check Password (Only if ADMIN_PASSWORD is in env)
+            if env_pass and not user.check_password(env_pass):
+                user.password_hash = bcrypt.generate_password_hash(env_pass).decode('utf-8')
+                updates_made = True
+                app.logger.info("✓ Updated admin password to match environment variable")
+                
+            if updates_made:
+                db.session.commit()
 
     return app
