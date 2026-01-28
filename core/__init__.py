@@ -80,6 +80,7 @@ def create_app(config_name="default"):
         admin_pass = os.getenv("ADMIN_PASSWORD", "admin123")
         
         # Check if admin already exists
+        # CRITICAL FIX: Ensure db.session is used within context
         user = User.query.filter_by(username=admin_user).first()
         if not user:
             app.logger.info(f"Seeding admin for environment: {os.getenv('FLASK_ENV', 'unknown')}")
