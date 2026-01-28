@@ -1,7 +1,7 @@
 """Add OTP fields to User model
 
 Revision ID: 002_add_otp_fields
-Revises: 
+Revises: 9e8d7c6b5a4f
 Create Date: 2026-01-28 11:55:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '002_add_otp_fields'
-down_revision = None
+down_revision = '9e8d7c6b5a4f'
 branch_labels = None
 depends_on = None
 
