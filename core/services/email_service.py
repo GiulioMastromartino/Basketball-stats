@@ -26,17 +26,59 @@ def send_otp_email(to_email, otp_code):
     msg = Message(subject, sender=sender, recipients=[to_email])
     msg.body = body
     
-    # Send immediately (synchronous) for the first smoke test to see errors
     try:
-        current_app.logger.info(f"Attempting to send OTP email from {sender} to {to_email} via {current_app.config.get('MAIL_SERVER')}")
+        current_app.logger.info(f"Attempting to send OTP email from {sender} to {to_email}")
         mail.send(msg)
-        current_app.logger.info("Email sent successfully via Flask-Mail")
         return True
-    except smtplib.SMTPAuthenticationError:
-        current_app.logger.error("SMTP Authentication Error. Check your MAIL_USERNAME/PASSWORD.")
-        return False
     except Exception as e:
-        current_app.logger.error(f"SMTP Error ({type(e).__name__}): {e}")
-        # Explicit print to stderr for container logs
-        print(f"SMTP FAILED: {e}", file=sys.stderr)
+        current_app.logger.error(f"OTP Email Failed: {e}")
         return False
+
+def send_game_notification(recipients, game, pdf_attachment=None):
+    """
+    Sends a new game notification to a list of recipients.
+    
+    :param recipients: List of email strings
+    :param game: Game model instance
+    :param pdf_attachment: Tuple (filename, bytes) or None
+    """
+    if not recipients:
+        return
+
+    subject = f"New Game Added: {game.opponent} ({game.result})"
+    sender = current_app.config.get('MAIL_DEFAULT_SENDER')
+    
+    if not sender:
+        current_app.logger.error("MAIL_DEFAULT_SENDER is not set!")
+        return
+
+    body = f"""
+    A new game has been added to the tracker.
+    
+    Opponent: {game.opponent}
+    Date: {game.date}
+    Result: {game.result} ({game.score_display})
+    Type: {game.game_type}
+    
+    Log in to view full details.
+    """
+
+    msg = Message(subject, sender=sender, bcc=recipients)
+    msg.body = body
+
+    if pdf_attachment:
+        filename, file_bytes = pdf_attachment
+        if filename and file_bytes:
+            msg.attach(
+                filename,
+                "application/pdf",
+                file_bytes
+            )
+
+    try:
+        # Sending synchronously to ensure delivery before response, 
+        # or you can spawn a thread if performance is critical.
+        mail.send(msg)
+        current_app.logger.info(f"Game notification sent to {len(recipients)} recipients.")
+    except Exception as e:
+        current_app.logger.error(f"Game notification failed: {e}")
