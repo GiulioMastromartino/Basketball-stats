@@ -66,51 +66,53 @@ def create_app(config_name="default"):
                 db.session.add(PlayType(name=t_name))
             db.session.commit()
             
-        # 3. Seed/Fix Admin
+        # 3. Seed/Fix Admin - ROBUST MODE
         env_email = os.getenv("ADMIN_EMAIL")
         env_user = os.getenv("ADMIN_USERNAME", "admin")
         env_pass = os.getenv("ADMIN_PASSWORD")
         
         # Fallbacks
-        create_email = env_email or "admin@local.com"
-        create_pass = env_pass or "admin123"
+        final_email = env_email or "admin@local.com"
+        final_pass = env_pass or "admin123"
         
         user = User.query.filter_by(username=env_user).first()
+        
         if not user:
-            app.logger.info(f"Seeding admin for environment: {os.getenv('FLASK_ENV', 'unknown')}")
-            hashed_pw = bcrypt.generate_password_hash(create_pass).decode('utf-8')
+            app.logger.info(f"Seeding NEW admin...")
+            hashed_pw = bcrypt.generate_password_hash(final_pass).decode('utf-8')
             new_admin = User(
                 username=env_user,
-                email=create_email,
+                email=final_email,
                 password_hash=hashed_pw,
                 role='admin',
                 is_admin=True
             )
             db.session.add(new_admin)
             db.session.commit()
-            # Explicitly log the password so user knows what to use
-            app.logger.info("="*50)
-            app.logger.info(f"✓ ADMIN CREATED")
-            app.logger.info(f"Username: {env_user}")
-            app.logger.info(f"Password: {create_pass}")
-            app.logger.info("="*50)
+            app.logger.info("="*40)
+            app.logger.info(f"ADMIN CREATED -> User: {env_user} | Pass: {final_pass}")
+            app.logger.info("="*40)
         else:
-            # Auto-healing logic
+            # FORCE UPDATE ON EVERY STARTUP to ensure consistency
+            # This solves the "I set the env var but the DB is stuck" issue
+            
             updates = False
             
-            # Update Email if Env var is set and different
+            # Always sync email if env var provided
             if env_email and user.email != env_email:
                  user.email = env_email
                  updates = True
-                 app.logger.info(f"✓ Fix: Updated admin email to {env_email}")
+                 app.logger.info(f"-> Syncing Admin Email to: {env_email}")
             
-            # Update Password if Env var is set
-            if env_pass and not user.check_password(env_pass):
-                user.password_hash = bcrypt.generate_password_hash(env_pass).decode('utf-8')
-                updates = True
-                app.logger.info(f"✓ Fix: Updated admin password to match env: {env_pass}")
-                
+            # Always sync password if env var provided
+            # We blindly re-hash to be 100% sure it matches the env var
+            if env_pass:
+                 user.password_hash = bcrypt.generate_password_hash(env_pass).decode('utf-8')
+                 updates = True
+                 app.logger.info(f"-> Syncing Admin Password to env variable: {env_pass}")
+            
             if updates:
                 db.session.commit()
+                app.logger.info("Admin credentials synchronized with Environment.")
 
     return app
