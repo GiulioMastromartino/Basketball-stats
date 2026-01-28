@@ -40,8 +40,6 @@ def create_app(config_name="default"):
         app.logger.addHandler(handler)
         
     # Register blueprints (All restored)
-    # We use local imports inside the factory to prevent circular import issues
-    # but we must ensure the models are loaded before we query them
     with app.app_context():
         from web.routes.main import main_bp
         from web.routes.auth import auth_bp
@@ -55,8 +53,7 @@ def create_app(config_name="default"):
         app.register_blueprint(plays_bp, url_prefix="/plays")
         app.register_blueprint(reports_bp, url_prefix="/reports")
 
-        # Seeding Logic - Safely inside app_context
-        # Import models here to ensure they are registered with SQLAlchemy
+        # Seeding Logic
         from core.models import User, PlayType
         
         # 1. Ensure tables exist
@@ -68,15 +65,13 @@ def create_app(config_name="default"):
             for t_name in types:
                 db.session.add(PlayType(name=t_name))
             db.session.commit()
-            app.logger.info(f"Seeded default PlayTypes: {', '.join(types)}")
             
         # 3. Seed/Fix Admin
-        # We only use defaults for CREATION. For UPDATES, we strictly require the env var to be present.
         env_email = os.getenv("ADMIN_EMAIL")
         env_user = os.getenv("ADMIN_USERNAME", "admin")
         env_pass = os.getenv("ADMIN_PASSWORD")
         
-        # Fallbacks for initial creation only
+        # Fallbacks
         create_email = env_email or "admin@local.com"
         create_pass = env_pass or "admin123"
         
@@ -93,24 +88,25 @@ def create_app(config_name="default"):
             )
             db.session.add(new_admin)
             db.session.commit()
-            app.logger.info(f"✓ Admin user created. Username: '{env_user}'")
+            app.logger.info(f"✓ Admin user created. Username: '{env_user}' Password: '{create_pass}'")
         else:
-            # Auto-healing: Update credentials if Env Vars are explicitly set
-            updates_made = False
+            # Auto-healing logic
+            updates = False
             
-            # Check Email (Only if ADMIN_EMAIL is in env)
+            # Update Email if Env var is set and different
             if env_email and user.email != env_email:
                  user.email = env_email
-                 updates_made = True
-                 app.logger.info(f"✓ Updated admin email to match environment: {env_email}")
+                 updates = True
+                 app.logger.info(f"✓ Fix: Updated admin email to {env_email}")
             
-            # Check Password (Only if ADMIN_PASSWORD is in env)
+            # Update Password if Env var is set
+            # CRITICAL: We only reset the password if the check FAILS.
             if env_pass and not user.check_password(env_pass):
                 user.password_hash = bcrypt.generate_password_hash(env_pass).decode('utf-8')
-                updates_made = True
-                app.logger.info("✓ Updated admin password to match environment variable")
+                updates = True
+                app.logger.info("✓ Fix: Updated admin password to match environment variable")
                 
-            if updates_made:
+            if updates:
                 db.session.commit()
 
     return app
