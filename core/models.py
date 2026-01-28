@@ -22,6 +22,10 @@ class User(UserMixin, db.Model):
     # Deprecated but kept for safety during migration
     is_admin = db.Column(db.Boolean, default=False)
 
+    # OTP Fields
+    otp_code = db.Column(db.String(6), nullable=True)
+    otp_expiry = db.Column(db.DateTime, nullable=True)
+
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
 
