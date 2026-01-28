@@ -1,13 +1,13 @@
 import click
 from flask.cli import with_appcontext
-from core import db, bcrypt
-from core.models import User, PlayType
+from core.models import User, PlayType, db, bcrypt
+from core.seed_plays import seed_plays
 import os
 
 @click.command('seed')
 @with_appcontext
 def seed_command():
-    """Seed the database with default data and admin user."""
+    """Seed the database with default data, admin user, and plays."""
     click.echo('Seeding database...')
     
     # 1. Seed PlayTypes
@@ -59,5 +59,8 @@ def seed_command():
             click.echo("Admin updated.")
         else:
             click.echo("Admin already up to date.")
+            
+    # 3. Seed Plays
+    seed_plays()
             
     click.echo("Seeding complete.")
