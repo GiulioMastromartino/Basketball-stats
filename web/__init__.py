@@ -93,35 +93,28 @@ def create_app(config_name: str = None) -> Flask:
                             app.logger.info("Dropped play_sequences table.")
 
                         if inspector.has_table("shot_events"):
-                            # Only drop/recreate shots if strictly necessary or handle fk constraints
-                            # For now, let's just focus on plays.
-                            # SQLite doesn't enforce FKs by default unless enabled, so might be okay.
                             pass
 
                         db.session.execute(text("DROP TABLE plays"))
                         db.session.commit()
                         app.logger.info("Dropped plays table.")
-
-                        db.create_all()
-                        app.logger.info("Plays tables recreated with correct schema.")
+                        
+                        # Disabled auto create_all to let migrations handle it
+                        # db.create_all()
                 else:
-                    # Ensure tables exist if they don't
-                    db.create_all()
+                    # Disabled auto create_all to let migrations handle it
+                    # db.create_all()
+                    pass
 
-                # Double check play_sequences exists now
-                if not inspector.has_table("play_sequences"):
-                     db.create_all()
-
-                # Ensure PlayType table exists and is seeded
-                if not inspector.has_table("play_types"):
-                    db.create_all()
-                
-                if PlayType.query.count() == 0:
-                    default_types = ["Offense", "Defense", "Special"]
-                    for t in default_types:
-                        db.session.add(PlayType(name=t))
-                    db.session.commit()
-                    app.logger.info("Seeded default PlayTypes: Offense, Defense, Special")
+                # Ensure PlayType table exists and is seeded if needed (safely)
+                # But generally rely on migrations. Only seeding if table exists but empty.
+                if inspector.has_table("play_types"):
+                     if PlayType.query.count() == 0:
+                        default_types = ["Offense", "Defense", "Special"]
+                        for t in default_types:
+                            db.session.add(PlayType(name=t))
+                        db.session.commit()
+                        app.logger.info("Seeded default PlayTypes: Offense, Defense, Special")
 
             except Exception as e:
                 app.logger.error(f"Schema auto-fix failed: {e}")
