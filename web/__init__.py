@@ -18,6 +18,7 @@ from flask_migrate import Migrate
 from sqlalchemy import inspect, text
 from config import get_config
 from core.models import User, bcrypt, db, PlayType
+from core import mail
 
 
 # Initialize extensions
@@ -48,6 +49,7 @@ def create_app(config_name: str = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     bcrypt.init_app(app)
+    mail.init_app(app)  # <--- Initialize Mail
     csrf.init_app(app)
     cache.init_app(app)
     limiter.init_app(app)
