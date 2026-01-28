@@ -18,6 +18,7 @@ from flask_migrate import Migrate
 from sqlalchemy import inspect, text
 from config import get_config
 from core.models import User, bcrypt, db, PlayType
+from core import mail
 
 
 # Initialize extensions
@@ -48,6 +49,7 @@ def create_app(config_name: str = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     bcrypt.init_app(app)
+    mail.init_app(app)  # <--- Initialize Mail
     csrf.init_app(app)
     cache.init_app(app)
     limiter.init_app(app)
@@ -64,6 +66,9 @@ def create_app(config_name: str = None) -> Flask:
 
     # Register blueprints
     register_blueprints(app)
+    
+    # Register CLI commands
+    register_commands(app)
 
     # Auto-fix schema for dev/demo (Plays feature)
     # WARNING: Only run this in DEBUG mode or if explicitly enabled
@@ -159,3 +164,9 @@ def register_blueprints(app: Flask):
     app.register_blueprint(plays_bp)
     app.register_blueprint(builder_api_bp, url_prefix="/api/v1")
     app.register_blueprint(reports_bp)
+
+
+def register_commands(app: Flask):
+    """Register CLI commands"""
+    from core.commands import seed_command
+    app.cli.add_command(seed_command)

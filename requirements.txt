@@ -23,3 +23,5 @@ pdfplumber==0.10.3
 gunicorn==21.2.0
 psycopg2-binary==2.9.9
 psutil==5.9.8
+Flask-Mail
+python-dotenv

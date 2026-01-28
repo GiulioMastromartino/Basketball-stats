@@ -4,13 +4,17 @@ services:
     image: giuliomastromartino/basketball-stats:latest
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     environment:
-      # Set explicit environment for local testing
       - FLASK_ENV=development
       - PORT=8080
     volumes:
-      # Mount the instance folder for persistent database storage (for local SQLite dev)
+      - .:/app
       - ./instance:/app/instance
-      # Optional: mount source code for hot reloading if we were running flask dev server,
-      # but here we are testing the production build with gunicorn
+    # Run migrations -> Seed DB (via Flask CLI) -> Start Server
+    command: >
+      sh -c "flask db upgrade &&
+             flask seed &&
+             exec gunicorn --config gunicorn_config.py run:app"
     restart: unless-stopped

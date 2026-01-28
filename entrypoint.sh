@@ -1,19 +1,16 @@
-#!/bin/bash
-# entrypoint.sh
+#!/bin/sh
+# entrypoint.sh - wrapper to handle migrations before startup
 
-# Exit immediately if a command exits with a non-zero status.
-set -e
-
-# 1. Apply database migrations
-# We use --app run.py explicitly to ensure Flask finds the app instance
+# Run migrations
 echo "Applying database migrations..."
-flask --app run.py db upgrade
+flask db upgrade
 
-# 2. Ensure admin user exists (run after migration so tables exist)
-echo "Checking for admin user..."
-python seed_admin.py
+# Force Admin Credential Sync from Environment
+# This ensures that even if Gunicorn swallows logs or app factory behaves oddly,
+# the password is STRICTLY enforced from the .env file before the server starts.
+echo "Syncing admin credentials..."
+python scripts/reset_admin_password.py
 
-# 3. Start the production server
-# Usage: gunicorn -c <config_file> <app_module>
+# Start Gunicorn
 echo "Starting Gunicorn with smart memory monitoring..."
-exec gunicorn -c gunicorn_config.py run:app
+exec gunicorn --config gunicorn_config.py run:app

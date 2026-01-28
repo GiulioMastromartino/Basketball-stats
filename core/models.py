@@ -14,13 +14,54 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    
+    # New Role Field
+    # Options: 'admin', 'editor', 'viewer'
+    role = db.Column(db.String(20), nullable=False, default='editor')
+    
+    # Deprecated but kept for safety during migration
     is_admin = db.Column(db.Boolean, default=False)
+
+    # OTP Fields
+    otp_code = db.Column(db.String(6), nullable=True)
+    otp_expiry = db.Column(db.DateTime, nullable=True)
 
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
 
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
+
+    @property
+    def is_manager(self):
+        """Check if user has admin privileges (supports legacy check)"""
+        return self.role == 'admin' or self.is_admin
+
+
+class SystemSetting(db.Model):
+    __tablename__ = "system_settings"
+    key = db.Column(db.String(50), primary_key=True)
+    value = db.Column(db.String(255), nullable=True)
+    description = db.Column(db.String(255), nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @classmethod
+    def get_value(cls, key, default=None):
+        setting = cls.query.get(key)
+        return setting.value if setting else default
+
+    @classmethod
+    def set_value(cls, key, value, description=None):
+        setting = cls.query.get(key)
+        if not setting:
+            setting = cls(key=key, value=value, description=description)
+            db.session.add(setting)
+        else:
+            setting.value = value
+            if description:
+                setting.description = description
+        db.session.commit()
+        return setting
 
 
 class Game(db.Model):
