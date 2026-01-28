@@ -39,21 +39,59 @@ def create_app(config_name="default"):
         handler.setLevel(logging.INFO)
         app.logger.addHandler(handler)
         
-    # Register blueprints
-    from web.routes.main import main_bp
-    from web.routes.auth import auth_bp
-    # from web.routes.games import games_bp
-    # from web.routes.plays import plays_bp
-    # from web.routes.reports import reports_bp
-    
-    app.register_blueprint(main_bp)
-    app.register_blueprint(auth_bp, url_prefix="/auth")
-    # app.register_blueprint(games_bp, url_prefix="/games")
-    # app.register_blueprint(plays_bp, url_prefix="/plays")
-    # app.register_blueprint(reports_bp, url_prefix="/reports")
-    
-    # REMOVED: Database seeding from create_app to avoid context errors.
-    # Database seeding should be done via separate scripts (quick_start.py / reset_empty.py)
-    # or by a dedicated CLI command, not implicitly during app factory creation.
+    # Register blueprints (All restored)
+    # We use local imports inside the factory to prevent circular import issues
+    # but we must ensure the models are loaded before we query them
+    with app.app_context():
+        from web.routes.main import main_bp
+        from web.routes.auth import auth_bp
+        from web.routes.games import games_bp
+        from web.routes.plays import plays_bp
+        from web.routes.reports import reports_bp
+        
+        app.register_blueprint(main_bp)
+        app.register_blueprint(auth_bp, url_prefix="/auth")
+        app.register_blueprint(games_bp, url_prefix="/games")
+        app.register_blueprint(plays_bp, url_prefix="/plays")
+        app.register_blueprint(reports_bp, url_prefix="/reports")
+
+        # Seeding Logic - Safely inside app_context
+        # Import models here to ensure they are registered with SQLAlchemy
+        from core.models import User, PlayType
+        
+        # 1. Ensure tables exist
+        db.create_all()
+        
+        # 2. Seed PlayTypes
+        if not PlayType.query.first():
+            types = ["Offense", "Defense", "Special"]
+            for t_name in types:
+                db.session.add(PlayType(name=t_name))
+            db.session.commit()
+            app.logger.info(f"Seeded default PlayTypes: {', '.join(types)}")
+            
+        # 3. Seed/Fix Admin
+        admin_email = os.getenv("ADMIN_EMAIL", "admin@local.com")
+        admin_user = os.getenv("ADMIN_USERNAME", "admin")
+        admin_pass = os.getenv("ADMIN_PASSWORD", "admin123")
+        
+        user = User.query.filter_by(username=admin_user).first()
+        if not user:
+            app.logger.info(f"Seeding admin for environment: {os.getenv('FLASK_ENV', 'unknown')}")
+            hashed_pw = bcrypt.generate_password_hash(admin_pass).decode('utf-8')
+            new_admin = User(
+                username=admin_user,
+                email=admin_email,
+                password_hash=hashed_pw,
+                role='admin',
+                is_admin=True
+            )
+            db.session.add(new_admin)
+            db.session.commit()
+            app.logger.info(f"✓ Admin user created. Username: '{admin_user}'")
+        elif user.email != admin_email and admin_email != "admin@local.com":
+             user.email = admin_email
+             db.session.commit()
+             app.logger.info(f"✓ Updated admin email to match environment: {admin_email}")
 
     return app
