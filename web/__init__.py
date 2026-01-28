@@ -66,62 +66,65 @@ def create_app(config_name: str = None) -> Flask:
     register_blueprints(app)
 
     # Auto-fix schema for dev/demo (Plays feature)
-    with app.app_context():
-        try:
-            inspector = inspect(db.engine)
+    # WARNING: Only run this in DEBUG mode or if explicitly enabled
+    # In production, use 'flask db upgrade' via Flask-Migrate instead.
+    if app.config.get("DEBUG") or app.config.get("AUTO_MIGRATE"):
+        with app.app_context():
+            try:
+                inspector = inspect(db.engine)
 
-            # Check for plays table
-            if inspector.has_table("plays"):
-                columns = [c['name'] for c in inspector.get_columns("plays")]
+                # Check for plays table
+                if inspector.has_table("plays"):
+                    columns = [c['name'] for c in inspector.get_columns("plays")]
 
-                # Check for critical new columns
-                missing_columns = []
-                if "canvas_data" not in columns:
-                    missing_columns.append("canvas_data")
-                if "diagram_svg" not in columns:
-                    missing_columns.append("diagram_svg")
+                    # Check for critical new columns
+                    missing_columns = []
+                    if "canvas_data" not in columns:
+                        missing_columns.append("canvas_data")
+                    if "diagram_svg" not in columns:
+                        missing_columns.append("diagram_svg")
 
-                if missing_columns:
-                    app.logger.warning(f"Detected outdated Plays schema (missing: {missing_columns}). Recreating tables...")
+                    if missing_columns:
+                        app.logger.warning(f"Detected outdated Plays schema (missing: {missing_columns}). Recreating tables...")
 
-                    # Drop dependent table first
-                    if inspector.has_table("play_sequences"):
-                        db.session.execute(text("DROP TABLE play_sequences"))
-                        app.logger.info("Dropped play_sequences table.")
+                        # Drop dependent table first
+                        if inspector.has_table("play_sequences"):
+                            db.session.execute(text("DROP TABLE play_sequences"))
+                            app.logger.info("Dropped play_sequences table.")
 
-                    if inspector.has_table("shot_events"):
-                        # Only drop/recreate shots if strictly necessary or handle fk constraints
-                        # For now, let's just focus on plays.
-                        # SQLite doesn't enforce FKs by default unless enabled, so might be okay.
-                        pass
+                        if inspector.has_table("shot_events"):
+                            # Only drop/recreate shots if strictly necessary or handle fk constraints
+                            # For now, let's just focus on plays.
+                            # SQLite doesn't enforce FKs by default unless enabled, so might be okay.
+                            pass
 
-                    db.session.execute(text("DROP TABLE plays"))
-                    db.session.commit()
-                    app.logger.info("Dropped plays table.")
+                        db.session.execute(text("DROP TABLE plays"))
+                        db.session.commit()
+                        app.logger.info("Dropped plays table.")
 
+                        db.create_all()
+                        app.logger.info("Plays tables recreated with correct schema.")
+                else:
+                    # Ensure tables exist if they don't
                     db.create_all()
-                    app.logger.info("Plays tables recreated with correct schema.")
-            else:
-                # Ensure tables exist if they don't
-                db.create_all()
 
-            # Double check play_sequences exists now
-            if not inspector.has_table("play_sequences"):
-                 db.create_all()
+                # Double check play_sequences exists now
+                if not inspector.has_table("play_sequences"):
+                     db.create_all()
 
-            # Ensure PlayType table exists and is seeded
-            if not inspector.has_table("play_types"):
-                db.create_all()
-            
-            if PlayType.query.count() == 0:
-                default_types = ["Offense", "Defense", "Special"]
-                for t in default_types:
-                    db.session.add(PlayType(name=t))
-                db.session.commit()
-                app.logger.info("Seeded default PlayTypes: Offense, Defense, Special")
+                # Ensure PlayType table exists and is seeded
+                if not inspector.has_table("play_types"):
+                    db.create_all()
+                
+                if PlayType.query.count() == 0:
+                    default_types = ["Offense", "Defense", "Special"]
+                    for t in default_types:
+                        db.session.add(PlayType(name=t))
+                    db.session.commit()
+                    app.logger.info("Seeded default PlayTypes: Offense, Defense, Special")
 
-        except Exception as e:
-            app.logger.error(f"Schema auto-fix failed: {e}")
+            except Exception as e:
+                app.logger.error(f"Schema auto-fix failed: {e}")
 
     return app
 
