@@ -1,40 +1,44 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Login - Basketball Stats</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #f5f5f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-box { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 300px; }
-        h2 { text-align: center; color: #333; }
-        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        button:hover { background: #0056b3; }
-        .flash { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
-        .flash.danger { background: #f8d7da; color: #721c24; }
-    </style>
-</head>
-<body>
-    <div class="login-box">
-        <h2>🏀 Basketball Stats</h2>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="flash {{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        <form method="POST">
-            {{ form.hidden_tag() }}
-            {{ form.username(placeholder="Username") }}
-            {{ form.password(placeholder="Password") }}
-            <label style="display: block; margin: 10px 0;">
-                {{ form.remember_me() }} Remember Me
-            </label>
-            {{ form.submit() }}
-        </form>
-        <p style="text-align: center; margin-top: 20px; color: #666; font-size: 14px;">
-            Default: admin / admin123
-        </p>
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white text-center py-4">
+                <h2 class="mb-0">🏀 Basketball Stats</h2>
+            </div>
+            <div class="card-body p-4">
+                <h4 class="card-title text-center mb-4">Sign In</h4>
+                
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        {{ form.username(class="form-control", placeholder="Enter your username") }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        {{ form.password(class="form-control", placeholder="Enter your password") }}
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        {{ form.remember_me(class="form-check-input") }}
+                        <label class="form-check-label" for="remember_me">
+                            Keep me logged in
+                        </label>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-muted text-center py-3">
+                <small>Restricted Access - Authorized Personnel Only</small>
+            </div>
+        </div>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}
