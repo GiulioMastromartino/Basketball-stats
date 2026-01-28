@@ -52,56 +52,8 @@ def create_app(config_name="default"):
     # app.register_blueprint(plays_bp, url_prefix="/plays")
     # app.register_blueprint(reports_bp, url_prefix="/reports")
     
-    # Create tables & Seed default data (Development/Production friendly)
-    with app.app_context():
-        # Auto-create tables if they don't exist (useful for first run on Koyeb/Docker)
-        # Note: In strict prod, you might rely solely on 'flask db upgrade'
-        db.create_all()
-        
-        # Seed PlayTypes if missing
-        try:
-            from core.models import PlayType
-            if not PlayType.query.first():
-                types = ["Offense", "Defense", "Special"]
-                for t_name in types:
-                    db.session.add(PlayType(name=t_name))
-                db.session.commit()
-                app.logger.info(f"Seeded default PlayTypes: {', '.join(types)}")
-        except Exception:
-            pass # Skip if models aren't ready
-            
-        # Seed Admin User if missing
-        # Uses env vars: ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD
-        from core.models import User
-        
-        # Default fallback values (for local dev only)
-        admin_email = os.getenv("ADMIN_EMAIL", "admin@local.com")
-        admin_user = os.getenv("ADMIN_USERNAME", "admin")
-        admin_pass = os.getenv("ADMIN_PASSWORD", "admin123")
-        
-        # Check if admin already exists
-        # CRITICAL FIX: Ensure db.session is used within context
-        user = User.query.filter_by(username=admin_user).first()
-        if not user:
-            app.logger.info(f"Seeding admin for environment: {os.getenv('FLASK_ENV', 'unknown')}")
-            app.logger.info("Creating default admin user...")
-            
-            hashed_pw = bcrypt.generate_password_hash(admin_pass).decode('utf-8')
-            new_admin = User(
-                username=admin_user,
-                email=admin_email,
-                password_hash=hashed_pw,
-                role='admin',
-                is_admin=True
-            )
-            db.session.add(new_admin)
-            db.session.commit()
-            app.logger.info(f"✓ Admin user created. Username: '{admin_user}'")
-        elif user.email != admin_email and admin_email != "admin@local.com":
-             # Auto-fix email if environment variable is set and different from DB
-             # This prevents the exact issue you just faced
-             user.email = admin_email
-             db.session.commit()
-             app.logger.info(f"✓ Updated admin email to match environment: {admin_email}")
+    # REMOVED: Database seeding from create_app to avoid context errors.
+    # Database seeding should be done via separate scripts (quick_start.py / reset_empty.py)
+    # or by a dedicated CLI command, not implicitly during app factory creation.
 
     return app
