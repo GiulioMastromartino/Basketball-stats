@@ -4,16 +4,14 @@ services:
     image: giuliomastromartino/basketball-stats:latest
     ports:
       - "8080:8080"
-    # Load environment variables from .env file
     env_file:
       - .env
     environment:
-      # Overrides or additional variables
       - FLASK_ENV=development
       - PORT=8080
     volumes:
-      # Mount the instance folder for persistent database storage (for local SQLite dev)
+      # Sync current directory to /app so changes apply immediately (Fixes missing files)
+      - .:/app
+      # Keep instance persistent
       - ./instance:/app/instance
-      # Optional: mount source code for hot reloading if we were running flask dev server,
-      # but here we are testing the production build with gunicorn
     restart: unless-stopped
