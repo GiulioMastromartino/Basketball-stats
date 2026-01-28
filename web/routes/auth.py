@@ -30,8 +30,9 @@ def login():
         user = User.query.filter_by(username=form.username.data).first()
         if user and user.check_password(form.password.data):
             
-            # 1. If user is Admin, trigger OTP flow
-            if user.role == 'admin':
+            # 1. If user is Admin (checking both role and legacy flag), trigger OTP flow
+            # Using is_manager property which handles both 'admin' role and is_admin=True
+            if user.is_manager:
                 # Generate OTP
                 otp_code = f"{random.randint(100000, 999999)}"
                 user.otp_code = otp_code
