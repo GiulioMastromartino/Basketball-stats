@@ -4,8 +4,11 @@ services:
     image: giuliomastromartino/basketball-stats:latest
     ports:
       - "8080:8080"
+    # Load environment variables from .env file
+    env_file:
+      - .env
     environment:
-      # Set explicit environment for local testing
+      # Overrides or additional variables
       - FLASK_ENV=development
       - PORT=8080
     volumes:
