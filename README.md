@@ -1,4 +1,7 @@
 [![Documentation](https://img.shields.io/badge/docs-view_site-blue)](https://giuliomastromartino.github.io/Basketball-stats/)
+```mermaid
+graph TD
+    A[Your Repo] --> B[Components]
 
 # 🏀 Basketball Stats Analyzer
 
