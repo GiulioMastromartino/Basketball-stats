@@ -1,12 +1,33 @@
 [![Documentation](https://img.shields.io/badge/docs-view_site-blue)](https://giuliomastromartino.github.io/Basketball-stats/)
-```mermaid
-graph TD
-    A[Your Repo] --> B[Components]
 
 # 🏀 Basketball Stats Analyzer
 
 A web application for tracking and analyzing basketball game statistics with advanced metrics.
 
+## System Architecture
+
+```mermaid
+graph TD
+    Client[Web Browser] -->|HTTP :8080| Flask[Flask Application]
+    Flask --> Auth[Flask-Login<br/>Authentication]
+    Flask --> API[REST API<br/>Flask-RESTx]
+    Flask --> DB[(SQLite Database<br/>basketball_stats.db)]
+    
+    CSV[CSV Files<br/>Games/ folder] -->|Import| CLI[cli_import.py]
+    CLI -->|Parse & Store| DB
+    
+    Core[Analytics Engine<br/>Pandas/NumPy] -->|Calculate| Metrics[Advanced Metrics<br/>TS%, eFG%, Game Score]
+    Flask --> Core
+    Core --> DB
+    
+    Docker[Docker Container] -.->|Contains| Flask
+    Docker -.->|Volume Mount| DB
+    Docker -.->|Volume Mount| CSV
+    
+    style Flask fill:#000000,color:#fff
+    style DB fill:#003B57,color:#fff
+    style Docker fill:#2496ED,color:#fff
+    style Core fill:#0db7ed,color:#fff
 
 ## What It Does
 
