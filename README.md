@@ -28,6 +28,7 @@ graph TD
     style DB fill:#003B57,color:#fff
     style Docker fill:#2496ED,color:#fff
     style Core fill:#0db7ed,color:#fff
+```
 
 ## What It Does
 
