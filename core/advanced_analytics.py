@@ -459,8 +459,7 @@ class LineupAnalytics:
             players = segment.players
             if isinstance(players, str):
                 try:
-                    players = json.loads(players)
-                except:
+                    players = json.loads(players)\n                except:
                     players = []
             if not players:
                 players = []
@@ -676,7 +675,8 @@ class PossessionReconstructor:
                         'start_event_id': event.id,
                         'team_possession': team_possession,
                         'quarter': event.quarter,
-                        'events': [event.id],\n                        'points': 0
+                        'events': [event.id],
+                        'points': 0
                     }
                 else:
                     current_possession['events'].append(event.id)
@@ -861,8 +861,7 @@ class AnalyticsEngine:
             query = query.join(Game).filter(Game.game_type == 'Season')
         elif game_type == 'Friendly':
             query = query.join(Game).filter(Game.game_type == 'Friendly')
-        
-        result = query.first()
+        \n        result = query.first()
         
         if not result or result.games == 0:
             return {}
@@ -1057,8 +1056,7 @@ class ShotChartAnalytics:
         heatmap = {}
         for zone, stats in zone_stats.items():
             fg_pct = safe_percentage(stats['makes'], stats['attempts'])
-            expected = get_expected_value(zone)
-            actual_pps = safe_divide(stats['points'], stats['attempts'])
+            expected = get_expected_value(zone)\n            actual_pps = safe_divide(stats['points'], stats['attempts'])
             
             heatmap[zone] = {
                 'attempts': stats['attempts'],
@@ -1096,7 +1094,8 @@ class ShotChartAnalytics:
             
             # Calculate hexbin coordinates
             hex_x = int(shot['x_loc'] // hex_size) * hex_size + hex_size // 2
-            hex_y = int(shot['y_loc'] // hex_size) * hex_size + hex_size // 2\n            hex_key = (hex_x, hex_y)
+            hex_y = int(shot['y_loc'] // hex_size) * hex_size + hex_size // 2
+            hex_key = (hex_x, hex_y)
             
             hexbins[hex_key]['attempts'] += 1
             hexbins[hex_key]['points'] += shot['points'] or 0
@@ -1112,8 +1111,7 @@ class ShotChartAnalytics:
                 'y': y,
                 'attempts': stats['attempts'],
                 'makes': stats['makes'],
-                'fg_pct': fg_pct,
-                'points': stats['points']
+                'fg_pct': fg_pct,\n                'points': stats['points']
             })
         
         return hexbin_list
