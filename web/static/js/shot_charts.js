@@ -66,8 +66,19 @@ class ShotChart {
     }
     
     drawShot(shot) {
-        const x = shot.x_loc || 250;
-        const y = shot.y_loc || 235;
+        // **FIX: Handle FTs separately or place them at the line**
+        let x, y;
+        
+        if (shot.shot_type === 'ft') {
+            // Place Free Throws at the line (approx y=190 for 15ft)
+            x = 250;
+            y = 190;
+        } else {
+            // Default to mid-paint if missing (250, 235)
+            x = shot.x_loc !== null ? shot.x_loc : 250;
+            y = shot.y_loc !== null ? shot.y_loc : 235;
+        }
+
         const made = shot.result === 'made';
         
         // Draw shot marker
@@ -158,8 +169,7 @@ class HexbinShotChart extends ShotChart {
             
             // Convert to hexagonal grid coordinates
             const col = Math.round(shot.x_loc / (hexSize * 1.5));
-            const row = Math.round(shot.y_loc / (hexSize * Math.sqrt(3)));
-            
+            const row = Math.round(shot.y_loc / (hexSize * Math.sqrt(3)));\n            
             const key = `${col},${row}`;
             
             if (!bins.has(key)) {
@@ -272,6 +282,7 @@ class ZoneHeatmap {
     
     init() {
         // Create zone display
+        // **FIX: Added Free Throw zone**
         this.container.innerHTML = `
             <div class="zone-heatmap">
                 <div class="zone-grid">
@@ -280,163 +291,4 @@ class ZoneHeatmap {
                         <span class="zone-stats"></span>
                     </div>
                     <div class="zone zone-above-break" data-zone="Above_Break_3">
-                        <span class="zone-name">Above Break 3</span>
-                        <span class="zone-stats"></span>
-                    </div>
-                    <div class="zone zone-corner-3-right" data-zone="Corner_3">
-                        <span class="zone-name">Corner 3</span>
-                        <span class="zone-stats"></span>
-                    </div>
-                    <div class="zone zone-midrange" data-zone="Midrange">
-                        <span class="zone-name">Midrange</span>
-                        <span class="zone-stats"></span>
-                    </div>
-                    <div class="zone zone-paint" data-zone="Paint">
-                        <span class="zone-name">Paint</span>
-                        <span class="zone-stats"></span>
-                    </div>
-                    <div class="zone zone-rim" data-zone="Rim">
-                        <span class="zone-name">Rim</span>
-                        <span class="zone-stats"></span>
-                    </div>
-                </div>
-                <div class="zone-legend">
-                    <span class="legend-item cold">Below Avg</span>
-                    <span class="legend-item avg">Average</span>
-                    <span class="legend-item hot">Above Avg</span>
-                </div>
-            </div>
-        `;
-    }
-    
-    loadZoneData(zones) {
-        this.zones = zones;
-        this.render();
-    }
-    
-    render() {
-        Object.entries(this.zones).forEach(([zoneName, stats]) => {
-            const zoneEl = this.container.querySelector(`[data-zone="${zoneName}"]`);
-            if (!zoneEl) return;
-            
-            const statsEl = zoneEl.querySelector('.zone-stats');
-            if (statsEl) {
-                statsEl.innerHTML = `
-                    <div class="fg-pct">${stats.fg_pct || 0}%</div>
-                    <div class="attempts">${stats.attempts || 0} att</div>
-                    <div class="pps">${stats.actual_pps || 0} PPS</div>
-                `;
-            }
-            
-            // Color based on efficiency vs expected
-            const delta = stats.efficiency_delta || 0;
-            if (delta > 0.1) {
-                zoneEl.classList.add('hot');
-                zoneEl.classList.remove('cold');
-            } else if (delta < -0.1) {
-                zoneEl.classList.add('cold');
-                zoneEl.classList.remove('hot');
-            } else {
-                zoneEl.classList.remove('hot', 'cold');
-            }
-        });
-    }
-}
-
-
-/**
- * Shot Chart Manager
- * Handles API calls and chart interactions
- */
-class ShotChartManager {
-    constructor(options = {}) {
-        this.options = options;
-        this.shotChart = null;
-        this.hexbinChart = null;
-        this.zoneHeatmap = null;
-        this.currentFilters = {
-            player: null,
-            game_id: null,
-            play_id: null,
-            game_type: 'ALL'
-        };
-    }
-    
-    async init() {
-        // Initialize charts
-        this.shotChart = new ShotChart('shot-chart-container', this.options);
-        this.hexbinChart = new HexbinShotChart('hexbin-chart-container', this.options);
-        this.zoneHeatmap = new ZoneHeatmap('zone-heatmap-container', this.options);
-        
-        // Load initial data
-        await this.loadShots();
-        
-        // Setup filter handlers
-        this.setupFilters();
-    }
-    
-    async loadShots() {
-        try {
-            const params = new URLSearchParams();
-            if (this.currentFilters.player) params.append('player', this.currentFilters.player);
-            if (this.currentFilters.game_id) params.append('game_id', this.currentFilters.game_id);
-            if (this.currentFilters.play_id) params.append('play_id', this.currentFilters.play_id);
-            params.append('game_type', this.currentFilters.game_type);
-            
-            const response = await fetch(`/api/advanced/shots/chart?${params}`);
-            const data = await response.json();
-            
-            this.shotChart.loadShots(data.shots);
-            this.hexbinChart.loadShots(data.shots);
-            
-            // Load heatmap data
-            const heatmapResponse = await fetch(`/api/advanced/shots/heatmap?${params}`);
-            const heatmapData = await heatmapResponse.json();
-            this.zoneHeatmap.loadZoneData(heatmapData.heatmap);
-            
-        } catch (error) {
-            console.error('Error loading shots:', error);
-        }
-    }
-    
-    setupFilters() {
-        // Player filter
-        const playerSelect = document.getElementById('player-filter');
-        if (playerSelect) {
-            playerSelect.addEventListener('change', (e) => {
-                this.currentFilters.player = e.target.value || null;
-                this.loadShots();
-            });
-        }
-        
-        // Game type filter
-        const gameTypeSelect = document.getElementById('game-type-filter');
-        if (gameTypeSelect) {
-            gameTypeSelect.addEventListener('change', (e) => {
-                this.currentFilters.game_type = e.target.value;
-                this.loadShots();
-            });
-        }
-        
-        // Play filter
-        const playSelect = document.getElementById('play-filter');
-        if (playSelect) {
-            playSelect.addEventListener('change', (e) => {
-                this.currentFilters.play_id = e.target.value || null;
-                this.loadShots();
-            });
-        }
-    }
-    
-    setFilter(filterName, value) {
-        this.currentFilters[filterName] = value;
-        this.loadShots();
-    }
-}
-
-
-// Export for use in templates
-window.ShotChart = ShotChart;
-window.HexbinShotChart = HexbinShotChart;
-window.ZoneHeatmap = ZoneHeatmap;
-window.ShotChartManager = ShotChartManager;
+                        <span class="zone-name">Above Break 3</span>\n                        <span class=\"zone-stats\"></span>\n                    </div>\n                    <div class=\"zone zone-corner-3-right\" data-zone=\"Corner_3\">\n                        <span class=\"zone-name\">Corner 3</span>\n                        <span class=\"zone-stats\"></span>\n                    </div>\n                    <div class=\"zone zone-midrange\" data-zone=\"Midrange\">\n                        <span class=\"zone-name\">Midrange</span>\n                        <span class=\"zone-stats\"></span>\n                    </div>\n                    <div class=\"zone zone-paint\" data-zone=\"Paint\">\n                        <span class=\"zone-name\">Paint</span>\n                        <span class=\"zone-stats\"></span>\n                    </div>\n                    <div class=\"zone zone-rim\" data-zone=\"Rim\">\n                        <span class=\"zone-name\">Rim</span>\n                        <span class=\"zone-stats\"></span>\n                    </div>\n                    <div class=\"zone zone-ft\" data-zone=\"FT\">\n                        <span class=\"zone-name\">Free Throw</span>\n                        <span class=\"zone-stats\"></span>\n                    </div>\n                </div>\n                <div class=\"zone-legend\">\n                    <span class=\"legend-item cold\">Below Avg</span>\n                    <span class=\"legend-item avg\">Average</span>\n                    <span class=\"legend-item hot\">Above Avg</span>\n                </div>\n            </div>\n        `;\n    }\n    \n    loadZoneData(zones) {\n        this.zones = zones;\n        this.render();\n    }\n    \n    render() {\n        Object.entries(this.zones).forEach(([zoneName, stats]) => {\n            const zoneEl = this.container.querySelector(`[data-zone=\"${zoneName}\"]`);\n            if (!zoneEl) return;\n            \n            const statsEl = zoneEl.querySelector('.zone-stats');\n            if (statsEl) {\n                statsEl.innerHTML = `\n                    <div class=\"fg-pct\">${stats.fg_pct || 0}%</div>\n                    <div class=\"attempts\">${stats.attempts || 0} att</div>\n                    <div class=\"pps\">${stats.actual_pps || 0} PPS</div>\n                `;\n            }\n            \n            // Color based on efficiency vs expected\n            const delta = stats.efficiency_delta || 0;\n            if (delta > 0.1) {\n                zoneEl.classList.add('hot');\n                zoneEl.classList.remove('cold');\n            } else if (delta < -0.1) {\n                zoneEl.classList.add('cold');\n                zoneEl.classList.remove('hot');\n            } else {\n                zoneEl.classList.remove('hot', 'cold');\n            }\n        });\n    }\n}\n\n\n/**\n * Shot Chart Manager\n * Handles API calls and chart interactions\n */\nclass ShotChartManager {\n    constructor(options = {}) {\n        this.options = options;\n        this.shotChart = null;\n        this.hexbinChart = null;\n        this.zoneHeatmap = null;\n        this.currentFilters = {\n            player: null,\n            game_id: null,\n            play_id: null,\n            game_type: 'ALL'\n        };\n    }\n    \n    async init() {\n        // Initialize charts\n        this.shotChart = new ShotChart('shot-chart-container', this.options);\n        this.hexbinChart = new HexbinShotChart('hexbin-chart-container', this.options);\n        this.zoneHeatmap = new ZoneHeatmap('zone-heatmap-container', this.options);\n        \n        // Load initial data\n        await this.loadShots();\n        \n        // Setup filter handlers\n        this.setupFilters();\n    }\n    \n    async loadShots() {\n        try {\n            const params = new URLSearchParams();\n            if (this.currentFilters.player) params.append('player', this.currentFilters.player);\n            if (this.currentFilters.game_id) params.append('game_id', this.currentFilters.game_id);\n            if (this.currentFilters.play_id) params.append('play_id', this.currentFilters.play_id);\n            params.append('game_type', this.currentFilters.game_type);\n            \n            const response = await fetch(`/api/advanced/shots/chart?${params}`);\n            const data = await response.json();\n            \n            this.shotChart.loadShots(data.shots);\n            this.hexbinChart.loadShots(data.shots);\n            \n            // Load heatmap data\n            const heatmapResponse = await fetch(`/api/advanced/shots/heatmap?${params}`);\n            const heatmapData = await heatmapResponse.json();\n            this.zoneHeatmap.loadZoneData(heatmapData.heatmap);\n            \n        } catch (error) {\n            console.error('Error loading shots:', error);\n        }\n    }\n    \n    setupFilters() {\n        // Player filter\n        const playerSelect = document.getElementById('player-filter');\n        if (playerSelect) {\n            playerSelect.addEventListener('change', (e) => {\n                this.currentFilters.player = e.target.value || null;\n                this.loadShots();\n            });\n        }\n        \n        // Game type filter\n        const gameTypeSelect = document.getElementById('game-type-filter');\n        if (gameTypeSelect) {\n            gameTypeSelect.addEventListener('change', (e) => {\n                this.currentFilters.game_type = e.target.value;\n                this.loadShots();\n            });\n        }\n        \n        // Play filter\n        const playSelect = document.getElementById('play-filter');\n        if (playSelect) {\n            playSelect.addEventListener('change', (e) => {\n                this.currentFilters.play_id = e.target.value || null;\n                this.loadShots();\n            });\n        }\n    }\n    \n    setFilter(filterName, value) {\n        this.currentFilters[filterName] = value;\n        this.loadShots();\n    }\n}\n\n\n// Export for use in templates\nwindow.ShotChart = ShotChart;\nwindow.HexbinShotChart = HexbinShotChart;\nwindow.ZoneHeatmap = ZoneHeatmap;\nwindow.ShotChartManager = ShotChartManager;\n
