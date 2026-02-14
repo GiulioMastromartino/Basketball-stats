@@ -1,3 +1,5 @@
+    team_result = team_query.first()
+    
     # Calculate usage rate
     from core.utils import parse_minutes
     
