@@ -86,7 +86,7 @@
             <div class="row">
                 <div class="col-lg-8">
                     <div class="shot-chart-container" id="shot-chart-container">
-                        <canvas id="shot-canvas" width="500" height="470"></canvas>
+                        <!-- Canvas injected by JS -->
                     </div>
                 </div>
                 <div class="col-lg-4">
@@ -403,13 +403,9 @@
 <script src="{{ url_for('static', filename='js/shot_charts.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    let currentChart = null; // Track current chart instance
+
     // Initialize shot chart
-    const shotChart = new ShotChart('shot-canvas', {
-        width: 500,
-        height: 470
-    });
-    
-    // Load initial shot data
     loadShotChart();
     
     // Filter change handlers
@@ -423,25 +419,49 @@ document.addEventListener('DOMContentLoaded', function() {
         const gameType = document.getElementById('game-type-filter').value;
         const playId = document.getElementById('play-filter').value;
         const chartType = document.getElementById('chart-type').value;
+        const containerId = 'shot-chart-container';
         
         const params = new URLSearchParams();
         if (player) params.append('player', player);
         if (gameType) params.append('game_type', gameType);
         if (playId) params.append('play_id', playId);
         
-        fetch(`/api/advanced/shots/chart?${params}`)
-            .then(r => r.json())
-            .then(data => {
-                shotChart.loadShots(data.shots);
-            })
-            .catch(err => console.error('Error loading shots:', err));
+        // Clear container
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
         
-        // Load heatmap data
+        // Instantiate correct chart class
+        if (chartType === 'hexbin') {
+            currentChart = new HexbinShotChart(containerId, { width: 500, height: 470 });
+        } else if (chartType === 'zones') {
+            currentChart = new ZoneHeatmap(containerId, { width: 500, height: 470 });
+        } else {
+            // Default scatter
+            currentChart = new ShotChart(containerId, { width: 500, height: 470 });
+        }
+        
+        // Always load heatmap data for side panel
         fetch(`/api/advanced/shots/heatmap?${params}`)
             .then(r => r.json())
             .then(data => {
                 updateZoneDisplay(data.heatmap);
+                // Also load into zone chart if active
+                if (chartType === 'zones' && currentChart.loadZoneData) {
+                    currentChart.loadZoneData(data.heatmap);
+                }
             });
+            
+        // Load scatter/hexbin data if not zone mode
+        if (chartType !== 'zones') {
+            fetch(`/api/advanced/shots/chart?${params}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (currentChart.loadShots) {
+                        currentChart.loadShots(data.shots);
+                    }
+                })
+                .catch(err => console.error('Error loading shots:', err));
+        }
     }
     
     function updateZoneDisplay(heatmap) {
@@ -492,8 +512,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function loadClutchStats() {
         fetch('/api/advanced/clutch/season?game_type=Season')
-            .then(r => r.json())
-            .then(data => {
+            .then(r => r.json())\n            .then(data => {
                 const tbody = document.getElementById('clutch-tbody');
                 tbody.innerHTML = '';
                 
