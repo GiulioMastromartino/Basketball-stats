@@ -709,7 +709,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function loadLineupRankings() {
         fetch('/api/advanced/lineup/rankings?min_possessions=3')
-            .then(r => r.json())\n            .then(data => {
+            .then(r => r.json())
+            .then(data => {
                 if (!data.rankings || data.rankings.length === 0) return;
 
                 const container = document.getElementById('lineup-rankings');
