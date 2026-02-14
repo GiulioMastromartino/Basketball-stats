@@ -224,8 +224,8 @@ class ClutchPerformance:
     @staticmethod
     def is_clutch_situation(score_margin: int, time_remaining_seconds: int) -> bool:
         """Determine if a situation qualifies as 'clutch'."""
-        return abs(score_margin) <= ClutchPerformance.CLUTCH_MARGIN and \\
-               time_remaining_seconds <= ClutchPerformance.CLUTCH_TIME_SECONDS
+        return (abs(score_margin) <= ClutchPerformance.CLUTCH_MARGIN and 
+               time_remaining_seconds <= ClutchPerformance.CLUTCH_TIME_SECONDS)
     
     @staticmethod
     def get_clutch_stats(game_id: int, player_name: str = None) -> Dict:
@@ -676,7 +676,8 @@ class PossessionReconstructor:
                         'start_event_id': event.id,
                         'team_possession': team_possession,
                         'quarter': event.quarter,
-                        'events': [event.id],\n                        'points': 0
+                        'events': [event.id],
+                        'points': 0
                     }
                 else:
                     current_possession['events'].append(event.id)
@@ -815,7 +816,8 @@ class AnalyticsEngine:
                 'play_id': r.play_id,
                 'play_name': r.play_name,
                 'play_type': r.play_type,
-                'total_shots': total_shots,\n                'makes': makes,
+                'total_shots': total_shots,
+                'makes': makes,
                 'fg_pct': fg_pct,
                 'total_points': r.total_points or 0,
                 'avg_points': round(r.avg_points, 2) if r.avg_points else 0,
@@ -858,8 +860,7 @@ class AnalyticsEngine:
         
         if game_type == 'Season':
             query = query.join(Game).filter(Game.game_type == 'Season')
-        elif game_type == 'Friendly':
-            query = query.join(Game).filter(Game.game_type == 'Friendly')
+        elif game_type == 'Friendly':\n            query = query.join(Game).filter(Game.game_type == 'Friendly')
         
         result = query.first()
         
@@ -913,7 +914,7 @@ class AnalyticsEngine:
     
     @staticmethod
     def get_four_factors(game_id: int = None, game_ids: List[int] = None) -> Dict:
-        \"\"\"
+        """
         Calculate Dean Oliver's Four Factors.
         
         1. Effective Field Goal Percentage (eFG%)
@@ -927,7 +928,7 @@ class AnalyticsEngine:
         
         Returns:
             Dictionary with four factors
-        \"\"\"
+        """
         query = db.session.query(
             func.sum(PlayerStat.fgm).label('fgm'),
             func.sum(PlayerStat.fga).label('fga'),
@@ -1095,7 +1096,8 @@ class ShotChartAnalytics:
             
             # Calculate hexbin coordinates
             hex_x = int(shot['x_loc'] // hex_size) * hex_size + hex_size // 2
-            hex_y = int(shot['y_loc'] // hex_size) * hex_size + hex_size // 2\n            hex_key = (hex_x, hex_y)
+            hex_y = int(shot['y_loc'] // hex_size) * hex_size + hex_size // 2
+            hex_key = (hex_x, hex_y)
             
             hexbins[hex_key]['attempts'] += 1
             hexbins[hex_key]['points'] += shot['points'] or 0
