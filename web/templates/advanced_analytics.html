@@ -404,6 +404,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     let currentChart = null; // Track current chart instance
+    let demoModeActive = false;
 
     // Initialize shot chart
     loadShotChart();
@@ -413,6 +414,161 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('game-type-filter').addEventListener('change', loadShotChart);
     document.getElementById('play-filter').addEventListener('change', loadShotChart);
     document.getElementById('chart-type').addEventListener('change', loadShotChart);
+
+    function checkAndLoadDemoData(dataSource, dataType) {
+        // Simple heuristic: if we expected data but got none (or empty), trigger demo
+        const isEmpty = !dataSource || 
+                        (Array.isArray(dataSource) && dataSource.length === 0) ||
+                        (typeof dataSource === 'object' && Object.keys(dataSource).length === 0);
+        
+        if (isEmpty && !demoModeActive) {
+            console.log(`No data found for ${dataType}, loading demo data...`);
+            loadDemoData();
+        }
+    }
+
+    function loadDemoData() {
+        if (demoModeActive) return;
+        demoModeActive = true;
+
+        // Show banner
+        const container = document.querySelector('.container-fluid');
+        if (container) {
+            const banner = document.createElement('div');
+            banner.className = 'alert alert-info alert-dismissible fade show';
+            banner.innerHTML = `
+                <strong><i class="fas fa-info-circle"></i> Demo Mode Active</strong> 
+                No data was found for this view, so we're showing sample data to demonstrate functionality.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            container.insertBefore(banner, container.firstChild);
+        }
+
+        // 1. Populate Dropdowns if empty
+        const playerSelect = document.getElementById('player-filter');
+        if (playerSelect && playerSelect.options.length <= 1) {
+            ['Demo Curry', 'Demo James', 'Demo Durant'].forEach(p => {
+                playerSelect.add(new Option(p, p));
+            });
+            // Also update other player selects
+            ['onoff-player', 'advanced-player'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    ['Demo Curry', 'Demo James', 'Demo Durant'].forEach(p => el.add(new Option(p, p)));
+                }
+            });
+        }
+        
+        const playSelect = document.getElementById('play-filter');
+        if (playSelect && playSelect.options.length <= 1) {
+            playSelect.add(new Option('Pick & Roll', '1'));
+            playSelect.add(new Option('Iso', '2'));
+        }
+
+        // 2. Shot Chart Data
+        const demoShots = [
+            { x_loc: 250, y_loc: 50, result: 'made', points: 2, shot_type: '2pt' }, // Rim
+            { x_loc: 260, y_loc: 60, result: 'missed', points: 0, shot_type: '2pt' }, // Rim
+            { x_loc: 100, y_loc: 150, result: 'made', points: 2, shot_type: '2pt' }, // Midrange
+            { x_loc: 400, y_loc: 150, result: 'missed', points: 0, shot_type: '2pt' }, // Midrange
+            { x_loc: 50, y_loc: 50, result: 'made', points: 3, shot_type: '3pt' }, // Corner 3
+            { x_loc: 450, y_loc: 50, result: 'made', points: 3, shot_type: '3pt' }, // Corner 3
+            { x_loc: 250, y_loc: 300, result: 'made', points: 3, shot_type: '3pt' }, // Top 3
+            { x_loc: 200, y_loc: 350, result: 'missed', points: 0, shot_type: '3pt' }, // Deep 3
+        ];
+        
+        if (currentChart && currentChart.loadShots) {
+            currentChart.loadShots(demoShots);
+        }
+
+        // 3. Heatmap Data
+        const demoHeatmap = {
+            'Rim': { fg_pct: 65, attempts: 20, actual_pps: 1.3, expected_value: 1.1, efficiency_delta: 0.2 },
+            'Paint': { fg_pct: 45, attempts: 15, actual_pps: 0.9, expected_value: 0.95, efficiency_delta: -0.05 },
+            'Midrange': { fg_pct: 40, attempts: 25, actual_pps: 0.8, expected_value: 0.85, efficiency_delta: -0.05 },
+            'Corner_3': { fg_pct: 42, attempts: 12, actual_pps: 1.26, expected_value: 1.1, efficiency_delta: 0.16 },
+            'Above_Break_3': { fg_pct: 35, attempts: 30, actual_pps: 1.05, expected_value: 1.05, efficiency_delta: 0.0 }
+        };
+        updateZoneDisplay(demoHeatmap);
+        if (currentChart && currentChart.loadZoneData) {
+            currentChart.loadZoneData(demoHeatmap);
+        }
+
+        // 4. Four Factors
+        document.getElementById('factor-efg').textContent = '54.2%';
+        document.getElementById('bar-efg').style.width = '54.2%';
+        document.getElementById('factor-tov').textContent = '14.5%';
+        document.getElementById('bar-tov').style.width = '14.5%';
+        document.getElementById('factor-orb').textContent = '28.3%';
+        document.getElementById('bar-orb').style.width = '28.3%';
+        document.getElementById('factor-ftr').textContent = '22.1%';
+        document.getElementById('bar-ftr').style.width = '22.1%';
+
+        // 5. Clutch Stats
+        const clutchTbody = document.getElementById('clutch-tbody');
+        if (clutchTbody) {
+            clutchTbody.innerHTML = `
+                <tr>
+                    <td>Demo Curry</td>
+                    <td>15</td>
+                    <td>24</td>
+                    <td>55.0%</td>
+                    <td>8/15</td>
+                </tr>
+                <tr>
+                    <td>Demo James</td>
+                    <td>12</td>
+                    <td>18</td>
+                    <td>48.0%</td>
+                    <td>6/12</td>
+                </tr>
+            `;
+        }
+
+        // 6. Lineup Rankings
+        const lineupContainer = document.getElementById('lineup-rankings');
+        if (lineupContainer) {
+            lineupContainer.innerHTML = `
+                <div class="lineup-card">
+                    <div class="lineup-players">
+                        <span class="lineup-player">Curry</span>
+                        <span class="lineup-player">Thompson</span>
+                        <span class="lineup-player">Wiggins</span>
+                        <span class="lineup-player">Green</span>
+                        <span class="lineup-player">Looney</span>
+                    </div>
+                    <div class="lineup-stats">
+                        <div class="lineup-stat"><div class="lineup-stat-value">118.5</div><div class="lineup-stat-label">ORtg</div></div>
+                        <div class="lineup-stat"><div class="lineup-stat-value">105.2</div><div class="lineup-stat-label">DRtg</div></div>
+                        <div class="lineup-stat net-positive"><div class="lineup-stat-value">+13.3</div><div class="lineup-stat-label">Net</div></div>
+                        <div class="lineup-stat"><div class="lineup-stat-value">450</div><div class="lineup-stat-label">Poss</div></div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 7. Duo Matrix
+        const duoContainer = document.getElementById('duo-matrix');
+        if (duoContainer) {
+             const tbody = duoContainer.querySelector('tbody') || document.createElement('tbody');
+             if (!duoContainer.querySelector('table')) {
+                 duoContainer.innerHTML = '<table class="table table-sm"><thead><tr><th>Duo</th><th>Net Rt</th><th>Poss</th></tr></thead><tbody></tbody></table>';
+             }
+             const targetBody = duoContainer.querySelector('tbody');
+             targetBody.innerHTML = `
+                <tr class="table-success">
+                    <td>Curry & Green</td>
+                    <td>+15.2</td>
+                    <td>850</td>
+                </tr>
+                <tr class="table-danger">
+                    <td>Pool & Wiseman</td>
+                    <td>-5.4</td>
+                    <td>320</td>
+                </tr>
+             `;
+        }
+    }
     
     function loadShotChart() {
         const player = document.getElementById('player-filter').value;
@@ -444,11 +600,18 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(`/api/advanced/shots/heatmap?${params}`)
             .then(r => r.json())
             .then(data => {
+                checkAndLoadDemoData(data.heatmap, 'Heatmap');
+                if (demoModeActive) return;
+
                 updateZoneDisplay(data.heatmap);
                 // Also load into zone chart if active
                 if (chartType === 'zones' && currentChart.loadZoneData) {
                     currentChart.loadZoneData(data.heatmap);
                 }
+            })
+            .catch(err => {
+                console.error('Error loading heatmap:', err);
+                checkAndLoadDemoData(null, 'Heatmap (Error)');
             });
             
         // Load scatter/hexbin data if not zone mode
@@ -456,6 +619,9 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch(`/api/advanced/shots/chart?${params}`)
                 .then(r => r.json())
                 .then(data => {
+                    checkAndLoadDemoData(data.shots, 'Shots');
+                    if (demoModeActive) return;
+
                     if (currentChart.loadShots) {
                         currentChart.loadShots(data.shots);
                     }
@@ -493,6 +659,11 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(`/api/advanced/four-factors${params}`)
             .then(r => r.json())
             .then(data => {
+                if (!data.four_factors || Object.keys(data.four_factors).length === 0) {
+                     // Only trigger demo here if we haven't already
+                     // But usually shot chart triggers first
+                     return; 
+                }
                 const factors = data.four_factors;
                 document.getElementById('factor-efg').textContent = factors.efg_pct + '%';
                 document.getElementById('factor-tov').textContent = factors.tov_pct + '%';
@@ -514,6 +685,8 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/api/advanced/clutch/season?game_type=Season')
             .then(r => r.json())
             .then(data => {
+                if (!data.players || data.players.length === 0) return;
+
                 const tbody = document.getElementById('clutch-tbody');
                 tbody.innerHTML = '';
                 
@@ -536,8 +709,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function loadLineupRankings() {
         fetch('/api/advanced/lineup/rankings?min_possessions=3')
-            .then(r => r.json())
-            .then(data => {
+            .then(r => r.json())\n            .then(data => {
+                if (!data.rankings || data.rankings.length === 0) return;
+
                 const container = document.getElementById('lineup-rankings');
                 container.innerHTML = '';
                 
@@ -579,6 +753,8 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/api/advanced/lineup/duos')
             .then(r => r.json())
             .then(data => {
+                if (!data.duos || data.duos.length === 0) return;
+
                 const container = document.getElementById('duo-matrix');
                 container.innerHTML = '<table class="table table-sm"><thead><tr><th>Duo</th><th>Net Rt</th><th>Poss</th></tr></thead><tbody></tbody></table>';
                 const tbody = container.querySelector('tbody');
