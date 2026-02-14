@@ -127,14 +127,17 @@ class AdvancedPlayerStats:
             Usage rate as percentage (0-100)
         """
         if minutes <= 0:
-            return 0.0\n        
+            return 0.0
+        
         player_possessions = fga + (FT_ATTEMPT_WEIGHT * fta) + tov
-        team_possessions = team_fga + (FT_ATTEMPT_WEIGHT * team_fta) + team_tov\n        
+        team_possessions = team_fga + (FT_ATTEMPT_WEIGHT * team_fta) + team_tov
+        
         # Adjust for minutes played
         if team_possessions == 0:
             return 0.0
             
-        usage = (player_possessions * (team_minutes / 5)) / (minutes * team_possessions) * 100\n        
+        usage = (player_possessions * (team_minutes / 5)) / (minutes * team_possessions) * 100
+        
         return round(min(usage, 100.0), 1)  # Cap at 100%
     
     @staticmethod
@@ -208,7 +211,8 @@ class AdvancedPlayerStats:
         }
 
 
-# =============================================================================\n# CLUTCH PERFORMANCE
+# =============================================================================
+# CLUTCH PERFORMANCE
 # =============================================================================
 
 class ClutchPerformance:
@@ -220,7 +224,8 @@ class ClutchPerformance:
     @staticmethod
     def is_clutch_situation(score_margin: int, time_remaining_seconds: int) -> bool:
         """Determine if a situation qualifies as 'clutch'."""
-        return abs(score_margin) <= ClutchPerformance.CLUTCH_MARGIN and \\\n               time_remaining_seconds <= ClutchPerformance.CLUTCH_TIME_SECONDS
+        return abs(score_margin) <= ClutchPerformance.CLUTCH_MARGIN and \\
+               time_remaining_seconds <= ClutchPerformance.CLUTCH_TIME_SECONDS
     
     @staticmethod
     def get_clutch_stats(game_id: int, player_name: str = None) -> Dict:
@@ -428,12 +433,14 @@ class LineupAnalytics:
                     'segments': stats['segments'],
                     'possessions': stats['possessions'],
                     'ortg': round(ortg, 1),
-                    'drtg': round(drtg, 1),\n                    'net_rating': round(ortg - drtg, 1)
+                    'drtg': round(drtg, 1),
+                    'net_rating': round(ortg - drtg, 1)
                 })
         
         return sorted(results, key=lambda x: x['net_rating'], reverse=True)
     
-    @staticmethod\n    def calculate_trio_compatibility(game_ids: List[int] = None) -> List[Dict]:
+    @staticmethod
+    def calculate_trio_compatibility(game_ids: List[int] = None) -> List[Dict]:
         """Calculate synergy metrics for all 3-player combinations."""
         from itertools import combinations
         
@@ -465,7 +472,8 @@ class LineupAnalytics:
                 trio_stats[trio]['segments'] += 1
                 trio_stats[trio]['points_scored'] += segment.points_scored or 0
                 trio_stats[trio]['points_allowed'] += segment.points_allowed or 0
-                trio_stats[trio]['possessions'] += segment.possessions or 0\n        
+                trio_stats[trio]['possessions'] += segment.possessions or 0
+        
         results = []
         for trio, stats in trio_stats.items():
             if stats['possessions'] > 0:
@@ -668,8 +676,7 @@ class PossessionReconstructor:
                         'start_event_id': event.id,
                         'team_possession': team_possession,
                         'quarter': event.quarter,
-                        'events': [event.id],
-                        'points': 0
+                        'events': [event.id],\n                        'points': 0
                     }
                 else:
                     current_possession['events'].append(event.id)
@@ -808,8 +815,7 @@ class AnalyticsEngine:
                 'play_id': r.play_id,
                 'play_name': r.play_name,
                 'play_type': r.play_type,
-                'total_shots': total_shots,
-                'makes': makes,
+                'total_shots': total_shots,\n                'makes': makes,
                 'fg_pct': fg_pct,
                 'total_points': r.total_points or 0,
                 'avg_points': round(r.avg_points, 2) if r.avg_points else 0,
@@ -907,7 +913,7 @@ class AnalyticsEngine:
     
     @staticmethod
     def get_four_factors(game_id: int = None, game_ids: List[int] = None) -> Dict:
-        """
+        \"\"\"
         Calculate Dean Oliver's Four Factors.
         
         1. Effective Field Goal Percentage (eFG%)
@@ -921,7 +927,7 @@ class AnalyticsEngine:
         
         Returns:
             Dictionary with four factors
-        """
+        \"\"\"
         query = db.session.query(
             func.sum(PlayerStat.fgm).label('fgm'),
             func.sum(PlayerStat.fga).label('fga'),
@@ -1089,8 +1095,7 @@ class ShotChartAnalytics:
             
             # Calculate hexbin coordinates
             hex_x = int(shot['x_loc'] // hex_size) * hex_size + hex_size // 2
-            hex_y = int(shot['y_loc'] // hex_size) * hex_size + hex_size // 2
-            hex_key = (hex_x, hex_y)
+            hex_y = int(shot['y_loc'] // hex_size) * hex_size + hex_size // 2\n            hex_key = (hex_x, hex_y)
             
             hexbins[hex_key]['attempts'] += 1
             hexbins[hex_key]['points'] += shot['points'] or 0
