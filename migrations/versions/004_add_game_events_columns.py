@@ -7,6 +7,7 @@ Create Date: 2025-02-14
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.engine.reflection import Inspector
 
 
 # revision identifiers, used by Alembic.
@@ -16,31 +17,31 @@ branch_labels = None
 depends_on = None
 
 
-def column_exists(table_name, column_name):
-    """Check if a column exists in a table."""
-    conn = op.get_bind()
-    inspector = sa.inspect(conn)
-    columns = [col['name'] for col in inspector.get_columns(table_name)]
-    return column_name in columns
-
-
 def upgrade():
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    columns = [col['name'] for col in inspector.get_columns('game_events')]
+
     # Add missing columns to game_events table (only if they don't exist)
     with op.batch_alter_table('game_events', schema=None) as batch_op:
-        if not column_exists('game_events', 'quarter'):
+        if 'quarter' not in columns:
             batch_op.add_column(sa.Column('quarter', sa.Integer(), nullable=True))
-        if not column_exists('game_events', 'time_remaining'):
-            batch_op.add_column(sa.Column('time_remaining', sa.String(10), nullable=True))
-        if not column_exists('game_events', 'score_margin'):
+        if 'time_remaining' not in columns:
+            batch_op.add_column(sa.Column('time_remaining', sa.String(length=10), nullable=True))
+        if 'score_margin' not in columns:
             batch_op.add_column(sa.Column('score_margin', sa.Integer(), nullable=True))
 
 
 def downgrade():
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    columns = [col['name'] for col in inspector.get_columns('game_events')]
+
     # Remove columns from game_events table
     with op.batch_alter_table('game_events', schema=None) as batch_op:
-        if column_exists('game_events', 'score_margin'):
+        if 'score_margin' in columns:
             batch_op.drop_column('score_margin')
-        if column_exists('game_events', 'time_remaining'):
+        if 'time_remaining' in columns:
             batch_op.drop_column('time_remaining')
-        if column_exists('game_events', 'quarter'):
+        if 'quarter' in columns:
             batch_op.drop_column('quarter')
