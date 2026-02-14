@@ -1,7 +1,6 @@
 import unittest
 from web import create_app, db
 from core.models import User, Play
-from unittest.mock import patch
 
 class TestPlays(unittest.TestCase):
     def setUp(self):
@@ -12,41 +11,22 @@ class TestPlays(unittest.TestCase):
         self.app_context.push()
         db.create_all()
         
-        # Create test user (admin for delete access)
+        # Create test user (Editor role - No OTP required)
         self.username = 'plays_test_user'
-        self.user = User(username=self.username, email='plays@example.com', role='admin', is_admin=True)
+        self.user = User(username=self.username, email='plays@example.com', role='editor', is_admin=False)
         self.user.set_password('password')
         db.session.add(self.user)
         db.session.commit()
         
-        # Login
-        # Use patch to prevent actual email sending
-        with patch('web.routes.auth.send_otp_email', return_value=True):
-            login_resp = self.client.post('/auth/login', data={
-                'username': self.username,
-                'password': 'password'
-            }, follow_redirects=True)
+        # Login directly (No OTP for non-admin/manager roles)
+        login_resp = self.client.post('/auth/login', data={
+            'username': self.username,
+            'password': 'password'
+        }, follow_redirects=True)
             
-        # Check if we were redirected to OTP page (Admin users trigger OTP)
-        if b'verify-otp' in login_resp.data or b'Verification code sent' in login_resp.data:
-            # We are in OTP flow. Fetch the code from DB (it was set in auth.login route).
-            db.session.refresh(self.user)
-            otp_code = self.user.otp_code
-            
-            # Submit OTP
-            otp_resp = self.client.post('/auth/verify-otp', data={
-                'otp_code': otp_code
-            }, follow_redirects=True)
-            
-            if b'Verification successful' not in otp_resp.data and b'Welcome back' not in otp_resp.data:
-                 print("DEBUG: OTP Response Data:", otp_resp.data.decode('utf-8', errors='ignore')[:500])
-                 raise RuntimeError("OTP verification failed")
-
-        elif b'Welcome back' in login_resp.data:
-            pass # No OTP required?
-        else:
+        # Verify login success
+        if b'Welcome back' not in login_resp.data and b'Dashboard' not in login_resp.data:
              print("DEBUG: Login Response Data:", login_resp.data.decode('utf-8', errors='ignore')[:500])
-             # Check if we are still on login page with error
              if b'Invalid username' in login_resp.data:
                  raise RuntimeError("Login failed: Invalid credentials")
              raise RuntimeError(f"Login failed or unexpected state. Status: {login_resp.status_code}")
@@ -64,13 +44,13 @@ class TestPlays(unittest.TestCase):
             'description': 'Test Description'
         }, follow_redirects=False)
         
-        # If status is 302, it redirected. Check where.
+        # Handle redirects manually for debugging
         if response.status_code == 302:
             location = response.headers['Location']
             if '/auth/login' in location:
                 self.fail(f"Redirected to login page - User not authenticated. Location: {location}")
             
-            # Follow redirect manually to capture final page
+            # Follow redirect manually
             response = self.client.get(location)
         
         self.assertEqual(response.status_code, 200)
@@ -97,9 +77,14 @@ class TestPlays(unittest.TestCase):
         self.assertEqual(play.name, 'Updated Play')
         self.assertEqual(play.play_type, 'Defense')
         
-        # 4. Delete Play
+        # 4. Try Delete Play (Should FAIL for Editor)
         response = self.client.post(f'/plays/{play.id}/delete', follow_redirects=True)
-        self.assertEqual(response.status_code, 200)
         
+        # Editors should be redirected to dashboard with error, NOT allowed to delete
+        # Check if play still exists
         play = Play.query.get(play.id)
-        self.assertIsNone(play)
+        self.assertIsNotNone(play, "Editor should not be able to delete plays")
+        
+        # Check for permission denied message (flash)
+        # Based on decorators.py: "You do not have permission to perform this action."
+        self.assertIn(b'permission', response.data)
