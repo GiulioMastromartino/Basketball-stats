@@ -19,10 +19,16 @@ class TestPlays(unittest.TestCase):
         db.session.commit()
         
         # Login
-        self.client.post('/auth/login', data={
+        login_resp = self.client.post('/auth/login', data={
             'username': self.username,
             'password': 'password'
         }, follow_redirects=True)
+        
+        # Check login success
+        if b'Invalid username' in login_resp.data:
+            raise RuntimeError("Login failed: Invalid credentials")
+        if b'Please log in' in login_resp.data: # Should not happen if redirected to dashboard
+             raise RuntimeError("Login failed: Redirected back to login")
 
     def tearDown(self):
         db.session.remove()
@@ -30,21 +36,39 @@ class TestPlays(unittest.TestCase):
         self.app_context.pop()
 
     def test_play_lifecycle(self):
-        # 1. Create Play
+        # 1. Create Play - Check redirect target explicitly
         response = self.client.post('/plays/add', data={
             'name': 'New Play',
             'play_type': 'Offense',
             'description': 'Test Description'
-        }, follow_redirects=True)
-        self.assertEqual(response.status_code, 200)
+        }, follow_redirects=False)
         
-        # Debugging output if creation fails
-        if b'Play \'New Play\' created successfully' not in response.data:
-            print("\nDEBUG RESPONSE DATA:\n", response.data.decode('utf-8', errors='ignore')[:1000])
+        # If status is 302, it redirected. Check where.
+        if response.status_code == 302:
+            location = response.headers['Location']
+            print(f"DEBUG: Redirected to {location}")
+            if '/auth/login' in location:
+                self.fail("Redirected to login page - User not authenticated")
+            if '/plays' in location and 'view' not in location:
+                 self.fail("Redirected to plays list - Validation failed")
+            
+            # Follow redirect manually to capture final page
+            response = self.client.get(location)
+        else:
+            print(f"DEBUG: Status Code {response.status_code}")
+            print("DEBUG: Response Data:", response.data.decode('utf-8', errors='ignore')[:500])
+        
+        self.assertEqual(response.status_code, 200)
         
         # Verify persistence first
         play = Play.query.filter_by(name='New Play').first()
-        self.assertIsNotNone(play, "Play was not created in DB. Check debug output.")
+        if play is None:
+            # Check if any plays exist
+            all_plays = Play.query.all()
+            print(f"DEBUG: All Plays in DB: {[p.name for p in all_plays]}")
+            self.fail("Play was not created in DB")
+
+        self.assertIsNotNone(play)
         
         # 2. View Play
         response = self.client.get(f'/plays/{play.id}') 
