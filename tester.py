@@ -1,9 +1,13 @@
 import unittest
 import sys
 import os
+from dotenv import load_dotenv
 
 def run_tests():
     """Run all tests in the tests directory."""
+    # Load environment variables from .env file
+    load_dotenv()
+    
     # Add the project root to the python path
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     
