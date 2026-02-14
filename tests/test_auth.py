@@ -49,6 +49,7 @@ class TestAuth(unittest.TestCase):
 
     def test_protected_route_access(self):
         # Try to access a protected route without login
-        response = self.client.get('/dashboard', follow_redirects=True)
+        response = self.client.get('/', follow_redirects=True)
         self.assertEqual(response.status_code, 200)
+        # Should redirect to login page
         self.assertIn(b'Please log in', response.data)
