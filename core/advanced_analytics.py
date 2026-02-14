@@ -860,7 +860,8 @@ class AnalyticsEngine:
         
         if game_type == 'Season':
             query = query.join(Game).filter(Game.game_type == 'Season')
-        elif game_type == 'Friendly':\n            query = query.join(Game).filter(Game.game_type == 'Friendly')
+        elif game_type == 'Friendly':
+            query = query.join(Game).filter(Game.game_type == 'Friendly')
         
         result = query.first()
         
@@ -1113,8 +1114,7 @@ class ShotChartAnalytics:
                 'y': y,
                 'attempts': stats['attempts'],
                 'makes': stats['makes'],
-                'fg_pct': fg_pct,
-                'points': stats['points']
+                'fg_pct': fg_pct,\n                'points': stats['points']
             })
         
         return hexbin_list
