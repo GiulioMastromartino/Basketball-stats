@@ -512,7 +512,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function loadClutchStats() {
         fetch('/api/advanced/clutch/season?game_type=Season')
-            .then(r => r.json())\n            .then(data => {
+            .then(r => r.json())
+            .then(data => {
                 const tbody = document.getElementById('clutch-tbody');
                 tbody.innerHTML = '';
                 
