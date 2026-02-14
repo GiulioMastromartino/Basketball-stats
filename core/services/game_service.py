@@ -39,11 +39,19 @@ def normalize_sort_date(date_str: str) -> str:
         
     return date_str  # fallback, might fail DB constraints if too long
 
+def get_nested_value(data, *keys, default=None):
+    """Get a value from a dict trying multiple possible key names."""
+    for key in keys:
+        if key in data:
+            return data[key]
+    return default
+
 def create_game_from_live_data(data):
     """
     Creates a new Game, PlayerStats, ShotEvents, and GameEvents from the JSON data payload.
     Validates all play IDs before database insertion.
     Handles 'IMPORT_JSON' style structure (nested objects) vs 'LIVE' style (flat structure).
+    Also supports legacy key name variations for backwards compatibility.
     """
     if not data:
         raise ValueError("No data received")
@@ -54,7 +62,7 @@ def create_game_from_live_data(data):
     if is_nested_import:
         # Structure: {"game": {...}, "player_stats": [...], "shot_events": [...], ...}
         game_data = data["game"]
-        raw_date = game_data.get("date")
+        raw_date = get_nested_value(game_data, "date", "Date", "game_date")
         
         # Determine dates
         # JSON import usually has pre-formatted dates, but we verify
@@ -69,21 +77,21 @@ def create_game_from_live_data(data):
             display_date = normalize_date_to_display(raw_date)
             sort_date = normalize_sort_date(raw_date)
             
-        opponent = game_data.get("opponent")
-        team_score = int(game_data.get("team_score", 0))
-        opponent_score = int(game_data.get("opponent_score", 0))
-        game_type = game_data.get("game_type", "Season")
+        opponent = get_nested_value(game_data, "opponent", "Opponent", "vs", "versus")
+        team_score = int(get_nested_value(game_data, "team_score", "TeamScore", "our_score", 0))
+        opponent_score = int(get_nested_value(game_data, "opponent_score", "OpponentScore", "their_score", 0))
+        game_type = get_nested_value(game_data, "game_type", "GameType", "type", "Season")
         source = "IMPORT_JSON"
         
-        # Player stats list
-        player_stats_source = data.get("player_stats", [])
-        shot_events_source = data.get("shot_events", [])
-        game_events_source = data.get("game_events", [])
+        # Player stats list - support multiple key names
+        player_stats_source = get_nested_value(data, "player_stats", "PlayerStats", "players", "Players", default=[])
+        shot_events_source = get_nested_value(data, "shot_events", "ShotEvents", "shots", "Shots", default=[])
+        game_events_source = get_nested_value(data, "game_events", "GameEvents", "events", "Events", default=[])
         
     else:
         # Structure: Flat fields + "player_stats": {"Name": {...}} + "shot_locations": [...]
         # LIVE GAME payload
-        raw_date = data.get("date")
+        raw_date = get_nested_value(data, "date", "Date", "game_date")
         
         # Handle date logic for LIVE input
         if raw_date and re.match(r"^\d{4}-\d{2}-\d{2}$", raw_date):
@@ -94,16 +102,17 @@ def create_game_from_live_data(data):
             display_date = normalize_date_to_display(raw_date)
             sort_date = normalize_sort_date(raw_date)
 
-        opponent = data.get("opponent")
-        team_score = int(data.get("team_score", 0))
-        opponent_score = int(data.get("opponent_score", 0))
-        game_type = data.get("game_type", "Season")
+        opponent = get_nested_value(data, "opponent", "Opponent", "vs", "versus")
+        team_score = int(get_nested_value(data, "team_score", "TeamScore", "our_score", 0))
+        opponent_score = int(get_nested_value(data, "opponent_score", "OpponentScore", "their_score", 0))
+        game_type = get_nested_value(data, "game_type", "GameType", "type", "Season")
         source = "LIVE"
         
         # LIVE payload uses a Dict for player_stats, list for others
-        player_stats_source = data.get("player_stats", {})
-        shot_events_source = data.get("shot_locations", [])
-        game_events_source = data.get("game_events", [])
+        player_stats_source = get_nested_value(data, "player_stats", "PlayerStats", "players", default={})
+        # Support both 'shot_locations' and 'shot_events' for LIVE format
+        shot_events_source = get_nested_value(data, "shot_locations", "shot_events", "Shots", "shots", default=[])
+        game_events_source = get_nested_value(data, "game_events", "GameEvents", "events", "Events", default=[])
 
     # Validate constraints
     if len(display_date) > 10:
@@ -130,9 +139,19 @@ def create_game_from_live_data(data):
     if is_nested_import:
         # List of dicts
         for p_data in player_stats_source:
+            # Normalize player name key
+            player_name = get_nested_value(p_data, "player_name", "PlayerName", "name", "Name", "player")
+            if not player_name:
+                continue
+            
             # Filter valid keys
             valid_keys = {c.name for c in PlayerStat.__table__.columns if c.name not in ('id', 'game_id')}
             stat_kwargs = {k: v for k, v in p_data.items() if k in valid_keys}
+            
+            # Ensure player_name is set
+            if 'player_name' not in stat_kwargs:
+                stat_kwargs['player_name'] = player_name
+            
             stat = PlayerStat(game_id=game.id, **stat_kwargs)
             db.session.add(stat)
     else:
@@ -141,33 +160,51 @@ def create_game_from_live_data(data):
             if not p_name:
                 continue
             
-            fg_pct = (stats["fgm"] / stats["fga"] * 100) if stats["fga"] > 0 else 0.0
-            tp_pct = (stats["tpm"] / stats["tpa"] * 100) if stats["tpa"] > 0 else 0.0
-            ft_pct = (stats["ftm"] / stats["fta"] * 100) if stats["fta"] > 0 else 0.0
+            # Support legacy key names in player stats
+            fgm = get_nested_value(stats, "fgm", "FGM", "fg", 0)
+            fga = get_nested_value(stats, "fga", "FGA", 0)
+            tpm = get_nested_value(stats, "tpm", "3PM", "tp", "three_pm", 0)
+            tpa = get_nested_value(stats, "tpa", "3PA", "three_pa", 0)
+            ftm = get_nested_value(stats, "ftm", "FTM", "ft", 0)
+            fta = get_nested_value(stats, "fta", "FTA", 0)
+            oreb = get_nested_value(stats, "oreb", "OREB", "orb", 0)
+            dreb = get_nested_value(stats, "dreb", "DREB", "drb", 0)
+            ast = get_nested_value(stats, "ast", "AST", "assists", 0)
+            tov = get_nested_value(stats, "tov", "TOV", "turnovers", "to", 0)
+            stl = get_nested_value(stats, "stl", "STL", "steals", 0)
+            blk = get_nested_value(stats, "blk", "BLK", "blocks", 0)
+            pf = get_nested_value(stats, "pf", "PF", "fouls", 0)
+            points = get_nested_value(stats, "points", "PTS", "pts", 0)
+            minutes = get_nested_value(stats, "minutes", "MIN", "min", "00:00")
+            plus_minus = get_nested_value(stats, "plus_minus", "+/-", "pm", "PlusMinus", 0)
+            
+            fg_pct = (fgm / fga * 100) if fga > 0 else 0.0
+            tp_pct = (tpm / tpa * 100) if tpa > 0 else 0.0
+            ft_pct = (ftm / fta * 100) if fta > 0 else 0.0
 
             new_stat = PlayerStat(
                 game_id=game.id,
                 player_name=p_name,
-                minutes=stats.get("minutes", "00:00"),
-                points=stats["points"],
-                fgm=stats["fgm"],
-                fga=stats["fga"],
+                minutes=minutes,
+                points=points,
+                fgm=fgm,
+                fga=fga,
                 fg_percent=fg_pct,
-                tpm=stats["tpm"],
-                tpa=stats["tpa"],
+                tpm=tpm,
+                tpa=tpa,
                 tp_percent=tp_pct,
-                ftm=stats["ftm"],
-                fta=stats["fta"],
+                ftm=ftm,
+                fta=fta,
                 ft_percent=ft_pct,
-                oreb=stats["oreb"],
-                dreb=stats["dreb"],
-                reb=stats["oreb"] + stats["dreb"],
-                ast=stats["ast"],
-                tov=stats["tov"],
-                stl=stats["stl"],
-                blk=stats["blk"],
-                pf=stats["pf"],
-                plus_minus=int(stats.get("plus_minus", 0) or 0),
+                oreb=oreb,
+                dreb=dreb,
+                reb=oreb + dreb,
+                ast=ast,
+                tov=tov,
+                stl=stl,
+                blk=blk,
+                pf=pf,
+                plus_minus=int(plus_minus or 0),
             )
             db.session.add(new_stat)
 
@@ -179,15 +216,15 @@ def create_game_from_live_data(data):
             shot_kwargs = {k: v for k, v in s_data.items() if k in valid_keys}
             shot = ShotEvent(game_id=game.id, play_id=None, **shot_kwargs)
         else:
-            # LIVE format
-            shooter = (s_data.get("shooter") or "").strip()
-            shot_type = (s_data.get("type") or "").strip()
-            points = int(s_data.get("points") or 0)
-            result = s_data.get("result", "made")
-            play_id = s_data.get("play_id")
-            x = s_data.get("x")
-            y = s_data.get("y")
-            q = s_data.get("quarter")
+            # LIVE format - support legacy key names
+            shooter = get_nested_value(s_data, "shooter", "player", "player_name", "")
+            shot_type = get_nested_value(s_data, "type", "shot_type", "ShotType", "")
+            points = int(get_nested_value(s_data, "points", "Points", "pts", 0))
+            result = get_nested_value(s_data, "result", "Result", "made", "made")
+            play_id = get_nested_value(s_data, "play_id", "PlayId", "playId")
+            x = get_nested_value(s_data, "x", "x_loc", "xLoc")
+            y = get_nested_value(s_data, "y", "y_loc", "yLoc")
+            q = get_nested_value(s_data, "quarter", "q", "period")
 
             validated_play_id = None
             if play_id:
@@ -198,8 +235,8 @@ def create_game_from_live_data(data):
 
             shot = ShotEvent(
                 game_id=game.id,
-                player_name=shooter,
-                shot_type=shot_type,
+                player_name=shooter.strip() if shooter else "",
+                shot_type=shot_type.strip() if shot_type else "",
                 result=result,
                 points=points,
                 x_loc=float(x) if x is not None else None,
@@ -217,13 +254,13 @@ def create_game_from_live_data(data):
             event_kwargs = {k: v for k, v in e_data.items() if k in valid_keys}
             event = GameEvent(game_id=game.id, play_id=None, **event_kwargs)
         else:
-             # LIVE format
-            event_type = e_data.get("type")
-            player_name = e_data.get("player")
-            detail = e_data.get("detail")
-            timestamp = e_data.get("timestamp", 0)
-            shot_attempt = e_data.get("shot_attempt")
-            play_id = e_data.get("play_id")
+             # LIVE format - support legacy key names
+            event_type = get_nested_value(e_data, "type", "event_type", "EventType")
+            player_name = get_nested_value(e_data, "player", "player_name", "PlayerName")
+            detail = get_nested_value(e_data, "detail", "Detail", "description")
+            timestamp = get_nested_value(e_data, "timestamp", "time", "Timestamp", 0)
+            shot_attempt = get_nested_value(e_data, "shot_attempt", "ShotAttempt")
+            play_id = get_nested_value(e_data, "play_id", "PlayId", "playId")
 
             validated_play_id = None
             if play_id:
