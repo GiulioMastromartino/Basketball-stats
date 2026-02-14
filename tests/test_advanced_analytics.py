@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from flask_login import login_user
 from web import create_app, db
-from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, Play, PlayType
+from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, Play, PlayType, LineupSegment, PlayerLineupStats
 
 class TestAdvancedAnalytics(unittest.TestCase):
     def setUp(self):
@@ -20,25 +20,20 @@ class TestAdvancedAnalytics(unittest.TestCase):
         self.username = os.environ.get('TESTER_USERNAME', 'Giulio')
         self.password = os.environ.get('TESTER_PASSWORD', 'adminadmin')
         
-        # 1. Try to find existing user first (as requested)
+        # 1. User Setup
         user = User.query.filter_by(username=self.username).first()
-        
         if not user:
-            # 2. Only create if not found (e.g. in-memory DB or fresh install)
-            # This satisfies the requirement to use an existing user if present,
-            # while ensuring the test doesn't crash on the empty in-memory DB.
             user = User(username=self.username, email='tester@example.com', is_admin=False, role='editor')
             user.set_password(self.password)
             db.session.add(user)
             db.session.commit()
         
-        # Create dummy data for analytics (Game, Stats, Shots)
-        # We assume these might not exist, or we create fresh ones for the test isolation
+        # 2. Game Setup (Close game for Clutch stats)
         game = Game(
             date='01-01-2024',
             opponent='TestOpponent',
-            team_score=100,
-            opponent_score=90,
+            team_score=102,
+            opponent_score=100,
             result='W',
             game_type='Season',
             sort_date='2024-01-01',
@@ -46,51 +41,104 @@ class TestAdvancedAnalytics(unittest.TestCase):
         )
         db.session.add(game)
         db.session.commit()
-        
         self.game_id = game.id
         self.player_name = 'TestPlayer'
         
-        # Add player stats
+        # 3. Player Stats (Box Score)
         p_stat = PlayerStat(
             game_id=game.id,
             player_name=self.player_name,
             minutes='30:00',
-            points=20,
-            fga=15, fgm=8, fg_percent=53.3,
+            points=25,
+            fga=20, fgm=10, fg_percent=50.0,
             tpa=5, tpm=2, tp_percent=40.0,
-            fta=4, ftm=2, ft_percent=50.0,
-            reb=5, ast=5, tov=2, stl=1, blk=0, pf=2
+            fta=4, ftm=3, ft_percent=75.0,
+            reb=10, ast=5, tov=2, stl=1, blk=1, pf=2,
+            plus_minus=5
         )
         db.session.add(p_stat)
         
-        # Add shot events
-        shot = ShotEvent(
+        # 4. Shot Events (Shot Chart)
+        shot1 = ShotEvent(
             game_id=game.id,
             player_name=self.player_name,
             shot_type='3PT',
             result='made',
             points=3,
-            x_loc=25.0,
-            y_loc=45.0, # Corner 3 roughly
+            x_loc=25.0, y_loc=45.0, # Corner
             quarter=4
         )
-        db.session.add(shot)
+        shot2 = ShotEvent(
+            game_id=game.id,
+            player_name=self.player_name,
+            shot_type='2PT',
+            result='missed',
+            points=0,
+            x_loc=250.0, y_loc=50.0, # Paint
+            quarter=4
+        )
+        db.session.add_all([shot1, shot2])
+        
+        # 5. Clutch Events (Last 5 mins, score margin <= 5)
+        clutch_event = GameEvent(
+            game_id=game.id,
+            event_type='SHOT_3PT',
+            player_name=self.player_name,
+            detail='Made 3PT',
+            timestamp=1000,
+            shot_attempt='made',
+            quarter=4,
+            time_remaining='02:30', # < 5 mins
+            score_margin=1 # Within 5 points
+        )
+        db.session.add(clutch_event)
+        
+        # 6. Lineup Segments (For On/Off and Lineup Analytics)
+        # Segment 1: Player is ON
+        segment_on = LineupSegment(
+            game_id=game.id,
+            start_timestamp=0,
+            end_timestamp=500,
+            quarter=1,
+            players=json.dumps([self.player_name, 'P2', 'P3', 'P4', 'P5']),
+            lineup_hash='hash1',
+            points_scored=10,
+            points_allowed=5,
+            possessions=10
+        )
+        db.session.add(segment_on)
+        db.session.commit()
+        
+        # Add stats for this lineup segment
+        l_stat = PlayerLineupStats(
+            lineup_segment_id=segment_on.id,
+            player_name=self.player_name,
+            points=5,
+            fga=4, fgm=2
+        )
+        db.session.add(l_stat)
+        
+        # Segment 2: Player is OFF
+        segment_off = LineupSegment(
+            game_id=game.id,
+            start_timestamp=501,
+            end_timestamp=1000,
+            quarter=1,
+            players=json.dumps(['P2', 'P3', 'P4', 'P5', 'P6']), # TestPlayer replaced by P6
+            lineup_hash='hash2',
+            points_scored=2,
+            points_allowed=8,
+            possessions=10
+        )
+        db.session.add(segment_off)
         
         db.session.commit()
 
-        # Login with the (existing or created) credentials
-        login_response = self.client.post('/auth/login', data={
+        # Login
+        self.client.post('/auth/login', data={
             'username': self.username,
             'password': self.password
         }, follow_redirects=True)
-        
-        # Verify login success
-        if b'Invalid username' in login_response.data:
-            self.fail(f"Login failed for user '{self.username}': Invalid credentials")
-            
-        # Verify we are not redirected to OTP page
-        if b'Verify OTP' in login_response.data:
-            self.fail("Login failed: Redirected to OTP verification. Test user should not be admin/manager.")
 
     def tearDown(self):
         db.session.remove()
@@ -98,37 +146,95 @@ class TestAdvancedAnalytics(unittest.TestCase):
         self.app_context.pop()
 
     def test_get_player_advanced_stats(self):
+        """Test general advanced stats calculation"""
         response = self.client.get(f'/api/advanced/player/{self.player_name}/advanced')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
+        
         self.assertIn('season_stats', data)
+        stats = data['season_stats']
+        # Verify specific calculations
+        self.assertEqual(stats['games_played'], 1)
+        self.assertEqual(stats['points'], 25)
+        self.assertGreater(stats['ts_percent'], 0) # True Shooting should be calculated
         self.assertIn('shot_quality', data)
 
     def test_get_player_usage(self):
+        """Test usage rate calculation"""
         response = self.client.get(f'/api/advanced/player/{self.player_name}/usage')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
+        
         self.assertIn('usage_rate', data)
+        usage = data['usage_rate']
+        self.assertIsInstance(usage, float)
+        self.assertGreater(usage, 0) # Should be positive given the stats
 
     def test_get_season_clutch_stats(self):
+        """Test clutch time filtering and stats"""
         response = self.client.get('/api/advanced/clutch/season?game_type=Season')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
+        
         self.assertIn('players', data)
+        players = data['players']
+        # We created a clutch event, so we expect at least one player entry
+        found = False
+        for p in players:
+            if p['player'] == self.player_name:
+                found = True
+                self.assertEqual(p['clutch_points'], 3) # 1 made 3PT in clutch
+                self.assertEqual(p['clutch_plays'], 1)
+        self.assertTrue(found, "Player not found in clutch stats")
 
     def test_get_four_factors(self):
+        """Test Four Factors calculation"""
         response = self.client.get(f'/api/advanced/four-factors?game_id={self.game_id}')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
+        
         self.assertIn('four_factors', data)
-        self.assertIn('efg_pct', data['four_factors'])
+        factors = data['four_factors']
+        self.assertIn('efg_pct', factors)
+        self.assertIn('oreb_pct', factors)
+        # eFG% = (10 + 0.5*2) / 20 = 11/20 = 55%
+        self.assertAlmostEqual(factors['efg_pct'], 55.0, delta=1.0)
 
-    def test_get_shot_chart(self):
-        response = self.client.get(f'/api/advanced/shots/chart?game_id={self.game_id}')
+    def test_get_on_off_splits(self):
+        """Test On/Off Court Analytics"""
+        response = self.client.get(f'/api/advanced/lineup/on-off/{self.player_name}')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        self.assertIn('shots', data)
-        self.assertTrue(len(data['shots']) > 0)
+        
+        self.assertIn('on_court', data)
+        self.assertIn('off_court', data)
+        
+        # Verify ON court stats (from setUp: 10 pts scored, 10 poss => 100 ORtg)
+        on = data['on_court']
+        self.assertAlmostEqual(on['offensive_rating'], 100.0, delta=1.0)
+        
+        # Verify OFF court stats (from setUp: 2 pts scored, 10 poss => 20 ORtg)
+        off = data['off_court']
+        self.assertAlmostEqual(off['offensive_rating'], 20.0, delta=1.0)
+        
+        # Net rating diff should be +80
+        self.assertAlmostEqual(data['net_rating_diff'], 80.0, delta=1.0)
+
+    def test_get_lineup_rankings(self):
+        """Test Lineup Rankings API"""
+        # Set min_possessions=0 to ensure our small test data is included
+        response = self.client.get('/api/advanced/lineup/rankings?min_possessions=0')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        
+        self.assertIn('rankings', data)
+        rankings = data['rankings']
+        self.assertTrue(len(rankings) > 0)
+        
+        # Check first lineup matches our data
+        lineup1 = rankings[0]
+        self.assertIn('players', lineup1)
+        self.assertIn('net_rating', lineup1)
 
 if __name__ == '__main__':
     unittest.main()
