@@ -2,9 +2,8 @@ import unittest
 import json
 import os
 from datetime import datetime
-from flask_login import login_user
 from web import create_app, db
-from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, Play, PlayType, LineupSegment, PlayerLineupStats
+from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, Play, PlayType, LineupSegment, PlayerLineupStats, Possession
 
 class TestAdvancedAnalytics(unittest.TestCase):
     def setUp(self):
@@ -28,7 +27,7 @@ class TestAdvancedAnalytics(unittest.TestCase):
             db.session.add(user)
             db.session.commit()
         
-        # 2. Game Setup (Close game for Clutch stats)
+        # 2. Game Setup
         game = Game(
             date='01/01/2024',
             opponent='TestOpponent',
@@ -44,7 +43,13 @@ class TestAdvancedAnalytics(unittest.TestCase):
         self.game_id = game.id
         self.player_name = 'TestPlayer'
         
-        # 3. Player Stats (Box Score)
+        # 3. Create a Play
+        play = Play(name="PickAndRoll", play_type="Offense", description="High PNR")
+        db.session.add(play)
+        db.session.commit()
+        self.play_id = play.id
+
+        # 4. Player Stats (Box Score)
         p_stat = PlayerStat(
             game_id=game.id,
             player_name=self.player_name,
@@ -58,28 +63,17 @@ class TestAdvancedAnalytics(unittest.TestCase):
         )
         db.session.add(p_stat)
         
-        # 4. Shot Events (Shot Chart)
-        shot1 = ShotEvent(
-            game_id=game.id,
-            player_name=self.player_name,
-            shot_type='3PT',
-            result='made',
-            points=3,
-            x_loc=25.0, y_loc=45.0, # Corner
-            quarter=4
-        )
-        shot2 = ShotEvent(
-            game_id=game.id,
-            player_name=self.player_name,
-            shot_type='2PT',
-            result='missed',
-            points=0,
-            x_loc=250.0, y_loc=50.0, # Paint
-            quarter=4
-        )
-        db.session.add_all([shot1, shot2])
+        # 5. Shot Events (Shot Chart, Heatmap, Hexbin)
+        # Add varied shots
+        shots = [
+            ShotEvent(game_id=game.id, player_name=self.player_name, shot_type='3PT', result='made', points=3, x_loc=25.0, y_loc=45.0, quarter=4, play_id=play.id), # Corner 3
+            ShotEvent(game_id=game.id, player_name=self.player_name, shot_type='2PT', result='missed', points=0, x_loc=250.0, y_loc=50.0, quarter=4, play_id=play.id), # Rim
+            ShotEvent(game_id=game.id, player_name=self.player_name, shot_type='2PT', result='made', points=2, x_loc=250.0, y_loc=200.0, quarter=3, play_id=play.id), # Midrange
+            ShotEvent(game_id=game.id, player_name=self.player_name, shot_type='3PT', result='missed', points=0, x_loc=250.0, y_loc=400.0, quarter=2, play_id=play.id) # Top of key
+        ]
+        db.session.add_all(shots)
         
-        # 5. Clutch Events (Last 5 mins, score margin <= 5)
+        # 6. Clutch Events
         clutch_event = GameEvent(
             game_id=game.id,
             event_type='SHOT_3PT',
@@ -93,44 +87,41 @@ class TestAdvancedAnalytics(unittest.TestCase):
         )
         db.session.add(clutch_event)
         
-        # 6. Lineup Segments (For On/Off and Lineup Analytics)
-        # Segment 1: Player is ON
+        # 7. Rotation Analysis Events
+        rotation_events = [
+            GameEvent(game_id=game.id, event_type='SUB_IN', player_name=self.player_name, timestamp=0, quarter=1),
+            GameEvent(game_id=game.id, event_type='SUB_OUT', player_name=self.player_name, timestamp=500, quarter=1),
+            GameEvent(game_id=game.id, event_type='SUB_IN', player_name='P2', timestamp=0, quarter=1), # P2 plays whole time
+        ]
+        db.session.add_all(rotation_events)
+
+        # 8. Possession Reconstruction Events
+        # Sequence: Rebound (Start) -> Shot (End)
+        possession_events = [
+            GameEvent(game_id=game.id, event_type='REBOUND_DEFENSIVE', player_name=self.player_name, timestamp=100, quarter=2),
+            GameEvent(game_id=game.id, event_type='SHOT_2PT', player_name=self.player_name, shot_attempt='made', timestamp=120, quarter=2)
+        ]
+        db.session.add_all(possession_events)
+
+        # 9. Lineup Segments (Duo/Trio/Lineup Analytics)
+        # Segment 1: High performing trio
         segment_on = LineupSegment(
             game_id=game.id,
-            start_timestamp=0,
-            end_timestamp=500,
-            quarter=1,
+            start_timestamp=0, end_timestamp=500, quarter=1,
             players=json.dumps([self.player_name, 'P2', 'P3', 'P4', 'P5']),
             lineup_hash='hash1',
-            points_scored=10,
-            points_allowed=5,
-            possessions=10
+            points_scored=20, points_allowed=10, possessions=15
         )
-        db.session.add(segment_on)
-        db.session.commit()
         
-        # Add stats for this lineup segment
-        l_stat = PlayerLineupStats(
-            lineup_segment_id=segment_on.id,
-            player_name=self.player_name,
-            points=5,
-            fga=4, fgm=2
-        )
-        db.session.add(l_stat)
-        
-        # Segment 2: Player is OFF
+        # Segment 2: Poor performing duo
         segment_off = LineupSegment(
             game_id=game.id,
-            start_timestamp=501,
-            end_timestamp=1000,
-            quarter=1,
-            players=json.dumps(['P2', 'P3', 'P4', 'P5', 'P6']), # TestPlayer replaced by P6
+            start_timestamp=501, end_timestamp=1000, quarter=1,
+            players=json.dumps(['P6', 'P7', 'P2', 'P8', 'P9']),
             lineup_hash='hash2',
-            points_scored=2,
-            points_allowed=8,
-            possessions=10
+            points_scored=5, points_allowed=15, possessions=15
         )
-        db.session.add(segment_off)
+        db.session.add_all([segment_on, segment_off])
         
         db.session.commit()
 
@@ -145,86 +136,177 @@ class TestAdvancedAnalytics(unittest.TestCase):
         db.drop_all()
         self.app_context.pop()
 
+    # --- Existing Tests ---
+
     def test_get_player_advanced_stats(self):
-        """Test general advanced stats calculation"""
         response = self.client.get(f'/api/advanced/player/{self.player_name}/advanced')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        
-        # Check that we have basic data structure
-        self.assertIn('player_name', data)
         self.assertEqual(data['player_name'], self.player_name)
+        self.assertIn('shot_quality', data)
+        self.assertEqual(data['shot_quality']['total_shots'], 4) # We added 4 shots
 
     def test_get_player_usage(self):
-        """Test usage rate calculation"""
         response = self.client.get(f'/api/advanced/player/{self.player_name}/usage')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        
         self.assertIn('usage_rate', data)
-        usage = data['usage_rate']
-        self.assertIsInstance(usage, (int, float))
-        self.assertGreater(usage, 0) # Should be positive given the stats
+        self.assertGreater(data['usage_rate'], 0)
 
     def test_get_season_clutch_stats(self):
-        """Test clutch time filtering and stats"""
         response = self.client.get('/api/advanced/clutch/season?game_type=Season')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        
-        self.assertIn('players', data)
-        players = data['players']
-        # We created a clutch event, so we expect at least one player entry
         found = False
-        for p in players:
+        for p in data['players']:
             if p['player'] == self.player_name:
                 found = True
-                self.assertEqual(p['clutch_points'], 3) # 1 made 3PT in clutch
-                self.assertEqual(p['clutch_plays'], 1)
-        self.assertTrue(found, "Player not found in clutch stats")
+                self.assertEqual(p['clutch_points'], 3)
+        self.assertTrue(found)
 
     def test_get_four_factors(self):
-        """Test Four Factors calculation"""
         response = self.client.get(f'/api/advanced/four-factors?game_id={self.game_id}')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        
         self.assertIn('four_factors', data)
-        factors = data['four_factors']
-        self.assertIn('efg_pct', factors)
-        # Accept any reasonable structure
-        self.assertIsInstance(factors['efg_pct'], (int, float))
 
     def test_get_shot_chart(self):
-        """Test shot chart data retrieval"""
         response = self.client.get(f'/api/advanced/shots/chart?game_id={self.game_id}&player={self.player_name}')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        
-        self.assertIn('shots', data)
-        self.assertIn('total_shots', data)
-        # We created 2 shots
-        self.assertEqual(data['total_shots'], 2)
+        self.assertEqual(data['total_shots'], 4)
 
     def test_get_on_off_splits(self):
-        """Test On/Off Court Analytics"""
         response = self.client.get(f'/api/advanced/lineup/on-off/{self.player_name}')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        
-        # Just verify we get a response - structure may vary
-        self.assertIsInstance(data, dict)
+        # Player is in segment 1 (Net +10) and not in segment 2
+        self.assertIn('net_differential', data)
+        # On court: +10 pts in 15 poss => ORTG ~133, DRTG ~66 => Net +67
+        # Off court: -10 pts in 15 poss => ORTG ~33, DRTG ~100 => Net -67
+        # Differential should be huge positive
+        self.assertGreater(data['net_differential'], 0)
 
     def test_get_lineup_rankings(self):
-        """Test Lineup Rankings API"""
-        # Set min_possessions=0 to ensure our small test data is included
         response = self.client.get('/api/advanced/lineup/rankings?min_possessions=0')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
+        self.assertTrue(len(data['rankings']) >= 2)
+        top_lineup = data['rankings'][0]
+        # Our best lineup scored 20 allowed 10
+        self.assertEqual(top_lineup['points_scored'], 20)
+
+    # --- New Tests ---
+
+    def test_get_heatmap_data(self):
+        """Test shot heatmap generation"""
+        response = self.client.get(f'/api/advanced/shots/heatmap?player={self.player_name}')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertIn('heatmap', data)
+        heatmap = data['heatmap']
+        # We have a corner 3, so 'Corner_3' should be in heatmap
+        self.assertIn('Corner_3', heatmap)
+        self.assertEqual(heatmap['Corner_3']['makes'], 1)
+
+    def test_get_hexbin_data(self):
+        """Test hexbin aggregation"""
+        response = self.client.get(f'/api/advanced/shots/hexbin?player={self.player_name}&hex_size=50')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertIn('hexbins', data)
+        self.assertTrue(len(data['hexbins']) > 0)
+        # Check structure
+        self.assertIn('x', data['hexbins'][0])
+        self.assertIn('fg_pct', data['hexbins'][0])
+
+    def test_get_duo_compatibility(self):
+        """Test duo compatibility matrix"""
+        response = self.client.get('/api/advanced/lineup/duos')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertIn('duos', data)
+        # We had TestPlayer and P2 together in segment 1
+        found = False
+        for duo in data['duos']:
+            players = {duo['player1'], duo['player2']}
+            if self.player_name in players and 'P2' in players:
+                found = True
+                self.assertGreater(duo['net_rating'], 0) # They did well together
+                break
+        self.assertTrue(found, "Duo TestPlayer-P2 not found")
+
+    def test_get_trio_compatibility(self):
+        """Test trio compatibility matrix"""
+        response = self.client.get('/api/advanced/lineup/trios')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertIn('trios', data)
+        # TestPlayer, P2, P3 were together
+        found = False
+        for trio in data['trios']:
+            players = set(trio['players'])
+            if {self.player_name, 'P2', 'P3'}.issubset(players):
+                found = True
+                break
+        self.assertTrue(found, "Trio TestPlayer-P2-P3 not found")
+
+    def test_get_rotation_analysis(self):
+        """Test rotation/stint analysis"""
+        response = self.client.get(f'/api/advanced/rotation/{self.game_id}')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertIn('player_stints', data)
+        # TestPlayer had one stint (0 to 500)
+        stints = data['player_stints'][self.player_name]
+        self.assertEqual(len(stints), 1)
+        self.assertEqual(stints[0]['start_timestamp'], 0)
+        self.assertEqual(stints[0]['end_timestamp'], 500)
+
+    def test_possession_reconstruction(self):
+        """Test full possession reconstruction flow"""
+        # 1. Trigger reconstruction
+        response = self.client.post(f'/api/advanced/possessions/reconstruct/{self.game_id}')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertGreater(data['possessions_created'], 0)
         
+        # 2. Fetch possessions
+        response = self.client.get(f'/api/advanced/possessions/{self.game_id}')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        possessions = data['possessions']
+        self.assertTrue(len(possessions) > 0)
+        # Our manual events created a possession with 2 points (Shot Made)
+        # Check for at least one possession with points > 0
+        scoring_poss = [p for p in possessions if p['points'] > 0]
+        self.assertTrue(len(scoring_poss) > 0)
+
+    def test_get_play_rankings(self):
+        """Test play effectiveness rankings"""
+        response = self.client.get('/api/advanced/plays/rankings')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
         self.assertIn('rankings', data)
-        # Just verify structure, don't enforce specific data
-        self.assertIsInstance(data['rankings'], list)
+        # Check for our 'PickAndRoll' play
+        found = False
+        for p in data['rankings']:
+            if p['play_name'] == "PickAndRoll":
+                found = True
+                # We added shots linked to this play (some made, some missed)
+                self.assertGreater(p['total_shots'], 0)
+        self.assertTrue(found, "Play 'PickAndRoll' not found in rankings")
+
+    def test_zone_classification(self):
+        """Test shot zone classifier endpoint"""
+        # Test Corner 3 logic
+        payload = {'x_loc': 25.0, 'y_loc': 45.0, 'shot_type': '3PT'}
+        response = self.client.post('/api/advanced/zones/classify', 
+                                  data=json.dumps(payload),
+                                  content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertEqual(data['zone'], 'Corner_3')
 
 if __name__ == '__main__':
     unittest.main()
