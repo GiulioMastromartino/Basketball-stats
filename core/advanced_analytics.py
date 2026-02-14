@@ -459,7 +459,8 @@ class LineupAnalytics:
             players = segment.players
             if isinstance(players, str):
                 try:
-                    players = json.loads(players)\n                except:
+                    players = json.loads(players)
+                except:
                     players = []
             if not players:
                 players = []
@@ -861,7 +862,8 @@ class AnalyticsEngine:
             query = query.join(Game).filter(Game.game_type == 'Season')
         elif game_type == 'Friendly':
             query = query.join(Game).filter(Game.game_type == 'Friendly')
-        \n        result = query.first()
+        
+        result = query.first()
         
         if not result or result.games == 0:
             return {}
@@ -1056,7 +1058,8 @@ class ShotChartAnalytics:
         heatmap = {}
         for zone, stats in zone_stats.items():
             fg_pct = safe_percentage(stats['makes'], stats['attempts'])
-            expected = get_expected_value(zone)\n            actual_pps = safe_divide(stats['points'], stats['attempts'])
+            expected = get_expected_value(zone)
+            actual_pps = safe_divide(stats['points'], stats['attempts'])
             
             heatmap[zone] = {
                 'attempts': stats['attempts'],
@@ -1111,7 +1114,8 @@ class ShotChartAnalytics:
                 'y': y,
                 'attempts': stats['attempts'],
                 'makes': stats['makes'],
-                'fg_pct': fg_pct,\n                'points': stats['points']
+                'fg_pct': fg_pct,
+                'points': stats['points']
             })
         
         return hexbin_list
