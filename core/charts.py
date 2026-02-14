@@ -197,7 +197,7 @@ def generate_player_charts(stats, game_map, player_name):
                 else:
                     plus_minus_vals.append(None)
 
-        # Scoring Chart with +/-
+        # Scoring Chart with +/
         fig, ax1 = plt.subplots(figsize=(10, 4))
         ax1.bar(dates, points, color='#007bff', alpha=0.6, label='Points')
         ax1.set_ylabel('Points', color='#007bff')
