@@ -78,6 +78,35 @@ def create_app(config_name: str = None) -> Flask:
             try:
                 inspector = inspect(db.engine)
 
+                # Check for game_events table and add missing columns
+                if inspector.has_table("game_events"):
+                    columns = [c['name'] for c in inspector.get_columns("game_events")]
+                    
+                    missing_game_event_columns = []
+                    if "quarter" not in columns:
+                        missing_game_event_columns.append("quarter")
+                    if "time_remaining" not in columns:
+                        missing_game_event_columns.append("time_remaining")
+                    if "score_margin" not in columns:
+                        missing_game_event_columns.append("score_margin")
+                    
+                    if missing_game_event_columns:
+                        app.logger.warning(f"Detected outdated game_events schema (missing: {missing_game_event_columns}). Adding columns...")
+                        
+                        for col in missing_game_event_columns:
+                            try:
+                                if col == "quarter":
+                                    db.session.execute(text("ALTER TABLE game_events ADD COLUMN quarter INTEGER"))
+                                elif col == "time_remaining":
+                                    db.session.execute(text("ALTER TABLE game_events ADD COLUMN time_remaining VARCHAR(10)"))
+                                elif col == "score_margin":
+                                    db.session.execute(text("ALTER TABLE game_events ADD COLUMN score_margin INTEGER"))
+                                app.logger.info(f"Added column {col} to game_events table.")
+                            except Exception as col_err:
+                                app.logger.warning(f"Could not add column {col}: {col_err}")
+                        
+                        db.session.commit()
+
                 # Check for plays table
                 if inspector.has_table("plays"):
                     columns = [c['name'] for c in inspector.get_columns("plays")]
