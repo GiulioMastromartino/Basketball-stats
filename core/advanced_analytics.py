@@ -900,4 +900,177 @@ class AnalyticsEngine:
         )
         
         if game_id:
-            query = query.filter(PlayerStat.game_id == game_id)\n        elif game_ids:\n            query = query.filter(PlayerStat.game_id.in_(game_ids))\n        \n        result = query.first()\n        \n        if not result:\n            return {}\n        \n        fgm = result.fgm or 0\n        fga = result.fga or 0\n        tpm = result.tpm or 0\n        tov = result.tov or 0\n        oreb = result.oreb or 0\n        ftm = result.ftm or 0\n        fta = result.fta or 0\n        points = result.points or 0\n        \n        # Calculate possessions for TOV%\n        possessions = fga + (FT_ATTEMPT_WEIGHT * fta) - oreb + tov\n        \n        return {\n            'efg_pct': safe_percentage(fgm + 0.5 * tpm, fga),\n            'tov_pct': safe_percentage(tov, possessions),\n            'orb_pct': safe_percentage(oreb, result.reb or 1),\n            'ft_rate': safe_percentage(ftm, fga),\n            'ts_pct': calculate_ts_percent(points, fga, fta)\n        }\n\n\ndef calculate_ts_percent(points: int, fga: int, fta: int) -> float:\n    \"\"\"Calculate True Shooting Percentage.\"\"\"\n    denominator = 2 * (fga + FT_ATTEMPT_WEIGHT * fta)\n    return safe_percentage(points, denominator)\n\n\n# =============================================================================\n# SHOT CHART ANALYTICS\n# =============================================================================\n\nclass ShotChartAnalytics:\n    \"\"\"Shot chart and court mapping analytics.\"\"\"\n    \n    @staticmethod\n    def get_shot_chart_data(game_id: int = None, player_name: str = None,\n                            play_id: int = None, game_ids: List[int] = None) -> List[Dict]:\n        \"\"\"\n        Get shot chart data with coordinates and results.\n        \n        Args:\n            game_id: Single game filter\n            player_name: Player filter\n            play_id: Play type filter\n            game_ids: Multiple games filter\n        \n        Returns:\n            List of shot dictionaries with coordinates\n        \"\"\"\n        query = ShotEvent.query\n        \n        if game_id:\n            query = query.filter(ShotEvent.game_id == game_id)\n        elif game_ids:\n            query = query.filter(ShotEvent.game_id.in_(game_ids))\n        \n        if player_name:\n            query = query.filter(ShotEvent.player_name == player_name)\n        if play_id:\n            query = query.filter(ShotEvent.play_id == play_id)\n        \n        shots = query.all()\n        \n        return [\n            {\n                'id': s.id,\n                'game_id': s.game_id,\n                'player_name': s.player_name,\n                'shot_type': s.shot_type,\n                'result': s.result,\n                'points': s.points,\n                'x_loc': s.x_loc,\n                'y_loc': s.y_loc,\n                'quarter': s.quarter,\n                'play_id': s.play_id,\n                'zone': classify_shot_zone(s.x_loc, s.y_loc, s.shot_type)\n            }\n            for s in shots\n        ]\n    \n    @staticmethod\n    def get_heatmap_data(game_ids: List[int] = None, player_name: str = None) -> Dict:\n        \"\"\"\n        Generate heatmap data for shot zones.\n        \n        Returns:\n            Dictionary with zone-based shooting percentages\n        \"\"\"\n        shots = ShotChartAnalytics.get_shot_chart_data(\n            player_name=player_name, game_ids=game_ids\n        )\n        \n        zone_stats = defaultdict(lambda: {'makes': 0, 'attempts': 0, 'points': 0})\n        \n        for shot in shots:\n            zone = shot['zone']\n            zone_stats[zone]['attempts'] += 1\n            zone_stats[zone]['points'] += shot['points'] or 0\n            if shot['result'] == 'made':\n                zone_stats[zone]['makes'] += 1\n        \n        heatmap = {}\n        for zone, stats in zone_stats.items():\n            fg_pct = safe_percentage(stats['makes'], stats['attempts'])\n            expected = get_expected_value(zone)\n            actual_pps = safe_divide(stats['points'], stats['attempts'])\n            \n            heatmap[zone] = {\n                'attempts': stats['attempts'],\n                'makes': stats['makes'],\n                'fg_pct': fg_pct,\n                'expected_value': expected,\n                'actual_pps': round(actual_pps, 2),\n                'efficiency_delta': round(actual_pps - expected, 2)\n            }\n        \n        return heatmap\n    \n    @staticmethod\n    def get_hexbin_data(game_ids: List[int] = None, player_name: str = None,\n                        hex_size: int = 50) -> List[Dict]:\n        \"\"\"\n        Generate hexbin data for shot chart visualization.\n        \n        Args:\n            hex_size: Size of each hexagon in coordinate units\n        \n        Returns:\n            List of hexbin data with aggregated stats\n        \"\"\"\n        shots = ShotChartAnalytics.get_shot_chart_data(\n            player_name=player_name, game_ids=game_ids\n        )\n        \n        # Group shots into hexbins\n        hexbins = defaultdict(lambda: {'makes': 0, 'attempts': 0, 'points': 0})\n        \n        for shot in shots:\n            if shot['x_loc'] is None or shot['y_loc'] is None:\n                continue\n            \n            # Calculate hexbin coordinates\n            hex_x = int(shot['x_loc'] // hex_size) * hex_size + hex_size // 2\n            hex_y = int(shot['y_loc'] // hex_size) * hex_size + hex_size // 2\n            hex_key = (hex_x, hex_y)\n            \n            hexbins[hex_key]['attempts'] += 1\n            hexbins[hex_key]['points'] += shot['points'] or 0\n            if shot['result'] == 'made':\n                hexbins[hex_key]['makes'] += 1\n        \n        # Convert to list format\n        hexbin_list = []\n        for (x, y), stats in hexbins.items():\n            fg_pct = safe_percentage(stats['makes'], stats['attempts'])\n            hexbin_list.append({\n                'x': x,\n                'y': y,\n                'attempts': stats['attempts'],\n                'makes': stats['makes'],\n                'fg_pct': fg_pct,\n                'points': stats['points']\n            })\n        \n        return hexbin_list\n
+            query = query.filter(PlayerStat.game_id == game_id)
+        elif game_ids:
+            query = query.filter(PlayerStat.game_id.in_(game_ids))
+        
+        result = query.first()
+        
+        if not result:
+            return {}
+        
+        fgm = result.fgm or 0
+        fga = result.fga or 0
+        tpm = result.tpm or 0
+        tov = result.tov or 0
+        oreb = result.oreb or 0
+        ftm = result.ftm or 0
+        fta = result.fta or 0
+        points = result.points or 0
+        
+        # Calculate possessions for TOV%
+        possessions = fga + (FT_ATTEMPT_WEIGHT * fta) - oreb + tov
+        
+        return {
+            'efg_pct': safe_percentage(fgm + 0.5 * tpm, fga),
+            'tov_pct': safe_percentage(tov, possessions),
+            'orb_pct': safe_percentage(oreb, result.reb or 1),
+            'ft_rate': safe_percentage(ftm, fga),
+            'ts_pct': calculate_ts_percent(points, fga, fta)
+        }
+
+
+def calculate_ts_percent(points: int, fga: int, fta: int) -> float:
+    """Calculate True Shooting Percentage."""
+    denominator = 2 * (fga + FT_ATTEMPT_WEIGHT * fta)
+    return safe_percentage(points, denominator)
+
+
+# =============================================================================
+# SHOT CHART ANALYTICS
+# =============================================================================
+
+class ShotChartAnalytics:
+    """Shot chart and court mapping analytics."""
+    
+    @staticmethod
+    def get_shot_chart_data(game_id: int = None, player_name: str = None,
+                            play_id: int = None, game_ids: List[int] = None) -> List[Dict]:
+        """
+        Get shot chart data with coordinates and results.
+        
+        Args:
+            game_id: Single game filter
+            player_name: Player filter
+            play_id: Play type filter
+            game_ids: Multiple games filter
+        
+        Returns:
+            List of shot dictionaries with coordinates
+        """
+        query = ShotEvent.query
+        
+        if game_id:
+            query = query.filter(ShotEvent.game_id == game_id)
+        elif game_ids:
+            query = query.filter(ShotEvent.game_id.in_(game_ids))
+        
+        if player_name:
+            query = query.filter(ShotEvent.player_name == player_name)
+        if play_id:
+            query = query.filter(ShotEvent.play_id == play_id)
+        
+        shots = query.all()
+        
+        return [
+            {
+                'id': s.id,
+                'game_id': s.game_id,
+                'player_name': s.player_name,
+                'shot_type': s.shot_type,
+                'result': s.result,
+                'points': s.points,
+                'x_loc': s.x_loc,
+                'y_loc': s.y_loc,
+                'quarter': s.quarter,
+                'play_id': s.play_id,
+                'zone': classify_shot_zone(s.x_loc, s.y_loc, s.shot_type)
+            }
+            for s in shots
+        ]
+    
+    @staticmethod
+    def get_heatmap_data(game_ids: List[int] = None, player_name: str = None) -> Dict:
+        """
+        Generate heatmap data for shot zones.
+        
+        Returns:
+            Dictionary with zone-based shooting percentages
+        """
+        shots = ShotChartAnalytics.get_shot_chart_data(
+            player_name=player_name, game_ids=game_ids
+        )
+        
+        zone_stats = defaultdict(lambda: {'makes': 0, 'attempts': 0, 'points': 0})
+        
+        for shot in shots:
+            zone = shot['zone']
+            zone_stats[zone]['attempts'] += 1
+            zone_stats[zone]['points'] += shot['points'] or 0
+            if shot['result'] == 'made':
+                zone_stats[zone]['makes'] += 1
+        
+        heatmap = {}
+        for zone, stats in zone_stats.items():
+            fg_pct = safe_percentage(stats['makes'], stats['attempts'])
+            expected = get_expected_value(zone)
+            actual_pps = safe_divide(stats['points'], stats['attempts'])
+            
+            heatmap[zone] = {
+                'attempts': stats['attempts'],
+                'makes': stats['makes'],
+                'fg_pct': fg_pct,
+                'expected_value': expected,
+                'actual_pps': round(actual_pps, 2),
+                'efficiency_delta': round(actual_pps - expected, 2)
+            }
+        
+        return heatmap
+    
+    @staticmethod
+    def get_hexbin_data(game_ids: List[int] = None, player_name: str = None,
+                        hex_size: int = 50) -> List[Dict]:
+        """
+        Generate hexbin data for shot chart visualization.
+        
+        Args:
+            hex_size: Size of each hexagon in coordinate units
+        
+        Returns:
+            List of hexbin data with aggregated stats
+        """
+        shots = ShotChartAnalytics.get_shot_chart_data(
+            player_name=player_name, game_ids=game_ids
+        )
+        
+        # Group shots into hexbins
+        hexbins = defaultdict(lambda: {'makes': 0, 'attempts': 0, 'points': 0})
+        
+        for shot in shots:
+            if shot['x_loc'] is None or shot['y_loc'] is None:
+                continue
+            
+            # Calculate hexbin coordinates
+            hex_x = int(shot['x_loc'] // hex_size) * hex_size + hex_size // 2
+            hex_y = int(shot['y_loc'] // hex_size) * hex_size + hex_size // 2
+            hex_key = (hex_x, hex_y)
+            
+            hexbins[hex_key]['attempts'] += 1
+            hexbins[hex_key]['points'] += shot['points'] or 0
+            if shot['result'] == 'made':
+                hexbins[hex_key]['makes'] += 1
+        
+        # Convert to list format
+        hexbin_list = []
+        for (x, y), stats in hexbins.items():
+            fg_pct = safe_percentage(stats['makes'], stats['attempts'])
+            hexbin_list.append({
+                'x': x,
+                'y': y,
+                'attempts': stats['attempts'],
+                'makes': stats['makes'],
+                'fg_pct': fg_pct,
+                'points': stats['points']
+            })
+        
+        return hexbin_list
