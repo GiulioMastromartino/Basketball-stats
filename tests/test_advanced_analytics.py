@@ -2,6 +2,7 @@ import unittest
 import json
 import os
 from datetime import datetime
+from flask_login import login_user
 from web import create_app, db
 from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, Play, PlayType
 
@@ -18,8 +19,8 @@ class TestAdvancedAnalytics(unittest.TestCase):
         self.password = os.environ.get('TESTER_PASSWORD', 'adminadmin')
         self.email = 'tester@example.com'
 
-        # Create test user
-        user = User(username=self.username, email=self.email, is_admin=True)
+        # Create test user - NOT ADMIN to bypass OTP
+        user = User(username=self.username, email=self.email, is_admin=False, role='editor')
         user.set_password(self.password)
         db.session.add(user)
         
@@ -69,6 +70,7 @@ class TestAdvancedAnalytics(unittest.TestCase):
         db.session.commit()
 
         # Login
+        # We use a non-admin user to avoid the 2FA flow during testing
         login_response = self.client.post('/auth/login', data={
             'username': self.username,
             'password': self.password
@@ -77,6 +79,10 @@ class TestAdvancedAnalytics(unittest.TestCase):
         # Verify login success
         if b'Invalid username' in login_response.data:
             self.fail("Login failed: Invalid credentials")
+            
+        # Verify we are not redirected to OTP page
+        if b'Verify OTP' in login_response.data:
+            self.fail("Login failed: Redirected to OTP verification. Test user should not be admin.")
 
     def tearDown(self):
         db.session.remove()
