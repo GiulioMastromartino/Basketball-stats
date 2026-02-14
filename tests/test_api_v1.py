@@ -35,20 +35,23 @@ class TestApiV1(unittest.TestCase):
         self.app_context.pop()
 
     def test_get_plays_all(self):
-        response = self.client.get('/api/v1/api/plays?type=All')
+        # The route in api.py is defined as: @api_bp.route('/plays', ...)
+        # And in __init__.py it is registered as: app.register_blueprint(api_bp, url_prefix="/api/v1")
+        # So the correct URL is /api/v1/plays (not /api/v1/api/plays)
+        response = self.client.get('/api/v1/plays?type=All')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
         self.assertEqual(len(data), 2)
         
     def test_get_plays_filtered(self):
-        response = self.client.get('/api/v1/api/plays?type=Offense')
+        response = self.client.get('/api/v1/plays?type=Offense')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]['name'], 'PickAndRoll')
 
     def test_get_play_types(self):
-        response = self.client.get('/api/v1/api/plays/types')
+        response = self.client.get('/api/v1/plays/types')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
         self.assertIn('Offense', data)
