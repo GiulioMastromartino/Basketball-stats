@@ -1209,6 +1209,21 @@ class GameTracker {
     updateStat(player, key, delta) {
         if (!this.stats[player]) return;
         if (this.stats[player][key] + delta < 0) return;
+
+        // **NEW: Log events for key stats (STL, BLK, REB, PF)**
+        if (delta > 0) {
+            let eventType = null;
+            if (key === 'stl') eventType = 'STEAL';
+            if (key === 'blk') eventType = 'BLOCK';
+            if (key === 'dreb') eventType = 'REBOUND_DEFENSIVE';
+            if (key === 'oreb') eventType = 'REBOUND_OFFENSIVE';
+            if (key === 'pf') eventType = 'FOUL_PERSONAL';
+            
+            if (eventType) {
+                this.logEvent(eventType, player);
+            }
+        }
+
         this.stats[player][key] += delta;
         this.updateUI(player);
         this.saveState();
@@ -1315,7 +1330,7 @@ class GameTracker {
                         const isCurrentQ = (q === this.quarter);
                         const displayQ = isCurrentQ ? quarterDisplayed : qMins;
                         const qClass = isCurrentQ ? 'text-primary font-weight-bold' : 'text-muted';
-                        quarterBreakdown += `<span class=\"${qClass} mx-1\" style=\"font-size: 0.75rem;\">Q${q}: ${this.formatMinutes(displayQ)}</span>`;
+                        quarterBreakdown += `<span class="${qClass} mx-1" style="font-size: 0.75rem;">Q${q}: ${this.formatMinutes(displayQ)}</span>`;
                     }
                     qEl.innerHTML = quarterBreakdown;
                 }
