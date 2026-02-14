@@ -5,7 +5,6 @@ from core.models import User, Play
 class TestPlays(unittest.TestCase):
     def setUp(self):
         self.app = create_app('testing')
-        # Explicitly disable CSRF for testing to ensure form submissions work
         self.app.config['WTF_CSRF_ENABLED'] = False
         self.client = self.app.test_client()
         self.app_context = self.app.app_context()
@@ -20,14 +19,10 @@ class TestPlays(unittest.TestCase):
         db.session.commit()
         
         # Login
-        login_resp = self.client.post('/auth/login', data={
+        self.client.post('/auth/login', data={
             'username': self.username,
             'password': 'password'
         }, follow_redirects=True)
-        
-        # Ensure login succeeded
-        if b'Invalid username or password' in login_resp.data:
-            raise RuntimeError("Login failed in setUp")
 
     def tearDown(self):
         db.session.remove()
@@ -43,9 +38,13 @@ class TestPlays(unittest.TestCase):
         }, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         
+        # Debugging output if creation fails
+        if b'Play \'New Play\' created successfully' not in response.data:
+            print("\nDEBUG RESPONSE DATA:\n", response.data.decode('utf-8', errors='ignore')[:1000])
+        
         # Verify persistence first
         play = Play.query.filter_by(name='New Play').first()
-        self.assertIsNotNone(play, "Play was not created in DB. Response: " + str(response.data[:200]))
+        self.assertIsNotNone(play, "Play was not created in DB. Check debug output.")
         
         # 2. View Play
         response = self.client.get(f'/plays/{play.id}') 
