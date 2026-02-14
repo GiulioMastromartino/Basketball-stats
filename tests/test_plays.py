@@ -5,6 +5,8 @@ from core.models import User, Play
 class TestPlays(unittest.TestCase):
     def setUp(self):
         self.app = create_app('testing')
+        # Explicitly disable CSRF for testing to ensure form submissions work
+        self.app.config['WTF_CSRF_ENABLED'] = False
         self.client = self.app.test_client()
         self.app_context = self.app.app_context()
         self.app_context.push()
@@ -18,10 +20,14 @@ class TestPlays(unittest.TestCase):
         db.session.commit()
         
         # Login
-        self.client.post('/auth/login', data={
+        login_resp = self.client.post('/auth/login', data={
             'username': self.username,
             'password': 'password'
         }, follow_redirects=True)
+        
+        # Ensure login succeeded
+        if b'Invalid username or password' in login_resp.data:
+            raise RuntimeError("Login failed in setUp")
 
     def tearDown(self):
         db.session.remove()
@@ -39,16 +45,14 @@ class TestPlays(unittest.TestCase):
         
         # Verify persistence first
         play = Play.query.filter_by(name='New Play').first()
-        self.assertIsNotNone(play)
+        self.assertIsNotNone(play, "Play was not created in DB. Response: " + str(response.data[:200]))
         
         # 2. View Play
-        response = self.client.get(f'/plays/{play.id}') # URL is /plays/<int:play_id>
+        response = self.client.get(f'/plays/{play.id}') 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'New Play', response.data)
         
         # 3. Edit Play
-        # Note: edit route might be /plays/edit/<id> or similar, check plays.py
-        # Based on previous file content: @plays_bp.route("/plays/edit/<int:play_id>", methods=["POST"])
         response = self.client.post(f'/plays/edit/{play.id}', data={
             'name': 'Updated Play',
             'play_type': 'Defense',
@@ -62,7 +66,6 @@ class TestPlays(unittest.TestCase):
         self.assertEqual(play.play_type, 'Defense')
         
         # 4. Delete Play
-        # Route: @plays_bp.route("/plays/<int:play_id>/delete", methods=["POST"])
         response = self.client.post(f'/plays/{play.id}/delete', follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         
