@@ -67,7 +67,7 @@ The testing suite has been significantly expanded to cover **all major applicati
 - `test_get_play_types`: Lists unique play types
 
 **Key Fixes:**
-- Corrected URL prefix from `/api/plays` to `/api/v1/api/plays` (matches blueprint registration)
+- Corrected URL prefix from `/api/v1/api/plays` to `/api/v1/plays` (matches blueprint registration)
 - Verified JSON response structure
 
 ---
@@ -120,7 +120,7 @@ The testing suite has been significantly expanded to cover **all major applicati
 
 **Issue:** Tests were using incorrect URL prefixes  
 **Fix:** Updated test URLs to match `web/__init__.py` blueprint registration:
-- `api_bp` → `/api/v1/api/*`
+- `api_bp` → `/api/v1/*`
 - `advanced_api_bp` → `/api/advanced/*`
 
 ### 🔧 Test Data Completeness
@@ -156,8 +156,10 @@ assertIn(b'90', response.data)
 **Fix:** Structured payload to match `core/services/game_service.py`:
 ```json
 {
-  "game_info": {"opponent": "...", "date": "..."},
-  "final_score": {"team_score": 80, "opponent_score": 75},
+  "opponent": "...", 
+  "date": "...",
+  "team_score": 80, 
+  "opponent_score": 75,
   "player_stats": [...],
   "events": []
 }
