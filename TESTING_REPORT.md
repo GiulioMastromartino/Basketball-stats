@@ -84,6 +84,10 @@ The testing suite has been significantly expanded to cover **all major applicati
 - Validates database persistence after each operation
 - Confirms redirects after form submissions
 
+**Key Fixes:**
+- **OTP Handling**: Implemented full Multi-Factor Authentication (MFA) flow simulation. The test now mocks `send_otp_email`, intercepts the redirect to the OTP page, retrieves the generated code from the database, and submits it to `/auth/verify-otp` to complete the admin login process.
+- **CSRF**: Disabled CSRF protection for tests to simplify form submission handling.
+
 ---
 
 ### 5. `tests/test_advanced_analytics.py` - Analytics Engine
@@ -160,7 +164,7 @@ assertIn(b'90', response.data)
   "date": "...",
   "team_score": 80, 
   "opponent_score": 75,
-  "player_stats": [...],
+  "player_stats": {"PlayerName": {...}},
   "events": []
 }
 ```
