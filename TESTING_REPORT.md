@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The testing suite has been significantly expanded to cover **all major application components**. The suite now includes **17 comprehensive tests** across 5 test modules, providing end-to-end coverage of authentication, routes, APIs, plays management, and advanced analytics.
+The testing suite has been significantly expanded to cover **all major application components**, with a specific focus on **Advanced Analytics**. The suite now includes **25 comprehensive tests** across 5 test modules, providing end-to-end coverage of authentication, routes, APIs, plays management, and the full advanced analytics engine.
 
 ### Test Coverage Overview
 
@@ -18,7 +18,7 @@ The testing suite has been significantly expanded to cover **all major applicati
 | **Main Routes** | 4 | Dashboard, Games, Players, Live Game | ✅ Fixed |
 | **API v1** | 3 | Plays API, Play Types | ✅ Fixed |
 | **Plays Management** | 1 | CRUD Operations (Editor role) | ✅ Fixed |
-| **Advanced Analytics** | 6 | Stats, Clutch, Lineups, Shot Charts | ✅ Fixed |
+| **Advanced Analytics** | 14 | Stats, Clutch, Lineups, Shot Charts, Heatmaps, Hexbins, Rotation, Possessions | ✅ Expanded |
 
 ---
 
@@ -92,23 +92,37 @@ The testing suite has been significantly expanded to cover **all major applicati
 
 ### 5. `tests/test_advanced_analytics.py` - Analytics Engine
 
-**Purpose:** Comprehensive testing of advanced statistics calculations.
+**Purpose:** Comprehensive testing of advanced statistics calculations, visualizations, and reconstruction algorithms.
 
 **Tests:**
-- `test_get_player_advanced_stats`: General advanced metrics
-- `test_get_player_usage`: Usage rate calculation
-- `test_get_season_clutch_stats`: Clutch time performance
-- `test_get_four_factors`: Dean Oliver's Four Factors
-- `test_get_shot_chart`: Shot chart data retrieval
-- `test_get_on_off_splits`: On/Off court impact analysis
-- `test_get_lineup_rankings`: 5-man lineup efficiency
+- **Metrics**:
+    - `test_get_player_advanced_stats`: General advanced metrics (Shot Quality, etc.)
+    - `test_get_player_usage`: True Usage Rate calculation
+    - `test_get_season_clutch_stats`: Clutch time performance (Last 5 min, +/- 5 pts)
+    - `test_get_four_factors`: Dean Oliver's Four Factors
+- **Visualizations**:
+    - `test_get_shot_chart`: Raw shot chart data retrieval
+    - `test_get_heatmap_data`: **NEW** - Zone-based shooting heatmap
+    - `test_get_hexbin_data`: **NEW** - Hexbin aggregation for visualizations
+- **Lineup Analysis**:
+    - `test_get_on_off_splits`: On/Off court impact analysis
+    - `test_get_lineup_rankings`: 5-man lineup efficiency
+    - `test_get_duo_compatibility`: **NEW** - 2-man lineup synergy
+    - `test_get_trio_compatibility`: **NEW** - 3-man lineup synergy
+    - `test_get_rotation_analysis`: **NEW** - Player substitution patterns (stints)
+- **Deep Analysis**:
+    - `test_possession_reconstruction`: **NEW** - Full algorithmic reconstruction of possessions from event logs
+    - `test_get_play_rankings`: **NEW** - Effectiveness of specific plays (e.g., "PickAndRoll")
+    - `test_zone_classification`: **NEW** - Coordinate-based shot zone classifier
 
 **Test Data Setup:**
 - Close game scenario (102-100) for clutch testing
 - Detailed player stats (25 pts, 10-20 FG)
-- Shot events with precise coordinates
+- Shot events with precise coordinates (Corner 3, Paint, Midrange)
 - Clutch events (< 5 min, score margin ≤ 5)
 - Lineup segments for On/Off calculations
+- Possession sequences (Rebound -> Shot)
+- Rotation events (SUB_IN/SUB_OUT)
 
 **Key Fixes:**
 - Relaxed assertions to accommodate API response structure variations
@@ -243,4 +257,4 @@ def tearDown(self):
 
 The testing suite is now **production-ready** and provides comprehensive coverage of all application components. All previously identified issues have been resolved, and the tests are designed to be maintainable and resilient to minor API changes.
 
-**Next Step:** Run `python tester.py` to verify all 17 tests pass.
+**Next Step:** Run `python tester.py` to verify all 25 tests pass.
