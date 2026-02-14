@@ -70,16 +70,13 @@ class TestMainRoutes(unittest.TestCase):
 
     def test_live_game_save(self):
         # Test saving a live game with proper structure
+        # NOTE: The game_service.py expects values to be strings or numbers, not dicts
         payload = {
-            'game_info': {
-                'opponent': 'LiveOpponent',
-                'date': '2024-02-14',
-                'game_type': 'Friendly'
-            },
-            'final_score': {
-                'team_score': 80,
-                'opponent_score': 75
-            },
+            'opponent': 'LiveOpponent',
+            'date': '2024-02-14',
+            'game_type': 'Friendly',
+            'team_score': 80,
+            'opponent_score': 75,
             'player_stats': [
                 {
                     'player_name': 'PlayerNew',
