@@ -12,19 +12,28 @@ class TestAdvancedAnalytics(unittest.TestCase):
         self.client = self.app.test_client()
         self.app_context = self.app.app_context()
         self.app_context.push()
+        
+        # Ensure schema exists
         db.create_all()
         
         # Get credentials from env
         self.username = os.environ.get('TESTER_USERNAME', 'Giulio')
         self.password = os.environ.get('TESTER_PASSWORD', 'adminadmin')
-        self.email = 'tester@example.com'
-
-        # Create test user - NOT ADMIN to bypass OTP
-        user = User(username=self.username, email=self.email, is_admin=False, role='editor')
-        user.set_password(self.password)
-        db.session.add(user)
         
-        # Create dummy data
+        # 1. Try to find existing user first (as requested)
+        user = User.query.filter_by(username=self.username).first()
+        
+        if not user:
+            # 2. Only create if not found (e.g. in-memory DB or fresh install)
+            # This satisfies the requirement to use an existing user if present,
+            # while ensuring the test doesn't crash on the empty in-memory DB.
+            user = User(username=self.username, email='tester@example.com', is_admin=False, role='editor')
+            user.set_password(self.password)
+            db.session.add(user)
+            db.session.commit()
+        
+        # Create dummy data for analytics (Game, Stats, Shots)
+        # We assume these might not exist, or we create fresh ones for the test isolation
         game = Game(
             date='01-01-2024',
             opponent='TestOpponent',
@@ -69,8 +78,7 @@ class TestAdvancedAnalytics(unittest.TestCase):
         
         db.session.commit()
 
-        # Login
-        # We use a non-admin user to avoid the 2FA flow during testing
+        # Login with the (existing or created) credentials
         login_response = self.client.post('/auth/login', data={
             'username': self.username,
             'password': self.password
@@ -78,11 +86,11 @@ class TestAdvancedAnalytics(unittest.TestCase):
         
         # Verify login success
         if b'Invalid username' in login_response.data:
-            self.fail("Login failed: Invalid credentials")
+            self.fail(f"Login failed for user '{self.username}': Invalid credentials")
             
         # Verify we are not redirected to OTP page
         if b'Verify OTP' in login_response.data:
-            self.fail("Login failed: Redirected to OTP verification. Test user should not be admin.")
+            self.fail("Login failed: Redirected to OTP verification. Test user should not be admin/manager.")
 
     def tearDown(self):
         db.session.remove()
