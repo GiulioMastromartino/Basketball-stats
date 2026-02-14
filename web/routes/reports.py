@@ -22,6 +22,14 @@ from core.play_analytics import (
 )
 from core.utils import calculate_possessions, safe_percentage
 from core.advanced_game_report import TeamBox, PlayerBox, build_advanced_game_report
+from core.advanced_pdf_reports import (
+    AdvancedPDFReports,
+    generate_visual_game_report_bytes,
+    generate_lineup_report_bytes,
+    generate_player_scouting_card_bytes,
+    generate_season_trend_report_bytes,
+    generate_clutch_report_bytes
+)
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
 
@@ -395,3 +403,111 @@ def _generate_player_report_data(player_name, games, game_ids, game_type, team_a
         **report_data,
         **charts
     }
+
+
+# =============================================================================
+# ADVANCED PDF REPORTS
+# =============================================================================
+
+@reports_bp.route("/games/<int:game_id>/visual.pdf")
+@login_required
+def visual_game_report_pdf(game_id):
+    """Generate visual game report with score worm, quarterly flow, four factors."""
+    filename, pdf_bytes = generate_visual_game_report_bytes(game_id)
+    
+    if not pdf_bytes:
+        return jsonify({"error": "Could not generate visual report"}), 404
+    
+    pdf_io = BytesIO(pdf_bytes)
+    pdf_io.seek(0)
+    
+    return send_file(
+        pdf_io,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@reports_bp.route("/lineup/report.pdf")
+@login_required
+def lineup_report_pdf():
+    """Generate lineup analysis report with top lineups, duo matrix."""
+    game_type = _get_game_type()
+    games, game_ids = _get_games(game_type)
+    
+    filename, pdf_bytes = generate_lineup_report_bytes(
+        game_ids=game_ids if game_type != "ALL" else None,
+        min_possessions=5
+    )
+    
+    pdf_io = BytesIO(pdf_bytes)
+    pdf_io.seek(0)
+    
+    return send_file(
+        pdf_io,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@reports_bp.route("/player/<player_name>/scouting.pdf")
+@login_required
+def player_scouting_card_pdf(player_name):
+    """Generate player scouting card with shot chart and hot zones."""
+    game_type = request.args.get("game_type", "ALL")
+    
+    filename, pdf_bytes = generate_player_scouting_card_bytes(player_name, game_type)
+    
+    if not pdf_bytes:
+        return jsonify({"error": "No data for player"}), 404
+    
+    pdf_io = BytesIO(pdf_bytes)
+    pdf_io.seek(0)
+    
+    return send_file(
+        pdf_io,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@reports_bp.route("/season/trends.pdf")
+@login_required
+def season_trend_report_pdf():
+    """Generate season trend report with rolling averages."""
+    game_type = request.args.get("game_type", "Season")
+    player_name = request.args.get("player", None)
+    
+    filename, pdf_bytes = generate_season_trend_report_bytes(player_name, game_type)
+    
+    pdf_io = BytesIO(pdf_bytes)
+    pdf_io.seek(0)
+    
+    return send_file(
+        pdf_io,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@reports_bp.route("/clutch/report.pdf")
+@login_required
+def clutch_report_pdf():
+    """Generate clutch time performance report."""
+    game_type = request.args.get("game_type", "Season")
+    
+    filename, pdf_bytes = generate_clutch_report_bytes(game_type)
+    
+    pdf_io = BytesIO(pdf_bytes)
+    pdf_io.seek(0)
+    
+    return send_file(
+        pdf_io,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )

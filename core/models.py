@@ -174,6 +174,85 @@ class GameEvent(db.Model):
     timestamp = db.Column(db.BigInteger, default=0) # generic ordering index
     shot_attempt = db.Column(db.String(10), nullable=True) # 'attempted' or 'made' for shots
     play_id = db.Column(db.Integer, db.ForeignKey("plays.id"), nullable=True) # Tagged play
+    quarter = db.Column(db.Integer, nullable=True) # Quarter period (1-4, OT)
+    time_remaining = db.Column(db.String(10), nullable=True) # MM:SS format
+    score_margin = db.Column(db.Integer, nullable=True) # Point differential at event time
     
     game = db.relationship("Game", backref=db.backref("events", lazy=True))
     play = db.relationship("Play", backref=db.backref("game_events", lazy=True))
+
+
+class LineupSegment(db.Model):
+    """Tracks exactly which 5 players are on the floor at every moment"""
+    __tablename__ = "lineup_segments"
+    id = db.Column(db.Integer, primary_key=True)
+    game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=False)
+    start_timestamp = db.Column(db.BigInteger, nullable=False) # Event index when segment starts
+    end_timestamp = db.Column(db.BigInteger, nullable=True) # Event index when segment ends (NULL = current)
+    quarter = db.Column(db.Integer, nullable=True)
+    players = db.Column(db.JSON, nullable=False) # List of 5 player names ["Player1", "Player2", ...]
+    lineup_hash = db.Column(db.String(64), nullable=False) # MD5 hash of sorted player names for quick lookup
+    
+    # Stats during this segment
+    points_scored = db.Column(db.Integer, default=0)
+    points_allowed = db.Column(db.Integer, default=0)
+    possessions = db.Column(db.Integer, default=0)
+    
+    game = db.relationship("Game", backref=db.backref("lineup_segments", lazy=True))
+
+
+class Possession(db.Model):
+    """Distinct possession tracking for pace-adjusted stats"""
+    __tablename__ = "possessions"
+    id = db.Column(db.Integer, primary_key=True)
+    game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=False)
+    start_event_id = db.Column(db.Integer, db.ForeignKey("game_events.id"), nullable=False)
+    end_event_id = db.Column(db.Integer, db.ForeignKey("game_events.id"), nullable=True)
+    team_possession = db.Column(db.Boolean, default=True) # True = our team, False = opponent
+    quarter = db.Column(db.Integer, nullable=True)
+    points = db.Column(db.Integer, default=0) # Points scored on this possession
+    play_id = db.Column(db.Integer, db.ForeignKey("plays.id"), nullable=True) # Primary play used
+    
+    game = db.relationship("Game", backref=db.backref("possessions", lazy=True))
+    start_event = db.relationship("GameEvent", foreign_keys=[start_event_id])
+    end_event = db.relationship("GameEvent", foreign_keys=[end_event_id])
+    play = db.relationship("Play", backref=db.backref("possessions", lazy=True))
+
+
+class ShotZone(db.Model):
+    """Expected point values for different court zones"""
+    __tablename__ = "shot_zones"
+    id = db.Column(db.Integer, primary_key=True)
+    zone_name = db.Column(db.String(50), unique=True, nullable=False) # e.g., "Corner_3", "Paint", "Midrange"
+    zone_type = db.Column(db.String(20), nullable=False) # "Corner_3", "Above_Break_3", "Paint", "Midrange", "FT"
+    expected_value = db.Column(db.Float, nullable=False) # Expected points per shot
+    description = db.Column(db.String(255), nullable=True)
+    x_min = db.Column(db.Float, nullable=True) # Bounding box for zone classification
+    x_max = db.Column(db.Float, nullable=True)
+    y_min = db.Column(db.Float, nullable=True)
+    y_max = db.Column(db.Float, nullable=True)
+
+
+class PlayerLineupStats(db.Model):
+    """Aggregated stats for a player during a specific lineup segment"""
+    __tablename__ = "player_lineup_stats"
+    id = db.Column(db.Integer, primary_key=True)
+    lineup_segment_id = db.Column(db.Integer, db.ForeignKey("lineup_segments.id"), nullable=False)
+    player_name = db.Column(db.String(100), nullable=False)
+    
+    # Counting stats during this segment
+    points = db.Column(db.Integer, default=0)
+    fga = db.Column(db.Integer, default=0)
+    fgm = db.Column(db.Integer, default=0)
+    tpa = db.Column(db.Integer, default=0)
+    tpm = db.Column(db.Integer, default=0)
+    fta = db.Column(db.Integer, default=0)
+    ftm = db.Column(db.Integer, default=0)
+    oreb = db.Column(db.Integer, default=0)
+    dreb = db.Column(db.Integer, default=0)
+    ast = db.Column(db.Integer, default=0)
+    stl = db.Column(db.Integer, default=0)
+    blk = db.Column(db.Integer, default=0)
+    tov = db.Column(db.Integer, default=0)
+    
+    lineup_segment = db.relationship("LineupSegment", backref=db.backref("player_stats", lazy=True))

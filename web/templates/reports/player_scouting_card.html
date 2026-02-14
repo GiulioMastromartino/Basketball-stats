@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Scouting Card - {{ player_name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #333;
+            background: #fff;
+        }
+        
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm;
+            margin: 0 auto;
+        }
+        
+        /* Header Card */
+        .header-card {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+        
+        .avatar {
+            width: 80px;
+            height: 80px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+        }
+        
+        .player-info h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+        
+        .player-info .meta {
+            opacity: 0.8;
+            font-size: 12px;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-box .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .stat-box .label {
+            font-size: 10px;
+            color: #666;
+            margin-top: 5px;
+            text-transform: uppercase;
+        }
+        
+        /* Section */
+        .section {
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #007bff;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+        
+        /* Advanced Metrics */
+        .advanced-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+        
+        .metric-box {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .metric-box .value {
+            font-size: 22px;
+            font-weight: bold;
+        }
+        
+        .metric-box .value.positive {
+            color: #28a745;
+        }
+        
+        .metric-box .value.negative {
+            color: #dc3545;
+        }
+        
+        .metric-box .label {
+            font-size: 10px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        /* Zone Heatmap */
+        .zone-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        
+        .zone-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+        }
+        
+        .zone-box.hot {
+            background: rgba(40, 167, 69, 0.2);
+            border: 2px solid #28a745;
+        }
+        
+        .zone-box.cold {
+            background: rgba(220, 53, 69, 0.2);
+            border: 2px solid #dc3545;
+        }
+        
+        .zone-box .name {
+            font-weight: bold;
+            font-size: 11px;
+            margin-bottom: 5px;
+        }
+        
+        .zone-box .fg-pct {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .zone-box .details {
+            font-size: 9px;
+            color: #666;
+            margin-top: 3px;
+        }
+        
+        /* Shot Chart */
+        .shot-chart {
+            text-align: center;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .shot-chart img {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        /* Consistency Box */
+        .consistency-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+        }
+        
+        .consistency-stat .value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .consistency-stat .label {
+            font-size: 10px;
+            color: #666;
+        }
+        
+        /* Shot Quality */
+        .shot-quality {
+            display: flex;
+            justify-content: space-between;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .quality-stat {
+            text-align: center;
+        }
+        
+        .quality-stat .value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .quality-stat .label {
+            font-size: 10px;
+            color: #666;
+        }
+        
+        /* Footer */
+        .footer {
+            text-align: center;
+            font-size: 10px;
+            color: #999;
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #dee2e6;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Header -->
+        <div class="header-card">
+            <div class="avatar"> Basketball</div>
+            <div class="player-info">
+                <h1>{{ player_name }}</h1>
+                <div class="meta">
+                    {{ game_type }} Season | {{ games_played }} Games Played
+                </div>
+            </div>
+        </div>
+        
+        <!-- Primary Stats -->
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="value">{{ stats.ppg|default('--') }}</div>
+                <div class="label">PPG</div>
+            </div>
+            <div class="stat-box">
+                <div class="value">{{ stats.rpg|default('--') }}</div>
+                <div class="label">RPG</div>
+            </div>
+            <div class="stat-box">
+                <div class="value">{{ stats.apg|default('--') }}</div>
+                <div class="label">APG</div>
+            </div>
+            <div class="stat-box">
+                <div class="value">{{ stats.fg_pct|default('--') }}%</div>
+                <div class="label">FG%</div>
+            </div>
+            <div class="stat-box">
+                <div class="value">{{ stats.tp_pct|default('--') }}%</div>
+                <div class="label">3P%</div>
+            </div>
+        </div>
+        
+        <!-- Advanced Metrics -->
+        <div class="section">
+            <div class="section-title">Advanced Metrics</div>
+            <div class="advanced-metrics">
+                <div class="metric-box">
+                    <div class="value">{{ stats.usage_rate|default('--') }}%</div>
+                    <div class="label">Usage Rate</div>
+                </div>
+                <div class="metric-box">
+                    <div class="value">{{ stats.pps|default('--') }}</div>
+                    <div class="label">Points Per Shot</div>
+                </div>
+                <div class="metric-box">
+                    <div class="value">{{ stats.ts_pct|default('--') }}%</div>
+                    <div class="label">True Shooting %</div>
+                </div>
+                <div class="metric-box">
+                    <div class="value">{{ stats.efg_pct|default('--') }}%</div>
+                    <div class="label">Effective FG%</div>
+                </div>
+                <div class="metric-box">
+                    <div class="value {% if shot_quality.shot_quality_delta >= 0 %}positive{% else %}negative{% endif %}">
+                        {% if shot_quality.shot_quality_delta >= 0 %}+{% endif %}{{ shot_quality.shot_quality_delta|default('--') }}
+                    </div>
+                    <div class="label">Shot Quality Delta</div>
+                </div>
+                <div class="metric-box">
+                    <div class="value">{{ stats.possessions|default('--') }}</div>
+                    <div class="label">Possessions/Game</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Shot Quality Breakdown -->
+        <div class="section">
+            <div class="section-title">Shot Quality Analysis</div>
+            <div class="shot-quality">
+                <div class="quality-stat">
+                    <div class="value">{{ shot_quality.total_shots|default(0) }}</div>
+                    <div class="label">Total Shots</div>
+                </div>
+                <div class="quality-stat">
+                    <div class="value">{{ shot_quality.total_points|default(0) }}</div>
+                    <div class="label">Total Points</div>
+                </div>
+                <div class="quality-stat">
+                    <div class="value">{{ shot_quality.expected_points|default('--') }}</div>
+                    <div class="label">Expected Points</div>
+                </div>
+                <div class="quality-stat">
+                    <div class="value">{{ shot_quality.ppps|default('--') }}</div>
+                    <div class="label">Points Per Shot</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Zone Efficiency -->
+        <div class="section">
+            <div class="section-title">Zone Efficiency (Hot Zones)</div>
+            <div class="zone-grid">
+                {% for zone_name in ['Rim', 'Paint', 'Midrange', 'Corner_3', 'Above_Break_3', 'FT'] %}
+                {% set zone_data = heatmap.get(zone_name, {}) %}
+                <div class="zone-box {% if zone_data.efficiency_delta|default(0) > 0.1 %}hot{% elif zone_data.efficiency_delta|default(0) < -0.1 %}cold{% endif %}">
+                    <div class="name">{{ zone_name.replace('_', ' ') }}</div>
+                    <div class="fg-pct">{{ zone_data.fg_pct|default('--') }}%</div>
+                    <div class="details">
+                        {{ zone_data.attempts|default(0) }} att | {{ zone_data.actual_pps|default('--') }} PPS
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Shot Chart -->
+        {% if shot_chart %}
+        <div class="section">
+            <div class="section-title">Shot Chart</div>
+            <div class="shot-chart">
+                {{ shot_chart|safe }}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Consistency -->
+        <div class="section">
+            <div class="section-title">Consistency Index</div>
+            <div class="consistency-box">
+                <div class="consistency-stat">
+                    <div class="value">{{ consistency.mean }}</div>
+                    <div class="label">Mean PPG</div>
+                </div>
+                <div class="consistency-stat">
+                    <div class="value">{{ consistency.std_dev }}</div>
+                    <div class="label">Std Deviation</div>
+                </div>
+                <div class="consistency-stat">
+                    <div class="value">{{ consistency.cv }}%</div>
+                    <div class="label">Coeff. of Variation</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            Generated on {{ generated_date }} | Basketball Stats Analytics Platform
+        </div>
+    </div>
+</body>
+</html>

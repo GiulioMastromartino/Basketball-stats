@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clutch Time Performance Report</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #333;
+            background: #fff;
+        }
+        
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #dc3545;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            color: #dc3545;
+            margin-bottom: 5px;
+        }
+        
+        .header .subtitle {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        /* Definition Box */
+        .definition-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .definition-box h3 {
+            color: #856404;
+            margin-bottom: 5px;
+        }
+        
+        .definition-box p {
+            color: #856404;
+            font-size: 12px;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+        }
+        
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #dc3545;
+            border-bottom: 2px solid #dc3545;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+        
+        /* Clutch Table */
+        .clutch-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .clutch-table th,
+        .clutch-table td {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+        
+        .clutch-table th {
+            background: #dc3545;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .clutch-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        .clutch-table tr:hover {
+            background: #fff3cd;
+        }
+        
+        .clutch-table .player-name {
+            text-align: left;
+            font-weight: bold;
+        }
+        
+        .clutch-table .positive {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .clutch-table .negative {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        /* Top Clutch Players */
+        .clutch-cards {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .clutch-card {
+            flex: 1;
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .clutch-card .rank {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        .clutch-card .name {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .clutch-card .points {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .clutch-card .stats {
+            font-size: 11px;
+            opacity: 0.9;
+            margin-top: 10px;
+        }
+        
+        /* Clutch Stat Box */
+        .clutch-stat-boxes {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+        
+        .clutch-stat-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px 25px;
+            text-align: center;
+        }
+        
+        .clutch-stat-box .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #dc3545;
+        }
+        
+        .clutch-stat-box .label {
+            font-size: 10px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        /* Footer */
+        .footer {
+            text-align: center;
+            font-size: 10px;
+            color: #999;
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #dee2e6;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Header -->
+        <div class="header">
+            <h1> Clutch Time Performance Report</h1>
+            <div class="subtitle">{{ game_type }} Season | High-Pressure Situations</div>
+        </div>
+        
+        <!-- Definition -->
+        <div class="definition-box">
+            <h3>What is "Clutch Time"?</h3>
+            <p>Score within 5 points with less than 5 minutes remaining in the game</p>
+        </div>
+        
+        <!-- Top Clutch Performers -->
+        <div class="section">
+            <div class="section-title">Top Clutch Performers</div>
+            <div class="clutch-cards">
+                {% for player in clutch_stats[:3] %}
+                <div class="clutch-card">
+                    <div class="rank">#{{ loop.index }}</div>
+                    <div class="name">{{ player.player }}</div>
+                    <div class="points">{{ player.clutch_points }}</div>
+                    <div class="stats">
+                        {{ player.clutch_fg_pct }}% FG | {{ player.clutch_plays }} plays
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Team Clutch Summary -->
+        <div class="section">
+            <div class="section-title">Team Clutch Summary</div>
+            <div class="clutch-stat-boxes">
+                <div class="clutch-stat-box">
+                    <div class="value">{{ clutch_stats|sum(attribute='clutch_points') }}</div>
+                    <div class="label">Total Clutch Points</div>
+                </div>
+                <div class="clutch-stat-box">
+                    <div class="value">{{ clutch_stats|sum(attribute='clutch_plays') }}</div>
+                    <div class="label">Total Clutch Plays</div>
+                </div>
+                <div class="clutch-stat-box">
+                    <div class="value">
+                        {% set total_fgm = clutch_stats|sum(attribute='clutch_fgm') %}
+                        {% set total_fga = clutch_stats|sum(attribute='clutch_fga') %}
+                        {{ (total_fgm / total_fga * 100)|round(1) if total_fga > 0 else 0 }}%
+                    </div>
+                    <div class="label">Team Clutch FG%</div>
+                </div>
+                <div class="clutch-stat-box">
+                    <div class="value">{{ clutch_stats|sum(attribute='clutch_tov') }}</div>
+                    <div class="label">Clutch Turnovers</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Detailed Table -->
+        <div class="section">
+            <div class="section-title">Complete Clutch Statistics</div>
+            <table class="clutch-table">
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>Games</th>
+                        <th>Plays</th>
+                        <th>Points</th>
+                        <th>FGM</th>
+                        <th>FGA</th>
+                        <th>FG%</th>
+                        <th>TOV</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for player in clutch_stats %}
+                    <tr>
+                        <td class="player-name">{{ player.player }}</td>
+                        <td>{{ player.games_with_clutch }}</td>
+                        <td>{{ player.clutch_plays }}</td>
+                        <td class="{% if player.clutch_points >= 5 %}positive{% endif %}">{{ player.clutch_points }}</td>
+                        <td>{{ player.clutch_fgm }}</td>
+                        <td>{{ player.clutch_fga }}</td>
+                        <td class="{% if player.clutch_fg_pct >= 40 %}positive{% elif player.clutch_fg_pct < 30 and player.clutch_fga > 0 %}negative{% endif %}">
+                            {{ player.clutch_fg_pct }}%
+                        </td>
+                        <td class="{% if player.clutch_tov > 0 %}negative{% endif %}">{{ player.clutch_tov }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            Generated on {{ generated_date }} | Basketball Stats Analytics Platform
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,640 @@
+{% extends "layout.html" %}
+
+{% block title %}Advanced Analytics{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/analytics.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="mb-4">Advanced Analytics Dashboard</h1>
+    
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs mb-4" id="analyticsTabs" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="shot-charts-tab" data-bs-toggle="tab" href="#shot-charts" role="tab">
+                <i class="fas fa-basketball-ball"></i> Shot Charts
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="lineup-tab" data-bs-toggle="tab" href="#lineup" role="tab">
+                <i class="fas fa-users"></i> Lineup Analysis
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="clutch-tab" data-bs-toggle="tab" href="#clutch" role="tab">
+                <i class="fas fa-clock"></i> Clutch Performance
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="four-factors-tab" data-bs-toggle="tab" href="#four-factors" role="tab">
+                <i class="fas fa-chart-bar"></i> Four Factors
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="player-stats-tab" data-bs-toggle="tab" href="#player-stats" role="tab">
+                <i class="fas fa-user"></i> Advanced Player Stats
+            </a>
+        </li>
+    </ul>
+    
+    <!-- Tab Content -->
+    <div class="tab-content" id="analyticsTabContent">
+        
+        <!-- Shot Charts Tab -->
+        <div class="tab-pane fade show active" id="shot-charts" role="tabpanel">
+            <!-- Filters -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <label class="form-label">Player</label>
+                    <select id="player-filter" class="form-select">
+                        <option value="">All Players</option>
+                        {% for player in players %}
+                        <option value="{{ player }}">{{ player }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Game Type</label>
+                    <select id="game-type-filter" class="form-select">
+                        <option value="ALL">All Games</option>
+                        <option value="Season">Season Games</option>
+                        <option value="Friendly">Friendly Games</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Play Type</label>
+                    <select id="play-filter" class="form-select">
+                        <option value="">All Plays</option>
+                        {% for play in plays %}
+                        <option value="{{ play.id }}">{{ play.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Chart Type</label>
+                    <select id="chart-type" class="form-select">
+                        <option value="scatter">Shot Markers</option>
+                        <option value="hexbin">Hexbin Heatmap</option>
+                        <option value="zones">Zone Efficiency</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Shot Chart Display -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="shot-chart-container" id="shot-chart-container">
+                        <canvas id="shot-canvas" width="500" height="470"></canvas>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="zone-heatmap" id="zone-heatmap-container">
+                        <h5>Zone Efficiency</h5>
+                        <div id="zone-stats"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Lineup Analysis Tab -->
+        <div class="tab-pane fade" id="lineup" role="tabpanel">
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Top 5-Man Lineups</h5>
+                        </div>
+                        <div class="card-body" id="lineup-rankings">
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                <p>Loading lineup data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Duo Compatibility Matrix</h5>
+                        </div>
+                        <div class="card-body" id="duo-matrix">
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                <p>Loading duo data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- On/Off Court Splits -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Player On/Off Court Splits</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <select id="onoff-player" class="form-select">
+                                <option value="">Select Player</option>
+                                {% for player in players %}
+                                <option value="{{ player }}">{{ player }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div id="onoff-results" class="on-off-container">
+                        <div class="on-off-card on-court">
+                            <div class="on-off-title">On Court</div>
+                            <div class="on-off-stats">
+                                <div class="text-center">
+                                    <div class="fs-4 fw-bold" id="on-ortg">--</div>
+                                    <small class="text-muted">ORtg</small>
+                                </div>
+                                <div class="text-center">
+                                    <div class="fs-4 fw-bold" id="on-drtg">--</div>
+                                    <small class="text-muted">DRtg</small>
+                                </div>
+                                <div class="text-center">
+                                    <div class="fs-4 fw-bold" id="on-net">--</div>
+                                    <small class="text-muted">Net</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="on-off-card off-court">
+                            <div class="on-off-title">Off Court</div>
+                            <div class="on-off-stats">
+                                <div class="text-center">
+                                    <div class="fs-4 fw-bold" id="off-ortg">--</div>
+                                    <small class="text-muted">ORtg</small>
+                                </div>
+                                <div class="text-center">
+                                    <div class="fs-4 fw-bold" id="off-drtg">--</div>
+                                    <small class="text-muted">DRtg</small>
+                                </div>
+                                <div class="text-center">
+                                    <div class="fs-4 fw-bold" id="off-net">--</div>
+                                    <small class="text-muted">Net</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Clutch Performance Tab -->
+        <div class="tab-pane fade" id="clutch" role="tabpanel">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <strong>Clutch Time Definition:</strong> Score within 5 points, less than 5 minutes remaining
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Season Clutch Performance</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped" id="clutch-table">
+                        <thead>
+                            <tr>
+                                <th>Player</th>
+                                <th>Clutch Plays</th>
+                                <th>Points</th>
+                                <th>FG%</th>
+                                <th>FGM/FGA</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clutch-tbody">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                    <p>Loading clutch data...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Four Factors Tab -->
+        <div class="tab-pane fade" id="four-factors" role="tabpanel">
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <label class="form-label">Game</label>
+                    <select id="four-factors-game" class="form-select">
+                        <option value="">Season Average</option>
+                        {% for game in games %}
+                        <option value="{{ game.id }}">{{ game.date }} vs {{ game.opponent }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="four-factors-grid" id="four-factors-display">
+                <div class="factor-card">
+                    <div class="factor-value" id="factor-efg">--</div>
+                    <div class="factor-label">eFG%</div>
+                    <div class="factor-bar">
+                        <div class="factor-bar-fill" id="bar-efg" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="factor-card">
+                    <div class="factor-value" id="factor-tov">--</div>
+                    <div class="factor-label">TOV%</div>
+                    <div class="factor-bar">
+                        <div class="factor-bar-fill" id="bar-tov" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="factor-card">
+                    <div class="factor-value" id="factor-orb">--</div>
+                    <div class="factor-label">ORB%</div>
+                    <div class="factor-bar">
+                        <div class="factor-bar-fill" id="bar-orb" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="factor-card">
+                    <div class="factor-value" id="factor-ftr">--</div>
+                    <div class="factor-label">FT Rate</div>
+                    <div class="factor-bar">
+                        <div class="factor-bar-fill" id="bar-ftr" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Four Factors Explanation</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <h6>eFG% (Effective FG%)</h6>
+                            <p class="small text-muted">Measures shooting efficiency, accounting for 3-pointers being worth more.</p>
+                            <code>eFG% = (FGM + 0.5*3PM) / FGA</code>
+                        </div>
+                        <div class="col-md-3">
+                            <h6>TOV% (Turnover %)</h6>
+                            <p class="small text-muted">Measures how often possessions end in turnovers.</p>
+                            <code>TOV% = TOV / Possessions</code>
+                        </div>
+                        <div class="col-md-3">
+                            <h6>ORB% (Offensive Rebound %)</h6>
+                            <p class="small text-muted">Measures offensive rebounding effectiveness.</p>
+                            <code>ORB% = OREB / Total Rebounds</code>
+                        </div>
+                        <div class="col-md-3">
+                            <h6>FT Rate (Free Throw Rate)</h6>
+                            <p class="small text-muted">Measures ability to get to the free throw line.</p>
+                            <code>FT Rate = FTM / FGA</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Advanced Player Stats Tab -->
+        <div class="tab-pane fade" id="player-stats" role="tabpanel">
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <label class="form-label">Select Player</label>
+                    <select id="advanced-player" class="form-select">
+                        <option value="">Choose a player...</option>
+                        {% for player in players %}
+                        <option value="{{ player }}">{{ player }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div id="player-advanced-stats" style="display: none;">
+                <div class="row">
+                    <div class="col-lg-4">
+                        <div class="scouting-card">
+                            <div class="scouting-header">
+                                <div class="scouting-avatar">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div>
+                                    <div class="scouting-name" id="scout-name">--</div>
+                                    <div class="scouting-position">Season Stats</div>
+                                </div>
+                            </div>
+                            <div class="scouting-body">
+                                <div class="scouting-stats-grid">
+                                    <div class="scouting-stat">
+                                        <div class="scouting-stat-value" id="scout-ppg">--</div>
+                                        <div class="scouting-stat-label">PPG</div>
+                                    </div>
+                                    <div class="scouting-stat">
+                                        <div class="scouting-stat-value" id="scout-rpg">--</div>
+                                        <div class="scouting-stat-label">RPG</div>
+                                    </div>
+                                    <div class="scouting-stat">
+                                        <div class="scouting-stat-value" id="scout-apg">--</div>
+                                        <div class="scouting-stat-label">APG</div>
+                                    </div>
+                                    <div class="scouting-stat">
+                                        <div class="scouting-stat-value" id="scout-fg">--</div>
+                                        <div class="scouting-stat-label">FG%</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Advanced Metrics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <div class="text-center p-3 bg-light rounded">
+                                            <div class="fs-3 fw-bold" id="adv-usage">--</div>
+                                            <small class="text-muted">Usage Rate %</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="text-center p-3 bg-light rounded">
+                                            <div class="fs-3 fw-bold" id="adv-pps">--</div>
+                                            <small class="text-muted">Points Per Shot</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="text-center p-3 bg-light rounded">
+                                            <div class="fs-3 fw-bold" id="adv-ts">--</div>
+                                            <small class="text-muted">True Shooting %</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="text-center p-3 bg-light rounded">
+                                            <div class="fs-3 fw-bold" id="adv-efg">--</div>
+                                            <small class="text-muted">Effective FG%</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="text-center p-3 bg-light rounded">
+                                            <div class="fs-3 fw-bold" id="adv-sqdelta">--</div>
+                                            <small class="text-muted">Shot Quality Delta</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="text-center p-3 bg-light rounded">
+                                            <div class="fs-3 fw-bold" id="adv-poss">--</div>
+                                            <small class="text-muted">Possessions/Game</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/shot_charts.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize shot chart
+    const shotChart = new ShotChart('shot-canvas', {
+        width: 500,
+        height: 470
+    });
+    
+    // Load initial shot data
+    loadShotChart();
+    
+    // Filter change handlers
+    document.getElementById('player-filter').addEventListener('change', loadShotChart);
+    document.getElementById('game-type-filter').addEventListener('change', loadShotChart);
+    document.getElementById('play-filter').addEventListener('change', loadShotChart);
+    document.getElementById('chart-type').addEventListener('change', loadShotChart);
+    
+    function loadShotChart() {
+        const player = document.getElementById('player-filter').value;
+        const gameType = document.getElementById('game-type-filter').value;
+        const playId = document.getElementById('play-filter').value;
+        const chartType = document.getElementById('chart-type').value;
+        
+        const params = new URLSearchParams();
+        if (player) params.append('player', player);
+        if (gameType) params.append('game_type', gameType);
+        if (playId) params.append('play_id', playId);
+        
+        fetch(`/api/advanced/shots/chart?${params}`)
+            .then(r => r.json())
+            .then(data => {
+                shotChart.loadShots(data.shots);
+            })
+            .catch(err => console.error('Error loading shots:', err));
+        
+        // Load heatmap data
+        fetch(`/api/advanced/shots/heatmap?${params}`)
+            .then(r => r.json())
+            .then(data => {
+                updateZoneDisplay(data.heatmap);
+            });
+    }
+    
+    function updateZoneDisplay(heatmap) {
+        const container = document.getElementById('zone-stats');
+        container.innerHTML = '';
+        
+        const zones = ['Rim', 'Paint', 'Midrange', 'Corner_3', 'Above_Break_3'];
+        zones.forEach(zone => {
+            const stats = heatmap[zone] || {};
+            const div = document.createElement('div');
+            div.className = 'mb-2 p-2 bg-light rounded';
+            div.innerHTML = `
+                <strong>${zone.replace('_', ' ')}</strong><br>
+                <small>${stats.fg_pct || 0}% FG | ${stats.attempts || 0} att</small><br>
+                <small>PPS: ${stats.actual_pps || 0} (Exp: ${stats.expected_value || 0})</small>
+            `;
+            container.appendChild(div);
+        });
+    }
+    
+    // Four Factors
+    document.getElementById('four-factors-game').addEventListener('change', loadFourFactors);
+    loadFourFactors();
+    
+    function loadFourFactors() {
+        const gameId = document.getElementById('four-factors-game').value;
+        const params = gameId ? `?game_id=${gameId}` : '?game_type=Season';
+        
+        fetch(`/api/advanced/four-factors${params}`)
+            .then(r => r.json())
+            .then(data => {
+                const factors = data.four_factors;
+                document.getElementById('factor-efg').textContent = factors.efg_pct + '%';
+                document.getElementById('factor-tov').textContent = factors.tov_pct + '%';
+                document.getElementById('factor-orb').textContent = factors.orb_pct + '%';
+                document.getElementById('factor-ftr').textContent = factors.ft_rate + '%';
+                
+                // Update bars
+                document.getElementById('bar-efg').style.width = Math.min(factors.efg_pct, 100) + '%';
+                document.getElementById('bar-tov').style.width = Math.min(factors.tov_pct, 100) + '%';
+                document.getElementById('bar-orb').style.width = Math.min(factors.orb_pct, 100) + '%';
+                document.getElementById('bar-ftr').style.width = Math.min(factors.ft_rate, 100) + '%';
+            });
+    }
+    
+    // Clutch Performance
+    loadClutchStats();
+    
+    function loadClutchStats() {
+        fetch('/api/advanced/clutch/season?game_type=Season')
+            .then(r => r.json())
+            .then(data => {
+                const tbody = document.getElementById('clutch-tbody');
+                tbody.innerHTML = '';
+                
+                data.players.forEach(p => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${p.player}</td>
+                        <td>${p.clutch_plays}</td>
+                        <td>${p.clutch_points}</td>
+                        <td>${p.clutch_fg_pct}%</td>
+                        <td>${p.clutch_fgm}/${p.clutch_fga}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            });
+    }
+    
+    // Lineup Rankings
+    loadLineupRankings();
+    
+    function loadLineupRankings() {
+        fetch('/api/advanced/lineup/rankings?min_possessions=3')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('lineup-rankings');
+                container.innerHTML = '';
+                
+                data.rankings.slice(0, 5).forEach(lineup => {
+                    const div = document.createElement('div');
+                    div.className = 'lineup-card';
+                    div.innerHTML = `
+                        <div class="lineup-players">
+                            ${lineup.players.map(p => `<span class="lineup-player">${p}</span>`).join('')}
+                        </div>
+                        <div class="lineup-stats">
+                            <div class="lineup-stat">
+                                <div class="lineup-stat-value">${lineup.ortg}</div>
+                                <div class="lineup-stat-label">ORtg</div>
+                            </div>
+                            <div class="lineup-stat">
+                                <div class="lineup-stat-value">${lineup.drtg}</div>
+                                <div class="lineup-stat-label">DRtg</div>
+                            </div>
+                            <div class="lineup-stat ${lineup.net_rating >= 0 ? 'net-positive' : 'net-negative'}">
+                                <div class="lineup-stat-value">${lineup.net_rating >= 0 ? '+' : ''}${lineup.net_rating}</div>
+                                <div class="lineup-stat-label">Net</div>
+                            </div>
+                            <div class="lineup-stat">
+                                <div class="lineup-stat-value">${lineup.possessions}</div>
+                                <div class="lineup-stat-label">Poss</div>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+            });
+    }
+    
+    // Duo Matrix
+    loadDuoMatrix();
+    
+    function loadDuoMatrix() {
+        fetch('/api/advanced/lineup/duos')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('duo-matrix');
+                container.innerHTML = '<table class="table table-sm"><thead><tr><th>Duo</th><th>Net Rt</th><th>Poss</th></tr></thead><tbody></tbody></table>';
+                const tbody = container.querySelector('tbody');
+                
+                data.duos.slice(0, 10).forEach(duo => {
+                    const tr = document.createElement('tr');
+                    tr.className = duo.net_rating >= 0 ? 'table-success' : 'table-danger';
+                    tr.innerHTML = `
+                        <td>${duo.player1} & ${duo.player2}</td>
+                        <td>${duo.net_rating >= 0 ? '+' : ''}${duo.net_rating}</td>
+                        <td>${duo.possessions}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            });
+    }
+    
+    // On/Off Court Splits
+    document.getElementById('onoff-player').addEventListener('change', loadOnOffSplits);
+    
+    function loadOnOffSplits() {
+        const player = document.getElementById('onoff-player').value;
+        if (!player) return;
+        
+        fetch(`/api/advanced/lineup/on-off/${encodeURIComponent(player)}`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('on-ortg').textContent = data.on_court.rating.ortg;
+                document.getElementById('on-drtg').textContent = data.on_court.rating.drtg;
+                document.getElementById('on-net').textContent = data.on_court.rating.net;
+                
+                document.getElementById('off-ortg').textContent = data.off_court.rating.ortg;
+                document.getElementById('off-drtg').textContent = data.off_court.rating.drtg;
+                document.getElementById('off-net').textContent = data.off_court.rating.net;
+            });
+    }
+    
+    // Advanced Player Stats
+    document.getElementById('advanced-player').addEventListener('change', loadAdvancedPlayerStats);
+    
+    function loadAdvancedPlayerStats() {
+        const player = document.getElementById('advanced-player').value;
+        if (!player) {
+            document.getElementById('player-advanced-stats').style.display = 'none';
+            return;
+        }
+        
+        document.getElementById('player-advanced-stats').style.display = 'block';
+        document.getElementById('scout-name').textContent = player;
+        
+        fetch(`/api/advanced/player/${encodeURIComponent(player)}/advanced`)
+            .then(r => r.json())
+            .then(data => {
+                const stats = data.season_stats;
+                document.getElementById('scout-ppg').textContent = stats.ppg;
+                document.getElementById('scout-rpg').textContent = stats.rpg;
+                document.getElementById('scout-apg').textContent = stats.apg;
+                document.getElementById('scout-fg').textContent = stats.fg_pct + '%';
+                
+                document.getElementById('adv-usage').textContent = stats.usage_rate;
+                document.getElementById('adv-pps').textContent = stats.pps;
+                document.getElementById('adv-ts').textContent = stats.ts_pct + '%';
+                document.getElementById('adv-efg').textContent = stats.efg_pct + '%';
+                document.getElementById('adv-poss').textContent = stats.possessions;
+                
+                const sq = data.shot_quality;
+                document.getElementById('adv-sqdelta').textContent = sq.shot_quality_delta;
+            });
+        
+        // Load usage rate separately
+        fetch(`/api/advanced/player/${encodeURIComponent(player)}/usage`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('adv-usage').textContent = data.usage_rate + '%';
+            });
+    }
+});
+</script>
+{% endblock %}

@@ -1238,3 +1238,30 @@ def opponent_games(opponent_name):
         games=opp_games,
         stats={"games": len(opp_games), "players": 0, "wins": wins, "losses": losses},
     )
+
+
+@main_bp.route("/advanced-analytics")
+@login_required
+def advanced_analytics():
+    """Advanced analytics dashboard"""
+    # Get players for filters
+    players = (
+        db.session.query(PlayerStat.player_name)
+        .distinct()
+        .order_by(PlayerStat.player_name)
+        .all()
+    )
+    player_names = [p[0] for p in players]
+    
+    # Get plays for filters
+    plays = Play.query.order_by(Play.name).all()
+    
+    # Get games for filters
+    games = Game.query.order_by(Game.sort_date.desc()).all()
+    
+    return render_template(
+        "advanced_analytics.html",
+        players=player_names,
+        plays=plays,
+        games=games
+    )
