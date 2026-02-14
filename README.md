@@ -125,6 +125,23 @@ python cli_import.py
 - 🔐 Secure login system
 - 📈 Career statistics and averages
 - 🌐 REST API with Swagger documentation
+- 🎯 **NEW: Advanced Analytics Dashboard**
+  - Shot Charts with Court Mapping
+  - Hexbin/Heatmaps for Hot Zones
+  - True Usage Rate (USG%)
+  - Points Per Shot (PPS)
+  - Shot Quality Model with Expected Values
+  - Clutch Performance Analysis
+- 👥 **NEW: Lineup Analytics**
+  - On/Off Court Splits
+  - Duo/Trio Compatibility Matrix
+  - 5-Man Lineup Efficiency Rankings
+  - Rotation Analysis
+- 📄 **NEW: Advanced PDF Reports**
+  - Visual Game Report (Score Worm, Four Factors)
+  - Player Scouting Cards
+  - Season Trend Reports
+  - Clutch Time Reports
 
 ## Tech Stack
 

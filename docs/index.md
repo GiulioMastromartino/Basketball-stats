@@ -22,6 +22,20 @@ Automatically calculates advanced metrics that matter:
 *   **True Shooting % (TS%)**: Measures shooting efficiency taking into account field goals, 3-pointers, and free throws.
 *   **Effective FG% (eFG%)**: Adjusts for the fact that a 3-point field goal is worth more than a 2-point field goal.
 *   **Game Score**: A holistic measure of a player's productivity for a single game.
+*   **NEW: True Usage Rate (USG%)**: Percentage of team plays used by a player.
+*   **NEW: Points Per Shot (PPS)**: Simple efficiency metric.
+*   **NEW: Shot Quality Model**: Expected values by court zone.
+
+### 🎯 Shot Charts & Visualizations
+*   **Court Mapping**: Visualize shot locations on a basketball court.
+*   **Hexbin Heatmaps**: "Hot Zones" colored by FG% relative to average.
+*   **Zone Efficiency**: Aggregated stats by court zone (Rim, Paint, Midrange, Corner 3, etc.).
+
+### 👥 Lineup Analytics
+*   **On/Off Court Splits**: Compare team performance when a player is on vs off court.
+*   **Duo/Trio Compatibility**: Matrix showing how player combinations perform together.
+*   **Lineup Efficiency Rankings**: 5-man units ranked by Net Rating.
+*   **Rotation Analysis**: Visualize substitution patterns.
 
 ### 🎥 Live Game Tracking
 *   **Real-time Entry**: Optimized interface for mobile and tablet use.
@@ -37,6 +51,9 @@ Automatically calculates advanced metrics that matter:
 *   **PDF Reports**: Download comprehensive game, player, and team reports.
 *   **Team Analysis**: Season-long performance tracking.
 *   **Shareable**: Ready-to-print formats for coaching staff and players.
+*   **NEW: Visual Game Report**: Score Worm, Quarterly Flow, Four Factors Dashboard.
+*   **NEW: Player Scouting Cards**: Shot charts, hot zones, advanced metrics.
+*   **NEW: Clutch Time Report**: High-pressure situation performance.
 
 ## Getting Started
 
@@ -47,6 +64,7 @@ For detailed usage instructions:
 *   [Live Game Tracking](user-guide/live-game.md)
 *   [Plays Management](user-guide/plays.md)
 *   [PDF Exports](user-guide/pdf-exports.md)
+*   [Advanced Analytics](user-guide/advanced-analytics.md) **NEW!**
 
 ## Technology Stack
 
