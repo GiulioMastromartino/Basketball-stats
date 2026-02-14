@@ -176,8 +176,8 @@
                 </li>
                 <li class="nav-item">
                     <a
-                        href="/live-game"
-                        class="{% if request.endpoint == 'live_game' %}active{% endif %}"
+                        href="{{ url_for('main.live_game') }}"
+                        class="{% if request.endpoint == 'main.live_game' %}active{% endif %}"
                     >
                         <i
                             class="fas fa-broadcast-tower"
@@ -197,9 +197,17 @@
                 <li class="nav-item">
                     <a
                         href="{{ url_for('analytics.dashboard') }}"
-                        class="{% if 'analytics' in request.endpoint %}active{% endif %}"
+                        class="{% if request.endpoint == 'analytics.dashboard' %}active{% endif %}"
                     >
                         <i class="fas fa-chart-bar"></i> Analytics
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a
+                        href="{{ url_for('main.advanced_analytics') }}"
+                        class="{% if request.endpoint == 'main.advanced_analytics' %}active{% endif %}"
+                    >
+                        <i class="fas fa-chart-line"></i> Advanced Analytics
                     </a>
                 </li>
                 <li class="nav-item">

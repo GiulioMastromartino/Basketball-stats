@@ -101,6 +101,16 @@
                             <i class="fas fa-flag"></i> Opponents
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('analytics.dashboard') }}">
+                            <i class="fas fa-chart-bar"></i> Analytics
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.advanced_analytics') }}">
+                            <i class="fas fa-chart-line"></i> Advanced Analytics
+                        </a>
+                    </li>
                     <!-- New Plays Link -->
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('plays.list_plays') }}">

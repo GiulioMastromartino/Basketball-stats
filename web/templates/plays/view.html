@@ -7,7 +7,7 @@
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ url_for('plays.index') }}">Plays</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('plays.list_plays') }}">Plays</a></li>
             <li class="breadcrumb-item active">{{ play.name }}</li>
         </ol>
     </nav>
@@ -56,7 +56,7 @@
                 <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deletePlayModal">
                     <i class="fas fa-trash"></i> Delete Play
                 </button>
-                <a href="{{ url_for('plays.index') }}" class="btn btn-secondary">
+                <a href="{{ url_for('plays.list_plays') }}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Back
                 </a>
             </div>
@@ -130,7 +130,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form action="{{ url_for('plays.delete', play_id=play.id) }}" method="POST" style="display:inline;">
+                <form action="{{ url_for('plays.delete_play', play_id=play.id) }}" method="POST" style="display:inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <button type="submit" class="btn btn-danger">
                         <i class="fas fa-trash"></i> Delete

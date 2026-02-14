@@ -1,9 +1,92 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required
-from core.models import db, Play, PlayType
+from core.models import db, Play, PlayType, PlaySequence
 from web.decorators import admin_required
+from werkzeug.utils import secure_filename
+import os
 
 plays_bp = Blueprint("plays", __name__)
+
+
+# Alias routes for template compatibility
+@plays_bp.route("/plays")
+@login_required
+def index():
+    """Alias for list_plays - for template compatibility"""
+    return list_plays()
+
+
+@plays_bp.route("/plays/view/<int:play_id>")
+@login_required
+def view(play_id):
+    """Alias for view_play - for template compatibility"""
+    return view_play(play_id)
+
+
+@plays_bp.route("/plays/add", methods=["POST"])
+@login_required
+def add():
+    """Add a new play via form submission"""
+    name = request.form.get("name")
+    play_type = request.form.get("play_type", "Offense")
+    description = request.form.get("description", "")
+    
+    if not name:
+        flash("Play name is required", "danger")
+        return redirect(url_for("plays.list_plays"))
+    
+    # Check for duplicate name
+    if Play.query.filter_by(name=name).first():
+        flash(f"Play '{name}' already exists", "warning")
+        return redirect(url_for("plays.list_plays"))
+    
+    play = Play(
+        name=name,
+        play_type=play_type,
+        description=description
+    )
+    db.session.add(play)
+    db.session.commit()
+    
+    flash(f"Play '{name}' created successfully", "success")
+    return redirect(url_for("plays.view_play", play_id=play.id))
+
+
+@plays_bp.route("/plays/edit/<int:play_id>", methods=["POST"])
+@login_required
+def edit(play_id):
+    """Edit an existing play via form submission"""
+    play = Play.query.get_or_404(play_id)
+    
+    name = request.form.get("name")
+    play_type = request.form.get("play_type", play.play_type)
+    description = request.form.get("description", play.description)
+    
+    if not name:
+        flash("Play name is required", "danger")
+        return redirect(url_for("plays.view_play", play_id=play_id))
+    
+    # Check for duplicate name (excluding current play)
+    existing = Play.query.filter_by(name=name).first()
+    if existing and existing.id != play_id:
+        flash(f"Play '{name}' already exists", "warning")
+        return redirect(url_for("plays.view_play", play_id=play_id))
+    
+    play.name = name
+    play.play_type = play_type
+    play.description = description
+    db.session.commit()
+    
+    flash(f"Play '{name}' updated successfully", "success")
+    return redirect(url_for("plays.view_play", play_id=play_id))
+
+
+@plays_bp.route("/plays/delete/<int:play_id>", methods=["POST"])
+@login_required
+def delete(play_id):
+    """Alias for delete_play - for template compatibility"""
+    return delete_play(play_id)
+
 
 @plays_bp.route("/plays/")
 @login_required
