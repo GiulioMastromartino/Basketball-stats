@@ -271,98 +271,112 @@ def upload_game():
         upload_folder = current_app.config["UPLOAD_FOLDER"]
         os.makedirs(upload_folder, exist_ok=True)
 
-        filepath = None
-
         try:
-            # --- CSV Import ---
+            # --- CSV Import (Multiple Files) ---
             if import_type == "csv":
-                if "csv_file" not in request.files:
+                files = request.files.getlist("csv_file")
+                if not files or files[0].filename == "":
                     flash("No CSV file uploaded", "danger")
                     return redirect(request.url)
 
-                file = request.files["csv_file"]
-                if file.filename == "":
-                    flash("No file selected", "danger")
-                    return redirect(request.url)
+                success_count = 0
+                errors = []
 
-                if not allowed_file(file.filename) or not file.filename.lower().endswith(".csv"):
-                    flash("Only CSV files are allowed for CSV import", "danger")
-                    return redirect(request.url)
+                for file in files:
+                    filepath = None
+                    try:
+                        if not file or file.filename == "":
+                            continue
+                            
+                        if not allowed_file(file.filename) or not file.filename.lower().endswith(".csv"):
+                            errors.append(f"{file.filename}: Invalid file type (must be .csv)")
+                            continue
 
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(upload_folder, filename)
-                file.save(filepath)
+                        filename = secure_filename(file.filename)
+                        filepath = os.path.join(upload_folder, filename)
+                        file.save(filepath)
 
-                info = CSVProcessor.parse_filename(filename)
-                if not info:
-                    flash(
-                        "Invalid filename format. Expected: Opponent_TeamScore-OppScore_DD-MM-YYYY_[F/S/P].csv",
-                        "danger",
-                    )
-                    return redirect(request.url)
+                        info = CSVProcessor.parse_filename(filename)
+                        if not info:
+                            errors.append(f"{file.filename}: Invalid filename format")
+                            continue
 
-                existing = Game.query.filter_by(sort_date=info["sort_date"], opponent=info["opponent"]).first()
-                if existing:
-                    flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
-                    return redirect(url_for("main.index"))
+                        existing = Game.query.filter_by(sort_date=info["sort_date"], opponent=info["opponent"]).first()
+                        if existing:
+                            errors.append(f"{file.filename}: Game already exists ({existing.opponent} on {existing.date})")
+                            continue
 
-                game_data = CSVProcessor.process_game(filepath, info)
-                if not game_data:
-                    flash("Failed to process CSV content. Check file format.", "danger")
-                    return redirect(request.url)
+                        game_data = CSVProcessor.process_game(filepath, info)
+                        if not game_data:
+                            errors.append(f"{file.filename}: Failed to process content")
+                            continue
 
-                game = Game(
-                    date=game_data["date"],
-                    opponent=game_data["opponent"],
-                    team_score=game_data["team_score"],
-                    opponent_score=game_data["opponent_score"],
-                    result=game_data["result"],
-                    game_type=game_data["game_type"],
-                    sort_date=game_data["sort_date"],
-                    source="IMPORT",
-                )
-                db.session.add(game)
-                db.session.flush()
+                        game = Game(
+                            date=game_data["date"],
+                            opponent=game_data["opponent"],
+                            team_score=game_data["team_score"],
+                            opponent_score=game_data["opponent_score"],
+                            result=game_data["result"],
+                            game_type=game_data["game_type"],
+                            sort_date=game_data["sort_date"],
+                            source="IMPORT",
+                        )
+                        db.session.add(game)
+                        db.session.flush()
 
-                for player in game_data["players"]:
-                    if not player.get("name"):
-                        continue
+                        for player in game_data["players"]:
+                            if not player.get("name"):
+                                continue
 
-                    stat = PlayerStat(
-                        game_id=game.id,
-                        player_name=player["name"],
-                        minutes=player["minutes"],
-                        points=player["points"],
-                        fgm=player["fgm"],
-                        fga=player["fga"],
-                        fg_percent=player["fg_percent"],
-                        tpm=player["tpm"],
-                        tpa=player["tpa"],
-                        tp_percent=player["tp_percent"],
-                        ftm=player["ftm"],
-                        fta=player["fta"],
-                        ft_percent=player["ft_percent"],
-                        oreb=player["oreb"],
-                        dreb=player["dreb"],
-                        reb=player["reb"],
-                        ast=player["ast"],
-                        tov=player["tov"],
-                        stl=player["stl"],
-                        blk=player["blk"],
-                        pf=player["pf"],
-                        plus_minus=int(player.get("plus_minus", 0) or 0),
-                    )
-                    db.session.add(stat)
+                            stat = PlayerStat(
+                                game_id=game.id,
+                                player_name=player["name"],
+                                minutes=player["minutes"],
+                                points=player["points"],
+                                fgm=player["fgm"],
+                                fga=player["fga"],
+                                fg_percent=player["fg_percent"],
+                                tpm=player["tpm"],
+                                tpa=player["tpa"],
+                                tp_percent=player["tp_percent"],
+                                ftm=player["ftm"],
+                                fta=player["fta"],
+                                ft_percent=player["ft_percent"],
+                                oreb=player["oreb"],
+                                dreb=player["dreb"],
+                                reb=player["reb"],
+                                ast=player["ast"],
+                                tov=player["tov"],
+                                stl=player["stl"],
+                                blk=player["blk"],
+                                pf=player["pf"],
+                                plus_minus=int(player.get("plus_minus", 0) or 0),
+                            )
+                            db.session.add(stat)
 
-                db.session.commit()
+                        db.session.commit()
+                        _notify_users_game_saved(game)
+                        success_count += 1
+                        
+                    except Exception as e:
+                        db.session.rollback()
+                        errors.append(f"{file.filename}: {str(e)}")
+                    finally:
+                        if filepath and os.path.exists(filepath):
+                            try:
+                                os.remove(filepath)
+                            except OSError:
+                                pass
 
-                # Notify non-admin users (optional PDF attachment)
-                _notify_users_game_saved(game)
+                if success_count > 0:
+                    flash(f"Successfully imported {success_count} CSV game(s).", "success")
+                
+                if errors:
+                    flash(f"Errors occurred with {len(errors)} file(s): " + "; ".join(errors[:5]) + ("..." if len(errors) > 5 else ""), "danger")
+                    
+                return redirect(url_for("main.index"))
 
-                flash(f"Successfully imported game (CSV): {game.opponent} ({game.result})", "success")
-                return redirect(url_for("main.game_detail", game_id=game.id))
-
-            # --- PDF import ---
+            # --- PDF import (Single File) ---
             elif import_type == "pdf":
                 if "pdf_file" not in request.files:
                     flash("No PDF file uploaded", "danger")
@@ -373,263 +387,280 @@ def upload_game():
                     flash("No file selected", "danger")
                     return redirect(request.url)
 
-                if not allowed_file(file.filename) or not file.filename.lower().endswith(".pdf"):
-                    flash("Only PDF files are allowed for PDF import", "danger")
-                    return redirect(request.url)
+                filepath = None
+                try:
+                    if not allowed_file(file.filename) or not file.filename.lower().endswith(".pdf"):
+                        flash("Only PDF files are allowed for PDF import", "danger")
+                        return redirect(request.url)
 
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(upload_folder, filename)
-                file.save(filepath)
+                    filename = secure_filename(file.filename)
+                    filepath = os.path.join(upload_folder, filename)
+                    file.save(filepath)
 
-                parsed = parse_game_pdf(filepath)
+                    parsed = parse_game_pdf(filepath)
 
-                # Overrides (optional)
-                override_opponent = (request.form.get("pdf_opponent") or "").strip()
-                override_date = (request.form.get("pdf_date") or "").strip()
-                override_team_score = (request.form.get("pdf_team_score") or "").strip()
-                override_opponent_score = (request.form.get("pdf_opponent_score") or "").strip()
-                override_game_type = (request.form.get("pdf_game_type") or "").strip()
+                    # Overrides (optional)
+                    override_opponent = (request.form.get("pdf_opponent") or "").strip()
+                    override_date = (request.form.get("pdf_date") or "").strip()
+                    override_team_score = (request.form.get("pdf_team_score") or "").strip()
+                    override_opponent_score = (request.form.get("pdf_opponent_score") or "").strip()
+                    override_game_type = (request.form.get("pdf_game_type") or "").strip()
 
-                opponent = override_opponent or parsed.get("opponent") or "Unknown"
+                    opponent = override_opponent or parsed.get("opponent") or "Unknown"
 
-                date_display = normalize_date_to_display(override_date) if override_date else (parsed.get("date") or "")
-                if override_date and not date_display:
-                    flash("Invalid date format. Use DD-MM-YYYY or DD/MM/YYYY.", "danger")
-                    return redirect(request.url)
+                    date_display = normalize_date_to_display(override_date) if override_date else (parsed.get("date") or "")
+                    if override_date and not date_display:
+                        flash("Invalid date format. Use DD-MM-YYYY or DD/MM/YYYY.", "danger")
+                        return redirect(request.url)
 
-                sort_date = normalize_date_to_sort(override_date) if override_date else (parsed.get("sort_date") or "")
+                    sort_date = normalize_date_to_sort(override_date) if override_date else (parsed.get("sort_date") or "")
 
-                # Scores
-                team_score = parsed.get("team_score") or 0
-                opp_score = parsed.get("opponent_score") or 0
-                if override_team_score:
-                    team_score = int(override_team_score)
-                if override_opponent_score:
-                    opp_score = int(override_opponent_score)
+                    # Scores
+                    team_score = parsed.get("team_score") or 0
+                    opp_score = parsed.get("opponent_score") or 0
+                    if override_team_score:
+                        team_score = int(override_team_score)
+                    if override_opponent_score:
+                        opp_score = int(override_opponent_score)
 
-                if not date_display or not sort_date:
-                    flash("Could not determine game date from PDF. Please fill the Date override.", "danger")
-                    return redirect(request.url)
+                    if not date_display or not sort_date:
+                        flash("Could not determine game date from PDF. Please fill the Date override.", "danger")
+                        return redirect(request.url)
 
-                if team_score == opp_score:
-                    flash("Team score and opponent score cannot be equal. Please verify overrides.", "danger")
-                    return redirect(request.url)
+                    if team_score == opp_score:
+                        flash("Team score and opponent score cannot be equal. Please verify overrides.", "danger")
+                        return redirect(request.url)
 
-                result = "W" if team_score > opp_score else "L"
+                    result = "W" if team_score > opp_score else "L"
 
-                game_type = (
-                    override_game_type
-                    if override_game_type in {"Season", "Friendly", "Playoff"}
-                    else (parsed.get("game_type") or "Season")
-                )
-
-                # Duplicate check
-                existing = Game.query.filter_by(sort_date=sort_date, opponent=opponent).first()
-                if existing:
-                    flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
-                    return redirect(url_for("main.index"))
-
-                players = parsed.get("players") or []
-                if not players:
-                    flash("No player rows detected in the PDF. Please check PDF format.", "danger")
-                    return redirect(request.url)
-
-                game = Game(
-                    date=date_display,
-                    opponent=opponent,
-                    team_score=team_score,
-                    opponent_score=opp_score,
-                    result=result,
-                    game_type=game_type,
-                    sort_date=sort_date,
-                    source="IMPORT",
-                )
-                db.session.add(game)
-                db.session.flush()
-
-                for player in players:
-                    if not player.get("name"):
-                        continue
-
-                    stat = PlayerStat(
-                        game_id=game.id,
-                        player_name=player.get("name", "").strip(),
-                        minutes=player.get("minutes", "0"),
-                        points=int(player.get("points", 0) or 0),
-                        fgm=int(player.get("fgm", 0) or 0),
-                        fga=int(player.get("fga", 0) or 0),
-                        fg_percent=float(player.get("fg_percent", 0) or 0),
-                        tpm=int(player.get("tpm", 0) or 0),
-                        tpa=int(player.get("tpa", 0) or 0),
-                        tp_percent=float(player.get("tp_percent", 0) or 0),
-                        ftm=int(player.get("ftm", 0) or 0),
-                        fta=int(player.get("fta", 0) or 0),
-                        ft_percent=float(player.get("ft_percent", 0) or 0),
-                        oreb=int(player.get("oreb", 0) or 0),
-                        dreb=int(player.get("dreb", 0) or 0),
-                        reb=int(player.get("reb", 0) or 0),
-                        ast=int(player.get("ast", 0) or 0),
-                        tov=int(player.get("tov", 0) or 0),
-                        stl=int(player.get("stl", 0) or 0),
-                        blk=int(player.get("blk", 0) or 0),
-                        pf=int(player.get("pf", 0) or 0),
-                        plus_minus=int(player.get("plus_minus", 0) or 0),
+                    game_type = (
+                        override_game_type
+                        if override_game_type in {"Season", "Friendly", "Playoff"}
+                        else (parsed.get("game_type") or "Season")
                     )
-                    db.session.add(stat)
 
-                db.session.commit()
+                    # Duplicate check
+                    existing = Game.query.filter_by(sort_date=sort_date, opponent=opponent).first()
+                    if existing:
+                        flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
+                        return redirect(url_for("main.index"))
 
-                # Notify non-admin users (optional PDF attachment)
-                _notify_users_game_saved(game)
+                    players = parsed.get("players") or []
+                    if not players:
+                        flash("No player rows detected in the PDF. Please check PDF format.", "danger")
+                        return redirect(request.url)
 
-                flash(f"Successfully imported game (PDF): {game.opponent} ({game.result})", "success")
-                return redirect(url_for("main.game_detail", game_id=game.id))
+                    game = Game(
+                        date=date_display,
+                        opponent=opponent,
+                        team_score=team_score,
+                        opponent_score=opp_score,
+                        result=result,
+                        game_type=game_type,
+                        sort_date=sort_date,
+                        source="IMPORT",
+                    )
+                    db.session.add(game)
+                    db.session.flush()
 
-            # --- JSON Import ---
+                    for player in players:
+                        if not player.get("name"):
+                            continue
+
+                        stat = PlayerStat(
+                            game_id=game.id,
+                            player_name=player.get("name", "").strip(),
+                            minutes=player.get("minutes", "0"),
+                            points=int(player.get("points", 0) or 0),
+                            fgm=int(player.get("fgm", 0) or 0),
+                            fga=int(player.get("fga", 0) or 0),
+                            fg_percent=float(player.get("fg_percent", 0) or 0),
+                            tpm=int(player.get("tpm", 0) or 0),
+                            tpa=int(player.get("tpa", 0) or 0),
+                            tp_percent=float(player.get("tp_percent", 0) or 0),
+                            ftm=int(player.get("ftm", 0) or 0),
+                            fta=int(player.get("fta", 0) or 0),
+                            ft_percent=float(player.get("ft_percent", 0) or 0),
+                            oreb=int(player.get("oreb", 0) or 0),
+                            dreb=int(player.get("dreb", 0) or 0),
+                            reb=int(player.get("reb", 0) or 0),
+                            ast=int(player.get("ast", 0) or 0),
+                            tov=int(player.get("tov", 0) or 0),
+                            stl=int(player.get("stl", 0) or 0),
+                            blk=int(player.get("blk", 0) or 0),
+                            pf=int(player.get("pf", 0) or 0),
+                            plus_minus=int(player.get("plus_minus", 0) or 0),
+                        )
+                        db.session.add(stat)
+
+                    db.session.commit()
+                    _notify_users_game_saved(game)
+
+                    flash(f"Successfully imported game (PDF): {game.opponent} ({game.result})", "success")
+                    return redirect(url_for("main.game_detail", game_id=game.id))
+
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f"Error importing PDF: {str(e)}", "danger")
+                    current_app.logger.error(f"Upload error: {e}", exc_info=True)
+                    return redirect(request.url)
+                finally:
+                    if filepath and os.path.exists(filepath):
+                        try:
+                            os.remove(filepath)
+                        except OSError:
+                            pass
+
+            # --- JSON Import (Multiple Files) ---
             elif import_type == "json":
-                if "json_file" not in request.files:
+                files = request.files.getlist("json_file")
+                if not files or files[0].filename == "":
                     flash("No JSON file uploaded", "danger")
                     return redirect(request.url)
 
-                file = request.files["json_file"]
-                if file.filename == "":
-                    flash("No file selected", "danger")
-                    return redirect(request.url)
+                success_count = 0
+                errors = []
 
-                if not allowed_file(file.filename) or not file.filename.lower().endswith(".json"):
-                    flash("Only JSON files are allowed for JSON import", "danger")
-                    return redirect(request.url)
+                for file in files:
+                    try:
+                        if not file or file.filename == "":
+                            continue
 
-                try:
-                    data = json.load(file)
-                except json.JSONDecodeError:
-                    flash("Invalid JSON file format.", "danger")
-                    return redirect(request.url)
+                        if not allowed_file(file.filename) or not file.filename.lower().endswith(".json"):
+                            errors.append(f"{file.filename}: Invalid file type")
+                            continue
 
-                game_data = data.get("game")
-                
-                # Handle legacy JSON formats - support flat structure or nested 'game' object
-                if not game_data:
-                    # Try to extract game info from top-level keys (legacy format)
-                    game_data = {
-                        'opponent': data.get('opponent', data.get('Opponent', '')),
-                        'date': data.get('date', data.get('Date', data.get('game_date', ''))),
-                        'sort_date': data.get('sort_date', data.get('SortDate', data.get('sortdate', ''))),
-                        'team_score': data.get('team_score', data.get('TeamScore', data.get('our_score', 0))),
-                        'opponent_score': data.get('opponent_score', data.get('OpponentScore', data.get('their_score', 0))),
-                        'result': data.get('result', data.get('Result', 'W')),
-                        'game_type': data.get('game_type', data.get('GameType', data.get('type', 'Season'))),
-                    }
-                    # If still no opponent, check for 'vs' or 'versus' keys
-                    if not game_data['opponent']:
-                        game_data['opponent'] = data.get('vs', data.get('versus', data.get('VS', '')))
-                
-                if not game_data or not game_data.get('opponent'):
-                    flash("JSON file is missing required game data (opponent).", "danger")
-                    return redirect(request.url)
+                        try:
+                            data = json.load(file)
+                        except json.JSONDecodeError:
+                            errors.append(f"{file.filename}: Invalid JSON format")
+                            continue
 
-                date_display, sort_date = coerce_json_game_dates(game_data)
-                opponent = (game_data.get("opponent") or "").strip()
+                        game_data = data.get("game")
+                        
+                        # Handle legacy JSON formats - support flat structure or nested 'game' object
+                        if not game_data:
+                            # Try to extract game info from top-level keys (legacy format)
+                            game_data = {
+                                'opponent': data.get('opponent', data.get('Opponent', '')),
+                                'date': data.get('date', data.get('Date', data.get('game_date', ''))),
+                                'sort_date': data.get('sort_date', data.get('SortDate', data.get('sortdate', ''))),
+                                'team_score': data.get('team_score', data.get('TeamScore', data.get('our_score', 0))),
+                                'opponent_score': data.get('opponent_score', data.get('OpponentScore', data.get('their_score', 0))),
+                                'result': data.get('result', data.get('Result', 'W')),
+                                'game_type': data.get('game_type', data.get('GameType', data.get('type', 'Season'))),
+                            }
+                            # If still no opponent, check for 'vs' or 'versus' keys
+                            if not game_data['opponent']:
+                                game_data['opponent'] = data.get('vs', data.get('versus', data.get('VS', '')))
+                        
+                        if not game_data or not game_data.get('opponent'):
+                            errors.append(f"{file.filename}: Missing required game data (opponent)")
+                            continue
 
-                if not sort_date or not opponent:
-                    flash("JSON import missing sort_date and/or opponent.", "danger")
-                    return redirect(request.url)
+                        date_display, sort_date = coerce_json_game_dates(game_data)
+                        opponent = (game_data.get("opponent") or "").strip()
 
-                existing = Game.query.filter_by(sort_date=sort_date, opponent=opponent).first()
-                if existing:
-                    flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
-                    return redirect(url_for("main.index"))
+                        if not sort_date or not opponent:
+                            errors.append(f"{file.filename}: Missing sort_date or opponent")
+                            continue
 
-                # Calculate result if not provided
-                team_score = game_data.get("team_score", game_data.get("TeamScore", 0)) or 0
-                opp_score = game_data.get("opponent_score", game_data.get("OpponentScore", 0)) or 0
-                result = game_data.get("result", game_data.get("Result", "W"))
-                if not result or result not in ['W', 'L']:
-                    result = 'W' if team_score > opp_score else 'L'
+                        existing = Game.query.filter_by(sort_date=sort_date, opponent=opponent).first()
+                        if existing:
+                            errors.append(f"{file.filename}: Game already exists ({existing.opponent})")
+                            continue
 
-                game = Game(
-                    date=date_display,
-                    opponent=opponent,
-                    team_score=team_score,
-                    opponent_score=opp_score,
-                    result=result,
-                    game_type=game_data.get("game_type", game_data.get("GameType", "Season")),
-                    sort_date=sort_date,
-                    source="IMPORT_JSON",
-                )
-                db.session.add(game)
-                db.session.flush()
+                        # Calculate result if not provided
+                        team_score = game_data.get("team_score", game_data.get("TeamScore", 0)) or 0
+                        opp_score = game_data.get("opponent_score", game_data.get("OpponentScore", 0)) or 0
+                        result = game_data.get("result", game_data.get("Result", "W"))
+                        if not result or result not in ['W', 'L']:
+                            result = 'W' if team_score > opp_score else 'L'
 
-                # Handle player stats - support multiple key names
-                player_stats = data.get("player_stats", data.get("PlayerStats", data.get("players", data.get("Players", []))))
-                for p_data in player_stats:
-                    # Normalize player data keys
-                    normalized_p = {}
-                    p_mapping = {
-                        'player_name': 'player_name',
-                        'PlayerName': 'player_name',
-                        'name': 'player_name',
-                        'Name': 'player_name',
-                        'player': 'player_name',
-                    }
-                    # Apply key mappings for player name
-                    for old_key, new_key in p_mapping.items():
-                        if old_key in p_data and new_key not in p_data:
-                            normalized_p[new_key] = p_data[old_key]
+                        game = Game(
+                            date=date_display,
+                            opponent=opponent,
+                            team_score=team_score,
+                            opponent_score=opp_score,
+                            result=result,
+                            game_type=game_data.get("game_type", game_data.get("GameType", "Season")),
+                            sort_date=sort_date,
+                            source="IMPORT_JSON",
+                        )
+                        db.session.add(game)
+                        db.session.flush()
+
+                        # Handle player stats - support multiple key names
+                        player_stats = data.get("player_stats", data.get("PlayerStats", data.get("players", data.get("Players", []))))
+                        for p_data in player_stats:
+                            # Normalize player data keys
+                            normalized_p = {}
+                            p_mapping = {
+                                'player_name': 'player_name',
+                                'PlayerName': 'player_name',
+                                'name': 'player_name',
+                                'Name': 'player_name',
+                                'player': 'player_name',
+                            }
+                            # Apply key mappings for player name
+                            for old_key, new_key in p_mapping.items():
+                                if old_key in p_data and new_key not in p_data:
+                                    normalized_p[new_key] = p_data[old_key]
+                            
+                            # Merge with original data
+                            p_data = {**p_data, **normalized_p}
+                            
+                            valid_keys = {
+                                c.name
+                                for c in PlayerStat.__table__.columns
+                                if c.name not in ("id", "game_id")
+                            }
+                            stat_kwargs = {k: v for k, v in p_data.items() if k in valid_keys}
+                            db.session.add(PlayerStat(game_id=game.id, **stat_kwargs))
+
+                        # Handle shot events - support multiple key names
+                        shot_events = data.get("shot_events", data.get("ShotEvents", data.get("shots", data.get("Shots", []))))
+                        for s_data in shot_events:
+                            valid_keys = {
+                                c.name
+                                for c in ShotEvent.__table__.columns
+                                if c.name not in ("id", "game_id", "play_id")
+                            }
+                            shot_kwargs = {k: v for k, v in s_data.items() if k in valid_keys}
+                            db.session.add(ShotEvent(game_id=game.id, play_id=None, **shot_kwargs))
+
+                        # Handle game events - support multiple key names
+                        game_events = data.get("game_events", data.get("GameEvents", data.get("events", data.get("Events", []))))
+                        for e_data in game_events:
+                            valid_keys = {
+                                c.name
+                                for c in GameEvent.__table__.columns
+                                if c.name not in ("id", "game_id", "play_id")
+                            }
+                            event_kwargs = {k: v for k, v in e_data.items() if k in valid_keys}
+                            db.session.add(GameEvent(game_id=game.id, play_id=None, **event_kwargs))
+
+                        db.session.commit()
+                        _notify_users_game_saved(game)
+                        success_count += 1
                     
-                    # Merge with original data
-                    p_data = {**p_data, **normalized_p}
+                    except Exception as e:
+                        db.session.rollback()
+                        errors.append(f"{file.filename}: {str(e)}")
+
+                if success_count > 0:
+                    flash(f"Successfully imported {success_count} JSON game(s).", "success")
+                
+                if errors:
+                    flash(f"Errors occurred with {len(errors)} file(s): " + "; ".join(errors[:5]) + ("..." if len(errors) > 5 else ""), "danger")
                     
-                    valid_keys = {
-                        c.name
-                        for c in PlayerStat.__table__.columns
-                        if c.name not in ("id", "game_id")
-                    }
-                    stat_kwargs = {k: v for k, v in p_data.items() if k in valid_keys}
-                    db.session.add(PlayerStat(game_id=game.id, **stat_kwargs))
-
-                # Handle shot events - support multiple key names
-                shot_events = data.get("shot_events", data.get("ShotEvents", data.get("shots", data.get("Shots", []))))
-                for s_data in shot_events:
-                    valid_keys = {
-                        c.name
-                        for c in ShotEvent.__table__.columns
-                        if c.name not in ("id", "game_id", "play_id")
-                    }
-                    shot_kwargs = {k: v for k, v in s_data.items() if k in valid_keys}
-                    db.session.add(ShotEvent(game_id=game.id, play_id=None, **shot_kwargs))
-
-                # Handle game events - support multiple key names
-                game_events = data.get("game_events", data.get("GameEvents", data.get("events", data.get("Events", []))))
-                for e_data in game_events:
-                    valid_keys = {
-                        c.name
-                        for c in GameEvent.__table__.columns
-                        if c.name not in ("id", "game_id", "play_id")
-                    }
-                    event_kwargs = {k: v for k, v in e_data.items() if k in valid_keys}
-                    db.session.add(GameEvent(game_id=game.id, play_id=None, **event_kwargs))
-
-                db.session.commit()
-
-                # Notify non-admin users (optional PDF attachment)
-                _notify_users_game_saved(game)
-
-                flash(f"Successfully imported game (JSON): {game.opponent} ({game.result})", "success")
-                return redirect(url_for("main.game_detail", game_id=game.id))
+                return redirect(url_for("main.index"))
 
         except Exception as e:
             db.session.rollback()
-            flash(f"Error importing game: {str(e)}", "danger")
+            flash(f"Critical error during import: {str(e)}", "danger")
             current_app.logger.error(f"Upload error: {e}", exc_info=True)
             return redirect(request.url)
-
-        finally:
-            if filepath and os.path.exists(filepath):
-                try:
-                    os.remove(filepath)
-                except OSError:
-                    pass
 
     return render_template("upload_game.html")
 
