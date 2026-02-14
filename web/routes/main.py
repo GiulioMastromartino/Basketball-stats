@@ -507,8 +507,25 @@ def upload_game():
                     return redirect(request.url)
 
                 game_data = data.get("game")
+                
+                # Handle legacy JSON formats - support flat structure or nested 'game' object
                 if not game_data:
-                    flash("JSON file is missing required 'game' data.", "danger")
+                    # Try to extract game info from top-level keys (legacy format)
+                    game_data = {
+                        'opponent': data.get('opponent', data.get('Opponent', '')),
+                        'date': data.get('date', data.get('Date', data.get('game_date', ''))),
+                        'sort_date': data.get('sort_date', data.get('SortDate', data.get('sortdate', ''))),
+                        'team_score': data.get('team_score', data.get('TeamScore', data.get('our_score', 0))),
+                        'opponent_score': data.get('opponent_score', data.get('OpponentScore', data.get('their_score', 0))),
+                        'result': data.get('result', data.get('Result', 'W')),
+                        'game_type': data.get('game_type', data.get('GameType', data.get('type', 'Season'))),
+                    }
+                    # If still no opponent, check for 'vs' or 'versus' keys
+                    if not game_data['opponent']:
+                        game_data['opponent'] = data.get('vs', data.get('versus', data.get('VS', '')))
+                
+                if not game_data or not game_data.get('opponent'):
+                    flash("JSON file is missing required game data (opponent).", "danger")
                     return redirect(request.url)
 
                 date_display, sort_date = coerce_json_game_dates(game_data)
@@ -523,20 +540,46 @@ def upload_game():
                     flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
                     return redirect(url_for("main.index"))
 
+                # Calculate result if not provided
+                team_score = game_data.get("team_score", game_data.get("TeamScore", 0)) or 0
+                opp_score = game_data.get("opponent_score", game_data.get("OpponentScore", 0)) or 0
+                result = game_data.get("result", game_data.get("Result", "W"))
+                if not result or result not in ['W', 'L']:
+                    result = 'W' if team_score > opp_score else 'L'
+
                 game = Game(
                     date=date_display,
                     opponent=opponent,
-                    team_score=game_data.get("team_score", 0),
-                    opponent_score=game_data.get("opponent_score", 0),
-                    result=game_data.get("result", "W"),
-                    game_type=game_data.get("game_type", "Season"),
+                    team_score=team_score,
+                    opponent_score=opp_score,
+                    result=result,
+                    game_type=game_data.get("game_type", game_data.get("GameType", "Season")),
                     sort_date=sort_date,
                     source="IMPORT_JSON",
                 )
                 db.session.add(game)
                 db.session.flush()
 
-                for p_data in data.get("player_stats", []):
+                # Handle player stats - support multiple key names
+                player_stats = data.get("player_stats", data.get("PlayerStats", data.get("players", data.get("Players", []))))
+                for p_data in player_stats:
+                    # Normalize player data keys
+                    normalized_p = {}
+                    p_mapping = {
+                        'player_name': 'player_name',
+                        'PlayerName': 'player_name',
+                        'name': 'player_name',
+                        'Name': 'player_name',
+                        'player': 'player_name',
+                    }
+                    # Apply key mappings for player name
+                    for old_key, new_key in p_mapping.items():
+                        if old_key in p_data and new_key not in p_data:
+                            normalized_p[new_key] = p_data[old_key]
+                    
+                    # Merge with original data
+                    p_data = {**p_data, **normalized_p}
+                    
                     valid_keys = {
                         c.name
                         for c in PlayerStat.__table__.columns
@@ -545,7 +588,9 @@ def upload_game():
                     stat_kwargs = {k: v for k, v in p_data.items() if k in valid_keys}
                     db.session.add(PlayerStat(game_id=game.id, **stat_kwargs))
 
-                for s_data in data.get("shot_events", []):
+                # Handle shot events - support multiple key names
+                shot_events = data.get("shot_events", data.get("ShotEvents", data.get("shots", data.get("Shots", []))))
+                for s_data in shot_events:
                     valid_keys = {
                         c.name
                         for c in ShotEvent.__table__.columns
@@ -554,7 +599,9 @@ def upload_game():
                     shot_kwargs = {k: v for k, v in s_data.items() if k in valid_keys}
                     db.session.add(ShotEvent(game_id=game.id, play_id=None, **shot_kwargs))
 
-                for e_data in data.get("game_events", []):
+                # Handle game events - support multiple key names
+                game_events = data.get("game_events", data.get("GameEvents", data.get("events", data.get("Events", []))))
+                for e_data in game_events:
                     valid_keys = {
                         c.name
                         for c in GameEvent.__table__.columns
