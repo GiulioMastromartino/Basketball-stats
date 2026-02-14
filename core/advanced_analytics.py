@@ -76,8 +76,9 @@ def classify_shot_zone(x_loc: Optional[float], y_loc: Optional[float],
     elif distance <= 100:
         return 'Paint'
     elif shot_type == '3pt':
-        # Corner 3s are typically closer to baseline (y < 100 or y > 400)
-        if y_loc < 100 or y_loc > 370:
+        # Corner 3s are typically closer to baseline (y < 140)
+        # Based on SVG path where break is at y=140
+        if y_loc < 140:
             return 'Corner_3'
         return 'Above_Break_3'
     else:
@@ -497,8 +498,7 @@ class LineupAnalytics:
                 ortg = stats['points_scored'] / stats['possessions'] * 100
                 drtg = stats['points_allowed'] / stats['possessions'] * 100
                 results.append({
-                    'lineup_hash': lineup_hash,
-                    'players': stats['players'],
+                    'lineup_hash': lineup_hash,\n                    'players': stats['players'],
                     'segments': stats['segments'],
                     'possessions': stats['possessions'],
                     'points_scored': stats['points_scored'],
