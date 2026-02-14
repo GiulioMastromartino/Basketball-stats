@@ -676,8 +676,7 @@ class PossessionReconstructor:
                         'start_event_id': event.id,
                         'team_possession': team_possession,
                         'quarter': event.quarter,
-                        'events': [event.id],
-                        'points': 0
+                        'events': [event.id],\n                        'points': 0
                     }
                 else:
                     current_possession['events'].append(event.id)
@@ -1055,7 +1054,8 @@ class ShotChartAnalytics:
             if shot['result'] == 'made':
                 zone_stats[zone]['makes'] += 1
         
-        heatmap = {}\n        for zone, stats in zone_stats.items():
+        heatmap = {}
+        for zone, stats in zone_stats.items():
             fg_pct = safe_percentage(stats['makes'], stats['attempts'])
             expected = get_expected_value(zone)
             actual_pps = safe_divide(stats['points'], stats['attempts'])
@@ -1096,8 +1096,7 @@ class ShotChartAnalytics:
             
             # Calculate hexbin coordinates
             hex_x = int(shot['x_loc'] // hex_size) * hex_size + hex_size // 2
-            hex_y = int(shot['y_loc'] // hex_size) * hex_size + hex_size // 2
-            hex_key = (hex_x, hex_y)
+            hex_y = int(shot['y_loc'] // hex_size) * hex_size + hex_size // 2\n            hex_key = (hex_x, hex_y)
             
             hexbins[hex_key]['attempts'] += 1
             hexbins[hex_key]['points'] += shot['points'] or 0
