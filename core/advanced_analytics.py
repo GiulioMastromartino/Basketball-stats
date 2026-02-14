@@ -480,7 +480,8 @@ class LineupAnalytics:
                 ortg = stats['points_scored'] / stats['possessions'] * 100
                 drtg = stats['points_allowed'] / stats['possessions'] * 100
                 results.append({
-                    'players': list(trio),\n                    'segments': stats['segments'],
+                    'players': list(trio),
+                    'segments': stats['segments'],
                     'possessions': stats['possessions'],
                     'ortg': round(ortg, 1),
                     'drtg': round(drtg, 1),
@@ -580,7 +581,8 @@ class LineupAnalytics:
                 current_on_court.add(player)
                 player_stints[player].append({
                     'start_timestamp': event.timestamp,
-                    'start_quarter': quarter,\n                    'end_timestamp': None,
+                    'start_quarter': quarter,
+                    'end_timestamp': None,
                     'end_quarter': None
                 })
             elif event.event_type == 'SUB_OUT':
@@ -805,7 +807,8 @@ class AnalyticsEngine:
         results = query.group_by(Play.id, Play.name, Play.play_type, Play.description).all()
         
         rankings = []
-        for r in results:\n            total_shots = r.total_shots or 0
+        for r in results:
+            total_shots = r.total_shots or 0
             makes = r.makes or 0
             fg_pct = round(makes / total_shots * 100, 1) if total_shots > 0 else 0
             
@@ -834,7 +837,8 @@ class AnalyticsEngine:
         
         Returns:
             Dictionary with all player statistics
-        \"\"\"\n        query = db.session.query(
+        """
+        query = db.session.query(
             func.count(PlayerStat.id).label('games'),
             func.sum(PlayerStat.points).label('points'),
             func.sum(PlayerStat.fgm).label('fgm'),
@@ -911,7 +915,7 @@ class AnalyticsEngine:
     
     @staticmethod
     def get_four_factors(game_id: int = None, game_ids: List[int] = None) -> Dict:
-        \"\"\"
+        """
         Calculate Dean Oliver's Four Factors.
         
         1. Effective Field Goal Percentage (eFG%)
@@ -925,7 +929,7 @@ class AnalyticsEngine:
         
         Returns:
             Dictionary with four factors
-        \"\"\"
+        """
         query = db.session.query(
             func.sum(PlayerStat.fgm).label('fgm'),
             func.sum(PlayerStat.fga).label('fga'),
@@ -972,7 +976,7 @@ class AnalyticsEngine:
 
 
 def calculate_ts_percent(points: int, fga: int, fta: int) -> float:
-    \"\"\"Calculate True Shooting Percentage.\"\"\"
+    """Calculate True Shooting Percentage."""
     denominator = 2 * (fga + FT_ATTEMPT_WEIGHT * fta)
     return safe_percentage(points, denominator)
 
@@ -982,12 +986,12 @@ def calculate_ts_percent(points: int, fga: int, fta: int) -> float:
 # =============================================================================
 
 class ShotChartAnalytics:
-    \"\"\"Shot chart and court mapping analytics.\"\"\"
+    """Shot chart and court mapping analytics."""
     
     @staticmethod
     def get_shot_chart_data(game_id: int = None, player_name: str = None,
                             play_id: int = None, game_ids: List[int] = None) -> List[Dict]:
-        \"\"\"
+        """
         Get shot chart data with coordinates and results.
         
         Args:
@@ -998,7 +1002,7 @@ class ShotChartAnalytics:
         
         Returns:
             List of shot dictionaries with coordinates
-        \"\"\"
+        """
         query = ShotEvent.query
         
         if game_id:
@@ -1032,12 +1036,12 @@ class ShotChartAnalytics:
     
     @staticmethod
     def get_heatmap_data(game_ids: List[int] = None, player_name: str = None) -> Dict:
-        \"\"\"
+        """
         Generate heatmap data for shot zones.
         
         Returns:
             Dictionary with zone-based shooting percentages
-        \"\"\"
+        """
         shots = ShotChartAnalytics.get_shot_chart_data(
             player_name=player_name, game_ids=game_ids
         )
@@ -1051,8 +1055,7 @@ class ShotChartAnalytics:
             if shot['result'] == 'made':
                 zone_stats[zone]['makes'] += 1
         
-        heatmap = {}
-        for zone, stats in zone_stats.items():
+        heatmap = {}\n        for zone, stats in zone_stats.items():
             fg_pct = safe_percentage(stats['makes'], stats['attempts'])
             expected = get_expected_value(zone)
             actual_pps = safe_divide(stats['points'], stats['attempts'])
@@ -1071,7 +1074,7 @@ class ShotChartAnalytics:
     @staticmethod
     def get_hexbin_data(game_ids: List[int] = None, player_name: str = None,
                         hex_size: int = 50) -> List[Dict]:
-        \"\"\"
+        """
         Generate hexbin data for shot chart visualization.
         
         Args:
@@ -1079,7 +1082,7 @@ class ShotChartAnalytics:
         
         Returns:
             List of hexbin data with aggregated stats
-        \"\"\"
+        """
         shots = ShotChartAnalytics.get_shot_chart_data(
             player_name=player_name, game_ids=game_ids
         )
