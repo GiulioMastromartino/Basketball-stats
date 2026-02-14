@@ -685,11 +685,19 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/api/advanced/clutch/season?game_type=Season')
             .then(r => r.json())
             .then(data => {
-                if (!data.players || data.players.length === 0) return;
-
                 const tbody = document.getElementById('clutch-tbody');
+                if (!data.players || data.players.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">
+                                No clutch data available yet. Reconstruct possessions or add play-by-play data to enable this view.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
                 tbody.innerHTML = '';
-                
                 data.players.forEach(p => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
@@ -701,6 +709,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     `;
                     tbody.appendChild(tr);
                 });
+            })
+            .catch(() => {
+                const tbody = document.getElementById('clutch-tbody');
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            Error loading clutch data. Check the server logs.
+                        </td>
+                    </tr>
+                `;
             });
     }
     
@@ -711,11 +729,17 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/api/advanced/lineup/rankings?min_possessions=3')
             .then(r => r.json())
             .then(data => {
-                if (!data.rankings || data.rankings.length === 0) return;
-
                 const container = document.getElementById('lineup-rankings');
+                if (!data.rankings || data.rankings.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center text-muted py-4">
+                            No lineup data available yet. Make sure possessions have been reconstructed for your games.
+                        </div>
+                    `;
+                    return;
+                }
+
                 container.innerHTML = '';
-                
                 data.rankings.slice(0, 5).forEach(lineup => {
                     const div = document.createElement('div');
                     div.className = 'lineup-card';
@@ -744,6 +768,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     `;
                     container.appendChild(div);
                 });
+            })
+            .catch(() => {
+                const container = document.getElementById('lineup-rankings');
+                container.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        Error loading lineup data. Check the server logs.
+                    </div>
+                `;
             });
     }
     
@@ -754,9 +786,16 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/api/advanced/lineup/duos')
             .then(r => r.json())
             .then(data => {
-                if (!data.duos || data.duos.length === 0) return;
-
                 const container = document.getElementById('duo-matrix');
+                if (!data.duos || data.duos.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center text-muted py-4">
+                            No duo data available yet. This requires possessions and lineup segments.
+                        </div>
+                    `;
+                    return;
+                }
+
                 container.innerHTML = '<table class="table table-sm"><thead><tr><th>Duo</th><th>Net Rt</th><th>Poss</th></tr></thead><tbody></tbody></table>';
                 const tbody = container.querySelector('tbody');
                 
@@ -770,6 +809,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     `;
                     tbody.appendChild(tr);
                 });
+            })
+            .catch(() => {
+                const container = document.getElementById('duo-matrix');
+                container.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        Error loading duo data. Check the server logs.
+                    </div>
+                `;
             });
     }
     
@@ -827,8 +874,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Load usage rate separately
         fetch(`/api/advanced/player/${encodeURIComponent(player)}/usage`)
-            .then(r => r.json())
-            .then(data => {
+            .then(r => r.json())\n            .then(data => {
                 document.getElementById('adv-usage').textContent = data.usage_rate + '%';
             });
     }
