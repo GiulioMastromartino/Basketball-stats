@@ -11,6 +11,7 @@ Implements sophisticated metrics including:
 - Lineup Efficiency
 """
 import hashlib
+import json
 from collections import defaultdict
 from statistics import mean, stdev
 from typing import Dict, List, Optional, Tuple, Any
@@ -57,7 +58,12 @@ def classify_shot_zone(x_loc: Optional[float], y_loc: Optional[float],
     Returns:
         Zone name string
     """
-    if shot_type == 'ft':
+    if not shot_type:
+        return 'Midrange'
+
+    st = shot_type.lower()
+    
+    if st == 'ft':
         return 'FT'
     
     if x_loc is None or y_loc is None:
@@ -75,7 +81,7 @@ def classify_shot_zone(x_loc: Optional[float], y_loc: Optional[float],
         return 'Rim'
     elif distance <= 100:
         return 'Paint'
-    elif shot_type == '3pt':
+    elif '3pt' in st:
         # Corner 3s are typically closer to baseline (y < 140)
         # Based on SVG path where break is at y=140
         if y_loc < 140:
@@ -121,14 +127,14 @@ class AdvancedPlayerStats:
             Usage rate as percentage (0-100)
         """
         if minutes <= 0:
-            return 0.0
-        
+            return 0.0\n        
         player_possessions = fga + (FT_ATTEMPT_WEIGHT * fta) + tov
-        team_possessions = team_fga + (FT_ATTEMPT_WEIGHT * team_fta) + team_tov
-        
+        team_possessions = team_fga + (FT_ATTEMPT_WEIGHT * team_fta) + team_tov\n        
         # Adjust for minutes played
-        usage = (player_possessions * (team_minutes / 5)) / (minutes * team_possessions) * 100
-        
+        if team_possessions == 0:
+            return 0.0
+            
+        usage = (player_possessions * (team_minutes / 5)) / (minutes * team_possessions) * 100\n        
         return round(min(usage, 100.0), 1)  # Cap at 100%
     
     @staticmethod
@@ -202,8 +208,7 @@ class AdvancedPlayerStats:
         }
 
 
-# =============================================================================
-# CLUTCH PERFORMANCE
+# =============================================================================\n# CLUTCH PERFORMANCE
 # =============================================================================
 
 class ClutchPerformance:
@@ -215,8 +220,7 @@ class ClutchPerformance:
     @staticmethod
     def is_clutch_situation(score_margin: int, time_remaining_seconds: int) -> bool:
         """Determine if a situation qualifies as 'clutch'."""
-        return abs(score_margin) <= ClutchPerformance.CLUTCH_MARGIN and \
-               time_remaining_seconds <= ClutchPerformance.CLUTCH_TIME_SECONDS
+        return abs(score_margin) <= ClutchPerformance.CLUTCH_MARGIN and \\\n               time_remaining_seconds <= ClutchPerformance.CLUTCH_TIME_SECONDS
     
     @staticmethod
     def get_clutch_stats(game_id: int, player_name: str = None) -> Dict:
@@ -326,7 +330,16 @@ class LineupAnalytics:
         off_court = {'points_scored': 0, 'points_allowed': 0, 'possessions': 0, 'segments': 0}
         
         for segment in segments:
-            players = segment.players or []
+            # Handle potential JSON string vs List issue
+            players = segment.players
+            if isinstance(players, str):
+                try:
+                    players = json.loads(players)
+                except:
+                    players = []
+            if not players:
+                players = []
+
             if player_name in players:
                 on_court['points_scored'] += segment.points_scored or 0
                 on_court['points_allowed'] += segment.points_allowed or 0
@@ -381,7 +394,16 @@ class LineupAnalytics:
         })
         
         for segment in segments:
-            players = segment.players or []
+            # Handle potential JSON string vs List issue
+            players = segment.players
+            if isinstance(players, str):
+                try:
+                    players = json.loads(players)
+                except:
+                    players = []
+            if not players:
+                players = []
+
             if len(players) < 2:
                 continue
             
@@ -406,14 +428,12 @@ class LineupAnalytics:
                     'segments': stats['segments'],
                     'possessions': stats['possessions'],
                     'ortg': round(ortg, 1),
-                    'drtg': round(drtg, 1),
-                    'net_rating': round(ortg - drtg, 1)
+                    'drtg': round(drtg, 1),\n                    'net_rating': round(ortg - drtg, 1)
                 })
         
         return sorted(results, key=lambda x: x['net_rating'], reverse=True)
     
-    @staticmethod
-    def calculate_trio_compatibility(game_ids: List[int] = None) -> List[Dict]:
+    @staticmethod\n    def calculate_trio_compatibility(game_ids: List[int] = None) -> List[Dict]:
         """Calculate synergy metrics for all 3-player combinations."""
         from itertools import combinations
         
@@ -428,7 +448,16 @@ class LineupAnalytics:
         })
         
         for segment in segments:
-            players = segment.players or []
+            # Handle potential JSON string vs List issue
+            players = segment.players
+            if isinstance(players, str):
+                try:
+                    players = json.loads(players)
+                except:
+                    players = []
+            if not players:
+                players = []
+
             if len(players) < 3:
                 continue
             
@@ -436,8 +465,7 @@ class LineupAnalytics:
                 trio_stats[trio]['segments'] += 1
                 trio_stats[trio]['points_scored'] += segment.points_scored or 0
                 trio_stats[trio]['points_allowed'] += segment.points_allowed or 0
-                trio_stats[trio]['possessions'] += segment.possessions or 0
-        
+                trio_stats[trio]['possessions'] += segment.possessions or 0\n        
         results = []
         for trio, stats in trio_stats.items():
             if stats['possessions'] > 0:
@@ -480,7 +508,16 @@ class LineupAnalytics:
         })
         
         for segment in segments:
-            players = segment.players or []
+            # Handle potential JSON string vs List issue
+            players = segment.players
+            if isinstance(players, str):
+                try:
+                    players = json.loads(players)
+                except:
+                    players = []
+            if not players:
+                players = []
+
             if len(players) != 5:
                 continue
             
