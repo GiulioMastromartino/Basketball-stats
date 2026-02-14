@@ -69,17 +69,16 @@ class TestMainRoutes(unittest.TestCase):
         self.assertIn(b'Points', response.data)
 
     def test_live_game_save(self):
-        # Test saving a live game with proper structure
-        # NOTE: The game_service.py expects values to be strings or numbers, not dicts
+        # The game_service.py expects player_stats to be a DICT, not a list
+        # keys are player names, values are stat dicts
         payload = {
             'opponent': 'LiveOpponent',
             'date': '2024-02-14',
             'game_type': 'Friendly',
             'team_score': 80,
             'opponent_score': 75,
-            'player_stats': [
-                {
-                    'player_name': 'PlayerNew',
+            'player_stats': {
+                'PlayerNew': {
                     'minutes': '15:00',
                     'points': 15,
                     'fgm': 7,
@@ -97,7 +96,7 @@ class TestMainRoutes(unittest.TestCase):
                     'oreb': 2,
                     'dreb': 3
                 }
-            ],
+            },
             'events': []
         }
         
