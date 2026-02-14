@@ -63,10 +63,14 @@ class TestAdvancedAnalytics(unittest.TestCase):
         db.session.commit()
 
         # Login
-        self.client.post('/auth/login', data={
-            'email': 'test@example.com',
+        login_response = self.client.post('/auth/login', data={
+            'username': 'testuser',
             'password': 'password'
         }, follow_redirects=True)
+        
+        # Verify login success
+        if b'Invalid username' in login_response.data:
+            self.fail("Login failed: Invalid credentials")
 
     def tearDown(self):
         db.session.remove()
