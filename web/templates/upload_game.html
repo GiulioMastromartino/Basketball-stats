@@ -37,27 +37,28 @@
             </div>
             <label style="margin-right: 16px; cursor: pointer;">
                 <input type="radio" name="import_type" value="csv" checked onchange="toggleImportType()" />
-                <span style="margin-left: 6px;"><i class="fas fa-file-csv"></i> CSV</span>
+                <span style="margin-left: 6px;"><i class="fas fa-file-csv"></i> CSV (Batch supported)</span>
             </label>
             <label style="margin-right: 16px; cursor: pointer;">
                 <input type="radio" name="import_type" value="pdf" onchange="toggleImportType()" />
-                <span style="margin-left: 6px;"><i class="fas fa-file-pdf"></i> PDF</span>
+                <span style="margin-left: 6px;"><i class="fas fa-file-pdf"></i> PDF (Single file)</span>
             </label>
             <label style="cursor: pointer;">
                 <input type="radio" name="import_type" value="json" onchange="toggleImportType()" />
-                <span style="margin-left: 6px;"><i class="fas fa-file-code"></i> JSON</span>
+                <span style="margin-left: 6px;"><i class="fas fa-file-code"></i> JSON (Batch supported)</span>
             </label>
         </div>
 
         <!-- CSV input -->
         <div id="csv-input" style="margin-bottom: 20px;">
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--secondary);">
-                <i class="fas fa-file-csv"></i> Select CSV File
+                <i class="fas fa-file-csv"></i> Select CSV File(s)
             </label>
             <input 
                 type="file" 
                 name="csv_file" 
                 accept=".csv" 
+                multiple
                 style="
                     width: 100%;
                     padding: 12px;
@@ -70,6 +71,9 @@
                 onmouseover="this.style.borderColor='var(--primary)'"
                 onmouseout="this.style.borderColor='var(--border-color)'"
             />
+            <p style="margin-top: 10px; color: var(--text-muted); font-size: 0.9rem;">
+                You can select multiple CSV files to upload at once.
+            </p>
         </div>
 
         <!-- PDF input -->
@@ -137,12 +141,13 @@
         <!-- JSON input -->
         <div id="json-input" style="margin-bottom: 20px; display: none;">
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--secondary);">
-                <i class="fas fa-file-code"></i> Select JSON File
+                <i class="fas fa-file-code"></i> Select JSON File(s)
             </label>
             <input 
                 type="file" 
                 name="json_file" 
                 accept=".json" 
+                multiple
                 style="
                     width: 100%;
                     padding: 12px;
@@ -156,7 +161,7 @@
                 onmouseout="this.style.borderColor='var(--border-color)'"
             />
             <p style="margin-top: 10px; color: var(--text-muted); font-size: 0.9rem;">
-                Upload a raw JSON file previously exported from this application. This is useful for backups or transferring data.
+                Upload raw JSON files previously exported from this application. This is useful for backups or transferring data.
             </p>
         </div>
 
