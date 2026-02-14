@@ -27,35 +27,26 @@ def view(play_id):
 @login_required
 def add():
     """Add a new play via form submission"""
-    print(f"DEBUG: Entering add play route. Form: {request.form}")
     name = request.form.get("name")
     play_type = request.form.get("play_type", "Offense")
     description = request.form.get("description", "")
     
     if not name:
-        print("DEBUG: Name missing")
         flash("Play name is required", "danger")
         return redirect(url_for("plays.list_plays"))
     
     # Check for duplicate name
     if Play.query.filter_by(name=name).first():
-        print(f"DEBUG: Duplicate name {name}")
         flash(f"Play '{name}' already exists", "warning")
         return redirect(url_for("plays.list_plays"))
     
-    try:
-        play = Play(
-            name=name,
-            play_type=play_type,
-            description=description
-        )
-        db.session.add(play)
-        db.session.commit()
-        print(f"DEBUG: Play {name} created with ID {play.id}")
-    except Exception as e:
-        print(f"DEBUG: Error creating play: {e}")
-        db.session.rollback()
-        raise
+    play = Play(
+        name=name,
+        play_type=play_type,
+        description=description
+    )
+    db.session.add(play)
+    db.session.commit()
     
     flash(f"Play '{name}' created successfully", "success")
     return redirect(url_for("plays.view_play", play_id=play.id))
