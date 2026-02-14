@@ -24,11 +24,14 @@ class TestPlays(unittest.TestCase):
             'password': 'password'
         }, follow_redirects=True)
         
-        # Check login success
-        if b'Invalid username' in login_resp.data:
-            raise RuntimeError("Login failed: Invalid credentials")
-        if b'Please log in' in login_resp.data: # Should not happen if redirected to dashboard
-             raise RuntimeError("Login failed: Redirected back to login")
+        # Check login success using known dashboard content
+        # test_auth uses b'Welcome back', let's stick to that or generic check
+        if login_resp.status_code != 200:
+             raise RuntimeError(f"Login failed with status {login_resp.status_code}")
+             
+        # If we are redirected to login, the title would likely be "Sign In" or similar
+        if b'Sign In' in login_resp.data and b'Dashboard' not in login_resp.data:
+             raise RuntimeError("Login failed: Still on login page")
 
     def tearDown(self):
         db.session.remove()
@@ -46,11 +49,15 @@ class TestPlays(unittest.TestCase):
         # If status is 302, it redirected. Check where.
         if response.status_code == 302:
             location = response.headers['Location']
-            print(f"DEBUG: Redirected to {location}")
             if '/auth/login' in location:
-                self.fail("Redirected to login page - User not authenticated")
+                self.fail(f"Redirected to login page - User not authenticated. Location: {location}")
             if '/plays' in location and 'view' not in location:
-                 self.fail("Redirected to plays list - Validation failed")
+                 # It might be redirecting to list_plays (/plays/)
+                 # We need to know WHY. The flash message would tell us.
+                 # Follow to get flash
+                 followed = self.client.get(location)
+                 print("DEBUG: Redirected to list. Page content:", followed.data.decode('utf-8', errors='ignore')[:1000])
+                 self.fail(f"Redirected to plays list - Validation failed. Location: {location}")
             
             # Follow redirect manually to capture final page
             response = self.client.get(location)
