@@ -1,5 +1,6 @@
 import unittest
 import json
+import os
 from datetime import datetime
 from web import create_app, db
 from core.models import User, Game, PlayerStat, ShotEvent, GameEvent, Play, PlayType
@@ -12,9 +13,14 @@ class TestAdvancedAnalytics(unittest.TestCase):
         self.app_context.push()
         db.create_all()
         
+        # Get credentials from env
+        self.username = os.environ.get('TESTER_USERNAME', 'Giulio')
+        self.password = os.environ.get('TESTER_PASSWORD', 'adminadmin')
+        self.email = 'tester@example.com'
+
         # Create test user
-        user = User(username='testuser', email='test@example.com', is_admin=True)
-        user.set_password('password')
+        user = User(username=self.username, email=self.email, is_admin=True)
+        user.set_password(self.password)
         db.session.add(user)
         
         # Create dummy data
@@ -64,8 +70,8 @@ class TestAdvancedAnalytics(unittest.TestCase):
 
         # Login
         login_response = self.client.post('/auth/login', data={
-            'username': 'testuser',
-            'password': 'password'
+            'username': self.username,
+            'password': self.password
         }, follow_redirects=True)
         
         # Verify login success
