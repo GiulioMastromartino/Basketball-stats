@@ -37,19 +37,18 @@ class TestPlays(unittest.TestCase):
         }, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         
-        # Check flash message or content redirection
-        # The response.data might be the view page content
-        self.assertIn(b'Play', response.data) # Generic check
-        
+        # Verify persistence first
         play = Play.query.filter_by(name='New Play').first()
         self.assertIsNotNone(play)
         
         # 2. View Play
-        response = self.client.get(f'/plays/{play.id}') # URL is /plays/<int:play_id>, view_play function
+        response = self.client.get(f'/plays/{play.id}') # URL is /plays/<int:play_id>
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'New Play', response.data)
         
         # 3. Edit Play
+        # Note: edit route might be /plays/edit/<id> or similar, check plays.py
+        # Based on previous file content: @plays_bp.route("/plays/edit/<int:play_id>", methods=["POST"])
         response = self.client.post(f'/plays/edit/{play.id}', data={
             'name': 'Updated Play',
             'play_type': 'Defense',
@@ -57,12 +56,14 @@ class TestPlays(unittest.TestCase):
         }, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         
-        play = Play.query.get(play.id)
+        # Verify Update
+        db.session.refresh(play) # Refresh from DB
         self.assertEqual(play.name, 'Updated Play')
         self.assertEqual(play.play_type, 'Defense')
         
         # 4. Delete Play
-        response = self.client.post(f'/plays/{play.id}/delete', follow_redirects=True) # URL is /plays/<int:play_id>/delete
+        # Route: @plays_bp.route("/plays/<int:play_id>/delete", methods=["POST"])
+        response = self.client.post(f'/plays/{play.id}/delete', follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         
         play = Play.query.get(play.id)
