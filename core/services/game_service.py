@@ -553,10 +553,13 @@ def create_game_from_live_data(data):
         GameEvent.query.filter_by(game_id=game.id).order_by(GameEvent.timestamp).all()
     )
 
-    # Only process lineups if the frontend was tracking them (schema >= 2 or LINEUP_TRACKING feature)
+    # Check for explicit lineup tracking flag or detect substitution events
     has_lineup_tracking = schema_version >= 2 or features.get("LINEUP_TRACKING", False)
+    has_substitution_events = any(
+        e.event_type in ("SUB_IN", "SUB_OUT") for e in saved_events
+    )
 
-    if saved_events and has_lineup_tracking:
+    if saved_events and (has_lineup_tracking or has_substitution_events):
         try:
             process_game_lineups(game.id, saved_events, starting_lineup)
         except Exception as e:

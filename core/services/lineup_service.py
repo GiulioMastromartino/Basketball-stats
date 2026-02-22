@@ -71,56 +71,54 @@ def calculate_segment_duration(segment, all_events: list) -> int:
 def get_or_create_lineup(players: list, is_starting: bool = False):
     """
     Get existing lineup or create new one.
-    
+
     Args:
         players: List of 5 player names
         is_starting: Whether this is a starting lineup
-    
+
     Returns:
         Lineup object (existing or newly created)
     """
     if len(players) != 5:
         return None
-    
+
     lineup_hash = generate_lineup_hash(players)
     lineup = Lineup.query.filter_by(lineup_hash=lineup_hash).first()
-    
+
     if not lineup:
         lineup = Lineup(
-            lineup_hash=lineup_hash,
-            players=sorted(players),
-            is_starting=is_starting
+            lineup_hash=lineup_hash, players=sorted(players), is_starting=is_starting
         )
         db.session.add(lineup)
         db.session.flush()
-    
+
     return lineup
 
 
 def update_lineup_cached_stats(lineup_id: int):
     """
     Recalculate and update cached stats for a lineup.
-    
+
     Aggregates data from all lineup_segments for this lineup.
-    
+
     Args:
         lineup_id: ID of the Lineup to update
     """
     from datetime import datetime
-    
+
     lineup = Lineup.query.get(lineup_id)
     if not lineup:
         return
-    
+
     segments = LineupSegment.query.filter_by(lineup_id=lineup_id).all()
-    
+
     lineup.total_seconds = sum(s.duration_seconds or 0 for s in segments)
     lineup.total_possessions = sum(s.possessions or 0 for s in segments)
     lineup.points_scored = sum(s.points_scored or 0 for s in segments)
     lineup.points_allowed = sum(s.points_allowed or 0 for s in segments)
     lineup.segment_count = len(segments)
     lineup.games_played = len(set(s.game_id for s in segments))
-    
+
     # Calculate ratings
     if lineup.total_possessions > 0:
         lineup.ortg = round(lineup.points_scored / lineup.total_possessions * 100, 1)
@@ -130,7 +128,7 @@ def update_lineup_cached_stats(lineup_id: int):
         lineup.ortg = 0
         lineup.drtg = 0
         lineup.net_rating = 0
-    
+
     lineup.last_updated = datetime.utcnow()
     db.session.commit()
 
@@ -151,96 +149,59 @@ def build_lineup_segments(
         List of created segment IDs
     """
     LineupSegment.query.filter_by(game_id=game_id).delete()
-    db.session.commit()
+    db.session.flush()
 
     if not events:
+        db.session.commit()
         return []
 
-    current_lineup = []
+    try:
+        current_lineup = []
 
-    if starting_lineup:
-        current_lineup = list(starting_lineup)
-    else:
-        q1_sub_in_players = []
-        for event in events:
-            if (
-                event.event_type == "SUB_IN"
-                and event.quarter == 1
-                and event.player_name
-            ):
-                if event.player_name not in q1_sub_in_players:
-                    q1_sub_in_players.append(event.player_name)
-                if len(q1_sub_in_players) == 5:
-                    break
-
-        if len(q1_sub_in_players) == 5:
-            current_lineup = q1_sub_in_players
+        if starting_lineup:
+            current_lineup = list(starting_lineup)
         else:
+            first_sub_in_timestamp = None
             for event in events:
-                if event.event_type == "SUB_IN" and event.player_name:
-                    if event.player_name not in current_lineup:
-                        current_lineup.append(event.player_name)
-                    if len(current_lineup) == 5:
-                        break
-
-    if len(current_lineup) < 5:
-        return []
-
-    segment_ids = []
-    current_segment = None
-    segment_start_timestamp = None
-    current_quarter = None
-
-    for event in events:
-        if current_segment is None:
-            segment_start_timestamp = event.timestamp
-            current_quarter = event.quarter
-            # Get or create the lineup record
-            lineup = get_or_create_lineup(current_lineup, is_starting=(current_segment is None))
-            
-            current_segment = LineupSegment(
-                game_id=game_id,
-                start_timestamp=segment_start_timestamp,
-                end_timestamp=None,
-                quarter=current_quarter,
-                players=list(current_lineup),
-                lineup_hash=generate_lineup_hash(current_lineup),
-                points_scored=0,
-                points_allowed=0,
-                possessions=0,
-                lineup_id=lineup.id if lineup else None,
-            )
-            db.session.add(current_segment)
-            db.session.flush()
-            segment_ids.append(current_segment.id)
-
-        if event.event_type == "SUB_OUT" and event.player_name in current_lineup:
-            current_lineup.remove(event.player_name)
-
-            sub_in_event = None
-            remaining_events = [e for e in events if e.timestamp > event.timestamp]
-            for next_event in remaining_events:
-                if (
-                    next_event.event_type == "SUB_IN"
-                    and next_event.player_name not in current_lineup
-                ):
-                    sub_in_event = next_event
+                if event.event_type == "SUB_IN":
+                    first_sub_in_timestamp = event.timestamp
                     break
 
-            if sub_in_event and len(current_lineup) == 4:
-                current_segment.end_timestamp = sub_in_event.timestamp
-                db.session.flush()
+            players_before_sub = []
+            for event in events:
+                if first_sub_in_timestamp and event.timestamp >= first_sub_in_timestamp:
+                    break
 
-                current_lineup.append(sub_in_event.player_name)
+                if event.player_name and event.event_type not in ("SUB_IN", "SUB_OUT"):
+                    if event.player_name not in players_before_sub:
+                        players_before_sub.append(event.player_name)
+                        if len(players_before_sub) == 5:
+                            break
 
-                # Get or create the lineup record
-                lineup = get_or_create_lineup(current_lineup)
-                
+            current_lineup = players_before_sub
+
+        if len(current_lineup) < 5:
+            db.session.commit()
+            return []
+
+        segment_ids = []
+        current_segment = None
+        segment_start_timestamp = None
+        current_quarter = None
+
+        for event in events:
+            if current_segment is None:
+                segment_start_timestamp = event.timestamp
+                current_quarter = event.quarter
+                lineup = get_or_create_lineup(
+                    current_lineup, is_starting=(current_segment is None)
+                )
+
                 current_segment = LineupSegment(
                     game_id=game_id,
-                    start_timestamp=sub_in_event.timestamp,
+                    start_timestamp=segment_start_timestamp,
                     end_timestamp=None,
-                    quarter=sub_in_event.quarter,
+                    quarter=current_quarter,
                     players=list(current_lineup),
                     lineup_hash=generate_lineup_hash(current_lineup),
                     points_scored=0,
@@ -252,18 +213,67 @@ def build_lineup_segments(
                 db.session.flush()
                 segment_ids.append(current_segment.id)
 
-        elif event.event_type == "SUB_IN" and event.player_name not in current_lineup:
-            if len(current_lineup) < 5:
-                current_lineup.append(event.player_name)
+            if event.event_type == "SUB_OUT" and event.player_name in current_lineup:
+                current_lineup.remove(event.player_name)
 
-    if current_segment and current_segment.end_timestamp is None:
-        last_event = events[-1] if events else None
-        if last_event:
-            current_segment.end_timestamp = last_event.timestamp
-            db.session.flush()
+                sub_in_event = None
+                remaining_events = [e for e in events if e.timestamp > event.timestamp]
+                for next_event in remaining_events:
+                    if (
+                        next_event.event_type == "SUB_IN"
+                        and next_event.player_name not in current_lineup
+                    ):
+                        sub_in_event = next_event
+                        break
 
-    db.session.commit()
-    return segment_ids
+                if sub_in_event and len(current_lineup) == 4:
+                    current_segment.end_timestamp = sub_in_event.timestamp
+                    db.session.flush()
+
+                    current_lineup.append(sub_in_event.player_name)
+
+                    lineup = get_or_create_lineup(current_lineup)
+
+                    current_segment = LineupSegment(
+                        game_id=game_id,
+                        start_timestamp=sub_in_event.timestamp,
+                        end_timestamp=None,
+                        quarter=sub_in_event.quarter,
+                        players=list(current_lineup),
+                        lineup_hash=generate_lineup_hash(current_lineup),
+                        points_scored=0,
+                        points_allowed=0,
+                        possessions=0,
+                        lineup_id=lineup.id if lineup else None,
+                    )
+                    db.session.add(current_segment)
+                    db.session.flush()
+                    segment_ids.append(current_segment.id)
+                elif len(current_lineup) < 5:
+                    import logging
+
+                    logging.getLogger(__name__).warning(
+                        f"Unmatched SUB_OUT for {event.player_name} in game {game_id} at {event.timestamp}. "
+                        f"Lineup size: {len(current_lineup)}"
+                    )
+
+            elif (
+                event.event_type == "SUB_IN" and event.player_name not in current_lineup
+            ):
+                if len(current_lineup) < 5:
+                    current_lineup.append(event.player_name)
+
+        if current_segment and current_segment.end_timestamp is None:
+            last_event = events[-1] if events else None
+            if last_event:
+                current_segment.end_timestamp = last_event.timestamp
+                db.session.flush()
+
+        db.session.commit()
+        return segment_ids
+    except Exception:
+        db.session.rollback()
+        raise
 
 
 def link_events_to_segments(game_id: int) -> None:
@@ -432,7 +442,7 @@ def populate_player_lineup_stats(segment_id: int) -> None:
             for p_name in player_stats:
                 player_stats[p_name]["reb_conceded"] += 1
             continue
-        
+
         player_name = event.player_name
         if not player_name or player_name not in player_stats:
             continue
@@ -466,6 +476,21 @@ def populate_player_lineup_stats(segment_id: int) -> None:
 
         elif event.event_type == "TURNOVER":
             stats["tov"] += 1
+
+        elif event.event_type == "AST":
+            stats["ast"] += 1
+
+        elif event.event_type == "STL":
+            stats["stl"] += 1
+
+        elif event.event_type == "BLK":
+            stats["blk"] += 1
+
+        elif event.event_type in ("OREB", "REBOUND_OFFENSIVE"):
+            stats["oreb"] += 1
+
+        elif event.event_type in ("DREB", "REBOUND_DEFENSIVE"):
+            stats["dreb"] += 1
 
     for player_name, stats in player_stats.items():
         player_lineup_stat = PlayerLineupStats(
@@ -519,7 +544,7 @@ def process_game_lineups(
         segment = LineupSegment.query.get(segment_id)
         if segment and segment.lineup_id:
             lineup_ids.add(segment.lineup_id)
-    
+
     # Update cached stats for all affected lineups
     for lineup_id in lineup_ids:
         update_lineup_cached_stats(lineup_id)
