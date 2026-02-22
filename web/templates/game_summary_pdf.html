@@ -288,6 +288,109 @@
             .glossary-term { font-weight: 700; color: #2c5282; font-size: 11px; }
             .glossary-desc { color: #4a5568; margin-top: 3px; font-size: 10px; }
             .glossary-range { color: #718096; font-style: italic; margin-top: 3px; font-size: 9px; }
+
+            /* Time Progression Section */
+            .time-progression-container {
+                page-break-inside: avoid;
+                break-inside: avoid;
+                margin-top: 15px;
+            }
+            .score-flow-chart {
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+            .score-flow-chart svg {
+                width: 100%;
+                height: 200px;
+            }
+            .quarter-stats-table {
+                width: 100%;
+                margin-bottom: 15px;
+            }
+            .quarter-stats-table th {
+                background: #edf2f7;
+                font-size: 10px;
+            }
+            .quarter-stats-table td {
+                font-size: 10px;
+            }
+            .key-moments-grid {
+                display: flex;
+                gap: 15px;
+                margin-bottom: 10px;
+            }
+            .key-moment-card {
+                flex: 1;
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 10px;
+                text-align: center;
+            }
+            .key-moment-label {
+                font-size: 9px;
+                text-transform: uppercase;
+                color: #718096;
+                margin-bottom: 4px;
+            }
+            .key-moment-value {
+                font-size: 18px;
+                font-weight: 800;
+            }
+            .key-moment-value.positive { color: #166534; }
+            .key-moment-value.negative { color: #dc3545; }
+            .runs-container {
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 10px;
+            }
+            .runs-title {
+                font-weight: bold;
+                color: #2c3e50;
+                font-size: 11px;
+                margin-bottom: 8px;
+            }
+            .run-item {
+                display: inline-block;
+                padding: 3px 8px;
+                border-radius: 4px;
+                font-size: 10px;
+                margin: 2px;
+                font-weight: 600;
+            }
+            .run-team {
+                background: #c6f6d5;
+                color: #166534;
+            }
+            .run-opp {
+                background: #fed7d7;
+                color: #c53030;
+            }
+            .lineup-players {
+                font-size: 8px;
+                color: #718096;
+                margin-top: 4px;
+                line-height: 1.3;
+            }
+            .lineup-players-title {
+                font-size: 7px;
+                color: #a0aec0;
+                text-transform: uppercase;
+                margin-bottom: 2px;
+            }
+            .run-lineup {
+                font-size: 8px;
+                color: #718096;
+                font-weight: normal;
+            }
+            .starting-lineup-card {
+                background: linear-gradient(135deg, #edf2f7 0%, #e2e8f0 100%);
+                border: 2px solid #4299e1;
+            }
         </style>
     </head>
     <body>
@@ -433,6 +536,192 @@
                 </table>
             </div>
         </div>
+
+        {% if time_progression %}
+        <div class="time-progression-container">
+            <div class="section-title">Time Progression</div>
+            
+            <div class="score-flow-chart">
+                <svg viewBox="0 0 500 180" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                        <linearGradient id="teamGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#166534;stop-opacity:0.3" />
+                            <stop offset="100%" style="stop-color:#166534;stop-opacity:0" />
+                        </linearGradient>
+                    </defs>
+                    
+                    <line x1="40" y1="90" x2="480" y2="90" stroke="#cbd5e0" stroke-width="1" stroke-dasharray="4"/>
+                    
+                    <text x="25" y="35" font-size="8" fill="#718096" text-anchor="end">+20</text>
+                    <text x="25" y="90" font-size="8" fill="#718096" text-anchor="end">0</text>
+                    <text x="25" y="145" font-size="8" fill="#718096" text-anchor="end">-20</text>
+                    
+                    {% if time_progression.score_progression and time_progression.score_progression|length > 0 %}
+                    {% set sp = time_progression.score_progression %}
+                    {% set max_margin = sp|map(attribute='margin')|max|abs|default(10) %}
+                    {% set min_margin = sp|map(attribute='margin')|min|abs|default(10) %}
+                    {% set y_scale = [(max_margin, min_margin)|max, 10]|max %}
+                    {% set chart_height = 110 %}
+                    {% set chart_top = 35 %}
+                    {% set chart_bottom = chart_top + chart_height %}
+                    {% set y_range = chart_height / 2 %}
+                    
+                    {% set quarter_positions = {1: 110, 2: 220, 3: 330, 4: 440} %}
+                    {% for q in [1, 2, 3, 4] %}
+                    <line x1="{{ quarter_positions[q] }}" y1="{{ chart_top }}" x2="{{ quarter_positions[q] }}" y2="{{ chart_bottom }}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="2"/>
+                    <text x="{{ quarter_positions[q] }}" y="{{ chart_bottom + 15 }}" font-size="8" fill="#718096" text-anchor="middle">Q{{ q }}</text>
+                    {% endfor %}
+                    
+                    {% set x_start = 60 %}
+                    {% set x_end = 460 %}
+                    {% set x_range = x_end - x_start %}
+                    
+                    <path d="M 
+                        {% for point in sp %}
+                        {% set x = x_start + (loop.index0 * x_range / (sp|length - 1 if sp|length > 1 else 1)) %}
+                        {% set y = chart_top + chart_height/2 - (point.margin * y_range / y_scale) %}
+                        {{ x }} {{ y }}{% if not loop.last %} L {% endif %}
+                        {% endfor %}
+                    " fill="none" stroke="#166534" stroke-width="2"/>
+                    
+                    {% for point in sp %}
+                    {% if loop.first or loop.last %}
+                    {% set x = x_start + (loop.index0 * x_range / (sp|length - 1 if sp|length > 1 else 1)) %}
+                    {% set y = chart_top + chart_height/2 - (point.margin * y_range / y_scale) %}
+                    <circle cx="{{ x }}" cy="{{ y }}" r="3" fill="#166534"/>
+                    <text x="{{ x }}" y="{{ y - 8 }}" font-size="7" fill="#166534" text-anchor="middle">{{ point.team_score }}-{{ point.opp_score }}</text>
+                    {% endif %}
+                    {% endfor %}
+                    
+                    {% for point in sp %}
+                    {% if point.margin == (sp|map(attribute='margin')|max) or point.margin == (sp|map(attribute='margin')|min) %}
+                    {% set x = x_start + (loop.index0 * x_range / (sp|length - 1 if sp|length > 1 else 1)) %}
+                    {% set y = chart_top + chart_height/2 - (point.margin * y_range / y_scale) %}
+                    <circle cx="{{ x }}" cy="{{ y }}" r="4" fill="{% if point.margin > 0 %}#166534{% else %}#dc3545{% endif %}"/>
+                    {% endif %}
+                    {% endfor %}
+                    {% endif %}
+                </svg>
+            </div>
+            
+            {% if time_progression.quarterly_stats %}
+            <table class="quarter-stats-table">
+                <thead>
+                    <tr>
+                        <th class="text-left">Quarter</th>
+                        <th>PTS</th>
+                        <th>FGM</th>
+                        <th>FGA</th>
+                        <th>FG%</th>
+                        <th>TOV</th>
+                        <th>PF</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for q in [1, 2, 3, 4] %}
+                    {% if time_progression.quarterly_stats[q|string] or time_progression.quarterly_stats[q] %}
+                    {% set qs = time_progression.quarterly_stats[q|string] if time_progression.quarterly_stats[q|string] else time_progression.quarterly_stats[q] %}
+                    <tr>
+                        <td class="text-left">Q{{ q }}</td>
+                        <td style="font-weight: bold">{{ qs.pts|default(0) }}</td>
+                        <td>{{ qs.fgm|default(0) }}</td>
+                        <td>{{ qs.fga|default(0) }}</td>
+                        <td>{% if qs.fga and qs.fga > 0 %}{{ ((qs.fgm|default(0) / qs.fga) * 100)|round(1) }}%{% else %}--{% endif %}</td>
+                        <td>{{ qs.tov|default(0) }}</td>
+                        <td>{{ qs.pf|default(0) }}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                    {% set total_pts = time_progression.quarterly_stats.values()|map(attribute='pts')|sum|default(0) if time_progression.quarterly_stats is mapping else 0 %}
+                    {% set total_fgm = time_progression.quarterly_stats.values()|map(attribute='fgm')|sum|default(0) if time_progression.quarterly_stats is mapping else 0 %}
+                    {% set total_fga = time_progression.quarterly_stats.values()|map(attribute='fga')|sum|default(0) if time_progression.quarterly_stats is mapping else 0 %}
+                    {% set total_tov = time_progression.quarterly_stats.values()|map(attribute='tov')|sum|default(0) if time_progression.quarterly_stats is mapping else 0 %}
+                    {% set total_pf = time_progression.quarterly_stats.values()|map(attribute='pf')|sum|default(0) if time_progression.quarterly_stats is mapping else 0 %}
+                    <tr style="background: #edf2f7; font-weight: bold;">
+                        <td class="text-left">Total</td>
+                        <td>{{ total_pts }}</td>
+                        <td>{{ total_fgm }}</td>
+                        <td>{{ total_fga }}</td>
+                        <td>{% if total_fga > 0 %}{{ ((total_fgm / total_fga) * 100)|round(1) }}%{% else %}--{% endif %}</td>
+                        <td>{{ total_tov }}</td>
+                        <td>{{ total_pf }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            {% endif %}
+            
+            <div class="key-moments-grid">
+                {% if time_progression.starting_lineup %}
+                <div class="key-moment-card starting-lineup-card">
+                    <div class="key-moment-label">Starting Lineup</div>
+                    <div class="key-moment-value" style="color: #2c3e50; font-size: 14px;">{{ time_progression.starting_lineup|length }} Players</div>
+                    <div class="lineup-players">
+                        {{ time_progression.starting_lineup|join(', ') }}
+                    </div>
+                </div>
+                {% endif %}
+                {% if time_progression.lineup_snapshots and time_progression.lineup_snapshots.max_lead %}
+                <div class="key-moment-card">
+                    <div class="key-moment-label">Biggest Lead</div>
+                    <div class="key-moment-value positive">+{{ time_progression.max_lead.team|default(0) if time_progression.max_lead else 0 }}</div>
+                    {% if time_progression.lineup_snapshots.max_lead %}
+                    <div class="lineup-players">
+                        {{ time_progression.lineup_snapshots.max_lead|join(', ') }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% elif time_progression.max_lead %}
+                <div class="key-moment-card">
+                    <div class="key-moment-label">Biggest Lead</div>
+                    <div class="key-moment-value positive">+{{ time_progression.max_lead.team|default(0) }}</div>
+                </div>
+                {% endif %}
+                {% if time_progression.lineup_snapshots and time_progression.lineup_snapshots.max_deficit %}
+                <div class="key-moment-card">
+                    <div class="key-moment-label">Biggest Deficit</div>
+                    <div class="key-moment-value negative">-{{ time_progression.max_lead.opp|default(0) if time_progression.max_lead else 0 }}</div>
+                    {% if time_progression.lineup_snapshots.max_deficit %}
+                    <div class="lineup-players">
+                        {{ time_progression.lineup_snapshots.max_deficit|join(', ') }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% elif time_progression.max_lead %}
+                <div class="key-moment-card">
+                    <div class="key-moment-label">Biggest Deficit</div>
+                    <div class="key-moment-value negative">-{{ time_progression.max_lead.opp|default(0) }}</div>
+                </div>
+                {% endif %}
+                {% if time_progression.lineup_snapshots and time_progression.lineup_snapshots.clutch %}
+                <div class="key-moment-card" style="border: 1px solid #ed8936;">
+                    <div class="key-moment-label" style="color: #c05621;">Clutch Lineup</div>
+                    <div class="key-moment-value" style="color: #c05621; font-size: 12px;">Final 5 min</div>
+                    <div class="lineup-players">
+                        {{ time_progression.lineup_snapshots.clutch|join(', ') }}
+                    </div>
+                </div>
+                {% else %}
+                <div class="key-moment-card">
+                    <div class="key-moment-label">Lead Changes</div>
+                    <div class="key-moment-value" style="color: #2c3e50;">{{ time_progression.lead_changes|default(0) }}</div>
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if time_progression.runs and time_progression.runs|length > 0 %}
+            <div class="runs-container">
+                <div class="runs-title">Scoring Runs (5+ points)</div>
+                {% for run in time_progression.runs %}
+                {% if run.points >= 5 %}
+                <span class="run-item {{ 'run-team' if run.type == 'team' else 'run-opp' }}">
+                    {{ run.points }}-0 {{ 'Team' if run.type == 'team' else 'Opp' }} Run (Q{{ run.start_q }}{% if run.end_q != run.start_q %}-Q{{ run.end_q }}{% endif %}){% if run.lineup %}<span class="run-lineup"> - {{ run.lineup|join(', ') }}</span>{% endif %}
+                </span>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
 
         <div class="table-container">
             <div class="section-title">Box Score: Basic Stats</div>

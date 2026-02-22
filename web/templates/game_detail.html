@@ -195,8 +195,8 @@
                 <i class="fas fa-file-alt me-2"></i>Summary Report
             </a>
             
-            <a href="{{ url_for('reports.advanced_game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-success shadow-sm">
-                <i class="fas fa-chart-bar me-2"></i>Advanced Report
+            <a href="{{ url_for('reports.game_evolution_pdf', game_id=game.id) }}" class="btn btn-outline-success shadow-sm">
+                <i class="fas fa-chart-line me-2"></i>Evolution Report
             </a>
 
             <a href="{{ url_for('main.export_game_raw', game_id=game.id) }}" class="btn btn-outline-secondary shadow-sm">

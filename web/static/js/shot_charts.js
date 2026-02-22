@@ -6,6 +6,10 @@
 class ShotChart {
     constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
+        if (!this.container) {
+            console.error(`ShotChart: Container '${containerId}' not found`);
+            return;
+        }
         this.options = {
             width: options.width || 500,
             height: options.height || 470,
@@ -42,11 +46,20 @@ class ShotChart {
             this.courtImage = img;
             this.render();
         };
+        img.onerror = () => {
+            console.warn('Could not load court background image');
+            this.render(); // Render anyway without background
+        };
         img.src = this.options.courtImage;
     }
     
     loadShots(shots) {
-        this.shots = shots;
+        if (!this.ctx) {
+            console.warn('ShotChart: Canvas not initialized');
+            return;
+        }
+        this.shots = shots || [];
+        console.log(`ShotChart: Loading ${this.shots.length} shots`);
         this.render();
     }
     
@@ -59,9 +72,15 @@ class ShotChart {
         // Draw court background
         if (this.courtImage) {
             this.ctx.drawImage(this.courtImage, 0, 0, this.options.width, this.options.height);
+        } else {
+            // Draw a simple court outline as fallback
+            this.ctx.strokeStyle = '#ccc';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(0, 0, this.options.width, this.options.height);
         }
         
         // Draw shots
+        console.log(`ShotChart: Rendering ${this.shots.length} shots`);
         this.shots.forEach(shot => this.drawShot(shot));
     }
     
@@ -271,6 +290,10 @@ class HexbinShotChart extends ShotChart {
 class ZoneHeatmap {
     constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
+        if (!this.container) {
+            console.error(`ZoneHeatmap: Container '${containerId}' not found`);
+            return;
+        }
         this.options = {
             width: options.width || 500,
             height: options.height || 470,
@@ -326,11 +349,14 @@ class ZoneHeatmap {
     }
     
     loadZoneData(zones) {
-        this.zones = zones;
+        if (!this.container) return;
+        this.zones = zones || {};
+        console.log(`ZoneHeatmap: Loading zones:`, Object.keys(this.zones));
         this.render();
     }
     
     render() {
+        if (!this.container) return;
         Object.entries(this.zones).forEach(([zoneName, stats]) => {
             const zoneEl = this.container.querySelector(`[data-zone="${zoneName}"]`);
             if (!zoneEl) return;

@@ -36,6 +36,15 @@
     .court-title { display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 6px; }
     .court { width: 100%; height: auto; }
     .footer { margin-top: 14px; font-size: 9px; color: #777; display:flex; justify-content:space-between; }
+    .positive { color: #0a0; }
+    .negative { color: #c00; }
+    .quarter-header { font-weight: 700; background: #f0f0f0; }
+    .highlight { font-weight: 700; }
+    .top-performer { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; }
+    .top-performer:last-child { border-bottom: none; }
+    .top-performer .rank { font-weight: 700; color: #666; width: 20px; }
+    .top-performer .name { flex: 1; }
+    .top-performer .pts { font-weight: 700; }
   </style>
 </head>
 
@@ -93,7 +102,6 @@
 
       <div class="court-wrap">
         <svg class="court" viewBox="0 0 500 470" xmlns="http://www.w3.org/2000/svg" aria-label="Shot chart">
-          <!-- half-court (simple, printable) -->
           <rect x="10" y="10" width="480" height="450" fill="#fff" stroke="#ddd" stroke-width="2"/>
           <line x1="10" y1="235" x2="490" y2="235" stroke="#eee" stroke-width="2"/>
           <circle cx="250" cy="235" r="60" fill="none" stroke="#eee" stroke-width="2"/>
@@ -151,6 +159,157 @@
       </div>
     </div>
   </div>
+
+  {% if quarterly_stats and quarterly_stats.quarters %}
+  <h2>Quarterly Breakdown</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          {% for label in quarterly_stats.labels|default(['Q1', 'Q2', 'Q3', 'Q4']) %}
+          <th class="center">{{ label }}</th>
+          {% endfor %}
+          <th class="center">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="quarter-header">{{ game.team_name }}</td>
+          {% set team_total = namespace(value=0) %}
+          {% for q in [1, 2, 3, 4] %}
+            {% set pts = quarterly_stats.quarters[q].team|default(0) %}
+            {% set team_total.value = team_total.value + pts %}
+          <td class="num">{{ pts }}</td>
+          {% endfor %}
+          <td class="num highlight">{{ team_total.value }}</td>
+        </tr>
+        <tr>
+          <td class="quarter-header">{{ game.opp_name }}</td>
+          {% set opp_total = namespace(value=0) %}
+          {% for q in [1, 2, 3, 4] %}
+            {% set pts = quarterly_stats.quarters[q].opp|default(0) %}
+            {% set opp_total.value = opp_total.value + pts %}
+          <td class="num">{{ pts }}</td>
+          {% endfor %}
+          <td class="num highlight">{{ opp_total.value }}</td>
+        </tr>
+        <tr>
+          <td class="quarter-header">Margin</td>
+          {% set running_margin = namespace(value=0) %}
+          {% for q in [1, 2, 3, 4] %}
+            {% set team_pts = quarterly_stats.quarters[q].team|default(0) %}
+            {% set opp_pts = quarterly_stats.quarters[q].opp|default(0) %}
+            {% set q_margin = team_pts - opp_pts %}
+            {% set running_margin.value = running_margin.value + q_margin %}
+            {% if running_margin.value > 0 %}
+          <td class="num positive">+{{ running_margin.value }}</td>
+            {% elif running_margin.value < 0 %}
+          <td class="num negative">{{ running_margin.value }}</td>
+            {% else %}
+          <td class="num">0</td>
+            {% endif %}
+          {% endfor %}
+          {% set final_margin = team_total.value - opp_total.value %}
+          {% if final_margin > 0 %}
+          <td class="num highlight positive">+{{ final_margin }}</td>
+          {% elif final_margin < 0 %}
+          <td class="num highlight negative">{{ final_margin }}</td>
+          {% else %}
+          <td class="num highlight">0</td>
+          {% endif %}
+        </tr>
+      </tbody>
+    </table>
+    <div class="muted small" style="margin-top:6px;">
+      Running margin shows cumulative score differential after each quarter.
+    </div>
+  </div>
+  {% endif %}
+
+  {% if zone_stats %}
+  <h2>Zone Shooting</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Zone</th>
+          <th class="center">FG</th>
+          <th class="num">FG%</th>
+          <th class="num">PPS</th>
+          <th class="num">Exp. Value</th>
+          <th class="num">Eff. Delta</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for zone_name, zone_label in [('Rim', 'Rim'), ('Paint', 'Paint (Non-Rim)'), ('Midrange', 'Midrange'), ('Corner_3', 'Corner 3'), ('Above_Break_3', 'Above Break 3')] %}
+          {% if zone_stats[zone_name] %}
+          {% set z = zone_stats[zone_name] %}
+          <tr>
+            <td>{{ zone_label }}</td>
+            <td class="center">{{ z.makes|default(0) }}/{{ z.attempts|default(0) }}</td>
+            <td class="num">{{ z.fg_pct|default('0.0') }}%</td>
+            <td class="num">{{ z.pps|default('0.00') }}</td>
+            <td class="num">{{ z.expected_value|default('0.00') }}</td>
+            {% set delta = z.efficiency_delta|default(0) %}
+            {% if delta > 0 %}
+            <td class="num positive">+{{ delta|round(2) }}</td>
+            {% elif delta < 0 %}
+            <td class="num negative">{{ delta|round(2) }}</td>
+            {% else %}
+            <td class="num">0.00</td>
+            {% endif %}
+          </tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="muted small" style="margin-top:6px;">
+      PPS = Points Per Shot. Efficiency Delta = PPS - Expected Value. Positive delta indicates above-expected performance.
+    </div>
+  </div>
+  {% endif %}
+
+  {% if clutch_stats and (clutch_stats.clutch_plays|default(0) > 0 or clutch_stats.clutch_fga|default(0) > 0) %}
+  <h2>Clutch Performance</h2>
+  <div class="card">
+    <div class="kpis">
+      <div class="kpi">
+        <div class="label">Clutch FG%</div>
+        <div class="value">{{ clutch_stats.clutch_fg_pct|default('0.0') }}%</div>
+        <div class="muted small">{{ clutch_stats.clutch_fgm|default(0) }}/{{ clutch_stats.clutch_fga|default(0) }}</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Clutch Points</div>
+        <div class="value">{{ clutch_stats.clutch_points|default(0) }}</div>
+        <div class="muted small">{{ clutch_stats.clutch_plays|default(0) }} plays</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Clutch TOV</div>
+        <div class="value">{{ clutch_stats.clutch_tov|default(0) }}</div>
+        <div class="muted small">Turnovers</div>
+      </div>
+    </div>
+    <div class="muted small" style="margin-top:8px;">
+      Clutch time = last 5 minutes of game with score margin ≤5 points.
+    </div>
+  </div>
+  {% endif %}
+
+  {% if top_performers and top_performers|length > 0 %}
+  <h2>Top Performers</h2>
+  <div class="card">
+    {% for p in top_performers %}
+    <div class="top-performer">
+      <div class="num">{{ loop.index }}.</div>
+      <div class="name">{{ p.name|default('Unknown') }}</div>
+      <div class="num pts">{{ p.pts|default(0) }} pts</div>
+      {% if p.reb is not none %}<div class="muted small">{{ p.reb }} reb</div>{% endif %}
+      {% if p.ast is not none %}<div class="muted small">{{ p.ast }} ast</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   <h2>Efficiency</h2>
   <div class="split">

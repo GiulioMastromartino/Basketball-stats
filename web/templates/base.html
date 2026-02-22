@@ -150,6 +150,7 @@
         {% block extra_css %}{% endblock %}
     </head>
     <body>
+        {% if current_user.is_authenticated %}
         <!-- Sidebar Navigation -->
         <nav class="sidebar">
             <a href="{{ url_for('main.index') }}" class="sidebar-brand">
@@ -192,6 +193,14 @@
                         class="{% if request.endpoint == 'main.players' %}active{% endif %}"
                     >
                         <i class="fas fa-users"></i> Players
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a
+                        href="{{ url_for('main.lineups_page') }}"
+                        class="{% if request.endpoint == 'main.lineups_page' %}active{% endif %}"
+                    >
+                        <i class="fas fa-user-friends"></i> Lineups
                     </a>
                 </li>
                 <li class="nav-item">
@@ -245,9 +254,10 @@
                 </li>
             </ul>
         </nav>
+        {% endif %}
 
         <!-- Page Content -->
-        <main class="main-content">
+        <main class="main-content" style="{% if not current_user.is_authenticated %}margin-left: 0;{% endif %}">
             {% with messages = get_flashed_messages(with_categories=true) %} {%
             if messages %} {% for category, message in messages %}
             <div

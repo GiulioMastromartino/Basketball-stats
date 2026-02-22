@@ -170,6 +170,24 @@
         </button>
     </form>
 
+    <!-- Admin: Create Test Game -->
+    {% if current_user.is_authenticated and current_user.is_manager %}
+    <div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+        <h4 style="margin-bottom: 10px;">
+            <i class="fas fa-flask"></i> Developer Tools
+        </h4>
+        <p style="margin-bottom: 15px; opacity: 0.9; font-size: 0.9rem;">
+            Create a comprehensive test game with all features enabled (lineups, shot locations, opponent events, etc.)
+        </p>
+        <form action="{{ url_for('main.create_test_game') }}" method="POST" style="display: inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn btn-light" style="font-weight: 600;">
+                <i class="fas fa-magic"></i> Create Test Game
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
     <!-- Format Requirements -->
     <div style="
         background: var(--primary-light);

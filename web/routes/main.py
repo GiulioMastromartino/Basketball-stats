@@ -10,7 +10,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required
 from sqlalchemy import case, func
 
-from core.models import Game, PlayerStat, ShotEvent, GameEvent, db, Play, User, SystemSetting
+from core.models import Game, PlayerStat, ShotEvent, GameEvent, db, Play, User, SystemSetting, Lineup
 from core.csv_processor import CSVProcessor
 from core.parser import parse_game_pdf
 from core.services import create_game_from_live_data
@@ -1343,3 +1343,64 @@ def advanced_analytics():
         plays=plays,
         games=games
     )
+
+
+@main_bp.route("/game/<int:game_id>/advanced-report")
+@login_required
+def advanced_game_report(game_id):
+    """Advanced game report page with comprehensive analytics"""
+    game = Game.query.get_or_404(game_id)
+    return render_template("reports/advanced_game_report.html", game=game, game_id=game_id)
+
+
+# =============================================================================
+# LINEUPS PAGES
+# =============================================================================
+
+
+@main_bp.route("/lineups")
+@login_required
+def lineups_page():
+    """Lineups browser page - shows all lineup combinations with stats."""
+    return render_template("lineups.html")
+
+
+@main_bp.route("/lineup/<int:lineup_id>")
+@login_required
+def lineup_card(lineup_id):
+    """Single lineup card page with detailed stats."""
+    from core.models import Lineup
+    
+    lineup = Lineup.query.get_or_404(lineup_id)
+    return render_template("lineup_card.html", lineup=lineup)
+
+
+# =============================================================================
+# TEST GAME GENERATOR
+# =============================================================================
+
+
+@main_bp.route("/create-test-game", methods=["POST"])
+@login_required
+@admin_required
+def create_test_game():
+    """Create a comprehensive test game with all features for testing."""
+    import sys
+    import os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    
+    from scripts.generate_test_game import generate_test_game_payload
+    
+    try:
+        payload = generate_test_game_payload()
+        game = create_game_from_live_data(payload)
+        
+        current_app.logger.info(f"Test game created: Game ID {game.id}")
+        flash(f"Test game created successfully! {game.opponent} ({game.team_score}-{game.opponent_score})", "success")
+        return redirect(url_for("main.game_detail", game_id=game.id))
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to create test game: {e}", exc_info=True)
+        flash(f"Error creating test game: {str(e)}", "danger")
+        return redirect(url_for("main.upload_game"))

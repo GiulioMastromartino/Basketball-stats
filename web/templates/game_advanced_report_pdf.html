@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Advanced Game Report</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; color: #1a1a1a; background: #fff; }
+    
+    /* Header */
+    .report-header { 
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); 
+      color: white; 
+      border-radius: 8px; 
+      padding: 15px 20px; 
+      margin-bottom: 15px;
+    }
+    .report-header h1 { font-size: 18px; font-weight: 600; margin-bottom: 5px; }
+    .report-header .subtitle { font-size: 11px; opacity: 0.85; }
+    .report-header .score-line { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      margin-top: 10px; 
+      padding-top: 10px; 
+      border-top: 1px solid rgba(255,255,255,0.2); 
+    }
+    .report-header .team-name { font-size: 14px; font-weight: 600; }
+    .report-header .score { font-size: 28px; font-weight: 700; }
+    .report-header .result { 
+      font-size: 12px; 
+      padding: 4px 10px; 
+      border-radius: 4px; 
+      font-weight: 600;
+    }
+    .report-header .result.win { background: rgba(40,167,69,0.3); color: #90EE90; }
+    .report-header .result.loss { background: rgba(220,53,69,0.3); color: #FFB6C1; }
+    
+    /* KPIs Row */
+    .kpi-row { display: flex; gap: 10px; margin-bottom: 15px; }
+    .kpi-card { 
+      flex: 1; 
+      background: #f8f9fa; 
+      border-radius: 6px; 
+      padding: 12px; 
+      text-align: center;
+      border-left: 3px solid #1e3c72;
+    }
+    .kpi-card .label { font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi-card .value { font-size: 18px; font-weight: 700; color: #1e3c72; margin-top: 4px; }
+    .kpi-card .sub { font-size: 8px; color: #888; margin-top: 2px; }
+    .kpi-card.positive .value { color: #28a745; }
+    .kpi-card.negative .value { color: #dc3545; }
+    
+    /* Section */
+    .section { margin-bottom: 15px; }
+    .section-title { 
+      font-size: 12px; 
+      font-weight: 600; 
+      color: #1e3c72; 
+      text-transform: uppercase; 
+      letter-spacing: 1px; 
+      padding-bottom: 6px; 
+      border-bottom: 2px solid #1e3c72; 
+      margin-bottom: 10px;
+    }
+    
+    /* Two Column Layout */
+    .two-col { display: flex; gap: 15px; }
+    .two-col .col { flex: 1; }
+    
+    /* Cards */
+    .card { 
+      background: #fff; 
+      border: 1px solid #e9ecef; 
+      border-radius: 6px; 
+      padding: 12px; 
+      margin-bottom: 10px;
+    }
+    
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; font-size: 9px; }
+    th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #eee; }
+    th { 
+      background: #f8f9fa; 
+      font-weight: 600; 
+      color: #495057; 
+      text-transform: uppercase; 
+      font-size: 8px; 
+      letter-spacing: 0.5px;
+    }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    td.highlight { font-weight: 700; color: #1e3c72; }
+    tr:nth-child(even) td { background: #fafafa; }
+    
+    /* Comparison Table */
+    .comparison-table th.team { text-align: center; }
+    .comparison-table td.team { text-align: center; font-weight: 600; }
+    .comparison-table td.team.us { color: #1e3c72; }
+    .comparison-table td.team.opp { color: #dc3545; }
+    
+    /* Shot Chart */
+    .shot-chart-section { display: flex; gap: 15px; }
+    .shot-chart-card { flex: 1; }
+    .shot-chart-card h4 { font-size: 11px; margin-bottom: 8px; color: #333; }
+    .shot-chart-card .stats { font-size: 8px; color: #666; margin-bottom: 8px; }
+    .court-svg { width: 100%; height: auto; }
+    
+    /* Progress Bars */
+    .bar-row { display: flex; align-items: center; margin-bottom: 8px; }
+    .bar-label { width: 80px; font-size: 9px; color: #666; }
+    .bar-container { flex: 1; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; }
+    .bar-fill.team { background: #1e3c72; }
+    .bar-fill.opp { background: #dc3545; }
+    .bar-value { width: 40px; text-align: right; font-size: 9px; font-weight: 600; }
+    
+    /* Quarterly */
+    .quarter-grid { display: flex; gap: 10px; }
+    .quarter-box { 
+      flex: 1; 
+      background: #f8f9fa; 
+      border-radius: 6px; 
+      padding: 10px; 
+      text-align: center;
+    }
+    .quarter-box .q-label { font-size: 9px; color: #666; font-weight: 600; }
+    .quarter-box .q-score { font-size: 16px; font-weight: 700; color: #1e3c72; }
+    .quarter-box .q-opp { font-size: 11px; color: #dc3545; }
+    
+    /* Top Performers */
+    .performers-grid { display: flex; gap: 10px; }
+    .performer-card { 
+      flex: 1; 
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
+      border-radius: 6px; 
+      padding: 12px; 
+      text-align: center;
+      border-left: 3px solid #1e3c72;
+    }
+    .performer-card .name { font-size: 11px; font-weight: 600; color: #333; }
+    .performer-card .points { font-size: 24px; font-weight: 700; color: #1e3c72; margin: 4px 0; }
+    .performer-card .details { font-size: 8px; color: #666; }
+    
+    /* Footer */
+    .footer { 
+      margin-top: 20px; 
+      padding-top: 10px; 
+      border-top: 1px solid #eee; 
+      font-size: 8px; 
+      color: #888; 
+      display: flex; 
+      justify-content: space-between;
+    }
+    
+    /* Page Break */
+    .page-break { page-break-before: always; }
+    
+    /* Clutch Section */
+    .clutch-card {
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      color: white;
+      border-radius: 6px;
+      padding: 15px;
+    }
+    .clutch-card .clutch-title { font-size: 10px; opacity: 0.8; margin-bottom: 10px; }
+    .clutch-stats { display: flex; gap: 20px; }
+    .clutch-stat { text-align: center; }
+    .clutch-stat .value { font-size: 20px; font-weight: 700; }
+    .clutch-stat .label { font-size: 8px; opacity: 0.7; }
+    
+    /* Zone Heatmap */
+    .zone-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .zone-item { background: #f8f9fa; border-radius: 4px; padding: 8px; text-align: center; }
+    .zone-item .zone-name { font-size: 8px; color: #666; text-transform: uppercase; }
+    .zone-item .zone-pct { font-size: 14px; font-weight: 700; color: #1e3c72; }
+    .zone-item .zone-detail { font-size: 7px; color: #888; }
+    
+    /* Player Table */
+    .player-table th, .player-table td { font-size: 8px; padding: 5px 4px; }
+    .player-table .player-name { font-weight: 600; color: #333; }
+  </style>
+</head>
+
+<body>
+  <!-- HEADER -->
+  <header class="report-header">
+    <h1>Advanced Game Report</h1>
+    <div class="subtitle">{{ game.date }} • {{ game.competition|default('Game') }}</div>
+    <div class="score-line">
+      <div>
+        <div class="team-name">{{ game.team_name|default('Home Team') }}</div>
+      </div>
+      <div>
+        <span class="score">{{ game.team_points }} - {{ game.opp_points }}</span>
+      </div>
+      <div style="text-align: right;">
+        <div class="team-name">{{ game.opp_name }}</div>
+        <span class="result {{ 'win' if game.team_points > game.opp_points else 'loss' }}">
+          {{ 'WIN' if game.team_points > game.opp_points else 'LOSS' }}
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- KEY METRICS -->
+  <div class="kpi-row">
+    <div class="kpi-card {{ 'positive' if report.team.net|default(0) > 0 else 'negative' }}">
+      <div class="label">Net Rating</div>
+      <div class="value">{{ report.team.net|default('--') }}</div>
+      <div class="sub">Per 100 possessions</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Offensive Rating</div>
+      <div class="value">{{ report.team.oer|default('--') }}</div>
+      <div class="sub">Opp: {{ report.opp.oer|default('--') }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Defensive Rating</div>
+      <div class="value">{{ report.team.der|default('--') }}</div>
+      <div class="sub">Opp: {{ report.opp.der|default('--') }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Possessions</div>
+      <div class="value">{{ report.team.possessions|default('--') }}</div>
+      <div class="sub">Estimated</div>
+    </div>
+  </div>
+
+  <!-- TOP PERFORMERS -->
+  <div class="section">
+    <div class="section-title">Top Performers</div>
+    <div class="performers-grid">
+      {% for player in report.players[:3] %}
+      <div class="performer-card">
+        <div class="name">{{ player.name }}</div>
+        <div class="points">{{ player.pts }}</div>
+        <div class="details">{{ player.min|round(1) }} min • {{ player.reb }} reb • {{ player.ast }} ast</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- FOUR FACTORS -->
+  <div class="section">
+    <div class="section-title">Four Factors</div>
+    <div class="card">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Factor</th>
+            <th class="team">Us</th>
+            <th class="team">Opponent</th>
+            <th>Differential</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>eFG%</td>
+            <td class="team us">{{ report.team.efg_pct|default('--') }}%</td>
+            <td class="team opp">{{ report.opp.efg_pct|default('--') }}%</td>
+            <td class="num">{{ (report.team.efg_pct|default(0) - report.opp.efg_pct|default(0))|round(1) }}%</td>
+          </tr>
+          <tr>
+            <td>TOV%</td>
+            <td class="team us">{{ report.team.tov_pct|default('--') }}%</td>
+            <td class="team opp">{{ report.opp.tov_pct|default('--') }}%</td>
+            <td class="num">{{ (report.opp.tov_pct|default(0) - report.team.tov_pct|default(0))|round(1) }}%</td>
+          </tr>
+          <tr>
+            <td>ORB%</td>
+            <td class="team us">{{ report.team.orb_pct|default('--') }}%</td>
+            <td class="team opp">{{ report.opp.orb_pct|default('--') }}%</td>
+            <td class="num">{{ (report.team.orb_pct|default(0) - report.opp.orb_pct|default(0))|round(1) }}%</td>
+          </tr>
+          <tr>
+            <td>FT Rate</td>
+            <td class="team us">{{ report.team.ftr|default('--') }}%</td>
+            <td class="team opp">{{ report.opp.ftr|default('--') }}%</td>
+            <td class="num">{{ (report.team.ftr|default(0) - report.opp.ftr|default(0))|round(1) }}%</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="font-size: 8px; color: #888; margin-top: 8px;">
+        Four Factors: Shooting, Turnovers, Rebounding, Free Throws. Differential shows our advantage.
+      </div>
+    </div>
+  </div>
+
+  <!-- SHOT CHARTS -->
+  <div class="section">
+    <div class="section-title">Shot Charts</div>
+    <div class="shot-chart-section">
+      <div class="shot-chart-card card">
+        <h4>{{ game.team_name|default('Home Team') }}</h4>
+        <div class="stats">
+          FG: {{ report.team.fg|default('--') }} ({{ report.team.fg_pct|default(0) }}%) • 
+          3P: {{ report.team.tp|default('--') }} ({{ report.team.tp_pct|default(0) }}%)
+        </div>
+        <svg class="court-svg" viewBox="0 0 500 470" xmlns="http://www.w3.org/2000/svg">
+          <!-- Court background -->
+          <rect x="10" y="10" width="480" height="450" fill="#f8f9fa" stroke="#ddd" stroke-width="2"/>
+          <!-- Three point line -->
+          <path d="M 30,10 L 30,140 A 220 220 0 0 0 470 140 L 470,10" fill="none" stroke="#aaa" stroke-width="2"/>
+          <!-- Paint -->
+          <rect x="190" y="10" width="120" height="190" fill="none" stroke="#aaa" stroke-width="2"/>
+          <!-- Free throw circle -->
+          <circle cx="250" cy="190" r="60" fill="none" stroke="#aaa" stroke-width="2"/>
+          <!-- Rim -->
+          <circle cx="250" cy="60" r="20" fill="none" stroke="#f90" stroke-width="3"/>
+          
+          {% if report.team.shots %}
+            {% for s in report.team.shots %}
+              <circle cx="{{ s.x|default(250) }}" cy="{{ s.y|default(50) }}" r="6" 
+                      fill="{{ '#28a745' if s.made else '#dc3545' }}" opacity="0.8"/>
+            {% endfor %}
+          {% endif %}
+        </svg>
+        <div style="font-size: 8px; margin-top: 5px;">
+          <span style="color: #28a745;">●</span> Made  
+          <span style="color: #dc3545;">●</span> Missed
+        </div>
+      </div>
+      
+      <div class="shot-chart-card card">
+        <h4>{{ game.opp_name|default('Opponent') }}</h4>
+        <div class="stats">
+          FG: {{ report.opp.fg|default('--') }} ({{ report.opp.fg_pct|default(0) }}%) • 
+          3P: {{ report.opp.tp|default('--') }} ({{ report.opp.tp_pct|default(0) }}%)
+        </div>
+        <svg class="court-svg" viewBox="0 0 500 470" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="480" height="450" fill="#f8f9fa" stroke="#ddd" stroke-width="2"/>
+          <path d="M 30,10 L 30,140 A 220 220 0 0 0 470 140 L 470,10" fill="none" stroke="#aaa" stroke-width="2"/>
+          <rect x="190" y="10" width="120" height="190" fill="none" stroke="#aaa" stroke-width="2"/>
+          <circle cx="250" cy="190" r="60" fill="none" stroke="#aaa" stroke-width="2"/>
+          <circle cx="250" cy="60" r="20" fill="none" stroke="#f90" stroke-width="3"/>
+          
+          {% if report.opp.shots %}
+            {% for s in report.opp.shots %}
+              <circle cx="{{ s.x|default(250) }}" cy="{{ s.y|default(50) }}" r="6" 
+                      fill="{{ '#28a745' if s.made else '#dc3545' }}" opacity="0.8"/>
+            {% endfor %}
+          {% endif %}
+        </svg>
+        <div style="font-size: 8px; margin-top: 5px;">
+          <span style="color: #28a745;">●</span> Made  
+          <span style="color: #dc3545;">●</span> Missed
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ZONE BREAKDOWN -->
+  <div class="section">
+    <div class="section-title">Zone Efficiency</div>
+    <div class="card">
+      <div class="zone-grid">
+        {% for zone_name in ['Rim', 'Paint', 'Midrange', 'Corner_3', 'Above_Break_3', 'FT'] %}
+        <div class="zone-item">
+          <div class="zone-name">{{ zone_name.replace('_', ' ') }}</div>
+          <div class="zone-pct">
+            {{ report.team.zone_stats[zone_name].fg_pct|default('--') if report.team.zone_stats else '--' }}%
+          </div>
+          <div class="zone-detail">
+            {{ report.team.zone_stats[zone_name].attempts|default(0) if report.team.zone_stats else 0 }} att
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ADVANCED METRICS -->
+  <div class="section">
+    <div class="section-title">Advanced Team Metrics</div>
+    <div class="two-col">
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th colspan="2">Efficiency</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>True Shooting %</td><td class="num">{{ report.team.ts_pct|default('--') }}%</td></tr>
+            <tr><td>3-Point Attempt Rate</td><td class="num">{{ report.team.tpar|default('--') }}%</td></tr>
+            <tr><td>Assist %</td><td class="num">{{ report.team.ast_pct|default('--') }}%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th colspan="2">Defense</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Steal %</td><td class="num">{{ report.team.stl_pct|default('--') }}%</td></tr>
+            <tr><td>Block %</td><td class="num">{{ report.team.blk_pct|default('--') }}%</td></tr>
+            <tr><td>Def Reb %</td><td class="num">{{ report.team.drb_pct|default('--') }}%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- POINTS BREAKDOWN -->
+  <div class="section">
+    <div class="section-title">Points Breakdown</div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th class="num">{{ game.team_name|default('Us') }}</th>
+            <th class="num">{{ game.opp_name|default('Opp') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Points per FT Attempt</td>
+            <td class="num">{{ report.team.ppft|default('--') }}</td>
+            <td class="num">{{ report.opp.ppft|default('--') }}</td>
+          </tr>
+          <tr>
+            <td>Points per 2PT Attempt</td>
+            <td class="num">{{ report.team.pp2ps|default('--') }}</td>
+            <td class="num">{{ report.opp.pp2ps|default('--') }}</td>
+          </tr>
+          <tr>
+            <td>Points per 3PT Attempt</td>
+            <td class="num">{{ report.team.pp3ps|default('--') }}</td>
+            <td class="num">{{ report.opp.pp3ps|default('--') }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE BREAK -->
+  <div class="page-break"></div>
+
+  <!-- PLAYER STATISTICS -->
+  <div class="section">
+    <div class="section-title">Player Statistics</div>
+    <div class="card">
+      <table class="player-table">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th class="num">MIN</th>
+            <th class="num">PTS</th>
+            <th class="num">FG</th>
+            <th class="num">3P</th>
+            <th class="num">FT</th>
+            <th class="num">REB</th>
+            <th class="num">AST</th>
+            <th class="num">STL</th>
+            <th class="num">BLK</th>
+            <th class="num">TOV</th>
+            <th class="num">TS%</th>
+            <th class="num">eFG%</th>
+            <th class="num">USG%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in report.players %}
+          <tr>
+            <td class="player-name">{{ p.name }}</td>
+            <td class="num">{{ p.min|round(1) }}</td>
+            <td class="num highlight">{{ p.pts }}</td>
+            <td class="num">{{ p.fgm|default('-') }}/{{ p.fga|default('-') }}</td>
+            <td class="num">{{ p.tpm|default('-') }}/{{ p.tpa|default('-') }}</td>
+            <td class="num">{{ p.ftm|default('-') }}/{{ p.fta|default('-') }}</td>
+            <td class="num">{{ p.reb }}</td>
+            <td class="num">{{ p.ast }}</td>
+            <td class="num">{{ p.stl|default(0) }}</td>
+            <td class="num">{{ p.blk|default(0) }}</td>
+            <td class="num">{{ p.tov }}</td>
+            <td class="num">{{ p.ts_pct }}%</td>
+            <td class="num">{{ p.efg_pct }}%</td>
+            <td class="num">{{ p.usg_pct }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- CLUTCH PERFORMANCE -->
+  <div class="section">
+    <div class="section-title">Clutch Performance</div>
+    <div class="clutch-card">
+      <div class="clutch-title">Last 5 Minutes • Margin ≤ 5 Points</div>
+      <div class="clutch-stats">
+        <div class="clutch-stat">
+          <div class="value">{{ report.clutch.plays|default(0) }}</div>
+          <div class="label">Clutch Plays</div>
+        </div>
+        <div class="clutch-stat">
+          <div class="value">{{ report.clutch.points|default(0) }}</div>
+          <div class="label">Points</div>
+        </div>
+        <div class="clutch-stat">
+          <div class="value">{{ report.clutch.fgm|default(0) }}/{{ report.clutch.fga|default(0) }}</div>
+          <div class="label">FG</div>
+        </div>
+        <div class="clutch-stat">
+          <div class="value">
+            {{ (report.clutch.fgm / report.clutch.fga * 100)|round(1) if report.clutch.fga and report.clutch.fga >  else 0 }}%
+          </div>
+          <div class="label">FG%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUARTERLY BREAKDOWN -->
+  <div class="section">
+    <div class="section-title">Quarterly Scoring</div>
+    <div class="quarter-grid">
+      {% for q in [1, 2, 3, 4] %}
+      <div class="quarter-box">
+        <div class="q-label">Q{{ q }}</div>
+        <div class="q-score">{{ report.quarters[q].team|default(0) if report.quarters else 0 }}</div>
+        <div class="q-opp">{{ report.quarters[q].opp|default(0) if report.quarters else 0 }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- REBOUNDING -->
+  <div class="section">
+    <div class="section-title">Rebounding</div>
+    <div class="two-col">
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th colspan="2">Team</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Offensive Reb</td><td class="num">{{ report.team.orb|default(0) }}</td></tr>
+            <tr><td>Defensive Reb</td><td class="num">{{ report.team.drb|default(0) }}</td></tr>
+            <tr><td>Total Reb</td><td class="num">{{ report.team.trb|default(0) }}</td></tr>
+            <tr><td>ORB%</td><td class="num">{{ report.team.orb_pct|default('--') }}%</td></tr>
+            <tr><td>DRB%</td><td class="num">{{ report.team.drb_pct|default('--') }}%</td></tr>
+            <tr><td>TRB%</td><td class="num">{{ report.team.trb_pct|default('--') }}%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th colspan="2">Opponent</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Offensive Reb</td><td class="num">{{ report.opp.orb|default(0) }}</td></tr>
+            <tr><td>Defensive Reb</td><td class="num">{{ report.opp.drb|default(0) }}</td></tr>
+            <tr><td>Total Reb</td><td class="num">{{ report.opp.trb|default(0) }}</td></tr>
+            <tr><td>ORB%</td><td class="num">{{ report.opp.orb_pct|default('--') }}%</td></tr>
+            <tr><td>DRB%</td><td class="num">{{ report.opp.drb_pct|default('--') }}%</td></tr>
+            <tr><td>TRB%</td><td class="num">{{ report.opp.trb_pct|default('--') }}%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div>Basketball Stats • Advanced Game Report</div>
+    <div>Generated: {{ report.generated_at|default('') }}</div>
+  </div>
+</body>
+</html>

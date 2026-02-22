@@ -3,52 +3,80 @@
 {% block title %}Advanced Analytics{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/analytics.css') }}">
+<style>
+.analytics-header { margin-bottom: 2rem; }
+.analytics-header h1 { font-size: 1.75rem; font-weight: 700; }
+.stat-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.07); margin-bottom: 1.5rem; }
+.loading-state { text-align: center; padding: 3rem; color: #6c757d; }
+.error-state { text-align: center; padding: 2rem; color: #dc3545; background: #f8d7da; border-radius: 8px; }
+.success-state { text-align: center; padding: 2rem; color: #28a745; background: #d4edda; border-radius: 8px; }
+.empty-state { text-align: center; padding: 2rem; color: #6c757d; }
+.shot-chart-container { background: #f8f9fa; border-radius: 8px; min-height: 400px; position: relative; }
+.zone-stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+.zone-stat-item { background: #f8f9fa; border-radius: 8px; padding: 1rem; text-align: center; }
+.debug-log { background: #1e1e1e; color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; border-radius: 8px; max-height: 200px; overflow-y: auto; margin-top: 1rem; }
+.debug-log .log-entry { margin: 2px 0; }
+.debug-log .log-info { color: #58a6ff; }
+.debug-log .log-error { color: #f85149; }
+.debug-log .log-success { color: #3fb950; }
+.progress-container { margin: 1rem 0; }
+.progress { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+.progress-bar { height: 100%; background: #1e3c72; transition: width 0.3s; }
+.nav-tabs-analytics { border-bottom: 2px solid #dee2e6; margin-bottom: 1.5rem; }
+.nav-tabs-analytics .nav-link { border: none; color: #6c757d; font-weight: 500; padding: 0.75rem 1.25rem; border-bottom: 3px solid transparent; }
+.nav-tabs-analytics .nav-link.active { color: #1e3c72; border-bottom-color: #1e3c72; background: transparent; }
+.factor-item { text-align: center; padding: 1rem; }
+.factor-item .factor-value { font-size: 2rem; font-weight: 700; color: #1e3c72; }
+.factor-item .factor-label { font-size: 0.75rem; color: #6c757d; text-transform: uppercase; }
+.factor-bar { height: 6px; background: #e9ecef; border-radius: 3px; margin-top: 0.5rem; }
+.factor-bar-fill { height: 100%; background: #1e3c72; border-radius: 3px; }
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
-    <h1 class="mb-4">Advanced Analytics Dashboard</h1>
-    
+    <div class="analytics-header">
+        <h1><i class="fas fa-chart-line mr-2"></i>Advanced Analytics</h1>
+    </div>
+
+    <!-- Status Display -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="stat-card">
+                <div id="status-display" class="success-state">
+                    <strong>JavaScript Status:</strong> <span id="js-status">Checking...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Navigation Tabs -->
-    <ul class="nav nav-tabs mb-4" id="analyticsTabs" role="tablist">
+    <ul class="nav nav-tabs-analytics" id="analyticsTabs" role="tablist">
         <li class="nav-item">
-            <a class="nav-link active" id="shot-charts-tab" data-bs-toggle="tab" href="#shot-charts" role="tab">
-                <i class="fas fa-basketball-ball"></i> Shot Charts
+            <a class="nav-link active" id="shot-charts-tab" data-toggle="tab" href="#shot-charts" role="tab">
+                <i class="fas fa-basketball-ball mr-1"></i> Shot Charts
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" id="lineup-tab" data-bs-toggle="tab" href="#lineup" role="tab">
-                <i class="fas fa-users"></i> Lineup Analysis
+            <a class="nav-link" id="four-factors-tab" data-toggle="tab" href="#four-factors" role="tab">
+                <i class="fas fa-chart-bar mr-1"></i> Four Factors
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" id="clutch-tab" data-bs-toggle="tab" href="#clutch" role="tab">
-                <i class="fas fa-clock"></i> Clutch Performance
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" id="four-factors-tab" data-bs-toggle="tab" href="#four-factors" role="tab">
-                <i class="fas fa-chart-bar"></i> Four Factors
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" id="player-stats-tab" data-bs-toggle="tab" href="#player-stats" role="tab">
-                <i class="fas fa-user"></i> Advanced Player Stats
+            <a class="nav-link" id="player-stats-tab" data-toggle="tab" href="#player-stats" role="tab">
+                <i class="fas fa-user mr-1"></i> Player Stats
             </a>
         </li>
     </ul>
-    
+
     <!-- Tab Content -->
-    <div class="tab-content" id="analyticsTabContent">
-        
+    <div class="tab-content">
         <!-- Shot Charts Tab -->
         <div class="tab-pane fade show active" id="shot-charts" role="tabpanel">
-            <!-- Filters -->
-            <div class="row mb-4">
+            <div class="row mb-3">
                 <div class="col-md-3">
-                    <label class="form-label">Player</label>
-                    <select id="player-filter" class="form-select">
+                    <label class="form-label small">Player</label>
+                    <select id="filter-player" class="form-control form-control-sm">
                         <option value="">All Players</option>
                         {% for player in players %}
                         <option value="{{ player }}">{{ player }}</option>
@@ -56,176 +84,52 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Game Type</label>
-                    <select id="game-type-filter" class="form-select">
+                    <label class="form-label small">Game Type</label>
+                    <select id="filter-game-type" class="form-control form-control-sm">
                         <option value="ALL">All Games</option>
-                        <option value="Season">Season Games</option>
-                        <option value="Friendly">Friendly Games</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Play Type</label>
-                    <select id="play-filter" class="form-select">
-                        <option value="">All Plays</option>
-                        {% for play in plays %}
-                        <option value="{{ play.id }}">{{ play.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Chart Type</label>
-                    <select id="chart-type" class="form-select">
-                        <option value="scatter">Shot Markers</option>
-                        <option value="hexbin">Hexbin Heatmap</option>
-                        <option value="zones">Zone Efficiency</option>
+                        <option value="Season">Season</option>
+                        <option value="Friendly">Friendly</option>
                     </select>
                 </div>
             </div>
-            
-            <!-- Shot Chart Display -->
+
+            <div class="progress-container" id="progress-container" style="display:none;">
+                <div class="progress">
+                    <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+                </div>
+            </div>
+
             <div class="row">
                 <div class="col-lg-8">
-                    <div class="shot-chart-container" id="shot-chart-container">
-                        <!-- Canvas injected by JS -->
+                    <div class="stat-card">
+                        <div class="shot-chart-container" id="shot-chart-container">
+                            <div class="loading-state" id="shot-loading">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Loading shot chart...</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-lg-4">
-                    <div class="zone-heatmap" id="zone-heatmap-container">
-                        <h5>Zone Efficiency</h5>
-                        <div id="zone-stats"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Lineup Analysis Tab -->
-        <div class="tab-pane fade" id="lineup" role="tabpanel">
-            <div class="row">
-                <div class="col-lg-6">
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Top 5-Man Lineups</h5>
-                        </div>
-                        <div class="card-body" id="lineup-rankings">
-                            <div class="text-center text-muted py-4">
-                                <i class="fas fa-spinner fa-spin fa-2x"></i>
-                                <p>Loading lineup data...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-6">
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Duo Compatibility Matrix</h5>
-                        </div>
-                        <div class="card-body" id="duo-matrix">
-                            <div class="text-center text-muted py-4">
-                                <i class="fas fa-spinner fa-spin fa-2x"></i>
-                                <p>Loading duo data...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- On/Off Court Splits -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">Player On/Off Court Splits</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <select id="onoff-player" class="form-select">
-                                <option value="">Select Player</option>
-                                {% for player in players %}
-                                <option value="{{ player }}">{{ player }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-                    <div id="onoff-results" class="on-off-container">
-                        <div class="on-off-card on-court">
-                            <div class="on-off-title">On Court</div>
-                            <div class="on-off-stats">
-                                <div class="text-center">
-                                    <div class="fs-4 fw-bold" id="on-ortg">--</div>
-                                    <small class="text-muted">ORtg</small>
-                                </div>
-                                <div class="text-center">
-                                    <div class="fs-4 fw-bold" id="on-drtg">--</div>
-                                    <small class="text-muted">DRtg</small>
-                                </div>
-                                <div class="text-center">
-                                    <div class="fs-4 fw-bold" id="on-net">--</div>
-                                    <small class="text-muted">Net</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="on-off-card off-court">
-                            <div class="on-off-title">Off Court</div>
-                            <div class="on-off-stats">
-                                <div class="text-center">
-                                    <div class="fs-4 fw-bold" id="off-ortg">--</div>
-                                    <small class="text-muted">ORtg</small>
-                                </div>
-                                <div class="text-center">
-                                    <div class="fs-4 fw-bold" id="off-drtg">--</div>
-                                    <small class="text-muted">DRtg</small>
-                                </div>
-                                <div class="text-center">
-                                    <div class="fs-4 fw-bold" id="off-net">--</div>
-                                    <small class="text-muted">Net</small>
-                                </div>
+                    <div class="stat-card">
+                        <h5>Zone Breakdown</h5>
+                        <div id="zone-stats">
+                            <div class="loading-state">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Loading...</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <!-- Clutch Performance Tab -->
-        <div class="tab-pane fade" id="clutch" role="tabpanel">
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i>
-                <strong>Clutch Time Definition:</strong> Score within 5 points, less than 5 minutes remaining
-            </div>
-            
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Season Clutch Performance</h5>
-                </div>
-                <div class="card-body">
-                    <table class="table table-striped" id="clutch-table">
-                        <thead>
-                            <tr>
-                                <th>Player</th>
-                                <th>Clutch Plays</th>
-                                <th>Points</th>
-                                <th>FG%</th>
-                                <th>FGM/FGA</th>
-                            </tr>
-                        </thead>
-                        <tbody id="clutch-tbody">
-                            <tr>
-                                <td colspan="5" class="text-center text-muted py-4">
-                                    <i class="fas fa-spinner fa-spin fa-2x"></i>
-                                    <p>Loading clutch data...</p>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        
+
         <!-- Four Factors Tab -->
         <div class="tab-pane fade" id="four-factors" role="tabpanel">
-            <div class="row mb-4">
-                <div class="col-md-4">
-                    <label class="form-label">Game</label>
-                    <select id="four-factors-game" class="form-select">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Game</label>
+                    <select id="filter-ff-game" class="form-control form-control-sm">
                         <option value="">Season Average</option>
                         {% for game in games %}
                         <option value="{{ game.id }}">{{ game.date }} vs {{ game.opponent }}</option>
@@ -233,75 +137,17 @@
                     </select>
                 </div>
             </div>
-            
-            <div class="four-factors-grid" id="four-factors-display">
-                <div class="factor-card">
-                    <div class="factor-value" id="factor-efg">--</div>
-                    <div class="factor-label">eFG%</div>
-                    <div class="factor-bar">
-                        <div class="factor-bar-fill" id="bar-efg" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div class="factor-card">
-                    <div class="factor-value" id="factor-tov">--</div>
-                    <div class="factor-label">TOV%</div>
-                    <div class="factor-bar">
-                        <div class="factor-bar-fill" id="bar-tov" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div class="factor-card">
-                    <div class="factor-value" id="factor-orb">--</div>
-                    <div class="factor-label">ORB%</div>
-                    <div class="factor-bar">
-                        <div class="factor-bar-fill" id="bar-orb" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div class="factor-card">
-                    <div class="factor-value" id="factor-ftr">--</div>
-                    <div class="factor-label">FT Rate</div>
-                    <div class="factor-bar">
-                        <div class="factor-bar-fill" id="bar-ftr" style="width: 0%"></div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Four Factors Explanation</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <h6>eFG% (Effective FG%)</h6>
-                            <p class="small text-muted">Measures shooting efficiency, accounting for 3-pointers being worth more.</p>
-                            <code>eFG% = (FGM + 0.5*3PM) / FGA</code>
-                        </div>
-                        <div class="col-md-3">
-                            <h6>TOV% (Turnover %)</h6>
-                            <p class="small text-muted">Measures how often possessions end in turnovers.</p>
-                            <code>TOV% = TOV / Possessions</code>
-                        </div>
-                        <div class="col-md-3">
-                            <h6>ORB% (Offensive Rebound %)</h6>
-                            <p class="small text-muted">Measures offensive rebounding effectiveness.</p>
-                            <code>ORB% = OREB / Total Rebounds</code>
-                        </div>
-                        <div class="col-md-3">
-                            <h6>FT Rate (Free Throw Rate)</h6>
-                            <p class="small text-muted">Measures ability to get to the free throw line.</p>
-                            <code>FT Rate = FTM / FGA</code>
-                        </div>
-                    </div>
-                </div>
+            <div class="row" id="four-factors-content">
+                <div class="col-12"><div class="loading-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div></div>
             </div>
         </div>
-        
-        <!-- Advanced Player Stats Tab -->
+
+        <!-- Player Stats Tab -->
         <div class="tab-pane fade" id="player-stats" role="tabpanel">
-            <div class="row mb-4">
+            <div class="row mb-3">
                 <div class="col-md-4">
-                    <label class="form-label">Select Player</label>
-                    <select id="advanced-player" class="form-select">
+                    <label class="form-label small">Select Player</label>
+                    <select id="filter-player-stats" class="form-control form-control-sm">
                         <option value="">Choose a player...</option>
                         {% for player in players %}
                         <option value="{{ player }}">{{ player }}</option>
@@ -309,90 +155,18 @@
                     </select>
                 </div>
             </div>
-            
-            <div id="player-advanced-stats" style="display: none;">
-                <div class="row">
-                    <div class="col-lg-4">
-                        <div class="scouting-card">
-                            <div class="scouting-header">
-                                <div class="scouting-avatar">
-                                    <i class="fas fa-user"></i>
-                                </div>
-                                <div>
-                                    <div class="scouting-name" id="scout-name">--</div>
-                                    <div class="scouting-position">Season Stats</div>
-                                </div>
-                            </div>
-                            <div class="scouting-body">
-                                <div class="scouting-stats-grid">
-                                    <div class="scouting-stat">
-                                        <div class="scouting-stat-value" id="scout-ppg">--</div>
-                                        <div class="scouting-stat-label">PPG</div>
-                                    </div>
-                                    <div class="scouting-stat">
-                                        <div class="scouting-stat-value" id="scout-rpg">--</div>
-                                        <div class="scouting-stat-label">RPG</div>
-                                    </div>
-                                    <div class="scouting-stat">
-                                        <div class="scouting-stat-value" id="scout-apg">--</div>
-                                        <div class="scouting-stat-label">APG</div>
-                                    </div>
-                                    <div class="scouting-stat">
-                                        <div class="scouting-stat-value" id="scout-fg">--</div>
-                                        <div class="scouting-stat-label">FG%</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-8">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0">Advanced Metrics</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-4 mb-3">
-                                        <div class="text-center p-3 bg-light rounded">
-                                            <div class="fs-3 fw-bold" id="adv-usage">--</div>
-                                            <small class="text-muted">Usage Rate %</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4 mb-3">
-                                        <div class="text-center p-3 bg-light rounded">
-                                            <div class="fs-3 fw-bold" id="adv-pps">--</div>
-                                            <small class="text-muted">Points Per Shot</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4 mb-3">
-                                        <div class="text-center p-3 bg-light rounded">
-                                            <div class="fs-3 fw-bold" id="adv-ts">--</div>
-                                            <small class="text-muted">True Shooting %</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4 mb-3">
-                                        <div class="text-center p-3 bg-light rounded">
-                                            <div class="fs-3 fw-bold" id="adv-efg">--</div>
-                                            <small class="text-muted">Effective FG%</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4 mb-3">
-                                        <div class="text-center p-3 bg-light rounded">
-                                            <div class="fs-3 fw-bold" id="adv-sqdelta">--</div>
-                                            <small class="text-muted">Shot Quality Delta</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4 mb-3">
-                                        <div class="text-center p-3 bg-light rounded">
-                                            <div class="fs-3 fw-bold" id="adv-poss">--</div>
-                                            <small class="text-muted">Possessions/Game</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div id="player-stats-content">
+                <div class="empty-state"><p>Select a player to view stats</p></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debug Log -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="stat-card">
+                <h5>Debug Log</h5>
+                <div class="debug-log" id="debug-log"></div>
             </div>
         </div>
     </div>
@@ -400,484 +174,309 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/shot_charts.js') }}"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    let currentChart = null; // Track current chart instance
-    let demoModeActive = false;
+// Simple debug logger
+var debugEl = document.getElementById('debug-log');
+function log(msg, type) {
+    type = type || 'info';
+    var d = new Date();
+    var time = d.toLocaleTimeString() + '.' + d.getMilliseconds();
+    var entry = document.createElement('div');
+    entry.className = 'log-entry log-' + type;
+    entry.textContent = '[' + time + '] ' + msg;
+    debugEl.appendChild(entry);
+    debugEl.scrollTop = debugEl.scrollHeight;
+    console.log('[' + type.toUpperCase() + ']', msg);
+}
 
-    // Initialize shot chart
-    loadShotChart();
+// Set initial status
+document.getElementById('js-status').textContent = 'Loaded OK';
+log('JavaScript loaded and running', 'success');
+
+// Simple fetch wrapper
+function fetchData(url, callback) {
+    log('Fetching: ' + url, 'info');
     
-    // Filter change handlers
-    document.getElementById('player-filter').addEventListener('change', loadShotChart);
-    document.getElementById('game-type-filter').addEventListener('change', loadShotChart);
-    document.getElementById('play-filter').addEventListener('change', loadShotChart);
-    document.getElementById('chart-type').addEventListener('change', loadShotChart);
-
-    function checkAndLoadDemoData(dataSource, dataType) {
-        // Simple heuristic: if we expected data but got none (or empty), trigger demo
-        const isEmpty = !dataSource || 
-                        (Array.isArray(dataSource) && dataSource.length === 0) ||
-                        (typeof dataSource === 'object' && Object.keys(dataSource).length === 0);
-        
-        if (isEmpty && !demoModeActive) {
-            console.log(`No data found for ${dataType}, loading demo data...`);
-            loadDemoData();
-        }
-    }
-
-    function loadDemoData() {
-        if (demoModeActive) return;
-        demoModeActive = true;
-
-        // Show banner
-        const container = document.querySelector('.container-fluid');
-        if (container) {
-            const banner = document.createElement('div');
-            banner.className = 'alert alert-info alert-dismissible fade show';
-            banner.innerHTML = `
-                <strong><i class="fas fa-info-circle"></i> Demo Mode Active</strong> 
-                No data was found for this view, so we're showing sample data to demonstrate functionality.
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            `;
-            container.insertBefore(banner, container.firstChild);
-        }
-
-        // 1. Populate Dropdowns if empty
-        const playerSelect = document.getElementById('player-filter');
-        if (playerSelect && playerSelect.options.length <= 1) {
-            ['Demo Curry', 'Demo James', 'Demo Durant'].forEach(p => {
-                playerSelect.add(new Option(p, p));
-            });
-            // Also update other player selects
-            ['onoff-player', 'advanced-player'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    ['Demo Curry', 'Demo James', 'Demo Durant'].forEach(p => el.add(new Option(p, p)));
-                }
-            });
-        }
-        
-        const playSelect = document.getElementById('play-filter');
-        if (playSelect && playSelect.options.length <= 1) {
-            playSelect.add(new Option('Pick & Roll', '1'));
-            playSelect.add(new Option('Iso', '2'));
-        }
-
-        // 2. Shot Chart Data
-        const demoShots = [
-            { x_loc: 250, y_loc: 50, result: 'made', points: 2, shot_type: '2pt' }, // Rim
-            { x_loc: 260, y_loc: 60, result: 'missed', points: 0, shot_type: '2pt' }, // Rim
-            { x_loc: 100, y_loc: 150, result: 'made', points: 2, shot_type: '2pt' }, // Midrange
-            { x_loc: 400, y_loc: 150, result: 'missed', points: 0, shot_type: '2pt' }, // Midrange
-            { x_loc: 50, y_loc: 50, result: 'made', points: 3, shot_type: '3pt' }, // Corner 3
-            { x_loc: 450, y_loc: 50, result: 'made', points: 3, shot_type: '3pt' }, // Corner 3
-            { x_loc: 250, y_loc: 300, result: 'made', points: 3, shot_type: '3pt' }, // Top 3
-            { x_loc: 200, y_loc: 350, result: 'missed', points: 0, shot_type: '3pt' }, // Deep 3
-        ];
-        
-        if (currentChart && currentChart.loadShots) {
-            currentChart.loadShots(demoShots);
-        }
-
-        // 3. Heatmap Data
-        const demoHeatmap = {
-            'Rim': { fg_pct: 65, attempts: 20, actual_pps: 1.3, expected_value: 1.1, efficiency_delta: 0.2 },
-            'Paint': { fg_pct: 45, attempts: 15, actual_pps: 0.9, expected_value: 0.95, efficiency_delta: -0.05 },
-            'Midrange': { fg_pct: 40, attempts: 25, actual_pps: 0.8, expected_value: 0.85, efficiency_delta: -0.05 },
-            'Corner_3': { fg_pct: 42, attempts: 12, actual_pps: 1.26, expected_value: 1.1, efficiency_delta: 0.16 },
-            'Above_Break_3': { fg_pct: 35, attempts: 30, actual_pps: 1.05, expected_value: 1.05, efficiency_delta: 0.0 }
-        };
-        updateZoneDisplay(demoHeatmap);
-        if (currentChart && currentChart.loadZoneData) {
-            currentChart.loadZoneData(demoHeatmap);
-        }
-
-        // 4. Four Factors
-        document.getElementById('factor-efg').textContent = '54.2%';
-        document.getElementById('bar-efg').style.width = '54.2%';
-        document.getElementById('factor-tov').textContent = '14.5%';
-        document.getElementById('bar-tov').style.width = '14.5%';
-        document.getElementById('factor-orb').textContent = '28.3%';
-        document.getElementById('bar-orb').style.width = '28.3%';
-        document.getElementById('factor-ftr').textContent = '22.1%';
-        document.getElementById('bar-ftr').style.width = '22.1%';
-
-        // 5. Clutch Stats
-        const clutchTbody = document.getElementById('clutch-tbody');
-        if (clutchTbody) {
-            clutchTbody.innerHTML = `
-                <tr>
-                    <td>Demo Curry</td>
-                    <td>15</td>
-                    <td>24</td>
-                    <td>55.0%</td>
-                    <td>8/15</td>
-                </tr>
-                <tr>
-                    <td>Demo James</td>
-                    <td>12</td>
-                    <td>18</td>
-                    <td>48.0%</td>
-                    <td>6/12</td>
-                </tr>
-            `;
-        }
-
-        // 6. Lineup Rankings
-        const lineupContainer = document.getElementById('lineup-rankings');
-        if (lineupContainer) {
-            lineupContainer.innerHTML = `
-                <div class="lineup-card">
-                    <div class="lineup-players">
-                        <span class="lineup-player">Curry</span>
-                        <span class="lineup-player">Thompson</span>
-                        <span class="lineup-player">Wiggins</span>
-                        <span class="lineup-player">Green</span>
-                        <span class="lineup-player">Looney</span>
-                    </div>
-                    <div class="lineup-stats">
-                        <div class="lineup-stat"><div class="lineup-stat-value">118.5</div><div class="lineup-stat-label">ORtg</div></div>
-                        <div class="lineup-stat"><div class="lineup-stat-value">105.2</div><div class="lineup-stat-label">DRtg</div></div>
-                        <div class="lineup-stat net-positive"><div class="lineup-stat-value">+13.3</div><div class="lineup-stat-label">Net</div></div>
-                        <div class="lineup-stat"><div class="lineup-stat-value">450</div><div class="lineup-stat-label">Poss</div></div>
-                    </div>
-                </div>
-            `;
-        }
-        
-        // 7. Duo Matrix
-        const duoContainer = document.getElementById('duo-matrix');
-        if (duoContainer) {
-             const tbody = duoContainer.querySelector('tbody') || document.createElement('tbody');
-             if (!duoContainer.querySelector('table')) {
-                 duoContainer.innerHTML = '<table class="table table-sm"><thead><tr><th>Duo</th><th>Net Rt</th><th>Poss</th></tr></thead><tbody></tbody></table>';
-             }
-             const targetBody = duoContainer.querySelector('tbody');
-             targetBody.innerHTML = `
-                <tr class="table-success">
-                    <td>Curry & Green</td>
-                    <td>+15.2</td>
-                    <td>850</td>
-                </tr>
-                <tr class="table-danger">
-                    <td>Pool & Wiseman</td>
-                    <td>-5.4</td>
-                    <td>320</td>
-                </tr>
-             `;
-        }
-    }
-    
-    function loadShotChart() {
-        const player = document.getElementById('player-filter').value;
-        const gameType = document.getElementById('game-type-filter').value;
-        const playId = document.getElementById('play-filter').value;
-        const chartType = document.getElementById('chart-type').value;
-        const containerId = 'shot-chart-container';
-        
-        const params = new URLSearchParams();
-        if (player) params.append('player', player);
-        if (gameType) params.append('game_type', gameType);
-        if (playId) params.append('play_id', playId);
-        
-        // Clear container
-        const container = document.getElementById(containerId);
-        container.innerHTML = '';
-        
-        // Instantiate correct chart class
-        if (chartType === 'hexbin') {
-            currentChart = new HexbinShotChart(containerId, { width: 500, height: 470 });
-        } else if (chartType === 'zones') {
-            currentChart = new ZoneHeatmap(containerId, { width: 500, height: 470 });
-        } else {
-            // Default scatter
-            currentChart = new ShotChart(containerId, { width: 500, height: 470 });
-        }
-        
-        // Always load heatmap data for side panel
-        fetch(`/api/advanced/shots/heatmap?${params}`)
-            .then(r => r.json())
-            .then(data => {
-                checkAndLoadDemoData(data.heatmap, 'Heatmap');
-                if (demoModeActive) return;
-
-                updateZoneDisplay(data.heatmap);
-                // Also load into zone chart if active
-                if (chartType === 'zones' && currentChart.loadZoneData) {
-                    currentChart.loadZoneData(data.heatmap);
-                }
-            })
-            .catch(err => {
-                console.error('Error loading heatmap:', err);
-                checkAndLoadDemoData(null, 'Heatmap (Error)');
-            });
-            
-        // Load scatter/hexbin data if not zone mode
-        if (chartType !== 'zones') {
-            fetch(`/api/advanced/shots/chart?${params}`)
-                .then(r => r.json())
-                .then(data => {
-                    checkAndLoadDemoData(data.shots, 'Shots');
-                    if (demoModeActive) return;
-
-                    if (currentChart.loadShots) {
-                        currentChart.loadShots(data.shots);
-                    }
-                })
-                .catch(err => console.error('Error loading shots:', err));
-        }
-    }
-    
-    function updateZoneDisplay(heatmap) {
-        const container = document.getElementById('zone-stats');
-        container.innerHTML = '';
-        
-        const zones = ['Rim', 'Paint', 'Midrange', 'Corner_3', 'Above_Break_3'];
-        zones.forEach(zone => {
-            const stats = heatmap[zone] || {};
-            const div = document.createElement('div');
-            div.className = 'mb-2 p-2 bg-light rounded';
-            div.innerHTML = `
-                <strong>${zone.replace('_', ' ')}</strong><br>
-                <small>${stats.fg_pct || 0}% FG | ${stats.attempts || 0} att</small><br>
-                <small>PPS: ${stats.actual_pps || 0} (Exp: ${stats.expected_value || 0})</small>
-            `;
-            container.appendChild(div);
+    fetch(url)
+        .then(function(response) {
+            log('Response: ' + response.status + ' ' + response.statusText, response.ok ? 'success' : 'error');
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            log('Data received successfully', 'success');
+            callback(null, data);
+        })
+        .catch(function(error) {
+            log('Fetch error: ' + error.message, 'error');
+            callback(error, null);
         });
-    }
+}
+
+// Draw shot chart on canvas
+function drawShotChart(shots) {
+    var container = document.getElementById('shot-chart-container');
+    container.innerHTML = '';
     
-    // Four Factors
-    document.getElementById('four-factors-game').addEventListener('change', loadFourFactors);
-    loadFourFactors();
+    var canvas = document.createElement('canvas');
+    canvas.width = 500;
+    canvas.height = 470;
+    canvas.style.maxWidth = '100%';
+    container.appendChild(canvas);
     
-    function loadFourFactors() {
-        const gameId = document.getElementById('four-factors-game').value;
-        const params = gameId ? `?game_id=${gameId}` : '?game_type=Season';
+    var ctx = canvas.getContext('2d');
+    
+    // Draw court background
+    ctx.fillStyle = '#f8f9fa';
+    ctx.fillRect(0, 0, 500, 470);
+    
+    // Court outline
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, 500, 470);
+    
+    // Three point arc
+    ctx.beginPath();
+    ctx.arc(250, 50, 235, 0, Math.PI, false);
+    ctx.stroke();
+    
+    // Paint
+    ctx.strokeRect(150, 0, 200, 150);
+    
+    // Free throw circle
+    ctx.beginPath();
+    ctx.arc(250, 150, 60, 0, Math.PI, false);
+    ctx.stroke();
+    
+    // Rim
+    ctx.beginPath();
+    ctx.arc(250, 50, 20, 0, 2 * Math.PI);
+    ctx.stroke();
+    
+    // Draw shots
+    log('Drawing ' + shots.length + ' shots', 'info');
+    var makes = 0, misses = 0;
+    
+    for (var i = 0; i < shots.length; i++) {
+        var shot = shots[i];
+        var x = shot.x_loc || 250;
+        var y = shot.y_loc || 50;
         
-        fetch(`/api/advanced/four-factors${params}`)
-            .then(r => r.json())
-            .then(data => {
-                if (!data.four_factors || Object.keys(data.four_factors).length === 0) {
-                     // Only trigger demo here if we haven't already
-                     // But usually shot chart triggers first
-                     return; 
-                }
-                const factors = data.four_factors;
-                document.getElementById('factor-efg').textContent = factors.efg_pct + '%';
-                document.getElementById('factor-tov').textContent = factors.tov_pct + '%';
-                document.getElementById('factor-orb').textContent = factors.orb_pct + '%';
-                document.getElementById('factor-ftr').textContent = factors.ft_rate + '%';
-                
-                // Update bars
-                document.getElementById('bar-efg').style.width = Math.min(factors.efg_pct, 100) + '%';
-                document.getElementById('bar-tov').style.width = Math.min(factors.tov_pct, 100) + '%';
-                document.getElementById('bar-orb').style.width = Math.min(factors.orb_pct, 100) + '%';
-                document.getElementById('bar-ftr').style.width = Math.min(factors.ft_rate, 100) + '%';
-            });
-    }
-    
-    // Clutch Performance
-    loadClutchStats();
-    
-    function loadClutchStats() {
-        fetch('/api/advanced/clutch/season?game_type=Season')
-            .then(r => r.json())
-            .then(data => {
-                const tbody = document.getElementById('clutch-tbody');
-                if (!data.players || data.players.length === 0) {
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="5" class="text-center text-muted py-4">
-                                No clutch data available yet. Reconstruct possessions or add play-by-play data to enable this view.
-                            </td>
-                        </tr>
-                    `;
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                data.players.forEach(p => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${p.player}</td>
-                        <td>${p.clutch_plays}</td>
-                        <td>${p.clutch_points}</td>
-                        <td>${p.clutch_fg_pct}%</td>
-                        <td>${p.clutch_fgm}/${p.clutch_fga}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            })
-            .catch(() => {
-                const tbody = document.getElementById('clutch-tbody');
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="text-center text-muted py-4">
-                            Error loading clutch data. Check the server logs.
-                        </td>
-                    </tr>
-                `;
-            });
-    }
-    
-    // Lineup Rankings
-    loadLineupRankings();
-    
-    function loadLineupRankings() {
-        fetch('/api/advanced/lineup/rankings?min_possessions=3')
-            .then(r => r.json())
-            .then(data => {
-                const container = document.getElementById('lineup-rankings');
-                if (!data.rankings || data.rankings.length === 0) {
-                    container.innerHTML = `
-                        <div class="text-center text-muted py-4">
-                            No lineup data available yet. Make sure possessions have been reconstructed for your games.
-                        </div>
-                    `;
-                    return;
-                }
-
-                container.innerHTML = '';
-                data.rankings.slice(0, 5).forEach(lineup => {
-                    const div = document.createElement('div');
-                    div.className = 'lineup-card';
-                    div.innerHTML = `
-                        <div class="lineup-players">
-                            ${lineup.players.map(p => `<span class="lineup-player">${p}</span>`).join('')}
-                        </div>
-                        <div class="lineup-stats">
-                            <div class="lineup-stat">
-                                <div class="lineup-stat-value">${lineup.ortg}</div>
-                                <div class="lineup-stat-label">ORtg</div>
-                            </div>
-                            <div class="lineup-stat">
-                                <div class="lineup-stat-value">${lineup.drtg}</div>
-                                <div class="lineup-stat-label">DRtg</div>
-                            </div>
-                            <div class="lineup-stat ${lineup.net_rating >= 0 ? 'net-positive' : 'net-negative'}">
-                                <div class="lineup-stat-value">${lineup.net_rating >= 0 ? '+' : ''}${lineup.net_rating}</div>
-                                <div class="lineup-stat-label">Net</div>
-                            </div>
-                            <div class="lineup-stat">
-                                <div class="lineup-stat-value">${lineup.possessions}</div>
-                                <div class="lineup-stat-label">Poss</div>
-                            </div>
-                        </div>
-                    `;
-                    container.appendChild(div);
-                });
-            })
-            .catch(() => {
-                const container = document.getElementById('lineup-rankings');
-                container.innerHTML = `
-                    <div class="text-center text-muted py-4">
-                        Error loading lineup data. Check the server logs.
-                    </div>
-                `;
-            });
-    }
-    
-    // Duo Matrix
-    loadDuoMatrix();
-    
-    function loadDuoMatrix() {
-        fetch('/api/advanced/lineup/duos')
-            .then(r => r.json())
-            .then(data => {
-                const container = document.getElementById('duo-matrix');
-                if (!data.duos || data.duos.length === 0) {
-                    container.innerHTML = `
-                        <div class="text-center text-muted py-4">
-                            No duo data available yet. This requires possessions and lineup segments.
-                        </div>
-                    `;
-                    return;
-                }
-
-                container.innerHTML = '<table class="table table-sm"><thead><tr><th>Duo</th><th>Net Rt</th><th>Poss</th></tr></thead><tbody></tbody></table>';
-                const tbody = container.querySelector('tbody');
-                
-                data.duos.slice(0, 10).forEach(duo => {
-                    const tr = document.createElement('tr');
-                    tr.className = duo.net_rating >= 0 ? 'table-success' : 'table-danger';
-                    tr.innerHTML = `
-                        <td>${duo.player1} & ${duo.player2}</td>
-                        <td>${duo.net_rating >= 0 ? '+' : ''}${duo.net_rating}</td>
-                        <td>${duo.possessions}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            })
-            .catch(() => {
-                const container = document.getElementById('duo-matrix');
-                container.innerHTML = `
-                    <div class="text-center text-muted py-4">
-                        Error loading duo data. Check the server logs.
-                    </div>
-                `;
-            });
-    }
-    
-    // On/Off Court Splits
-    document.getElementById('onoff-player').addEventListener('change', loadOnOffSplits);
-    
-    function loadOnOffSplits() {
-        const player = document.getElementById('onoff-player').value;
-        if (!player) return;
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, 2 * Math.PI);
         
-        fetch(`/api/advanced/lineup/on-off/${encodeURIComponent(player)}`)
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('on-ortg').textContent = data.on_court.rating.ortg;
-                document.getElementById('on-drtg').textContent = data.on_court.rating.drtg;
-                document.getElementById('on-net').textContent = data.on_court.rating.net;
-                
-                document.getElementById('off-ortg').textContent = data.off_court.rating.ortg;
-                document.getElementById('off-drtg').textContent = data.off_court.rating.drtg;
-                document.getElementById('off-net').textContent = data.off_court.rating.net;
-            });
+        if (shot.result === 'made') {
+            ctx.fillStyle = 'rgba(40, 167, 69, 0.8)';
+            ctx.fill();
+            makes++;
+        } else {
+            ctx.strokeStyle = 'rgba(220, 53, 69, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            misses++;
+        }
     }
     
-    // Advanced Player Stats
-    document.getElementById('advanced-player').addEventListener('change', loadAdvancedPlayerStats);
+    // Legend
+    ctx.fillStyle = 'rgba(40, 167, 69, 0.8)';
+    ctx.beginPath();
+    ctx.arc(20, 440, 6, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('Made (' + makes + ')', 35, 444);
     
-    function loadAdvancedPlayerStats() {
-        const player = document.getElementById('advanced-player').value;
-        if (!player) {
-            document.getElementById('player-advanced-stats').style.display = 'none';
+    ctx.strokeStyle = 'rgba(220, 53, 69, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(130, 440, 6, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.fillStyle = '#333';
+    ctx.fillText('Missed (' + misses + ')', 145, 444);
+    
+    log('Shot chart drawn: ' + makes + ' makes, ' + misses + ' misses', 'success');
+}
+
+// Update zone stats display
+function updateZoneStats(heatmap) {
+    var container = document.getElementById('zone-stats');
+    var zones = ['Rim', 'Paint', 'Midrange', 'Corner_3', 'Above_Break_3'];
+    var html = '<div class="zone-stats-grid">';
+    
+    for (var i = 0; i < zones.length; i++) {
+        var zone = zones[i];
+        var stats = heatmap[zone] || {};
+        html += '<div class="zone-stat-item">';
+        html += '<div style="font-size:0.75rem;color:#6c757d;text-transform:uppercase">' + zone.replace('_', ' ') + '</div>';
+        html += '<div style="font-size:1.5rem;font-weight:700">' + (stats.fg_pct || 0) + '%</div>';
+        html += '<div style="font-size:0.75rem;color:#6c757d">' + (stats.attempts || 0) + ' shots</div>';
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+    log('Zone stats updated', 'success');
+}
+
+// Load all shot data
+function loadShotData() {
+    log('=== Loading shot data ===', 'info');
+    
+    var progressContainer = document.getElementById('progress-container');
+    var progressBar = document.getElementById('progress-bar');
+    
+    progressContainer.style.display = 'block';
+    progressBar.style.width = '10%';
+    
+    var player = document.getElementById('filter-player').value;
+    var gameType = document.getElementById('filter-game-type').value;
+    
+    var params = '?game_type=' + gameType;
+    if (player) params += '&player=' + encodeURIComponent(player);
+    
+    progressBar.style.width = '30%';
+    
+    // Load shot chart data
+    fetchData('/api/advanced/shots/chart' + params, function(err, data) {
+        if (err) {
+            document.getElementById('shot-chart-container').innerHTML = '<div class="error-state"><p>Error loading shots: ' + err.message + '</p></div>';
             return;
         }
         
-        document.getElementById('player-advanced-stats').style.display = 'block';
-        document.getElementById('scout-name').textContent = player;
+        progressBar.style.width = '60%';
         
-        fetch(`/api/advanced/player/${encodeURIComponent(player)}/advanced`)
-            .then(r => r.json())
-            .then(data => {
-                const stats = data.season_stats;
-                document.getElementById('scout-ppg').textContent = stats.ppg;
-                document.getElementById('scout-rpg').textContent = stats.rpg;
-                document.getElementById('scout-apg').textContent = stats.apg;
-                document.getElementById('scout-fg').textContent = stats.fg_pct + '%';
-                
-                document.getElementById('adv-usage').textContent = stats.usage_rate;
-                document.getElementById('adv-pps').textContent = stats.pps;
-                document.getElementById('adv-ts').textContent = stats.ts_pct + '%';
-                document.getElementById('adv-efg').textContent = stats.efg_pct + '%';
-                document.getElementById('adv-poss').textContent = stats.possessions;
-                
-                const sq = data.shot_quality;
-                document.getElementById('adv-sqdelta').textContent = sq.shot_quality_delta;
-            });
+        var shots = data && data.shots ? data.shots : [];
+        log('Received ' + shots.length + ' shots', 'info');
         
-        // Load usage rate separately
-        fetch(`/api/advanced/player/${encodeURIComponent(player)}/usage`)
-            .then(r => r.json())\n            .then(data => {
-                document.getElementById('adv-usage').textContent = data.usage_rate + '%';
-            });
+        if (shots.length > 0) {
+            drawShotChart(shots);
+        } else {
+            document.getElementById('shot-chart-container').innerHTML = '<div class="empty-state"><p>No shots recorded</p></div>';
+        }
+        
+        progressBar.style.width = '80%';
+        
+        // Load heatmap data
+        fetchData('/api/advanced/shots/heatmap' + params, function(err2, data2) {
+            if (err2) {
+                document.getElementById('zone-stats').innerHTML = '<div class="error-state"><p>Error loading zones</p></div>';
+            } else {
+                var heatmap = data2 && data2.heatmap ? data2.heatmap : {};
+                updateZoneStats(heatmap);
+            }
+            
+            progressBar.style.width = '100%';
+            setTimeout(function() {
+                progressContainer.style.display = 'none';
+            }, 500);
+            
+            log('=== Shot data load complete ===', 'success');
+        });
+    });
+}
+
+// Load four factors
+function loadFourFactors() {
+    log('=== Loading four factors ===', 'info');
+    var container = document.getElementById('four-factors-content');
+    container.innerHTML = '<div class="col-12"><div class="loading-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div></div>';
+    
+    var gameId = document.getElementById('filter-ff-game').value;
+    var params = gameId ? '?game_id=' + gameId : '?game_type=Season';
+    
+    fetchData('/api/advanced/four-factors' + params, function(err, data) {
+        if (err || !data || !data.four_factors) {
+            container.innerHTML = '<div class="col-12"><div class="error-state"><p>Error loading four factors</p></div></div>';
+            return;
+        }
+        
+        var f = data.four_factors;
+        var html = '';
+        html += '<div class="col-md-3"><div class="stat-card factor-item"><div class="factor-value">' + (f.efg_pct||0).toFixed(1) + '%</div><div class="factor-label">eFG%</div><div class="factor-bar"><div class="factor-bar-fill" style="width:' + Math.min(f.efg_pct||0,100) + '%"></div></div></div></div>';
+        html += '<div class="col-md-3"><div class="stat-card factor-item"><div class="factor-value">' + (f.tov_pct||0).toFixed(1) + '%</div><div class="factor-label">TOV%</div><div class="factor-bar"><div class="factor-bar-fill" style="width:' + Math.min(f.tov_pct||0,100) + '%"></div></div></div></div>';
+        html += '<div class="col-md-3"><div class="stat-card factor-item"><div class="factor-value">' + (f.orb_pct||0).toFixed(1) + '%</div><div class="factor-label">ORB%</div><div class="factor-bar"><div class="factor-bar-fill" style="width:' + Math.min(f.orb_pct||0,100) + '%"></div></div></div></div>';
+        html += '<div class="col-md-3"><div class="stat-card factor-item"><div class="factor-value">' + (f.ft_rate||0).toFixed(1) + '%</div><div class="factor-label">FT Rate</div><div class="factor-bar"><div class="factor-bar-fill" style="width:' + Math.min(f.ft_rate||0,100) + '%"></div></div></div></div>';
+        
+        container.innerHTML = html;
+        log('Four factors loaded', 'success');
+    });
+}
+
+// Load player stats
+function loadPlayerStats() {
+    var player = document.getElementById('filter-player-stats').value;
+    var container = document.getElementById('player-stats-content');
+    
+    if (!player) {
+        container.innerHTML = '<div class="empty-state"><p>Select a player to view stats</p></div>';
+        return;
     }
+    
+    log('=== Loading player stats for ' + player + ' ===', 'info');
+    container.innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
+    
+    fetchData('/api/advanced/player/' + encodeURIComponent(player) + '/advanced', function(err, data) {
+        if (err || !data) {
+            container.innerHTML = '<div class="error-state"><p>Error loading player stats</p></div>';
+            return;
+        }
+        
+        var stats = data.season_stats || {};
+        var sq = data.shot_quality || {};
+        
+        var html = '<div class="row">';
+        html += '<div class="col-md-6"><div class="stat-card">';
+        html += '<h5>' + player + '</h5>';
+        html += '<table class="table table-sm"><tbody>';
+        html += '<tr><td>PPG</td><td><strong>' + (stats.ppg||0) + '</strong></td></tr>';
+        html += '<tr><td>RPG</td><td><strong>' + (stats.rpg||0) + '</strong></td></tr>';
+        html += '<tr><td>APG</td><td><strong>' + (stats.apg||0) + '</strong></td></tr>';
+        html += '<tr><td>FG%</td><td><strong>' + (stats.fg_pct||0) + '%</strong></td></tr>';
+        html += '</tbody></table></div></div>';
+        html += '<div class="col-md-6"><div class="stat-card">';
+        html += '<h5>Advanced</h5>';
+        html += '<table class="table table-sm"><tbody>';
+        html += '<tr><td>TS%</td><td><strong>' + (stats.ts_pct||0) + '%</strong></td></tr>';
+        html += '<tr><td>eFG%</td><td><strong>' + (stats.efg_pct||0) + '%</strong></td></tr>';
+        html += '<tr><td>PPS</td><td><strong>' + (stats.pps||0) + '</strong></td></tr>';
+        html += '<tr><td>Usage</td><td><strong>' + (stats.usage_rate||0) + '%</strong></td></tr>';
+        html += '</tbody></table></div></div>';
+        html += '</div>';
+        
+        container.innerHTML = html;
+        log('Player stats loaded', 'success');
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    log('=== DOM Content Loaded ===', 'success');
+    
+    // Attach event listeners
+    document.getElementById('filter-player').addEventListener('change', loadShotData);
+    document.getElementById('filter-game-type').addEventListener('change', loadShotData);
+    document.getElementById('filter-ff-game').addEventListener('change', loadFourFactors);
+    document.getElementById('filter-player-stats').addEventListener('change', loadPlayerStats);
+    
+    log('Event listeners attached', 'success');
+    
+    // Tab change handlers
+    $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
+        var target = $(e.target).attr('href');
+        log('Tab changed to: ' + target, 'info');
+        if (target === '#four-factors') loadFourFactors();
+        if (target === '#player-stats') loadPlayerStats();
+    });
+    
+    log('Starting initial data load...', 'info');
+    
+    // Initial loads
+    loadShotData();
+    loadFourFactors();
+    
+    log('=== Initialization complete ===', 'success');
 });
 </script>
 {% endblock %}

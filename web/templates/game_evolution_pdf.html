@@ -1,0 +1,683 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Game Evolution Report</title>
+        <style>
+            @page {
+                size: A4;
+                margin: 1cm;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                color: #1a202c;
+                line-height: 1.5;
+                font-size: 11px;
+            }
+            .header-container {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #2c3e50;
+                padding-bottom: 10px;
+                margin-bottom: 20px;
+            }
+            .header-left h1 { margin: 0; font-size: 20px; color: #2c3e50; }
+            .header-right { text-align: right; font-size: 10px; color: #718096; }
+
+            .section-title {
+                background: #2c3e50;
+                color: white;
+                padding: 5px 10px;
+                font-size: 12px;
+                font-weight: bold;
+                margin: 15px 0 10px 0;
+                border-radius: 4px;
+                page-break-after: avoid;
+            }
+
+            .scoreboard {
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 20px;
+                text-align: center;
+            }
+            .score-large { font-size: 24px; font-weight: 800; color: #2d3748; }
+            .score-details { font-size: 10px; color: #718096; margin-top: 5px; }
+            .result-badge {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 4px;
+                color: white;
+                font-weight: bold;
+                font-size: 10px;
+                background: {% if report.result == 'W' %}#28a745{% else %}#dc3545{% endif %};
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 10px;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            th {
+                background: #edf2f7;
+                text-align: center;
+                padding: 6px;
+                border-bottom: 2px solid #cbd5e0;
+                font-weight: 700;
+                color: #4a5568;
+            }
+            th.text-left { text-align: left; }
+            td {
+                padding: 5px;
+                border-bottom: 1px solid #e2e8f0;
+                text-align: center;
+            }
+            td.text-left { text-align: left; font-weight: 600; }
+            tr {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            tr:nth-child(even) { background-color: #f8fafc; }
+
+            .stat-good { color: #28a745; font-weight: bold; }
+            .stat-bad { color: #dc3545; font-weight: bold; }
+            .page-break { page-break-after: always; }
+
+            .row { display: flex; gap: 15px; }
+            .col { flex: 1; }
+
+            .chart-container {
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+            .chart-container svg {
+                width: 100%;
+                height: auto;
+            }
+
+            .key-moments-grid {
+                display: flex;
+                gap: 15px;
+                margin-bottom: 15px;
+            }
+            .key-moment-card {
+                flex: 1;
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 10px;
+                text-align: center;
+            }
+            .key-moment-label {
+                font-size: 9px;
+                text-transform: uppercase;
+                color: #718096;
+                margin-bottom: 4px;
+            }
+            .key-moment-value {
+                font-size: 18px;
+                font-weight: 800;
+            }
+            .key-moment-value.positive { color: #166534; }
+            .key-moment-value.negative { color: #dc3545; }
+            .key-moment-value.neutral { color: #2c3e50; }
+
+            .runs-container {
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 10px;
+            }
+            .runs-title {
+                font-weight: bold;
+                color: #2c3e50;
+                font-size: 11px;
+                margin-bottom: 8px;
+            }
+            .run-item {
+                display: inline-block;
+                padding: 3px 8px;
+                border-radius: 4px;
+                font-size: 10px;
+                margin: 2px;
+                font-weight: 600;
+            }
+            .run-team {
+                background: #c6f6d5;
+                color: #166534;
+            }
+            .run-opp {
+                background: #fed7d7;
+                color: #c53030;
+            }
+            .run-time {
+                font-weight: normal;
+                opacity: 0.8;
+            }
+
+            .efficiency-table {
+                margin-bottom: 15px;
+            }
+            .efficiency-table th {
+                font-size: 9px;
+            }
+            .efficiency-table td {
+                font-size: 10px;
+            }
+
+            .player-evolution-grid {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            .player-evolution-card {
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 10px;
+                background: #f7fafc;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            .player-evolution-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 1px solid #e2e8f0;
+                padding-bottom: 5px;
+                margin-bottom: 8px;
+            }
+            .player-evolution-name {
+                font-weight: 700;
+                color: #2c3e50;
+                font-size: 12px;
+            }
+            .player-evolution-totals {
+                font-size: 10px;
+                color: #4a5568;
+            }
+            .player-evolution-totals span {
+                margin-left: 10px;
+            }
+            .player-mini-chart {
+                width: 100%;
+                height: 60px;
+            }
+
+            .time-marker {
+                font-size: 8px;
+                fill: #718096;
+            }
+            .chart-title {
+                font-size: 11px;
+                font-weight: 600;
+                color: #2c3e50;
+                margin-bottom: 5px;
+            }
+
+            .quarter-marker {
+                stroke: #e2e8f0;
+                stroke-width: 1;
+                stroke-dasharray: 4;
+            }
+            .zero-line {
+                stroke: #cbd5e0;
+                stroke-width: 1;
+                stroke-dasharray: 2;
+            }
+
+            .table-container {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+
+            .evolution-row {
+                background: white;
+            }
+            .evolution-row:nth-child(even) {
+                background: #f8fafc;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Page 1: Game Flow Overview -->
+        <div class="header-container">
+            <div class="header-left">
+                <h1>Game Evolution Report</h1>
+                <div style="font-size: 12px; margin-top: 2px">
+                    {{ report.date }} vs {{ report.opponent }}
+                </div>
+            </div>
+            <div class="header-right">
+                <div>Generated: {{ generated_date }}</div>
+                <div>Game ID: {{ report.game_id }}</div>
+            </div>
+        </div>
+
+        <div class="scoreboard">
+            <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+                <div style="text-align: center">
+                    <div style="font-size: 14px; font-weight: bold; color: #4a5568;">TEAM</div>
+                    <div class="score-large">{{ report.final_team_score }}</div>
+                </div>
+                <div class="result-badge">
+                    {{ 'VICTORY' if report.result == 'W' else 'DEFEAT' }}
+                </div>
+                <div style="text-align: center">
+                    <div style="font-size: 14px; font-weight: bold; color: #4a5568;">{{ report.opponent|upper }}</div>
+                    <div class="score-large">{{ report.final_opp_score }}</div>
+                </div>
+            </div>
+            <div class="score-details">
+                Final Margin: {{ report.final_team_score - report.final_opp_score }} points
+            </div>
+        </div>
+
+        <div class="section-title">Score Flow (Margin Over Time)</div>
+        <div class="chart-container">
+            <svg viewBox="0 0 500 180" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                    <linearGradient id="positiveGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#166534;stop-opacity:0.2" />
+                        <stop offset="100%" style="stop-color:#166534;stop-opacity:0" />
+                    </linearGradient>
+                    <linearGradient id="negativeGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+                        <stop offset="0%" style="stop-color:#dc3545;stop-opacity:0.2" />
+                        <stop offset="100%" style="stop-color:#dc3545;stop-opacity:0" />
+                    </linearGradient>
+                </defs>
+                
+                <line class="zero-line" x1="40" y1="90" x2="480" y2="90"/>
+                
+                <text x="25" y="30" class="time-marker" text-anchor="end">+20</text>
+                <text x="25" y="90" class="time-marker" text-anchor="end">0</text>
+                <text x="25" y="155" class="time-marker" text-anchor="end">-20</text>
+                
+                {% set quarter_positions = {1: 110, 2: 220, 3: 330, 4: 440} %}
+                {% for q in [1, 2, 3, 4] %}
+                <line class="quarter-marker" x1="{{ quarter_positions[q] }}" y1="25" x2="{{ quarter_positions[q] }}" y2="155"/>
+                <text x="{{ quarter_positions[q] }}" y="170" class="time-marker" text-anchor="middle">Q{{ q }}</text>
+                {% endfor %}
+                
+                {% if report.team_snapshots and report.team_snapshots|length > 0 %}
+                {% set snapshots = report.team_snapshots %}
+                {% set max_margin = snapshots|map(attribute='margin')|max|abs|default(10) %}
+                {% set min_margin = snapshots|map(attribute='margin')|min|abs|default(10) %}
+                {% set y_scale = [(max_margin, min_margin)|max, 10]|max %}
+                {% set chart_height = 130 %}
+                {% set chart_top = 25 %}
+                {% set chart_bottom = chart_top + chart_height %}
+                {% set y_range = chart_height / 2 %}
+                {% set center_y = chart_top + chart_height / 2 %}
+                
+                {% set x_start = 50 %}
+                {% set x_end = 470 %}
+                {% set x_range = x_end - x_start %}
+                {% set total_seconds = 2880 %}
+                
+                <path d="M 
+                    {% for snap in snapshots %}
+                    {% set x = x_start + (snap.game_seconds * x_range / total_seconds) %}
+                    {% set y = center_y - (snap.margin * y_range / y_scale) %}
+                    {{ x }} {{ y }}{% if not loop.last %} L {% endif %}
+                    {% endfor %}
+                " fill="none" stroke="#2c3e50" stroke-width="2"/>
+                
+                {% for snap in snapshots %}
+                {% if loop.first or loop.last %}
+                {% set x = x_start + (snap.game_seconds * x_range / total_seconds) %}
+                {% set y = center_y - (snap.margin * y_range / y_scale) %}
+                <circle cx="{{ x }}" cy="{{ y }}" r="4" fill="#2c3e50"/>
+                <text x="{{ x }}" y="{{ y - 8 if snap.margin >= 0 else y + 14 }}" font-size="7" fill="#2c3e50" text-anchor="middle">{{ snap.team_score }}-{{ snap.opp_score }}</text>
+                {% endif %}
+                {% endfor %}
+                
+                {% for snap in snapshots %}
+                {% if snap.margin == (snapshots|map(attribute='margin')|max) %}
+                {% set x = x_start + (snap.game_seconds * x_range / total_seconds) %}
+                {% set y = center_y - (snap.margin * y_range / y_scale) %}
+                <circle cx="{{ x }}" cy="{{ y }}" r="5" fill="#166534"/>
+                <text x="{{ x }}" y="{{ y - 10 }}" font-size="7" fill="#166534" text-anchor="middle" font-weight="bold">MAX +{{ snap.margin }}</text>
+                {% endif %}
+                {% if snap.margin == (snapshots|map(attribute='margin')|min) %}
+                {% set x = x_start + (snap.game_seconds * x_range / total_seconds) %}
+                {% set y = center_y - (snap.margin * y_range / y_scale) %}
+                <circle cx="{{ x }}" cy="{{ y }}" r="5" fill="#dc3545"/>
+                <text x="{{ x }}" y="{{ y + 16 }}" font-size="7" fill="#dc3545" text-anchor="middle" font-weight="bold">MIN {{ snap.margin }}</text>
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+            </svg>
+        </div>
+
+        <div class="key-moments-grid">
+            <div class="key-moment-card">
+                <div class="key-moment-label">Maximum Lead</div>
+                <div class="key-moment-value positive">+{{ report.max_lead.team|default(0) }}</div>
+            </div>
+            <div class="key-moment-card">
+                <div class="key-moment-label">Maximum Deficit</div>
+                <div class="key-moment-value negative">-{{ report.max_lead.opp|default(0) }}</div>
+            </div>
+            <div class="key-moment-card">
+                <div class="key-moment-label">Lead Changes</div>
+                <div class="key-moment-value neutral">{{ report.lead_changes|default(0) }}</div>
+            </div>
+        </div>
+
+        {% if report.scoring_runs and report.scoring_runs|length > 0 %}
+        <div class="runs-container">
+            <div class="runs-title">Scoring Runs (5+ Points)</div>
+            {% for run in report.scoring_runs %}
+            {% if run.points >= 5 %}
+            <span class="run-item {{ 'run-team' if run.team == 'TEAM' else 'run-opp' }}">
+                {{ run.points }}-0 {{ run.team }} Run
+                <span class="run-time">(Q{{ run.start_quarter }}:{{ run.start_time }})</span>
+            </span>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="page-break"></div>
+
+        <!-- Page 2: Team Efficiency Evolution -->
+        <div class="header-container">
+            <div class="header-left"><h1>Team Efficiency Evolution</h1></div>
+            <div class="header-right">Page 2/3</div>
+        </div>
+
+        <div class="section-title">Quarter-by-Quarter Team Stats</div>
+        <div class="table-container">
+            <table class="efficiency-table">
+                <thead>
+                    <tr>
+                        <th class="text-left">Quarter</th>
+                        <th>PTS</th>
+                        <th>FGM</th>
+                        <th>FGA</th>
+                        <th>FG%</th>
+                        <th>3PM</th>
+                        <th>3PA</th>
+                        <th>3P%</th>
+                        <th>FTM</th>
+                        <th>FTA</th>
+                        <th>TOV</th>
+                        <th>REB</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for q in [1, 2, 3, 4] %}
+                    {% if report.quarter_summaries and (report.quarter_summaries[q|string] or report.quarter_summaries[q]) %}
+                    {% set qs = report.quarter_summaries[q|string] if report.quarter_summaries[q|string] else report.quarter_summaries[q] %}
+                    <tr>
+                        <td class="text-left">Q{{ q }}</td>
+                        <td style="font-weight: bold">{{ qs.pts|default(0) }}</td>
+                        <td>{{ qs.fgm|default(0) }}</td>
+                        <td>{{ qs.fga|default(0) }}</td>
+                        <td class="{{ 'stat-good' if qs.fg_pct|default(0) >= 45 else 'stat-bad' if qs.fga|default(0) > 0 }}">
+                            {% if qs.fga and qs.fga > 0 %}{{ qs.fg_pct|default(((qs.fgm|default(0) / qs.fga) * 100))|round(1) }}%{% else %}--{% endif %}
+                        </td>
+                        <td>{{ qs.tpm|default(0) }}</td>
+                        <td>{{ qs.tpa|default(0) }}</td>
+                        <td class="{{ 'stat-good' if qs.tp_pct|default(0) >= 33 else 'stat-bad' if qs.tpa|default(0) > 0 }}">
+                            {% if qs.tpa and qs.tpa > 0 %}{{ qs.tp_pct|default(((qs.tpm|default(0) / qs.tpa) * 100))|round(1) }}%{% else %}--{% endif %}
+                        </td>
+                        <td>{{ qs.ftm|default(0) }}</td>
+                        <td>{{ qs.fta|default(0) }}</td>
+                        <td class="{{ 'stat-bad' if qs.tov|default(0) >= 4 }}">{{ qs.tov|default(0) }}</td>
+                        <td>{{ qs.reb|default(0) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td class="text-left">Q{{ q }}</td>
+                        <td colspan="11" style="color: #718096; font-style: italic;">No data</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section-title">Running Efficiency Metrics</div>
+        <div class="table-container">
+            <table class="efficiency-table">
+                <thead>
+                    <tr>
+                        <th class="text-left">Quarter</th>
+                        <th>OER</th>
+                        <th>eFG%</th>
+                        <th>TS%</th>
+                        <th>TOV%</th>
+                        <th>OREB%</th>
+                        <th>FTA/FGA</th>
+                        <th>AST/TO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for q in [1, 2, 3, 4] %}
+                    {% if report.quarter_summaries and (report.quarter_summaries[q|string] or report.quarter_summaries[q]) %}
+                    {% set qs = report.quarter_summaries[q|string] if report.quarter_summaries[q|string] else report.quarter_summaries[q] %}
+                    <tr>
+                        <td class="text-left">Q{{ q }}</td>
+                        <td class="{{ 'stat-good' if qs.oer|default(0) >= 1.0 else 'stat-bad' if qs.oer|default(0) > 0 }}">
+                            {{ qs.oer|default('--') }}
+                        </td>
+                        <td class="{{ 'stat-good' if qs.efg_pct|default(0) >= 50 else 'stat-bad' }}">
+                            {{ qs.efg_pct|default('--') }}{% if qs.efg_pct %}%{% endif %}
+                        </td>
+                        <td class="{{ 'stat-good' if qs.ts_pct|default(0) >= 55 else 'stat-bad' }}">
+                            {{ qs.ts_pct|default('--') }}{% if qs.ts_pct %}%{% endif %}
+                        </td>
+                        <td class="{{ 'stat-bad' if qs.tov_pct|default(0) >= 18 else 'stat-good' }}">
+                            {{ qs.tov_pct|default('--') }}{% if qs.tov_pct %}%{% endif %}
+                        </td>
+                        <td class="{{ 'stat-good' if qs.oreb_pct|default(0) >= 25 else '' }}">
+                            {{ qs.oreb_pct|default('--') }}{% if qs.oreb_pct %}%{% endif %}
+                        </td>
+                        <td>{{ qs.fta_fga|default('--') }}</td>
+                        <td class="{{ 'stat-good' if qs.ast_tov|default(0) >= 1.5 else 'stat-bad' if qs.ast_tov|default(0) > 0 }}">
+                            {{ qs.ast_tov|default('--') }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td class="text-left">Q{{ q }}</td>
+                        <td colspan="7" style="color: #718096; font-style: italic;">No data</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section-title">Efficiency Trend Over Time</div>
+        <div class="chart-container">
+            <svg viewBox="0 0 500 160" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                    <linearGradient id="effGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#4299e1;stop-opacity:0.3" />
+                        <stop offset="100%" style="stop-color:#4299e1;stop-opacity:0" />
+                    </linearGradient>
+                </defs>
+                
+                <line x1="40" y1="130" x2="480" y2="130" stroke="#e2e8f0" stroke-width="1"/>
+                <line x1="40" y1="30" x2="40" y2="130" stroke="#e2e8f0" stroke-width="1"/>
+                
+                <text x="25" y="35" class="time-marker" text-anchor="end">1.5</text>
+                <text x="25" y="82" class="time-marker" text-anchor="end">1.0</text>
+                <text x="25" y="130" class="time-marker" text-anchor="end">0.5</text>
+                
+                {% set quarter_positions = {1: 110, 2: 220, 3: 330, 4: 440} %}
+                {% for q in [1, 2, 3, 4] %}
+                <line class="quarter-marker" x1="{{ quarter_positions[q] }}" y1="30" x2="{{ quarter_positions[q] }}" y2="130"/>
+                <text x="{{ quarter_positions[q] }}" y="145" class="time-marker" text-anchor="middle">Q{{ q }}</text>
+                {% endfor %}
+                
+                {% if report.team_snapshots and report.team_snapshots|length > 0 %}
+                {% set snapshots = report.team_snapshots %}
+                {% set x_start = 50 %}
+                {% set x_end = 470 %}
+                {% set x_range = x_end - x_start %}
+                {% set total_seconds = 2880 %}
+                {% set chart_top = 30 %}
+                {% set chart_bottom = 130 %}
+                {% set chart_height = chart_bottom - chart_top %}
+                
+                <path d="M 
+                    {% for snap in snapshots %}
+                    {% if snap.oer is defined %}
+                    {% set x = x_start + (snap.game_seconds * x_range / total_seconds) %}
+                    {% set y = chart_bottom - ((snap.oer - 0.5) * chart_height / 1.0) %}
+                    {{ x }} {{ y }}{% if not loop.last %} L {% endif %}
+                    {% endif %}
+                    {% endfor %}
+                " fill="none" stroke="#4299e1" stroke-width="2"/>
+                
+                <line x1="40" y1="82" x2="480" y2="82" stroke="#48bb78" stroke-width="1" stroke-dasharray="4"/>
+                <text x="485" y="85" font-size="7" fill="#48bb78">Goal: 1.0</text>
+                {% endif %}
+            </svg>
+        </div>
+
+        <div class="page-break"></div>
+
+        <!-- Page 3: Player Evolution Grid -->
+        <div class="header-container">
+            <div class="header-left"><h1>Player Evolution</h1></div>
+            <div class="header-right">Page 3/3</div>
+        </div>
+
+        <div class="section-title">Player Time-Series Performance</div>
+        
+        <div class="player-evolution-grid">
+            {% for player_name, snapshots in report.player_snapshots.items() %}
+            <div class="player-evolution-card">
+                <div class="player-evolution-header">
+                    <span class="player-evolution-name">{{ player_name }}</span>
+                    <div class="player-evolution-totals">
+                        {% if snapshots and snapshots|length > 0 %}
+                        {% set last = snapshots[-1] %}
+                        <span><strong>PTS:</strong> {{ last.points|default(0) }}</span>
+                        <span><strong>REB:</strong> {{ last.reb|default(0) }}</span>
+                        <span><strong>AST:</strong> {{ last.ast|default(0) }}</span>
+                        <span><strong>+/-:</strong> <span style="color: {{ '#166534' if last.plus_minus|default(0) > 0 else '#dc3545' if last.plus_minus|default(0) < 0 else '#4a5568' }}">{{ '+' if last.plus_minus|default(0) > 0 }}{{ last.plus_minus|default(0) }}</span></span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <svg class="player-mini-chart" viewBox="0 0 400 60" preserveAspectRatio="xMidYMid meet">
+                    {% if snapshots and snapshots|length > 0 %}
+                    {% set max_pts = snapshots|map(attribute='points')|max|default(10) %}
+                    {% set min_pts = 0 %}
+                    {% set y_scale = [max_pts, 10]|max %}
+                    {% set x_start = 30 %}
+                    {% set x_end = 390 %}
+                    {% set x_range = x_end - x_start %}
+                    {% set total_seconds = 2880 %}
+                    {% set chart_top = 5 %}
+                    {% set chart_bottom = 55 %}
+                    {% set chart_height = chart_bottom - chart_top %}
+                    
+                    {% for q in [1, 2, 3, 4] %}
+                    {% set q_pos = x_start + (q * 720 * x_range / total_seconds) %}
+                    <line class="quarter-marker" x1="{{ q_pos }}" y1="{{ chart_top }}" x2="{{ q_pos }}" y2="{{ chart_bottom }}"/>
+                    {% endfor %}
+                    
+                    <line x1="{{ x_start }}" y1="{{ chart_bottom }}" x2="{{ x_end }}" y2="{{ chart_bottom }}" stroke="#e2e8f0" stroke-width="1"/>
+                    
+                    <path d="M 
+                        {% for snap in snapshots %}
+                        {% set x = x_start + (snap.game_seconds * x_range / total_seconds) %}
+                        {% set y = chart_bottom - (snap.points * chart_height / y_scale) %}
+                        {{ x }} {{ y }}{% if not loop.last %} L {% endif %}
+                        {% endfor %}
+                    " fill="none" stroke="#2c3e50" stroke-width="1.5"/>
+                    
+                    <path d="M 
+                        {% for snap in snapshots %}
+                        {% set x = x_start + (snap.game_seconds * x_range / total_seconds) %}
+                        {% set plus_minus = snap.plus_minus|default(0) %}
+                        {% set y = chart_top + chart_height / 2 - (plus_minus * chart_height / 20) %}
+                        {{ x }} {{ y }}{% if not loop.last %} L {% endif %}
+                        {% endfor %}
+                    " fill="none" stroke="#dc3545" stroke-width="1" stroke-dasharray="2"/>
+                    
+                    {% for snap in snapshots %}
+                    {% if loop.last %}
+                    {% set x = x_start + (snap.game_seconds * x_range / total_seconds) %}
+                    {% set y_pts = chart_bottom - (snap.points * chart_height / y_scale) %}
+                    <circle cx="{{ x }}" cy="{{ y_pts }}" r="3" fill="#2c3e50"/>
+                    {% endif %}
+                    {% endfor %}
+                    
+                    <text x="5" y="12" font-size="6" fill="#2c3e50">PTS</text>
+                    <text x="5" y="52" font-size="6" fill="#dc3545">+/-</text>
+                    {% else %}
+                    <text x="200" y="35" font-size="9" fill="#718096" text-anchor="middle">No data available</text>
+                    {% endif %}
+                </svg>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if report.player_snapshots and report.player_snapshots|length > 0 %}
+        <div class="section-title">Player Evolution Summary</div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="text-left">Player</th>
+                        <th>Q1</th>
+                        <th>Q2</th>
+                        <th>Q3</th>
+                        <th>Q4</th>
+                        <th>Total</th>
+                        <th>Final +/-</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for player_name, snapshots in report.player_snapshots.items() %}
+                    <tr class="evolution-row">
+                        <td class="text-left">{{ player_name }}</td>
+                        {% for q in [1, 2, 3, 4] %}
+                        {% set q_end = q * 720 %}
+                        {% set q_snap = snapshots|selectattr('game_seconds', '<=', q_end)|last %}
+                        {% set q_start = (q - 1) * 720 %}
+                        {% set q_start_snap = snapshots|selectattr('game_seconds', '<=', q_start)|last %}
+                        <td>
+                            {% if q_snap and q_start_snap %}
+                            {{ q_snap.points - q_start_snap.points }}
+                            {% elif q_snap %}
+                            {{ q_snap.points }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                        {% if snapshots and snapshots|length > 0 %}
+                        {% set last = snapshots[-1] %}
+                        <td style="font-weight: bold">{{ last.points|default(0) }}</td>
+                        <td style="color: {{ '#166534' if last.plus_minus|default(0) > 0 else '#dc3545' if last.plus_minus|default(0) < 0 else '#4a5568' }}">
+                            {{ '+' if last.plus_minus|default(0) > 0 }}{{ last.plus_minus|default(0) }}
+                        </td>
+                        {% else %}
+                        <td>-</td>
+                        <td>-</td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+    </body>
+</html>

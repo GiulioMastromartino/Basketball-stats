@@ -1,9 +1,52 @@
+# Environment
 .env
 venv/
+
+# Python cache
 __pycache__/
-instance/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+
+# Testing
 .pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Linting
+.ruff_cache/
+.mypy_cache/
+
+# Flask instance
+instance/
+
+# Database
 *.db
 *.db.bak
+
+# Logs
 *.log
+*.log.*
+
+# OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build/dist
+dist/
+build/
+*.egg-info/

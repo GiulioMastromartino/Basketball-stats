@@ -1,0 +1,390 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Half-Time Summary Report</title>
+        <style>
+            @page {
+                size: A4;
+                margin: 0.8cm;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                color: #1a202c;
+                line-height: 1.4;
+                font-size: 10px;
+            }
+            .header-container {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 3px solid #f59e0b;
+                padding-bottom: 8px;
+                margin-bottom: 12px;
+            }
+            .header-left h1 {
+                margin: 0;
+                font-size: 22px;
+                color: #f59e0b;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+            }
+            .header-left .subtitle {
+                font-size: 11px;
+                color: #4a5568;
+                margin-top: 2px;
+            }
+            .header-right {
+                text-align: right;
+                font-size: 9px;
+                color: #718096;
+            }
+            .live-badge {
+                display: inline-block;
+                background: #dc2626;
+                color: white;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-weight: bold;
+                font-size: 8px;
+                animation: pulse 2s infinite;
+            }
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+            .section-title {
+                background: #2c3e50;
+                color: white;
+                padding: 4px 8px;
+                font-size: 11px;
+                font-weight: bold;
+                margin: 10px 0 6px 0;
+                border-radius: 3px;
+            }
+            .scoreboard {
+                background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+                border: 2px solid #f59e0b;
+                border-radius: 8px;
+                padding: 12px;
+                margin-bottom: 12px;
+                text-align: center;
+            }
+            .score-large {
+                font-size: 28px;
+                font-weight: 800;
+                color: #2d3748;
+            }
+            .score-label {
+                font-size: 11px;
+                font-weight: bold;
+                color: #4a5568;
+                margin-bottom: 2px;
+            }
+            .half-indicator {
+                font-size: 10px;
+                color: #92400e;
+                font-weight: bold;
+                margin-top: 6px;
+            }
+            .row {
+                display: flex;
+                gap: 12px;
+            }
+            .col {
+                flex: 1;
+            }
+            .top-performer-card {
+                border: 1px solid #e2e8f0;
+                border-radius: 5px;
+                padding: 6px;
+                text-align: center;
+                background: #fff;
+                margin-bottom: 6px;
+            }
+            .tp-label {
+                font-size: 8px;
+                text-transform: uppercase;
+                color: #718096;
+            }
+            .tp-value {
+                font-size: 14px;
+                font-weight: 800;
+                color: #2c3e50;
+                margin: 1px 0;
+            }
+            .tp-name {
+                font-weight: 600;
+                color: #4a5568;
+                font-size: 9px;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 9px;
+            }
+            th {
+                background: #edf2f7;
+                text-align: center;
+                padding: 4px 3px;
+                border-bottom: 2px solid #cbd5e0;
+                font-weight: 700;
+                color: #4a5568;
+            }
+            th.text-left {
+                text-align: left;
+            }
+            td {
+                padding: 3px 2px;
+                border-bottom: 1px solid #e2e8f0;
+                text-align: center;
+            }
+            td.text-left {
+                text-align: left;
+                font-weight: 600;
+            }
+            tr:nth-child(even) {
+                background-color: #f8fafc;
+            }
+            .stat-good {
+                color: #28a745;
+                font-weight: bold;
+            }
+            .stat-bad {
+                color: #dc3545;
+                font-weight: bold;
+            }
+            .shooting-table th {
+                background: transparent;
+                border: none;
+                color: #166534;
+                padding: 2px;
+                font-size: 8px;
+            }
+            .shooting-table td {
+                background: transparent;
+                border: none;
+                padding: 2px;
+                font-size: 9px;
+                color: #1f2937;
+            }
+            .quarter-breakdown {
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 5px;
+                padding: 8px;
+                margin-top: 6px;
+            }
+            .quarter-header {
+                font-weight: bold;
+                color: #2c3e50;
+                font-size: 10px;
+                margin-bottom: 4px;
+            }
+            .footer {
+                margin-top: 10px;
+                padding-top: 6px;
+                border-top: 1px solid #e2e8f0;
+                font-size: 8px;
+                color: #718096;
+                text-align: center;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="header-container">
+            <div class="header-left">
+                <h1>Half-Time Summary</h1>
+                <div class="subtitle">{{ date }} vs {{ opponent }}</div>
+            </div>
+            <div class="header-right">
+                {% if is_live %}
+                <div class="live-badge">LIVE</div>
+                {% endif %}
+                <div>Generated: {{ generated_date }}</div>
+                <div>Schema v{{ schema_version }}</div>
+            </div>
+        </div>
+
+        <div class="scoreboard">
+            <div style="display: flex; justify-content: center; align-items: center; gap: 30px;">
+                <div style="text-align: center;">
+                    <div class="score-label">TEAM</div>
+                    <div class="score-large">{{ team_score }}</div>
+                </div>
+                <div style="font-size: 20px; color: #92400e; font-weight: bold;">VS</div>
+                <div style="text-align: center;">
+                    <div class="score-label">{{ opponent|upper }}</div>
+                    <div class="score-large">{{ opp_score }}</div>
+                </div>
+            </div>
+            <div class="half-indicator">
+                End of Q2 - Differential: {{ (team_score - opp_score)|abs }} points
+                {% if team_score > opp_score %}(Leading){% elif team_score < opp_score %}(Trailing){% else %}(Tied){% endif %}
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <div class="section-title">Top Performers</div>
+                <div style="display: flex; gap: 8px;">
+                    {% if top_performers.points %}
+                    <div class="col top-performer-card">
+                        <div class="tp-label">Points</div>
+                        <div class="tp-value">{{ top_performers.points.points }}</div>
+                        <div class="tp-name">{{ top_performers.points.player_name }}</div>
+                    </div>
+                    {% endif %}
+                    {% if top_performers.efficiency %}
+                    <div class="col top-performer-card">
+                        <div class="tp-label">Efficiency</div>
+                        <div class="tp-value">{{ top_performers.efficiency.eff }}</div>
+                        <div class="tp-name">{{ top_performers.efficiency.player_name }}</div>
+                    </div>
+                    {% endif %}
+                    {% if top_performers.rebounds %}
+                    <div class="col top-performer-card">
+                        <div class="tp-label">Rebounds</div>
+                        <div class="tp-value">{{ top_performers.rebounds.reb }}</div>
+                        <div class="tp-name">{{ top_performers.rebounds.player_name }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col">
+                <div class="section-title">Team Shooting</div>
+                <table>
+                    <tr>
+                        <th class="text-left">Metric</th>
+                        <th>Value</th>
+                        <th>Goal</th>
+                    </tr>
+                    <tr>
+                        <td class="text-left">FG%</td>
+                        <td class="{{ 'stat-good' if team_aggregates.fg_pct >= 45 else 'stat-bad' }}">{{ team_aggregates.fg_pct|round(1) }}%</td>
+                        <td style="color: #718096">45%</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left">2P%</td>
+                        <td class="{{ 'stat-good' if team_aggregates.two_pt_pct >= 50 else 'stat-bad' }}">{{ team_aggregates.two_pt_pct|round(1) }}%</td>
+                        <td style="color: #718096">50%</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left">3P%</td>
+                        <td class="{{ 'stat-good' if team_aggregates.tp_pct >= 33 else 'stat-bad' }}">{{ team_aggregates.tp_pct|round(1) }}%</td>
+                        <td style="color: #718096">33%</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left">FT%</td>
+                        <td class="{{ 'stat-good' if team_aggregates.ft_pct >= 70 else 'stat-bad' }}">{{ team_aggregates.ft_pct|round(1) }}%</td>
+                        <td style="color: #718096">70%</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        {% if quarterly_stats %}
+        <div class="section-title">Quarter Breakdown</div>
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-left">Quarter</th>
+                    <th>PTS</th>
+                    <th>FGM</th>
+                    <th>FGA</th>
+                    <th>FG%</th>
+                    <th>3PM</th>
+                    <th>3PA</th>
+                    <th>FTM</th>
+                    <th>FTA</th>
+                    <th>REB</th>
+                    <th>AST</th>
+                    <th>TOV</th>
+                    <th>PF</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for q in [1, 2] %}
+                {% if quarterly_stats[q|string] or quarterly_stats[q] %}
+                {% set qs = quarterly_stats[q|string] if quarterly_stats[q|string] else quarterly_stats[q] %}
+                <tr>
+                    <td class="text-left" style="font-weight: bold;">Q{{ q }}</td>
+                    <td style="font-weight: bold;">{{ qs.pts|default(0) }}</td>
+                    <td>{{ qs.fgm|default(0) }}</td>
+                    <td>{{ qs.fga|default(0) }}</td>
+                    <td>{% if qs.fga and qs.fga > 0 %}{{ ((qs.fgm|default(0) / qs.fga) * 100)|round(1) }}%{% else %}--{% endif %}</td>
+                    <td>{{ qs.tpm|default(0) }}</td>
+                    <td>{{ qs.tpa|default(0) }}</td>
+                    <td>{{ qs.ftm|default(0) }}</td>
+                    <td>{{ qs.fta|default(0) }}</td>
+                    <td>{{ qs.reb|default(0) }}</td>
+                    <td>{{ qs.ast|default(0) }}</td>
+                    <td class="{{ 'stat-bad' if qs.tov|default(0) >= 4 }}">{{ qs.tov|default(0) }}</td>
+                    <td class="{{ 'stat-bad' if qs.pf|default(0) >= 5 }}">{{ qs.pf|default(0) }}</td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+                <tr style="background: #edf2f7; font-weight: bold;">
+                    <td class="text-left">Total</td>
+                    <td>{{ team_score }}</td>
+                    <td>{{ stats|map(attribute='fgm')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='fga')|sum|default(0) }}</td>
+                    <td>{{ team_aggregates.fg_pct|round(1) }}%</td>
+                    <td>{{ stats|map(attribute='tpm')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='tpa')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='ftm')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='fta')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='reb')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='ast')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='tov')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='pf')|sum|default(0) }}</td>
+                </tr>
+            </tbody>
+        </table>
+        {% endif %}
+
+        <div class="section-title">Box Score</div>
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-left" style="width: 18%;">Player</th>
+                    <th>MIN</th>
+                    <th>PTS</th>
+                    <th>REB</th>
+                    <th>AST</th>
+                    <th>STL</th>
+                    <th>BLK</th>
+                    <th>TOV</th>
+                    <th>PF</th>
+                    <th>FG</th>
+                    <th>3P</th>
+                    <th>FT</th>
+                    <th>EFF</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in stats %}
+                <tr>
+                    <td class="text-left">{{ p.player_name }}</td>
+                    <td>{{ p.minutes }}</td>
+                    <td style="font-weight: bold;">{{ p.points }}</td>
+                    <td>{{ p.reb }}</td>
+                    <td>{{ p.ast }}</td>
+                    <td>{{ p.stl }}</td>
+                    <td>{{ p.blk }}</td>
+                    <td class="{{ 'stat-bad' if p.tov >= 3 }}">{{ p.tov }}</td>
+                    <td class="{{ 'stat-bad' if p.pf >= 3 }}">{{ p.pf }}</td>
+                    <td>{{ p.fgm }}/{{ p.fga }}</td>
+                    <td>{{ p.tpm }}/{{ p.tpa }}</td>
+                    <td>{{ p.ftm }}/{{ p.fta }}</td>
+                    <td style="background: #edf2f7; font-weight: bold;">{{ p.eff }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="footer">
+            Half-Time Summary | {{ date }} vs {{ opponent }} | Generated: {{ generated_date }}
+        </div>
+    </body>
+</html>
