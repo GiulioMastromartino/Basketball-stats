@@ -96,14 +96,7 @@ def get_or_create_lineup(players: list, is_starting: bool = False):
 
 
 def update_lineup_cached_stats(lineup_id: int):
-    """
-    Recalculate and update cached stats for a lineup.
-
-    Aggregates data from all lineup_segments for this lineup.
-
-    Args:
-        lineup_id: ID of the Lineup to update
-    """
+    """Update cached stats for a lineup by aggregating all segments."""
     from datetime import datetime
 
     lineup = Lineup.query.get(lineup_id)
@@ -112,18 +105,73 @@ def update_lineup_cached_stats(lineup_id: int):
 
     segments = LineupSegment.query.filter_by(lineup_id=lineup_id).all()
 
-    lineup.total_seconds = sum(s.duration_seconds or 0 for s in segments)
-    lineup.total_possessions = sum(s.possessions or 0 for s in segments)
-    lineup.points_scored = sum(s.points_scored or 0 for s in segments)
-    lineup.points_allowed = sum(s.points_allowed or 0 for s in segments)
-    lineup.segment_count = len(segments)
-    lineup.games_played = len(set(s.game_id for s in segments))
+    total_seconds = 0
+    total_possessions = 0
+    points_scored = 0
+    points_allowed = 0
+    games = set()
 
-    # Calculate ratings
-    if lineup.total_possessions > 0:
-        lineup.ortg = round(lineup.points_scored / lineup.total_possessions * 100, 1)
-        lineup.drtg = round(lineup.points_allowed / lineup.total_possessions * 100, 1)
-        lineup.net_rating = round(lineup.ortg - lineup.drtg, 1)
+    total_fgm = 0
+    total_fga = 0
+    total_tpm = 0
+    total_tpa = 0
+    total_ftm = 0
+    total_fta = 0
+    total_oreb = 0
+    total_dreb = 0
+    total_ast = 0
+    total_stl = 0
+    total_blk = 0
+    total_tov = 0
+
+    for segment in segments:
+        total_seconds += segment.duration_seconds or 0
+        total_possessions += segment.possessions or 0
+        points_scored += segment.points_scored or 0
+        points_allowed += segment.points_allowed or 0
+        games.add(segment.game_id)
+
+        player_stats = PlayerLineupStats.query.filter_by(
+            lineup_segment_id=segment.id
+        ).all()
+        for ps in player_stats:
+            total_fgm += ps.fgm or 0
+            total_fga += ps.fga or 0
+            total_tpm += ps.tpm or 0
+            total_tpa += ps.tpa or 0
+            total_ftm += ps.ftm or 0
+            total_fta += ps.fta or 0
+            total_oreb += ps.oreb or 0
+            total_dreb += ps.dreb or 0
+            total_ast += ps.ast or 0
+            total_stl += ps.stl or 0
+            total_blk += ps.blk or 0
+            total_tov += ps.tov or 0
+
+    lineup.total_seconds = total_seconds
+    lineup.total_possessions = total_possessions
+    lineup.points_scored = points_scored
+    lineup.points_allowed = points_allowed
+    lineup.games_played = len(games)
+    lineup.segment_count = len(segments)
+
+    lineup.fgm = total_fgm
+    lineup.fga = total_fga
+    lineup.tpm = total_tpm
+    lineup.tpa = total_tpa
+    lineup.ftm = total_ftm
+    lineup.fta = total_fta
+    lineup.oreb = total_oreb
+    lineup.dreb = total_dreb
+    lineup.ast = total_ast
+    lineup.stl = total_stl
+    lineup.blk = total_blk
+    lineup.tov = total_tov
+
+    if total_possessions > 0:
+        lineup.ortg = (points_scored / total_possessions) * 100
+        lineup.drtg = (points_allowed / total_possessions) * 100
+        lineup.net_rating = lineup.ortg - lineup.drtg
     else:
         lineup.ortg = 0
         lineup.drtg = 0

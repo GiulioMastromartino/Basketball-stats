@@ -78,6 +78,9 @@ class Game(db.Model):
     game_type = db.Column(db.String(20), nullable=False)
     sort_date = db.Column(db.String(10), nullable=False)
     source = db.Column(db.String(20), default="IMPORT")  # LIVE, IMPORT, MANUAL
+    schema_version = db.Column(
+        db.Integer, default=1
+    )  # Schema version for feature detection
 
     @property
     def score_display(self):
@@ -109,7 +112,9 @@ class PlayerStat(db.Model):
     tov = db.Column(db.Integer, default=0)
     pf = db.Column(db.Integer, default=0)
     plus_minus = db.Column(db.Integer, default=0)  # +/- Stat
-    reb_conceded = db.Column(db.Integer, default=0)  # Offensive rebounds conceded to opponents
+    reb_conceded = db.Column(
+        db.Integer, default=0
+    )  # Offensive rebounds conceded to opponents
 
     # Relationship to Game
     game = db.relationship("Game", backref=db.backref("stats", lazy=True))
@@ -121,6 +126,7 @@ class Play(db.Model):
     name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
     play_type = db.Column(db.String(50), default="Offense")  # Offense, Defense, Special
+    source = db.Column(db.String(20), default="imported")  # imported, manual, builder
     image_filename = db.Column(
         db.String(255), nullable=True
     )  # Stored in uploads/plays/
@@ -205,6 +211,8 @@ class GameEvent(db.Model):
         db.Integer, nullable=True
     )  # Possession sequence number
     game_seconds = db.Column(db.Integer, nullable=True)  # Absolute game time in seconds
+    x_loc = db.Column(db.Float, nullable=True)  # Shot location X (normalized 0-500)
+    y_loc = db.Column(db.Float, nullable=True)  # Shot location Y (normalized 0-470)
     lineup_segment_id = db.Column(
         db.Integer, db.ForeignKey("lineup_segments.id"), nullable=True
     )  # Link to active lineup during this event
@@ -240,24 +248,28 @@ class LineupSegment(db.Model):
     points_scored = db.Column(db.Integer, default=0)
     points_allowed = db.Column(db.Integer, default=0)
     possessions = db.Column(db.Integer, default=0)
-    duration_seconds = db.Column(db.Integer, default=0)  # Actual playing time in seconds
-    lineup_id = db.Column(db.Integer, db.ForeignKey("lineups.id"), nullable=True)  # Link to Lineup record
+    duration_seconds = db.Column(
+        db.Integer, default=0
+    )  # Actual playing time in seconds
+    lineup_id = db.Column(
+        db.Integer, db.ForeignKey("lineups.id"), nullable=True
+    )  # Link to Lineup record
 
     game = db.relationship("Game", backref=db.backref("lineup_segments", lazy=True))
 
 
-
-
 class Lineup(db.Model):
     """Multi-game lineup tracking with cached stats"""
-    
+
     __tablename__ = "lineups"
     id = db.Column(db.Integer, primary_key=True)
     lineup_hash = db.Column(db.String(64), unique=True, nullable=False)
     players = db.Column(db.JSON, nullable=False)  # Sorted list of 5 player names
     display_name = db.Column(db.String(100), nullable=True)  # Optional custom name
-    is_starting = db.Column(db.Boolean, default=False)  # Was this ever a starting lineup?
-    
+    is_starting = db.Column(
+        db.Boolean, default=False
+    )  # Was this ever a starting lineup?
+
     # Cached aggregated stats
     total_seconds = db.Column(db.Integer, default=0)
     total_possessions = db.Column(db.Integer, default=0)
@@ -265,15 +277,31 @@ class Lineup(db.Model):
     points_allowed = db.Column(db.Integer, default=0)
     games_played = db.Column(db.Integer, default=0)
     segment_count = db.Column(db.Integer, default=0)
-    
+
     # Calculated ratings
     ortg = db.Column(db.Float, default=0)
     drtg = db.Column(db.Float, default=0)
     net_rating = db.Column(db.Float, default=0)
-    
+
+    # Additional cached stats (aggregated from PlayerLineupStats)
+    fgm = db.Column(db.Integer, default=0)
+    fga = db.Column(db.Integer, default=0)
+    tpm = db.Column(db.Integer, default=0)
+    tpa = db.Column(db.Integer, default=0)
+    ftm = db.Column(db.Integer, default=0)
+    fta = db.Column(db.Integer, default=0)
+    oreb = db.Column(db.Integer, default=0)
+    dreb = db.Column(db.Integer, default=0)
+    ast = db.Column(db.Integer, default=0)
+    stl = db.Column(db.Integer, default=0)
+    blk = db.Column(db.Integer, default=0)
+    tov = db.Column(db.Integer, default=0)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+    last_updated = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
     # Relationships
     segments = db.relationship("LineupSegment", backref="lineup_ref", lazy=True)
 
@@ -346,7 +374,9 @@ class PlayerLineupStats(db.Model):
     stl = db.Column(db.Integer, default=0)
     blk = db.Column(db.Integer, default=0)
     tov = db.Column(db.Integer, default=0)
-    reb_conceded = db.Column(db.Integer, default=0)  # Offensive rebounds conceded to opponents
+    reb_conceded = db.Column(
+        db.Integer, default=0
+    )  # Offensive rebounds conceded to opponents
 
     lineup_segment = db.relationship(
         "LineupSegment", backref=db.backref("player_stats", lazy=True)

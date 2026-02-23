@@ -96,6 +96,12 @@
     }
     .shot-made { background-color: #28a745; } /* Green */
     .shot-missed { background-color: #dc3545; } /* Red */
+    .shot-opponent { background-color: #f59e0b; } /* Orange/Amber for opponent makes */
+    .shot-opponent-miss { 
+        background-color: transparent; 
+        border: 2px solid #6b7280; 
+        box-sizing: border-box;
+    } /* Gray ring for opponent misses */
 
     .shot-tooltip {
         position: absolute;
@@ -184,6 +190,14 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="shots-tab" data-bs-toggle="pill" data-bs-target="#shots" type="button" role="tab">
                     <i class="fas fa-crosshairs me-2"></i>Shot Stats
+                </button>
+            </li>
+            {% endif %}
+
+            {% if opponent_shots and opponent_shots|length > 0 %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="opponent-shots-tab" data-bs-toggle="pill" data-bs-target="#opponent-shots" type="button" role="tab">
+                    <i class="fas fa-shield-alt me-2"></i>Opponent Shots
                 </button>
             </li>
             {% endif %}
@@ -667,13 +681,25 @@
 
                 <div class="shot-chart-wrapper">
                     <!-- Half Court SVG Background -->
-                    <svg viewBox="0 0 500 470" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; background: #e0d4c5; display: block;">
-                         <rect x="170" y="0" width="160" height="190" fill="none" stroke="#fff" stroke-width="2"/>
-                         <circle cx="250" cy="47.5" r="7.5" fill="none" stroke="#ec9c3d" stroke-width="2"/>
-                         <line x1="220" y1="40" x2="280" y2="40" stroke="#fff" stroke-width="2"/>
-                         <path d="M 30,0 L 30,140 A 237.5 237.5 0 0 0 470 140 L 470,0" fill="none" stroke="#fff" stroke-width="2"/>
-                         <circle cx="250" cy="470" r="60" fill="none" stroke="#fff" stroke-width="2"/>
-                         <circle cx="250" cy="190" r="60" fill="none" stroke="#fff" stroke-width="2"/>
+                    <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; background-color: #d2b48c; display: block;">
+                        <!-- Court Floor -->
+                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                        
+                        <!-- 3-Point Arc (Approximate) -->
+                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Key / Paint Area -->
+                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Free Throw Circle -->
+                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Hoop / Backboard -->
+                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                        
+                        <!-- Baseline -->
+                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
                     </svg>
 
                     <!-- Shot Layer -->
@@ -794,6 +820,103 @@
         </div>
         {% endif %}
 
+        <!-- Tab 6: Opponent Shot Chart -->
+        {% if opponent_shots and opponent_shots|length > 0 %}
+        <div class="tab-pane fade" id="opponent-shots" role="tabpanel">
+            <div class="text-center py-3">
+                <h6 class="text-uppercase text-muted fw-bold mb-3">Opponent Shot Chart - {{ game.opponent }}</h6>
+                
+                <div class="shot-chart-wrapper">
+                    <!-- Half Court SVG Background -->
+                    <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; background-color: #d2b48c; display: block;">
+                        <!-- Court Floor -->
+                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                        
+                        <!-- 3-Point Arc (Approximate) -->
+                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Key / Paint Area -->
+                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Free Throw Circle -->
+                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Hoop / Backboard -->
+                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                        
+                        <!-- Baseline -->
+                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                    </svg>
+
+                    <!-- Opponent Shot Layer -->
+                    <div id="opponent-shot-layer">
+                        {% for shot in opponent_shots %}
+                        <div class="shot-point {% if shot.result == 'made' %}shot-opponent{% else %}shot-opponent-miss{% endif %}"
+                             style="left: {{ (shot.x / 500 * 100) }}%; top: {{ (shot.y / 470 * 100) }}%;"
+                             data-quarter="{{ shot.quarter }}"
+                             data-result="{{ shot.result }}"
+                             data-zone="{{ shot.zone|default('') }}">
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    {% set opp_made = opponent_shots|selectattr('result', 'equalto', 'made')|list %}
+                    {% set opp_missed = opponent_shots|selectattr('result', 'equalto', 'missed')|list %}
+                    <span class="badge bg-warning text-dark">● Opponent Makes ({{ opp_made|length }})</span>
+                    <span class="badge bg-secondary">○ Opponent Misses ({{ opp_missed|length }})</span>
+                </div>
+            </div>
+
+            <div class="stat-card mt-4">
+                <h6 class="text-uppercase text-muted mb-3 fw-bold letter-spacing-1">Opponent Shot Summary</h6>
+                {% set opp_made = opponent_shots|selectattr('result', 'equalto', 'made')|list %}
+                {% set opp_missed = opponent_shots|selectattr('result', 'equalto', 'missed')|list %}
+                {% set opp_total_pts = opponent_shots|sum(attribute='points')|default(0) %}
+                <div class="row text-center">
+                    <div class="col-md-2">
+                        <div class="h3 mb-0 fw-bold text-warning">{{ opp_made|length }}</div>
+                        <div class="small text-muted">Makes</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="h3 mb-0 fw-bold text-secondary">{{ opp_missed|length }}</div>
+                        <div class="small text-muted">Misses</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="h3 mb-0 fw-bold">{{ opponent_shots|length }}</div>
+                        <div class="small text-muted">Total Shots</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="h3 mb-0 fw-bold text-warning">{{ opp_total_pts }}</div>
+                        <div class="small text-muted">Points</div>
+                    </div>
+                    {% set q1_shots = opponent_shots|selectattr('quarter', 'equalto', 1)|list %}
+                    {% set q2_shots = opponent_shots|selectattr('quarter', 'equalto', 2)|list %}
+                    {% set q3_shots = opponent_shots|selectattr('quarter', 'equalto', 3)|list %}
+                    {% set q4_shots = opponent_shots|selectattr('quarter', 'equalto', 4)|list %}
+                    <div class="col-md-2">
+                        <div class="h4 mb-0 fw-bold">{{ q1_shots|length }}</div>
+                        <div class="small text-muted">Q1</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="h4 mb-0 fw-bold">{{ q2_shots|length }}</div>
+                        <div class="small text-muted">Q2</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="h4 mb-0 fw-bold">{{ q3_shots|length }}</div>
+                        <div class="small text-muted">Q3</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="h4 mb-0 fw-bold">{{ q4_shots|length }}</div>
+                        <div class="small text-muted">Q4</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
     </div>
 </div>
 
@@ -808,8 +931,15 @@
                 const player = pt.getAttribute('data-player');
                 const type = pt.getAttribute('data-type');
                 const res = pt.getAttribute('data-res');
+                const quarter = pt.getAttribute('data-quarter');
 
-                tooltip.innerHTML = `<strong>${player}</strong><br>${type.toUpperCase()} - ${res.toUpperCase()}`;
+                if (player) {
+                    tooltip.innerHTML = `<strong>${player}</strong><br>${type ? type.toUpperCase() : ''} - ${res ? res.toUpperCase() : ''}`;
+                } else if (quarter) {
+                    const zone = pt.getAttribute('data-zone');
+                    const result = pt.getAttribute('data-result');
+                    tooltip.innerHTML = `<strong>Opponent ${result ? result.charAt(0).toUpperCase() + result.slice(1) : 'Shot'}</strong><br>Q${quarter}${zone ? ' - ' + zone : ''}`;
+                }
                 tooltip.style.display = 'block';
 
                 moveTooltip(e);

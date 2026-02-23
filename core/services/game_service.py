@@ -53,7 +53,8 @@ def find_or_create_play(play_name, play_type="Offense"):
     new_play = Play(
         name=play_name,
         play_type=play_type,
-        description=f"Auto-created from game import",
+        description="Auto-created from game import",
+        source="imported",
     )
     db.session.add(new_play)
     db.session.flush()  # Get the ID without committing
@@ -304,6 +305,7 @@ def create_game_from_live_data(data):
         game_type=game_type,
         sort_date=sort_date,
         source=source,
+        schema_version=schema_version,
     )
     db.session.add(game)
     db.session.flush()
@@ -501,6 +503,8 @@ def create_game_from_live_data(data):
                 e_data, "possession_number", "possessionNumber"
             )
             game_seconds = get_nested_value(e_data, "game_seconds", "gameSeconds")
+            x = get_nested_value(e_data, "x_loc", "x", "xLoc")
+            y = get_nested_value(e_data, "y_loc", "y", "yLoc")
 
             validated_play_id = None
             if play_id:
@@ -536,6 +540,8 @@ def create_game_from_live_data(data):
                 if possession_number is not None
                 else None,
                 game_seconds=int(game_seconds) if game_seconds is not None else None,
+                x_loc=float(x) if x is not None else None,
+                y_loc=float(y) if y is not None else None,
             )
         db.session.add(event)
 
@@ -553,13 +559,10 @@ def create_game_from_live_data(data):
         GameEvent.query.filter_by(game_id=game.id).order_by(GameEvent.timestamp).all()
     )
 
-    # Check for explicit lineup tracking flag or detect substitution events
+    # Only process lineups when explicitly enabled (non-retroactive)
     has_lineup_tracking = schema_version >= 2 or features.get("LINEUP_TRACKING", False)
-    has_substitution_events = any(
-        e.event_type in ("SUB_IN", "SUB_OUT") for e in saved_events
-    )
 
-    if saved_events and (has_lineup_tracking or has_substitution_events):
+    if saved_events and has_lineup_tracking:
         try:
             process_game_lineups(game.id, saved_events, starting_lineup)
         except Exception as e:

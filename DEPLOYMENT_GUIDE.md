@@ -24,7 +24,6 @@
 - [ ] Schema matches IMPLEMENTATION_SUMMARY.md
 - [ ] Indexes created correctly
 - [ ] Foreign keys set up properly
-- [ ] Seed script working (`python scripts/seed_plays.py`)
 - [ ] Backward compatible (no breaking changes)
 - [ ] Rollback strategy documented
 
@@ -94,7 +93,6 @@ ls DEPLOYMENT_GUIDE.md
 ls core/plays_stats.py
 ls web/routes/pdf_export.py
 ls migrations/versions/*plays*
-ls scripts/seed_plays.py
 ```
 
 ### Step 2: Create Pull Request
@@ -147,34 +145,30 @@ mysqldump -u root -p basketball_stats > backup_$(date +%Y%m%d_%H%M%S).sql
 flask db upgrade
 # Output: [SUCCESS] Add plays and shot_events tables
 
-# 7. Seed initial plays
-python scripts/seed_plays.py
-# Output: [SUCCESS] Inserted 10 plays
-
-# 8. Run tests
+# 7. Run tests
 pytest tests/test_plays_stats.py -v
 pytest tests/test_pdf_export.py -v
 # All tests should pass
 
-# 9. Start Flask app
+# 8. Start Flask app
 flask run --host=0.0.0.0 --port=5000
 
-# 10. Test API endpoints (in another terminal)
+# 9. Test API endpoints (in another terminal)
 curl "http://staging.basketball-stats.com:5000/api/pdf/game/1/preview" | jq
 # Should return: {plays_used: N, plays_coverage: X%}
 
-# 11. Test PDF generation
+# 10. Test PDF generation
 curl "http://staging.basketball-stats.com:5000/api/pdf/game/1" -o test_game.pdf
 file test_game.pdf
 # Should output: PDF document, version 1.4
 
-# 12. Verify in browser
+# 11. Verify in browser
 # Navigate to: http://staging.basketball-stats.com/game/1
 # - Check export buttons visible
 # - Click "Export Game Plays" - PDF should download
 # - Click "Export Team Plays" - PDF should download
 
-# 13. Monitor logs
+# 12. Monitor logs
 tail -f logs/app.log
 # Should show no ERROR or WARNING messages
 ```
@@ -217,34 +211,29 @@ echo "Running migration..."
 flask db upgrade
 # Output: [SUCCESS] Add plays and shot_events tables
 
-# 9. Seed initial plays
-echo "Seeding plays..."
-python scripts/seed_plays.py
-# Output: [SUCCESS] Inserted 10 plays
-
-# 10. Run final tests
+# 9. Run final tests
 echo "Running tests..."
 pytest tests/test_plays_stats.py tests/test_pdf_export.py -v
 # All should pass
 
-# 11. Restart production service (if using systemd/gunicorn)
+# 10. Restart production service (if using systemd/gunicorn)
 sudo systemctl restart basketball-stats
 # Wait 10 seconds for restart
 sleep 10
 
-# 12. Verify service is running
+# 11. Verify service is running
 sudo systemctl status basketball-stats
 # Should show: active (running)
 
-# 13. Test production endpoints
+# 12. Test production endpoints
 curl "https://api.basketball-stats.com/api/pdf/game/1/preview"
 # Should return valid JSON
 
-# 14. Monitor production logs
+# 13. Monitor production logs
 tail -f /var/log/basketball-stats/production.log
 # Look for errors (none expected)
 
-# 15. Create deployment record
+# 14. Create deployment record
 echo "Deployment successful: $(date)" >> /deployments.log
 ```
 
@@ -398,20 +387,6 @@ mysql -u root -p basketball_stats
 > SHOW TABLES;
 > DESCRIBE plays;
 > DESCRIBE shot_events;
-```
-
-### Seed Script Fails
-```bash
-# 1. Check plays table exists
-mysql -u root -p basketball_stats \
-  "SELECT COUNT(*) FROM plays;"
-
-# 2. Run seed script with verbose output
-python scripts/seed_plays.py -v
-
-# 3. Check for duplicate keys
-mysql -u root -p basketball_stats \
-  "SHOW CREATE TABLE plays;"
 ```
 
 ---

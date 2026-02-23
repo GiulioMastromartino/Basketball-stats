@@ -9,6 +9,7 @@ from weasyprint import HTML
 
 from core.models import Game, PlayerStat, ShotEvent, GameEvent, SystemSetting, db
 from core.services.analytics_service import AnalyticsService
+from core.services.evolution_report_service import EvolutionReportService
 from core.charts import (
     generate_shot_chart,
     generate_team_shot_chart,
@@ -1295,46 +1296,32 @@ def live_halftime_pdf():
 
 @reports_bp.route("/games/<int:game_id>/evolution.pdf")
 @login_required
-def game_evolution_pdf(game_id):
-    """Generate game evolution PDF showing stats over time."""
-    from core.models import Game, GameEvent
-    from core.advanced_game_report import build_evolution_report
-    from weasyprint import HTML
-    from datetime import datetime
+def game_evolution_pdf(game_id: int):
+    """Generate game evolution PDF showing stats over time.
 
-    game = Game.query.get_or_404(game_id)
-    events = (
-        GameEvent.query.filter_by(game_id=game_id)
-        .order_by(GameEvent.game_seconds)
-        .all()
-    )
+    This report includes:
+    - Score progression (score worm)
+    - Team efficiency metrics over time
+    - Player stat evolution
+    - Scoring runs and lead changes
+    - Quarter-by-quarter breakdown
+    - Clutch time analysis (if applicable)
 
-    if not events:
-        return jsonify({"error": "No events for this game"}), 404
+    Args:
+        game_id: The game ID to generate the report for
 
-    # Build evolution report
-    report = build_evolution_report(
-        game_id=game_id, events=events, opponent=game.opponent, date=str(game.date)
-    )
+    Returns:
+        PDF file download
+    """
+    try:
+        report = EvolutionReportService.build_report(game_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
 
-    # Render template
     html = render_template(
         "game_evolution_pdf.html",
         report=report,
         generated_date=datetime.now().strftime("%B %d, %Y at %H:%M"),
     )
 
-    # Generate PDF
-    pdf_doc = HTML(string=html)
-    pdf_bytes = pdf_doc.write_pdf()
-    filename = f"evolution_{game.opponent}_{game.date}.pdf"
-
-    pdf_io = BytesIO(pdf_bytes)
-    pdf_io.seek(0)
-
-    return send_file(
-        pdf_io,
-        mimetype="application/pdf",
-        as_attachment=True,
-        download_name=filename,
-    )
+    return _render_pdf(html, f"evolution_{report.opponent}_{report.date}.pdf")

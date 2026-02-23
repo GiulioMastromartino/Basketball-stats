@@ -73,7 +73,7 @@ Each shot records:
 - `ShotEvent` table (individual shot attempts)
 - Database migration with indexes
 - Updated models in `core/models.py`
-- Initial play data seed script
+- Plays are created dynamically from imported games
 
 **Key Tables:**
 ```sql
@@ -179,18 +179,7 @@ CREATE TABLE plays (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Seed data
-INSERT INTO plays (name, category, description) VALUES
-('Pick & Roll', 'Offensive Set', 'Screen at top of key'),
-('Isolation', 'Offensive Set', 'One-on-one post up'),
-('Spot Up', 'Offensive Set', 'Catch and shoot three'),
-('Fast Break', 'Transition', '3v2 or 2v1 outlet'),
-('Off-Ball Screen', 'Offensive Set', 'Screen away from ball'),
-('High Post', 'Offensive Set', 'Mid-range from elbow'),
-('Drive & Kick', 'Offensive Set', 'Drive dish to shooter'),
-('Transition Three', 'Transition', 'Early offensive three'),
-('Post Up', 'Offensive Set', 'Low post scoring'),
-('Handoff', 'Offensive Set', 'Guard to guard/wing handoff');
+-- Play data is created dynamically from imported games
 ```
 
 ### ShotEvent Table
@@ -303,9 +292,6 @@ basketball-stats/
 │   └── versions/
 │       └── add_plays_and_shot_events.py  # NEW
 │
-├── scripts/
-│   └── seed_plays.py                # NEW
-│
 ├── tests/
 │   ├── test_plays_stats.py          # NEW
 │   └── test_pdf_export.py           # NEW
@@ -324,7 +310,6 @@ basketball-stats/
 - [ ] All code written and reviewed
 - [ ] All tests passing (unit + integration)
 - [ ] Database migration tested on local DB
-- [ ] Plays seeded correctly
 - [ ] PDF generation tested with sample data
 - [ ] Templates updated and tested
 - [ ] No hardcoded paths or credentials
@@ -335,11 +320,10 @@ basketball-stats/
 1. Create PR on `feature/live-game` branch
 2. Code review and approval
 3. Run `flask db upgrade` on staging
-4. Run `python scripts/seed_plays.py` on staging
-5. Test all endpoints on staging
-6. Deploy to production
-7. Run migrations on production
-8. Monitor error logs
+4. Test all endpoints on staging
+5. Deploy to production
+6. Run migrations on production
+7. Monitor error logs
 
 ---
 

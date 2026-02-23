@@ -313,6 +313,7 @@
         </div>
     </div>
 
+    <!-- Main Stats -->
     <div class="stat-grid" id="statsGrid">
         <div class="stat-card">
             <div class="stat-card-value" id="statMinutes">--</div>
@@ -344,6 +345,64 @@
             <div class="stat-card-label">Net Rating</div>
         </div>
     </div>
+    
+    <div class="section-title">
+        <i class="fas fa-basketball-ball" style="color: #f5576c;"></i>
+        Shooting Stats
+    </div>
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-card-value" id="statFg">--</div>
+            <div class="stat-card-subvalue" id="statFgSub">--</div>
+            <div class="stat-card-label">FG%</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statTp">--</div>
+            <div class="stat-card-subvalue" id="statTpSub">--</div>
+            <div class="stat-card-label">3P%</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statFt">--</div>
+            <div class="stat-card-subvalue" id="statFtSub">--</div>
+            <div class="stat-card-label">FT%</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statEfg">--</div>
+            <div class="stat-card-label">eFG%</div>
+        </div>
+    </div>
+    
+    <div class="section-title">
+        <i class="fas fa-chart-bar" style="color: #20c997;"></i>
+        Counting Stats (Per Game)
+    </div>
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-card-value" id="statReb">--</div>
+            <div class="stat-card-subvalue" id="statRebSub">OREB / DREB</div>
+            <div class="stat-card-label">Rebounds</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statAst">--</div>
+            <div class="stat-card-label">Assists</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statStl">--</div>
+            <div class="stat-card-label">Steals</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statBlk">--</div>
+            <div class="stat-card-label">Blocks</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statTov">--</div>
+            <div class="stat-card-label">Turnovers</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statAstTov">--</div>
+            <div class="stat-card-label">AST/TOV</div>
+        </div>
+    </div>
 
     <div class="section-title">
         <i class="fas fa-chart-line" style="color: #667eea;"></i>
@@ -355,6 +414,120 @@
                 <h5>Net Rating Across Games</h5>
                 <div class="chart-box">
                     <canvas id="netRatingChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-crosshairs" style="color: #e53e3e;"></i>
+        Opponent Shot Chart
+    </div>
+    
+    <style>
+        .shot-chart-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .shot-chart-wrapper svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .shot-point {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: auto;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .shot-point:hover {
+            transform: translate(-50%, -50%) scale(1.5);
+            z-index: 20;
+        }
+        .shot-opponent-make { 
+            background-color: #f59e0b; 
+        }
+        .shot-opponent-miss { 
+            background-color: transparent; 
+            border: 2px solid #6b7280; 
+            box-sizing: border-box;
+        }
+        #opponentMakesLayer, #opponentMissesLayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        #opponentMakesLayer .shot-point,
+        #opponentMissesLayer .shot-point {
+            pointer-events: auto;
+        }
+    </style>
+    
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="chart-container">
+                <h5 class="text-center mb-3">Opponent Makes <span id="makesCount" class="badge bg-warning text-dark">0</span></h5>
+                <div class="shot-chart-wrapper" id="makesChartWrapper">
+                    <!-- Half Court SVG Background -->
+                    <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c;">
+                        <!-- Court Floor -->
+                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                        
+                        <!-- 3-Point Arc (Approximate) -->
+                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Key / Paint Area -->
+                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Free Throw Circle -->
+                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Hoop / Backboard -->
+                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                        
+                        <!-- Baseline -->
+                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                    </svg>
+                    <div id="opponentMakesLayer"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="chart-container">
+                <h5 class="text-center mb-3">Opponent Misses <span id="missesCount" class="badge bg-secondary">0</span></h5>
+                <div class="shot-chart-wrapper" id="missesChartWrapper">
+                    <!-- Half Court SVG Background -->
+                    <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c;">
+                        <!-- Court Floor -->
+                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                        
+                        <!-- 3-Point Arc (Approximate) -->
+                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Key / Paint Area -->
+                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Free Throw Circle -->
+                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Hoop / Backboard -->
+                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                        
+                        <!-- Baseline -->
+                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                    </svg>
+                    <div id="opponentMissesLayer"></div>
                 </div>
             </div>
         </div>
@@ -430,7 +603,7 @@
     }
 
     function renderLineup(data) {
-        const { lineup, stats, games } = data;
+        const { lineup, stats, games, opponent_shots } = data;
 
         document.getElementById('lineupDisplayName').value = lineup.display_name || '';
         
@@ -446,6 +619,7 @@
         `).join('');
         document.getElementById('playersContainer').innerHTML = playersHtml;
 
+        // Main stats
         document.getElementById('statMinutes').textContent = stats.total_minutes.toFixed(1);
         document.getElementById('statGames').textContent = stats.games_played;
         document.getElementById('statPossessions').textContent = stats.possessions;
@@ -461,8 +635,37 @@
             netRtgEl.textContent = '--';
         }
 
+        // Shooting stats
+        document.getElementById('statFg').textContent = stats.fg_pct ? stats.fg_pct.toFixed(1) + '%' : '--';
+        document.getElementById('statFgSub').textContent = stats.fga > 0 ? `${stats.fgm}/${stats.fga}` : '--';
+        document.getElementById('statTp').textContent = stats.tp_pct ? stats.tp_pct.toFixed(1) + '%' : '--';
+        document.getElementById('statTpSub').textContent = stats.tpa > 0 ? `${stats.tpm}/${stats.tpa}` : '--';
+        document.getElementById('statFt').textContent = stats.ft_pct ? stats.ft_pct.toFixed(1) + '%' : '--';
+        document.getElementById('statFtSub').textContent = stats.fta > 0 ? `${stats.ftm}/${stats.fta}` : '--';
+        
+        // eFG%
+        const efg = stats.fga > 0 ? ((stats.fgm + 0.5 * stats.tpm) / stats.fga * 100) : 0;
+        document.getElementById('statEfg').textContent = efg.toFixed(1) + '%';
+
+        // Counting stats (per game)
+        document.getElementById('statReb').textContent = stats.rpg ? stats.rpg.toFixed(1) : '--';
+        document.getElementById('statRebSub').textContent = `${stats.oreb} / ${stats.dreb}`;
+        document.getElementById('statAst').textContent = stats.apg ? stats.apg.toFixed(1) : '--';
+        document.getElementById('statStl').textContent = stats.spg ? stats.spg.toFixed(1) : '--';
+        document.getElementById('statBlk').textContent = stats.bpg ? stats.bpg.toFixed(1) : '--';
+        document.getElementById('statTov').textContent = stats.topg ? stats.topg.toFixed(1) : '--';
+        
+        // AST/TOV ratio
+        const astTov = stats.topg > 0 ? (stats.apg / stats.topg).toFixed(2) : '--';
+        document.getElementById('statAstTov').textContent = astTov;
+
         renderGamesTable(games);
         renderNetRatingChart(games);
+        
+        // Render opponent shot charts if data available
+        if (opponent_shots) {
+            renderOpponentShotCharts(opponent_shots);
+        }
     }
 
     function renderGamesTable(games) {
@@ -562,6 +765,57 @@
                     }
                 }
             }
+        });
+    }
+
+    function renderOpponentShotCharts(opponentShots) {
+        // Render opponent shots on the SVG court backgrounds
+        const makesLayer = document.getElementById('opponentMakesLayer');
+        const missesLayer = document.getElementById('opponentMissesLayer');
+        const makesCount = document.getElementById('makesCount');
+        const missesCount = document.getElementById('missesCount');
+        
+        // Clear existing shots
+        if (makesLayer) makesLayer.innerHTML = '';
+        if (missesLayer) missesLayer.innerHTML = '';
+        
+        if (!opponentShots || opponentShots.length === 0) {
+            // No opponent shot data available
+            if (makesLayer) {
+                makesLayer.innerHTML = '<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #666; font-size: 14px;">No data</div>';
+            }
+            if (missesLayer) {
+                missesLayer.innerHTML = '<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #666; font-size: 14px;">No data</div>';
+            }
+            return;
+        }
+        
+        // Separate makes and misses
+        const makes = opponentShots.filter(s => s.result === 'made');
+        const misses = opponentShots.filter(s => s.result === 'missed');
+        
+        // Update counts
+        if (makesCount) makesCount.textContent = makes.length;
+        if (missesCount) missesCount.textContent = misses.length;
+        
+        // Render makes as orange dots
+        makes.forEach(shot => {
+            const dot = document.createElement('div');
+            dot.className = 'shot-point shot-opponent-make';
+            dot.style.left = `${(shot.x || 250) / 500 * 100}%`;
+            dot.style.top = `${(shot.y || 150) / 470 * 100}%`;
+            dot.title = `Q${shot.quarter || '?'} - Zone: ${shot.zone || 'Unknown'}`;
+            makesLayer.appendChild(dot);
+        });
+        
+        // Render misses as gray rings
+        misses.forEach(shot => {
+            const dot = document.createElement('div');
+            dot.className = 'shot-point shot-opponent-miss';
+            dot.style.left = `${(shot.x || 250) / 500 * 100}%`;
+            dot.style.top = `${(shot.y || 150) / 470 * 100}%`;
+            dot.title = `Q${shot.quarter || '?'} - Zone: ${shot.zone || 'Unknown'}`;
+            missesLayer.appendChild(dot);
         });
     }
 

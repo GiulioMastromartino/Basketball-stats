@@ -1,19 +1,18 @@
 # Plays Module - Quick Start Guide
 
-## TL;DR - 3 Commands to Get Started
+## TL;DR - 2 Commands to Get Started
 
 ```bash
 # 1. Initialize database
 flask init-db
 
-# 2. Load 65 plays from DR 4 playbook
-flask seed
-
-# 3. Create uploads directory
+# 2. Create uploads directory
 mkdir -p web/static/uploads/plays
 ```
 
 **Then restart Flask and navigate to:** `http://localhost:5000/plays`
+
+**Note:** Plays are created automatically when games are imported. There are no pre-loaded plays.
 
 ---
 
@@ -21,32 +20,18 @@ mkdir -p web/static/uploads/plays
 
 | File | Purpose |
 |------|----------|
-| `core/seed_plays.py` | Database with 65 DR 4 playbook plays |
 | `web/routes/plays.py` | Routes for CRUD operations |
 | `web/templates/plays/index.html` | Play gallery (grid view) |
 | `web/templates/plays/view.html` | Play detail page |
-| `cli.py` | CLI commands (init-db, seed, reset-db) |
+| `cli.py` | CLI commands (init-db, reset-db) |
 | `PLAYS_SETUP.md` | Full documentation |
 | Sidebar | Added "Plays" link to navigation |
 
 ---
 
-## Pre-loaded Plays (65 Total)
-
-### Offensive (20)
-Horns Twist, Spain PNR, Dribble Handoff, Pick and Pop, Pick and Roll, High Post Entry, Wing Isolation, Weak Side Cut, Ball Screen, Flare Screen, Staggered Screen, Cross Screen, UCLA Cut, Zipper Cut, Back Screen, Down Screen, Transition Offense, Triangle Offense, Motion Offense, Spread P&R
-
-### Defensive (20)
-Man-to-Man Defense, Zone Defense, 2-3 Zone, 3-2 Zone, 1-3-1 Zone, Box-and-One, Triangle-and-Two, Full Court Press, Half Court Press, Trap and Recover, Screen Coverage, Switch Defense, Drop Coverage, High Coverage, Hedging, Help and Recover, Deny Ball Handler, Weak Side Rotation, Transition Defense, Rebounding Position
-
-### Special (25)
-Inbound from Sideline, Inbound from Baseline, Against Full Court Press, Against Half Court Press, Baseline Out of Bounds, Sideline Out of Bounds, Backdoor Cut, Lob Play, Curl to Three, Punch Through, Elevator Door, Pick Pocket, Crash Boards, Short Clock, Game Winner, and more...
-
----
-
 ## Features at a Glance
 
-✓ **65 Pre-loaded Plays** - From official DR 4 playbook  
+✓ **Dynamic Plays** - Created from imported game data  
 ✓ **Filter by Type** - Offense, Defense, Special  
 ✓ **Grid Gallery** - Beautiful card layout  
 ✓ **Add/Edit/Delete** - Full CRUD operations  
@@ -119,9 +104,6 @@ web/
 └── templates/plays/
     ├── index.html            ← Gallery view
     └── view.html             ← Detail view
-
-core/
-└── seed_plays.py             ← 65 plays data
 ```
 
 ---
@@ -129,7 +111,7 @@ core/
 ## Troubleshooting
 
 **Plays not showing?**
-- Run: `flask seed`
+- Import a game to create plays from game data
 - Restart Flask
 
 **Can't upload images?**
@@ -142,7 +124,6 @@ core/
 
 **Database error?**
 - Run: `flask init-db`
-- Run: `flask seed`
 - Check database is accessible
 
 ---

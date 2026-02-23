@@ -505,20 +505,26 @@
                          <h6 style="color: #4a5568; font-weight: 700; text-transform: uppercase; font-size: 12px; margin-bottom: 15px;">Field Goal Locations (Made Only)</h6>
                          <div class="shot-chart-container" id="shotChartContainer">
                             <!-- Half Court SVG -->
-                             <svg viewBox="0 0 500 470" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; background: #e0d4c5; display: block;">
-                                <!-- Key Area -->
-                                <rect x="170" y="0" width="160" height="190" fill="none" stroke="#fff" stroke-width="2"/>
-                                <!-- Hoop -->
-                                <circle cx="250" cy="47.5" r="7.5" fill="none" stroke="#ec9c3d" stroke-width="2"/>
-                                <!-- Backboard -->
-                                <line x1="220" y1="40" x2="280" y2="40" stroke="#fff" stroke-width="2"/>
-                                <!-- 3PT Line (simplified arc) -->
-                                <path d="M 30,0 L 30,140 A 237.5 237.5 0 0 0 470 140 L 470,0" fill="none" stroke="#fff" stroke-width="2"/>
-                                 <!-- Center Circle -->
-                                 <circle cx="250" cy="470" r="60" fill="none" stroke="#fff" stroke-width="2"/>
-                                 <!-- Free Throw Circle -->
-                                 <circle cx="250" cy="190" r="60" fill="none" stroke="#fff" stroke-width="2"/>
-                            </svg>
+                             <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; background-color: #d2b48c; display: block;">
+                        <!-- Court Floor -->
+                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                        
+                        <!-- 3-Point Arc (Approximate) -->
+                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Key / Paint Area -->
+                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Free Throw Circle -->
+                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Hoop / Backboard -->
+                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                        
+                        <!-- Baseline -->
+                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                    </svg>
                             <div id="shotLayer"></div>
                          </div>
                      </div>

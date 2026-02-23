@@ -448,38 +448,42 @@ def get_rotation_analysis(game_id):
 
     return jsonify(rotation)
 
+
 @advanced_api_bp.route("/lineup/game/<int:game_id>/rankings")
 @login_required
 def get_game_lineup_rankings(game_id):
     """Get top N 5-player lineups for a specific game, ranked by minutes played.
-    
+
     Returns the top 4 lineups (by default) that played the most together in a game,
     with their offensive/defensive ratings and net rating.
-    
+
     Query params:
         top_n: Number of top lineups to return (default: 4)
     """
     top_n = request.args.get("top_n", 4, type=int)
-    
+
     # Verify game exists
     game = Game.query.get_or_404(game_id)
-    
+
     rankings = safe_query(
         lambda: LineupAnalytics.get_game_lineup_rankings(game_id, top_n),
         fallback_result=[],
         error_message="lineup_segments table missing",
     )
-    
-    return jsonify({
-        "game_id": game_id,
-        "opponent": game.opponent,
-        "date": game.date,
-        "team_score": game.team_score,
-        "opponent_score": game.opponent_score,
-        "result": game.result,
-        "top_n": top_n,
-        "rankings": rankings
-    })
+
+    return jsonify(
+        {
+            "game_id": game_id,
+            "opponent": game.opponent,
+            "date": game.date,
+            "team_score": game.team_score,
+            "opponent_score": game.opponent_score,
+            "result": game.result,
+            "top_n": top_n,
+            "rankings": rankings,
+        }
+    )
+
 
 # =============================================================================
 # SHOT CHARTS
@@ -753,7 +757,7 @@ def classify_shot():
 def get_advanced_game_report(game_id):
     """
     Get comprehensive advanced game report data.
-    
+
     Returns:
         - Game metadata
         - Team box score and advanced metrics
@@ -765,16 +769,23 @@ def get_advanced_game_report(game_id):
         - Clutch performance
         - Play effectiveness
     """
-    from core.advanced_game_report import TeamBox, PlayerBox, team_advanced, player_advanced
-    
+    from core.advanced_game_report import (
+        TeamBox,
+        PlayerBox,
+        team_advanced,
+        player_advanced,
+    )
+
     game = Game.query.get_or_404(game_id)
     stats = PlayerStat.query.filter_by(game_id=game_id).all()
     shots = ShotEvent.query.filter_by(game_id=game_id).all()
-    events = GameEvent.query.filter_by(game_id=game_id).order_by(GameEvent.timestamp).all()
-    
+    events = (
+        GameEvent.query.filter_by(game_id=game_id).order_by(GameEvent.timestamp).all()
+    )
+
     if not stats:
         return jsonify({"error": "No stats for this game"}), 404
-    
+
     # Build team box score
     team_box = TeamBox(
         pts=sum(s.points or 0 for s in stats),
@@ -792,12 +803,12 @@ def get_advanced_game_report(game_id):
         blk=sum(s.blk or 0 for s in stats),
         tov=sum(s.tov or 0 for s in stats),
     )
-    
+
     # Estimate opponent box score
     team_poss = team_box.fga + 0.44 * team_box.fta - team_box.orb + team_box.tov
     opp_fga_est = int(team_poss * 0.6) if team_poss > 0 else 0
     opp_fta_est = int(opp_fga_est * 0.25) if opp_fga_est > 0 else 0
-    
+
     opp_box = TeamBox(
         pts=game.opponent_score,
         fgm=0,
@@ -814,49 +825,55 @@ def get_advanced_game_report(game_id):
         blk=0,
         tov=int(team_poss * 0.15) if team_poss > 0 else 0,
     )
-    
+
     # Calculate team advanced metrics
     team_adv = team_advanced(team_box, opp_box)
     opp_adv = team_advanced(opp_box, team_box)
-    
+
     # Build player box scores
     players = []
     for s in stats:
         minutes = 0
         if s.minutes:
-            if isinstance(s.minutes, str) and ':' in s.minutes:
-                parts = s.minutes.split(':')
-                minutes = float(parts[0]) + float(parts[1]) / 60 if len(parts) > 1 else float(parts[0])
+            if isinstance(s.minutes, str) and ":" in s.minutes:
+                parts = s.minutes.split(":")
+                minutes = (
+                    float(parts[0]) + float(parts[1]) / 60
+                    if len(parts) > 1
+                    else float(parts[0])
+                )
             else:
                 try:
                     minutes = float(s.minutes)
                 except (ValueError, TypeError):
                     minutes = 0
-        
-        players.append(PlayerBox(
-            name=s.player_name,
-            minutes=minutes,
-            pts=s.points or 0,
-            fgm=s.fgm or 0,
-            fga=s.fga or 0,
-            tpm=s.tpm or 0,
-            tpa=s.tpa or 0,
-            ftm=s.ftm or 0,
-            fta=s.fta or 0,
-            orb=s.oreb or 0,
-            drb=s.dreb or 0,
-            trb=(s.oreb or 0) + (s.dreb or 0),
-            ast=s.ast or 0,
-            stl=s.stl or 0,
-            blk=s.blk or 0,
-            tov=s.tov or 0,
-        ))
-    
+
+        players.append(
+            PlayerBox(
+                name=s.player_name,
+                minutes=minutes,
+                pts=s.points or 0,
+                fgm=s.fgm or 0,
+                fga=s.fga or 0,
+                tpm=s.tpm or 0,
+                tpa=s.tpa or 0,
+                ftm=s.ftm or 0,
+                fta=s.fta or 0,
+                orb=s.oreb or 0,
+                drb=s.dreb or 0,
+                trb=(s.oreb or 0) + (s.dreb or 0),
+                ast=s.ast or 0,
+                stl=s.stl or 0,
+                blk=s.blk or 0,
+                tov=s.tov or 0,
+            )
+        )
+
     # Calculate player advanced metrics
     team_minutes_total = 200.0  # 40-minute game
     player_rows = [player_advanced(p, team_box, team_minutes_total) for p in players]
     player_rows.sort(key=lambda r: r["pts"], reverse=True)
-    
+
     # Add basic stats to player rows
     for i, s in enumerate(sorted(stats, key=lambda x: x.points or 0, reverse=True)):
         if i < len(player_rows):
@@ -870,10 +887,16 @@ def get_advanced_game_report(game_id):
             player_rows[i]["dreb"] = s.dreb or 0
             player_rows[i]["stl"] = s.stl or 0
             player_rows[i]["blk"] = s.blk or 0
-            player_rows[i]["fg_pct"] = round((s.fgm / s.fga * 100), 1) if s.fga and s.fgm else 0
-            player_rows[i]["tp_pct"] = round((s.tpm / s.tpa * 100), 1) if s.tpa and s.tpm else 0
-            player_rows[i]["ft_pct"] = round((s.ftm / s.fta * 100), 1) if s.fta and s.ftm else 0
-    
+            player_rows[i]["fg_pct"] = (
+                round((s.fgm / s.fga * 100), 1) if s.fga and s.fgm else 0
+            )
+            player_rows[i]["tp_pct"] = (
+                round((s.tpm / s.tpa * 100), 1) if s.tpa and s.tpm else 0
+            )
+            player_rows[i]["ft_pct"] = (
+                round((s.ftm / s.fta * 100), 1) if s.fta and s.ftm else 0
+            )
+
     # Shot chart data
     shot_data = [
         {
@@ -883,11 +906,11 @@ def get_advanced_game_report(game_id):
             "points": s.points,
             "player": s.player_name,
             "quarter": s.quarter,
-            "zone": classify_shot_zone(s.x_loc, s.y_loc, s.shot_type)
+            "zone": classify_shot_zone(s.x_loc, s.y_loc, s.shot_type),
         }
         for s in shots
     ]
-    
+
     # Zone breakdown
     zones = {}
     for shot in shot_data:
@@ -898,45 +921,69 @@ def get_advanced_game_report(game_id):
         zones[zone]["points"] += shot["points"] or 0
         if shot["result"] == "made":
             zones[zone]["makes"] += 1
-    
+
     for zone in zones:
-        zones[zone]["fg_pct"] = round(zones[zone]["makes"] / zones[zone]["attempts"] * 100, 1) if zones[zone]["attempts"] > 0 else 0
-        zones[zone]["pps"] = round(zones[zone]["points"] / zones[zone]["attempts"], 2) if zones[zone]["attempts"] > 0 else 0
-    
+        zones[zone]["fg_pct"] = (
+            round(zones[zone]["makes"] / zones[zone]["attempts"] * 100, 1)
+            if zones[zone]["attempts"] > 0
+            else 0
+        )
+        zones[zone]["pps"] = (
+            round(zones[zone]["points"] / zones[zone]["attempts"], 2)
+            if zones[zone]["attempts"] > 0
+            else 0
+        )
+
     # Quarterly scoring breakdown
-    quarters = {1: {"team": 0, "opp": 0}, 2: {"team": 0, "opp": 0}, 3: {"team": 0, "opp": 0}, 4: {"team": 0, "opp": 0}}
+    quarters = {
+        1: {"team": 0, "opp": 0},
+        2: {"team": 0, "opp": 0},
+        3: {"team": 0, "opp": 0},
+        4: {"team": 0, "opp": 0},
+    }
     for s in shots:
         q = s.quarter or 1
         if q in quarters and s.result == "made":
             quarters[q]["team"] += s.points or 0
-    
+
     # Score progression from events
     score_progression = []
     cumulative_team = 0
     cumulative_opp = game.opponent_score  # Start with final opponent score
-    
+
     for e in events:
         if e.event_type in ["SHOT_2PT", "SHOT_3PT", "FT"] and e.shot_attempt == "made":
-            pts = 2 if e.event_type == "SHOT_2PT" else (3 if e.event_type == "SHOT_3PT" else 1)
+            pts = (
+                2
+                if e.event_type == "SHOT_2PT"
+                else (3 if e.event_type == "SHOT_3PT" else 1)
+            )
             cumulative_team += pts
-            score_progression.append({
-                "timestamp": e.timestamp,
-                "quarter": e.quarter,
-                "team_score": cumulative_team,
-                "opp_score": int(cumulative_opp * len(score_progression) / max(len(events), 1)),  # Estimate
-                "margin": cumulative_team - int(cumulative_opp * len(score_progression) / max(len(events), 1))
-            })
-    
+            score_progression.append(
+                {
+                    "timestamp": e.timestamp,
+                    "quarter": e.quarter,
+                    "team_score": cumulative_team,
+                    "opp_score": int(
+                        cumulative_opp * len(score_progression) / max(len(events), 1)
+                    ),  # Estimate
+                    "margin": cumulative_team
+                    - int(
+                        cumulative_opp * len(score_progression) / max(len(events), 1)
+                    ),
+                }
+            )
+
     # Top performers
     top_performers = sorted(player_rows, key=lambda x: x["pts"], reverse=True)[:3]
-    
+
     # Clutch performance (last 5 minutes, margin <= 5)
     clutch_stats = {"plays": 0, "points": 0, "fgm": 0, "fga": 0}
     for e in events:
         if e.score_margin is not None and abs(e.score_margin) <= 5:
             time_secs = 0
             if e.time_remaining:
-                parts = e.time_remaining.split(':')
+                parts = e.time_remaining.split(":")
                 if len(parts) == 2:
                     time_secs = int(parts[0]) * 60 + int(parts[1])
             if e.quarter == 4 and time_secs <= 300:  # Last 5 minutes
@@ -947,41 +994,44 @@ def get_advanced_game_report(game_id):
                         clutch_stats["fgm"] += 1
                         pts = 2 if e.event_type == "SHOT_2PT" else 3
                         clutch_stats["points"] += pts
-    
-    return jsonify({
-        "game": {
-            "id": game.id,
-            "date": game.date,
-            "opponent": game.opponent,
-            "team_score": game.team_score,
-            "opponent_score": game.opponent_score,
-            "result": game.result,
-            "type": game.game_type,
-        },
-        "team": team_adv,
-        "opponent": opp_adv,
-        "players": player_rows,
-        "shots": shot_data,
-        "zones": zones,
-        "quarters": quarters,
-        "score_progression": score_progression,
-        "top_performers": top_performers,
-        "clutch": clutch_stats,
-        "four_factors": {
-            "team": {
-                "efg_pct": team_adv.get("efg_pct", 0),
-                "tov_pct": team_adv.get("tov_pct", 0),
-                "orb_pct": team_adv.get("orb_pct", 0),
-                "ft_rate": team_adv.get("ftr", 0),
+
+    return jsonify(
+        {
+            "game": {
+                "id": game.id,
+                "date": game.date,
+                "opponent": game.opponent,
+                "team_score": game.team_score,
+                "opponent_score": game.opponent_score,
+                "result": game.result,
+                "type": game.game_type,
             },
-            "opponent": {
-                "efg_pct": opp_adv.get("efg_pct", 0),
-                "tov_pct": opp_adv.get("tov_pct", 0),
-                "orb_pct": opp_adv.get("orb_pct", 0),
-                "ft_rate": opp_adv.get("ftr", 0),
-            }
+            "team": team_adv,
+            "opponent": opp_adv,
+            "players": player_rows,
+            "shots": shot_data,
+            "zones": zones,
+            "quarters": quarters,
+            "score_progression": score_progression,
+            "top_performers": top_performers,
+            "clutch": clutch_stats,
+            "four_factors": {
+                "team": {
+                    "efg_pct": team_adv.get("efg_pct", 0),
+                    "tov_pct": team_adv.get("tov_pct", 0),
+                    "orb_pct": team_adv.get("orb_pct", 0),
+                    "ft_rate": team_adv.get("ftr", 0),
+                },
+                "opponent": {
+                    "efg_pct": opp_adv.get("efg_pct", 0),
+                    "tov_pct": opp_adv.get("tov_pct", 0),
+                    "orb_pct": opp_adv.get("orb_pct", 0),
+                    "ft_rate": opp_adv.get("ftr", 0),
+                },
+            },
         }
-    })
+    )
+
 
 # =============================================================================
 # LINEUPS API
@@ -992,7 +1042,7 @@ def get_advanced_game_report(game_id):
 @login_required
 def get_all_lineups():
     """Get all lineups with cached stats, sorted by total minutes played.
-    
+
     Query params:
         game_type: Filter by game type (Season, Friendly, ALL)
         min_minutes: Minimum minutes played to include
@@ -1001,13 +1051,13 @@ def get_all_lineups():
     game_type = request.args.get("game_type", "ALL")
     min_minutes = request.args.get("min_minutes", 0, type=float)
     sort_by = request.args.get("sort_by", "total_seconds")
-    
+
     query = Lineup.query
-    
+
     # Filter by minimum minutes
     if min_minutes > 0:
         query = query.filter(Lineup.total_seconds >= min_minutes * 60)
-    
+
     # Map sort_by names to actual columns
     sort_column_map = {
         "total_minutes": Lineup.total_seconds,
@@ -1019,42 +1069,47 @@ def get_all_lineups():
     }
     sort_column = sort_column_map.get(sort_by, Lineup.total_seconds)
     query = query.order_by(desc(sort_column))
-    
+
     lineups = query.all()
-    
-    return jsonify({
-        "total": len(lineups),
-        "game_type": game_type,
-        "lineups": [{
-            "id": l.id,
-            "display_name": l.display_name,
-            "players": l.players,
-            "total_minutes": round(l.total_seconds / 60, 1),
-            "games_played": l.games_played,
-            "segment_count": l.segment_count,
-            "possessions": l.total_possessions,
-            "points_scored": l.points_scored,
-            "points_allowed": l.points_allowed,
-            "ortg": l.ortg,
-            "drtg": l.drtg,
-            "net_rating": l.net_rating,
-            "is_starting": l.is_starting,
-        } for l in lineups]
-    })
+
+    return jsonify(
+        {
+            "total": len(lineups),
+            "game_type": game_type,
+            "lineups": [
+                {
+                    "id": l.id,
+                    "display_name": l.display_name,
+                    "players": l.players,
+                    "total_minutes": round(l.total_seconds / 60, 1),
+                    "games_played": l.games_played,
+                    "segment_count": l.segment_count,
+                    "possessions": l.total_possessions,
+                    "points_scored": l.points_scored,
+                    "points_allowed": l.points_allowed,
+                    "ortg": l.ortg,
+                    "drtg": l.drtg,
+                    "net_rating": l.net_rating,
+                    "is_starting": l.is_starting,
+                }
+                for l in lineups
+            ],
+        }
+    )
 
 
 @advanced_api_bp.route("/lineup/<int:lineup_id>")
 @login_required
 def get_lineup_card(lineup_id):
     """Get detailed stats for a single lineup (card view).
-    
+
     Includes per-game breakdown and segment details.
     """
     lineup = Lineup.query.get_or_404(lineup_id)
-    
+
     # Get all segments for this lineup
     segments = LineupSegment.query.filter_by(lineup_id=lineup_id).all()
-    
+
     # Group by game
     games_data = {}
     for segment in segments:
@@ -1072,111 +1127,205 @@ def get_lineup_card(lineup_id):
                 "points_scored": 0,
                 "points_allowed": 0,
                 "possessions": 0,
-                "segments": []
+                "segments": [],
             }
-        
+
         games_data[game_id]["total_seconds"] += segment.duration_seconds or 0
         games_data[game_id]["points_scored"] += segment.points_scored or 0
         games_data[game_id]["points_allowed"] += segment.points_allowed or 0
         games_data[game_id]["possessions"] += segment.possessions or 0
-        games_data[game_id]["segments"].append({
-            "segment_id": segment.id,
-            "quarter": segment.quarter,
-            "duration_seconds": segment.duration_seconds,
-            "points_scored": segment.points_scored,
-            "points_allowed": segment.points_allowed,
-        })
-    
+        games_data[game_id]["segments"].append(
+            {
+                "segment_id": segment.id,
+                "quarter": segment.quarter,
+                "duration_seconds": segment.duration_seconds,
+                "points_scored": segment.points_scored,
+                "points_allowed": segment.points_allowed,
+            }
+        )
+
     # Convert to list and sort by date
-    games_list = sorted(games_data.values(), key=lambda x: x["date"] or "", reverse=True)
+    games_list = sorted(
+        games_data.values(), key=lambda x: x["date"] or "", reverse=True
+    )
+
+    fg_pct = round((lineup.fgm / lineup.fga) * 100, 1) if lineup.fga > 0 else 0
+    tp_pct = round((lineup.tpm / lineup.tpa) * 100, 1) if lineup.tpa > 0 else 0
+    ft_pct = round((lineup.ftm / lineup.fta) * 100, 1) if lineup.fta > 0 else 0
+
+    return jsonify(
+        {
+            "lineup": {
+                "id": lineup.id,
+                "display_name": lineup.display_name,
+                "players": lineup.players,
+                "lineup_hash": lineup.lineup_hash,
+                "is_starting": lineup.is_starting,
+                "created_at": lineup.created_at.isoformat()
+                if lineup.created_at
+                else None,
+                "last_updated": lineup.last_updated.isoformat()
+                if lineup.last_updated
+                else None,
+            },
+            "stats": {
+                "total_minutes": round(lineup.total_seconds / 60, 1),
+                "games_played": lineup.games_played,
+                "segment_count": lineup.segment_count,
+                "possessions": lineup.total_possessions,
+                "points_scored": lineup.points_scored,
+                "points_allowed": lineup.points_allowed,
+                "ortg": lineup.ortg,
+                "drtg": lineup.drtg,
+                "net_rating": lineup.net_rating,
+                "ppg": round(lineup.points_scored / lineup.games_played, 1)
+                if lineup.games_played > 0
+                else 0,
+                "opp_ppg": round(lineup.points_allowed / lineup.games_played, 1)
+                if lineup.games_played > 0
+                else 0,
+                "fgm": lineup.fgm,
+                "fga": lineup.fga,
+                "fg_pct": fg_pct,
+                "tpm": lineup.tpm,
+                "tpa": lineup.tpa,
+                "tp_pct": tp_pct,
+                "ftm": lineup.ftm,
+                "fta": lineup.fta,
+                "ft_pct": ft_pct,
+                "oreb": lineup.oreb,
+                "dreb": lineup.dreb,
+                "reb": lineup.oreb + lineup.dreb,
+                "ast": lineup.ast,
+                "stl": lineup.stl,
+                "blk": lineup.blk,
+                "tov": lineup.tov,
+                "rpg": round((lineup.oreb + lineup.dreb) / lineup.games_played, 1)
+                if lineup.games_played > 0
+                else 0,
+                "apg": round(lineup.ast / lineup.games_played, 1)
+                if lineup.games_played > 0
+                else 0,
+                "spg": round(lineup.stl / lineup.games_played, 1)
+                if lineup.games_played > 0
+                else 0,
+                "bpg": round(lineup.blk / lineup.games_played, 1)
+                if lineup.games_played > 0
+                else 0,
+                "topg": round(lineup.tov / lineup.games_played, 1)
+                if lineup.games_played > 0
+                else 0,
+            },
+            "games": games_list,
+            "opponent_shots": get_opponent_shots_for_lineup(lineup_id),
+        }
+    )
+
+
+def get_opponent_shots_for_lineup(lineup_id):
+    """Get opponent shot locations for all segments in a lineup."""
+    from core.models import GameEvent
     
-    return jsonify({
-        "lineup": {
-            "id": lineup.id,
-            "display_name": lineup.display_name,
-            "players": lineup.players,
-            "lineup_hash": lineup.lineup_hash,
-            "is_starting": lineup.is_starting,
-            "created_at": lineup.created_at.isoformat() if lineup.created_at else None,
-            "last_updated": lineup.last_updated.isoformat() if lineup.last_updated else None,
-        },
-        "stats": {
-            "total_minutes": round(lineup.total_seconds / 60, 1),
-            "games_played": lineup.games_played,
-            "segment_count": lineup.segment_count,
-            "possessions": lineup.total_possessions,
-            "points_scored": lineup.points_scored,
-            "points_allowed": lineup.points_allowed,
-            "ortg": lineup.ortg,
-            "drtg": lineup.drtg,
-            "net_rating": lineup.net_rating,
-            "ppg": round(lineup.points_scored / lineup.games_played, 1) if lineup.games_played > 0 else 0,
-            "opp_ppg": round(lineup.points_allowed / lineup.games_played, 1) if lineup.games_played > 0 else 0,
-        },
-        "games": games_list,
-    })
+    segments = LineupSegment.query.filter_by(lineup_id=lineup_id).all()
+    if not segments:
+        return []
+    
+    shots = []
+    for segment in segments:
+        # Get OPP_SCORE events during this segment with shot locations
+        segment_shots = GameEvent.query.filter(
+            GameEvent.game_id == segment.game_id,
+            GameEvent.event_type == "OPP_SCORE",
+            GameEvent.timestamp >= segment.start_timestamp,
+            GameEvent.timestamp <= (segment.end_timestamp or 9999999999999)
+        ).all()
+        
+        for shot in segment_shots:
+            x = shot.x_loc if hasattr(shot, 'x_loc') else None
+            y = shot.y_loc if hasattr(shot, 'y_loc') else None
+            # Parse detail to get result
+            import json
+            detail = json.loads(shot.detail) if shot.detail else {}
+            result = detail.get('result', 'made')
+            
+            if x is not None and y is not None:
+                shots.append({
+                    "x": x,
+                    "y": y,
+                    "result": result,
+                    "quarter": shot.quarter,
+                    "game_id": segment.game_id,
+                })
+    
+    return shots
 
 
 @advanced_api_bp.route("/lineup/<int:lineup_id>", methods=["PUT"])
 @login_required
 def update_lineup_name(lineup_id):
     """Update the display name of a lineup.
-    
+
     Request body:
         display_name: New display name for the lineup
     """
     data = request.get_json()
     if not data or "display_name" not in data:
         return jsonify({"error": "display_name required"}), 400
-    
+
     lineup = Lineup.query.get_or_404(lineup_id)
     lineup.display_name = data["display_name"]
     db.session.commit()
-    
-    return jsonify({
-        "success": True,
-        "lineup": {
-            "id": lineup.id,
-            "display_name": lineup.display_name,
+
+    return jsonify(
+        {
+            "success": True,
+            "lineup": {
+                "id": lineup.id,
+                "display_name": lineup.display_name,
+            },
         }
-    })
+    )
 
 
 @advanced_api_bp.route("/lineup/by-players", methods=["POST"])
 @login_required
 def get_lineup_by_players():
     """Get lineup stats by player combination.
-    
+
     Request body:
         players: List of 5 player names
-    
+
     Returns:
         Lineup stats if found, or 404 if lineup doesn't exist.
     """
     import hashlib
     from core.services.lineup_service import generate_lineup_hash
-    
+
     data = request.get_json()
     if not data or "players" not in data:
         return jsonify({"error": "players list required"}), 400
-    
+
     players = data["players"]
     if len(players) != 5:
         return jsonify({"error": "Exactly 5 players required"}), 400
-    
+
     lineup_hash = generate_lineup_hash(players)
     lineup = Lineup.query.filter_by(lineup_hash=lineup_hash).first()
-    
+
     if not lineup:
-        return jsonify({
-            "found": False,
-            "lineup_hash": lineup_hash,
-            "players": sorted(players),
-        }), 404
-    
+        return jsonify(
+            {
+                "found": False,
+                "lineup_hash": lineup_hash,
+                "players": sorted(players),
+            }
+        ), 404
+
     # Return the same format as get_lineup_card
-    return jsonify({
-        "found": True,
-        "lineup_id": lineup.id,
-        "redirect": f"/api/advanced/lineup/{lineup.id}"
-    })
+    return jsonify(
+        {
+            "found": True,
+            "lineup_id": lineup.id,
+            "redirect": f"/api/advanced/lineup/{lineup.id}",
+        }
+    )

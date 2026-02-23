@@ -1,4 +1,13 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app
+from flask import (
+    Blueprint,
+    render_template,
+    request,
+    jsonify,
+    flash,
+    redirect,
+    url_for,
+    current_app,
+)
 from flask_login import login_required
 from core.models import db, Play, PlayType, PlaySequence
 from web.decorators import admin_required
@@ -30,24 +39,20 @@ def add():
     name = request.form.get("name")
     play_type = request.form.get("play_type", "Offense")
     description = request.form.get("description", "")
-    
+
     if not name:
         flash("Play name is required", "danger")
         return redirect(url_for("plays.list_plays"))
-    
+
     # Check for duplicate name
     if Play.query.filter_by(name=name).first():
         flash(f"Play '{name}' already exists", "warning")
         return redirect(url_for("plays.list_plays"))
-    
-    play = Play(
-        name=name,
-        play_type=play_type,
-        description=description
-    )
+
+    play = Play(name=name, play_type=play_type, description=description)
     db.session.add(play)
     db.session.commit()
-    
+
     flash(f"Play '{name}' created successfully", "success")
     return redirect(url_for("plays.view_play", play_id=play.id))
 
@@ -57,26 +62,26 @@ def add():
 def edit(play_id):
     """Edit an existing play via form submission"""
     play = Play.query.get_or_404(play_id)
-    
+
     name = request.form.get("name")
     play_type = request.form.get("play_type", play.play_type)
     description = request.form.get("description", play.description)
-    
+
     if not name:
         flash("Play name is required", "danger")
         return redirect(url_for("plays.view_play", play_id=play_id))
-    
+
     # Check for duplicate name (excluding current play)
     existing = Play.query.filter_by(name=name).first()
     if existing and existing.id != play_id:
         flash(f"Play '{name}' already exists", "warning")
         return redirect(url_for("plays.view_play", play_id=play_id))
-    
+
     play.name = name
     play.play_type = play_type
     play.description = description
     db.session.commit()
-    
+
     flash(f"Play '{name}' updated successfully", "success")
     return redirect(url_for("plays.view_play", play_id=play_id))
 
@@ -96,12 +101,14 @@ def list_plays():
     play_types = PlayType.query.order_by(PlayType.name).all()
     return render_template("plays/list.html", plays=plays, play_types=play_types)
 
+
 @plays_bp.route("/plays/create")
 @login_required
 def create_play():
     """Render the Play Builder for a new play"""
     play_types = PlayType.query.order_by(PlayType.name).all()
     return render_template("plays/create.html", play=None, play_types=play_types)
+
 
 @plays_bp.route("/plays/<int:play_id>")
 @login_required
@@ -112,6 +119,7 @@ def view_play(play_id):
     play.sequences.sort(key=lambda x: x.sequence_number)
     return render_template("plays/detail.html", play=play)
 
+
 @plays_bp.route("/plays/<int:play_id>/edit-builder")
 @login_required
 def edit_play_builder(play_id):
@@ -119,6 +127,7 @@ def edit_play_builder(play_id):
     play = Play.query.get_or_404(play_id)
     play_types = PlayType.query.order_by(PlayType.name).all()
     return render_template("plays/create.html", play=play, play_types=play_types)
+
 
 @plays_bp.route("/plays/<int:play_id>/delete", methods=["POST"])
 @login_required
@@ -129,6 +138,23 @@ def delete_play(play_id):
     db.session.commit()
     flash(f"Play '{play.name}' deleted.", "success")
     return redirect(url_for("plays.list_plays"))
+
+
+@plays_bp.route("/plays/clear-all", methods=["POST"])
+@login_required
+@admin_required
+def clear_all_plays():
+    """Delete all plays from the database"""
+    try:
+        PlaySequence.query.delete()
+        num_deleted = Play.query.delete()
+        db.session.commit()
+        flash(f"Deleted {num_deleted} plays.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error clearing plays: {str(e)}", "danger")
+    return redirect(url_for("plays.list_plays"))
+
 
 @plays_bp.route("/plays/types/add", methods=["POST"])
 @login_required
@@ -142,6 +168,7 @@ def add_play_type():
         else:
             flash(f"Play Type '{name}' already exists.", "warning")
     return redirect(url_for("plays.list_plays"))
+
 
 @plays_bp.route("/plays/types/<int:type_id>/delete", methods=["POST"])
 @login_required

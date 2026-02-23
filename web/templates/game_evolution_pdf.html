@@ -360,11 +360,11 @@
         <div class="key-moments-grid">
             <div class="key-moment-card">
                 <div class="key-moment-label">Maximum Lead</div>
-                <div class="key-moment-value positive">+{{ report.max_lead.team|default(0) }}</div>
+                <div class="key-moment-value positive">+{{ report.max_lead|default(0) }}</div>
             </div>
             <div class="key-moment-card">
                 <div class="key-moment-label">Maximum Deficit</div>
-                <div class="key-moment-value negative">-{{ report.max_lead.opp|default(0) }}</div>
+                <div class="key-moment-value negative">-{{ report.max_deficit|default(0) }}</div>
             </div>
             <div class="key-moment-card">
                 <div class="key-moment-label">Lead Changes</div>
@@ -377,10 +377,13 @@
             <div class="runs-title">Scoring Runs (5+ Points)</div>
             {% for run in report.scoring_runs %}
             {% if run.points >= 5 %}
-            <span class="run-item {{ 'run-team' if run.team == 'TEAM' else 'run-opp' }}">
-                {{ run.points }}-0 {{ run.team }} Run
+            <div class="run-item {{ 'run-team' if run.team == 'team' else 'run-opp' }}">
+                {{ run.points }}-0 {{ run.team|title }} Run
                 <span class="run-time">(Q{{ run.start_quarter }}:{{ run.start_time }})</span>
-            </span>
+                {% if run.lineup and run.lineup|length > 0 %}
+                <span style="font-weight: normal; opacity: 0.9"> - Lineup: {{ run.lineup|join(', ') }}</span>
+                {% endif %}
+            </div>
             {% endif %}
             {% endfor %}
         </div>
@@ -420,19 +423,19 @@
                     <tr>
                         <td class="text-left">Q{{ q }}</td>
                         <td style="font-weight: bold">{{ qs.pts|default(0) }}</td>
-                        <td>{{ qs.fgm|default(0) }}</td>
-                        <td>{{ qs.fga|default(0) }}</td>
-                        <td class="{{ 'stat-good' if qs.fg_pct|default(0) >= 45 else 'stat-bad' if qs.fga|default(0) > 0 }}">
-                            {% if qs.fga and qs.fga > 0 %}{{ qs.fg_pct|default(((qs.fgm|default(0) / qs.fga) * 100))|round(1) }}%{% else %}--{% endif %}
+                        <td>{{ qs.team_fgm|default(0) }}</td>
+                        <td>{{ qs.team_fga|default(0) }}</td>
+                        <td class="{{ 'stat-good' if qs.fg_pct|default(0) >= 45 else 'stat-bad' if qs.team_fga|default(0) > 0 }}">
+                            {% if qs.team_fga and qs.team_fga > 0 %}{{ qs.fg_pct|default(((qs.team_fgm|default(0) / qs.team_fga) * 100))|round(1) }}%{% else %}--{% endif %}
                         </td>
-                        <td>{{ qs.tpm|default(0) }}</td>
-                        <td>{{ qs.tpa|default(0) }}</td>
-                        <td class="{{ 'stat-good' if qs.tp_pct|default(0) >= 33 else 'stat-bad' if qs.tpa|default(0) > 0 }}">
-                            {% if qs.tpa and qs.tpa > 0 %}{{ qs.tp_pct|default(((qs.tpm|default(0) / qs.tpa) * 100))|round(1) }}%{% else %}--{% endif %}
+                        <td>{{ qs.team_tpm|default(0) }}</td>
+                        <td>{{ qs.team_tpa|default(0) }}</td>
+                        <td class="{{ 'stat-good' if qs.tp_pct|default(0) >= 33 else 'stat-bad' if qs.team_tpa|default(0) > 0 }}">
+                            {% if qs.team_tpa and qs.team_tpa > 0 %}{{ qs.tp_pct|default(((qs.team_tpm|default(0) / qs.team_tpa) * 100))|round(1) }}%{% else %}--{% endif %}
                         </td>
-                        <td>{{ qs.ftm|default(0) }}</td>
-                        <td>{{ qs.fta|default(0) }}</td>
-                        <td class="{{ 'stat-bad' if qs.tov|default(0) >= 4 }}">{{ qs.tov|default(0) }}</td>
+                        <td>{{ qs.team_ftm|default(0) }}</td>
+                        <td>{{ qs.team_fta|default(0) }}</td>
+                        <td class="{{ 'stat-bad' if qs.team_tov|default(0) >= 4 }}">{{ qs.team_tov|default(0) }}</td>
                         <td>{{ qs.reb|default(0) }}</td>
                     </tr>
                     {% else %}
@@ -565,7 +568,7 @@
                     <div class="player-evolution-totals">
                         {% if snapshots and snapshots|length > 0 %}
                         {% set last = snapshots[-1] %}
-                        <span><strong>PTS:</strong> {{ last.points|default(0) }}</span>
+                        <span><strong>PTS:</strong> {{ last.pts|default(0) }}</span>
                         <span><strong>REB:</strong> {{ last.reb|default(0) }}</span>
                         <span><strong>AST:</strong> {{ last.ast|default(0) }}</span>
                         <span><strong>+/-:</strong> <span style="color: {{ '#166534' if last.plus_minus|default(0) > 0 else '#dc3545' if last.plus_minus|default(0) < 0 else '#4a5568' }}">{{ '+' if last.plus_minus|default(0) > 0 }}{{ last.plus_minus|default(0) }}</span></span>
@@ -575,7 +578,7 @@
                 
                 <svg class="player-mini-chart" viewBox="0 0 400 60" preserveAspectRatio="xMidYMid meet">
                     {% if snapshots and snapshots|length > 0 %}
-                    {% set max_pts = snapshots|map(attribute='points')|max|default(10) %}
+                    {% set max_pts = snapshots|map(attribute='pts')|max|default(10) %}
                     {% set min_pts = 0 %}
                     {% set y_scale = [max_pts, 10]|max %}
                     {% set x_start = 30 %}
@@ -596,7 +599,7 @@
                     <path d="M 
                         {% for snap in snapshots %}
                         {% set x = x_start + (snap.game_seconds * x_range / total_seconds) %}
-                        {% set y = chart_bottom - (snap.points * chart_height / y_scale) %}
+                        {% set y = chart_bottom - (snap.pts * chart_height / y_scale) %}
                         {{ x }} {{ y }}{% if not loop.last %} L {% endif %}
                         {% endfor %}
                     " fill="none" stroke="#2c3e50" stroke-width="1.5"/>
@@ -613,7 +616,7 @@
                     {% for snap in snapshots %}
                     {% if loop.last %}
                     {% set x = x_start + (snap.game_seconds * x_range / total_seconds) %}
-                    {% set y_pts = chart_bottom - (snap.points * chart_height / y_scale) %}
+                    {% set y_pts = chart_bottom - (snap.pts * chart_height / y_scale) %}
                     <circle cx="{{ x }}" cy="{{ y_pts }}" r="3" fill="#2c3e50"/>
                     {% endif %}
                     {% endfor %}
@@ -649,14 +652,14 @@
                         <td class="text-left">{{ player_name }}</td>
                         {% for q in [1, 2, 3, 4] %}
                         {% set q_end = q * 720 %}
-                        {% set q_snap = snapshots|selectattr('game_seconds', '<=', q_end)|last %}
+                        {% set q_snap = (snapshots|selectattr('game_seconds', '<=', q_end)|list)|last %}
                         {% set q_start = (q - 1) * 720 %}
-                        {% set q_start_snap = snapshots|selectattr('game_seconds', '<=', q_start)|last %}
+                        {% set q_start_snap = (snapshots|selectattr('game_seconds', '<=', q_start)|list)|last %}
                         <td>
                             {% if q_snap and q_start_snap %}
-                            {{ q_snap.points - q_start_snap.points }}
+                            {{ q_snap.pts - q_start_snap.pts }}
                             {% elif q_snap %}
-                            {{ q_snap.points }}
+                            {{ q_snap.pts }}
                             {% else %}
                             -
                             {% endif %}
@@ -664,7 +667,7 @@
                         {% endfor %}
                         {% if snapshots and snapshots|length > 0 %}
                         {% set last = snapshots[-1] %}
-                        <td style="font-weight: bold">{{ last.points|default(0) }}</td>
+                        <td style="font-weight: bold">{{ last.pts|default(0) }}</td>
                         <td style="color: {{ '#166534' if last.plus_minus|default(0) > 0 else '#dc3545' if last.plus_minus|default(0) < 0 else '#4a5568' }}">
                             {{ '+' if last.plus_minus|default(0) > 0 }}{{ last.plus_minus|default(0) }}
                         </td>

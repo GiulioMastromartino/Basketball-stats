@@ -11,6 +11,14 @@
         <a href="{{ url_for('plays.create_play') }}" class="btn btn-primary">
             <i class="fas fa-plus"></i> New Play
         </a>
+        {% if plays and current_user.is_manager %}
+        <form action="{{ url_for('plays.clear_all_plays') }}" method="POST" class="d-inline ml-2" onsubmit="return confirm('Are you sure you want to delete ALL plays? This cannot be undone!');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger">
+                <i class="fas fa-trash-alt"></i> Clear All
+            </button>
+        </form>
+        {% endif %}
     </div>
 </div>
 

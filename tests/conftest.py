@@ -272,50 +272,70 @@ def sample_shot_event(db_session, sample_game):
 
 @pytest.fixture
 def sample_game_events(db_session, sample_game):
-    """Create sample game events for timeline testing."""
-    events = []
+    """Create sample game events for timeline testing.
 
-    # SUB_IN events for starting lineup
-    for player in ["John Doe", "Jane Smith", "Mike Johnson", "Tom Wilson", "Bob Brown"]:
+    Events are ordered chronologically:
+    1. Starters record game events first (shots, etc.)
+    2. Then substitutions occur (SUB_OUT followed by SUB_IN)
+    """
+    events = []
+    starters = ["John Doe", "Jane Smith", "Mike Johnson", "Tom Wilson", "Bob Brown"]
+    bench_player = "Sub Player"
+
+    # Starters record events first (they're on the floor to start)
+    # These are the actual starting lineup
+    for i, player in enumerate(starters):
         event = GameEvent(
             game_id=sample_game.id,
-            event_type="SUB_IN",
+            event_type="SHOT_2PT",
             player_name=player,
             quarter=1,
-            timestamp=0,
-            time_remaining="10:00",
-            score_margin=0,
-            game_seconds=0,
+            timestamp=1000 + i * 100,  # Chronological: 1000, 1100, 1200, 1300, 1400
+            time_remaining="09:30",
+            score_margin=2,
+            game_seconds=30 + i * 10,
+            shot_attempt="made" if i % 2 == 0 else "missed",
         )
         db_session.add(event)
         events.append(event)
 
-    # Made 2pt shot
-    event = GameEvent(
-        game_id=sample_game.id,
-        event_type="SHOT_2PT",
-        player_name="John Doe",
-        detail=json.dumps({"points": 2}),
-        quarter=1,
-        timestamp=1000,
-        time_remaining="8:30",
-        score_margin=2,
-        game_seconds=90,
-        shot_attempt="made",
-    )
-    db_session.add(event)
-    events.append(event)
-
-    # Opponent score
+    # Opponent scores
     event = GameEvent(
         game_id=sample_game.id,
         event_type="OPP_SCORE",
         detail=json.dumps({"points": 2, "shot_type": "2pt", "result": "made"}),
         quarter=1,
-        timestamp=2000,
-        time_remaining="7:15",
+        timestamp=5000,
+        time_remaining="07:15",
         score_margin=0,
         game_seconds=165,
+    )
+    db_session.add(event)
+    events.append(event)
+
+    # Now a substitution happens - Bob Brown goes out, Sub Player comes in
+    event = GameEvent(
+        game_id=sample_game.id,
+        event_type="SUB_OUT",
+        player_name="Bob Brown",
+        quarter=1,
+        timestamp=10000,
+        time_remaining="05:00",
+        score_margin=2,
+        game_seconds=300,
+    )
+    db_session.add(event)
+    events.append(event)
+
+    event = GameEvent(
+        game_id=sample_game.id,
+        event_type="SUB_IN",
+        player_name=bench_player,
+        quarter=1,
+        timestamp=10001,
+        time_remaining="05:00",
+        score_margin=2,
+        game_seconds=300,
     )
     db_session.add(event)
     events.append(event)

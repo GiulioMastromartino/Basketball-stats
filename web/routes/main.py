@@ -36,6 +36,10 @@ from core.models import (
 from core.csv_processor import CSVProcessor
 from core.parser import parse_game_pdf
 from core.services import create_game_from_live_data
+from core.services.game_service import (
+    find_or_create_play,
+    extract_play_name_from_detail,
+)
 from core.services.email_service import send_game_notification
 from core.play_analytics import (
     get_play_stats,
@@ -765,8 +769,19 @@ def upload_game():
                             shot_kwargs = {
                                 k: v for k, v in s_data.items() if k in valid_keys
                             }
+
+                            play_id = None
+                            detail = s_data.get("detail")
+                            play_name = extract_play_name_from_detail(detail)
+                            if play_name:
+                                play = find_or_create_play(play_name)
+                                if play:
+                                    play_id = play.id
+
                             db.session.add(
-                                ShotEvent(game_id=game.id, play_id=None, **shot_kwargs)
+                                ShotEvent(
+                                    game_id=game.id, play_id=play_id, **shot_kwargs
+                                )
                             )
 
                         # Handle game events - support multiple key names
@@ -785,8 +800,19 @@ def upload_game():
                             event_kwargs = {
                                 k: v for k, v in e_data.items() if k in valid_keys
                             }
+
+                            play_id = None
+                            detail = e_data.get("detail")
+                            play_name = extract_play_name_from_detail(detail)
+                            if play_name:
+                                play = find_or_create_play(play_name)
+                                if play:
+                                    play_id = play.id
+
                             db.session.add(
-                                GameEvent(game_id=game.id, play_id=None, **event_kwargs)
+                                GameEvent(
+                                    game_id=game.id, play_id=play_id, **event_kwargs
+                                )
                             )
 
                         db.session.commit()
@@ -1012,11 +1038,34 @@ def game_detail(game_id):
         ),
     }
 
+    # Get opponent shots with location data (both made and missed)
+    opponent_shots = GameEvent.query.filter(
+        GameEvent.game_id == game.id,
+        GameEvent.event_type.in_(["OPP_SCORE", "OPP_MISS"]),
+        GameEvent.x_loc.isnot(None),
+    ).all()
+
+    opponent_shot_data = [
+        {
+            "x": s.x_loc,
+            "y": s.y_loc,
+            "result": "made" if s.event_type == "OPP_SCORE" else "missed",
+            "quarter": s.quarter,
+            "zone": s.zone if hasattr(s, "zone") else None,
+            "points": json.loads(s.detail).get("points", 0)
+            if s.detail and s.event_type == "OPP_SCORE"
+            else 0,
+        }
+        for s in opponent_shots
+        if s.x_loc is not None and s.y_loc is not None
+    ]
+
     return render_template(
         "game_detail.html",
         game=game,
         stats=stats,
         shot_events=shot_events,
+        opponent_shots=opponent_shot_data,
         plays_data=plays_data,
         plays_players_data=plays_players_data,
         players_plays_data=players_plays_data,
@@ -1039,14 +1088,34 @@ def delete_game(game_id):
         ShotEvent.query.filter_by(game_id=game.id).delete()
         GameEvent.query.filter_by(game_id=game.id).delete()
 
-        segment_ids = [
-            s.id for s in LineupSegment.query.filter_by(game_id=game.id).all()
-        ]
+        # Get lineup_ids before deleting segments (to update cached stats)
+        segments = LineupSegment.query.filter_by(game_id=game.id).all()
+        segment_ids = [s.id for s in segments]
+        affected_lineup_ids = list(set(s.lineup_id for s in segments if s.lineup_id))
+
+        # Delete PlayerLineupStats
         if segment_ids:
             PlayerLineupStats.query.filter(
                 PlayerLineupStats.lineup_segment_id.in_(segment_ids)
             ).delete()
+
+        # Delete LineupSegments
         LineupSegment.query.filter_by(game_id=game.id).delete()
+
+        # Update or delete affected Lineups
+        from core.services.lineup_service import update_lineup_cached_stats
+
+        for lineup_id in affected_lineup_ids:
+            lineup = Lineup.query.get(lineup_id)
+            if lineup:
+                # Check if lineup still has segments
+                remaining_segments = LineupSegment.query.filter_by(
+                    lineup_id=lineup_id
+                ).count()
+                if remaining_segments == 0:
+                    db.session.delete(lineup)
+                else:
+                    update_lineup_cached_stats(lineup_id)
 
         db.session.delete(game)
         db.session.commit()
