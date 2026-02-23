@@ -6,6 +6,32 @@ class GameTracker {
         this.opponentScore = 0;
         this.shotLocations = [];
         this.gameEvents = [];
+        this.lineupHistory = [];
+        this.startingLineup = [];
+        this.oppRecentActions = [];
+
+        // ===========================================
+        // FORMAT VERSION & FEATURE FLAGS
+        // ===========================================
+        // Schema version for backwards compatibility during post-processing
+        // Version history:
+        //   v1 - Original format (no lineup tracking, no opponent shot location)
+        //   v2 - Added lineup tracking (lineupHistory, startingLineup, event.active_lineup)
+        //   v3 - Added opponent shot location tracking, remove action feature
+        //   v4 - Added lineup_segment_id linking, full court tracking
+        this.SCHEMA_VERSION = 4;
+
+        // Feature flags - indicate which features are enabled/tracked
+        this.FEATURES = {
+            LINEUP_TRACKING: true,          // Tracks lineupHistory, startingLineup, event.active_lineup
+            OPPONENT_SHOT_LOCATION: true,   // Tracks opponent shot locations on court
+            OPPONENT_ACTION_REMOVAL: true,  // Allows removing opponent actions
+            EVENT_INDEXING: true,           // Events have event_index field
+            SEGMENT_LINKING: true,          // Events can be linked to lineup segments
+            POSSESSION_TRACKING: true,      // Tracks possession_number on events
+            TIMELINE_FIELDS: true           // Events have quarter, time_remaining, game_seconds, score_margin
+        };
+        // ===========================================
 
         // Pending actions
         this.pendingMadeShot = null;
@@ -16,6 +42,19 @@ class GameTracker {
 
         // **NEW: Track last added shot index for retroactive play_id assignment**
         this.lastShotIndex = null;
+
+        // **NEW: FT Trip tracking**
+        this.pendingFTTrip = null;  // { player, totalFt, ftm: 0 }
+
+        // **NEW: Opponent shot tracking**
+        this.pendingOppShot = null;  // { type: '2pt'|'3pt'|'ft', points: 2|3|1 }
+
+        // **NEW: Possession tracking**
+        this.possessionNumber = 0;
+        this.lastPossessionTeam = null;
+
+        // **NEW: Quarter length constant (10 minutes)**
+        this.QUARTER_LENGTH_SECONDS = 600;
 
         // Timer State
         this.timerInterval = null;
@@ -363,6 +402,12 @@ class GameTracker {
             return;
         }
 
+        if (this.pendingFTTrip) {
+            this.confirmFTPlaySelection(play);
+            this.pendingPlaySelection = null;
+            return;
+        }
+
         if (this.pendingPlaySelection) {
             const { eventType, shooter } = this.pendingPlaySelection;
 
@@ -483,6 +528,8 @@ class GameTracker {
         this.quarter = snapshot.quarter || 1;
         this.quarterSeconds = snapshot.quarterSeconds || 0;
         this.gameSeconds = snapshot.gameSeconds || 0;
+        this.lineupHistory = snapshot.lineupHistory || [];
+        this.startingLineup = snapshot.startingLineup || [];
 
         if (snapshot.gameDate) document.getElementById('game-date').value = snapshot.gameDate;
         if (snapshot.opponentName) document.getElementById('opponent').value = snapshot.opponentName;
@@ -572,6 +619,7 @@ class GameTracker {
     // --- PERSISTENCE ---
     saveState() {
         const state = {
+            schema_version: this.SCHEMA_VERSION,
             fullRoster: this.fullRoster,
             activeLineup: this.activeLineup,
             stats: this.stats,
@@ -583,7 +631,10 @@ class GameTracker {
             gameSeconds: this.gameSeconds,
             gameDate: document.getElementById('game-date').value,
             opponentName: document.getElementById('opponent').value,
-            gameType: document.getElementById('game-type').value
+            gameType: document.getElementById('game-type').value,
+            lineupHistory: this.lineupHistory,
+            startingLineup: this.startingLineup,
+            oppRecentActions: this.oppRecentActions
         };
         localStorage.setItem(this.CONSTANTS.STORAGE_KEY, JSON.stringify(state));
     }
@@ -593,6 +644,23 @@ class GameTracker {
         if (stored) {
             try {
                 const state = JSON.parse(stored);
+                
+                const savedVersion = state.schema_version || 1;
+                
+                if (savedVersion < 2) {
+                    this.lineupHistory = [];
+                    this.startingLineup = [];
+                } else {
+                    this.lineupHistory = state.lineupHistory || [];
+                    this.startingLineup = state.startingLineup || [];
+                }
+                
+                if (savedVersion < 3) {
+                    this.oppRecentActions = [];
+                } else {
+                    this.oppRecentActions = state.oppRecentActions || [];
+                }
+                
                 this.fullRoster = state.fullRoster || [];
                 this.activeLineup = state.activeLineup || [];
                 this.stats = state.stats || {};
@@ -710,9 +778,18 @@ class GameTracker {
                     plus_minus: 0,
                     minutes_seconds: 0,
                     quarter_minutes: {1: 0, 2: 0, 3: 0, 4: 0},
-                    last_sub_in: this.activeLineup.includes(p) ? Date.now() : null
+                    last_sub_in: this.activeLineup.includes(p) ? Date.now() : null,
+                    reb_conceded: 0
                 };
             });
+
+            this.startingLineup = [...this.activeLineup];
+            this.lineupHistory = [{
+                players: [...this.activeLineup],
+                startEventIndex: 0,
+                quarter: this.quarter,
+                gameSeconds: (this.quarter - 1) * this.QUARTER_LENGTH_SECONDS + this.quarterSeconds
+            }];
         } else {
             this.activeLineup.forEach(p => {
                 if (!this.stats[p].last_sub_in) this.stats[p].last_sub_in = Date.now();
@@ -721,6 +798,18 @@ class GameTracker {
                     this.stats[p].quarter_minutes = {1: 0, 2: 0, 3: 0, 4: 0};
                 }
             });
+
+            if (this.startingLineup.length === 0 && this.activeLineup.length === 5) {
+                this.startingLineup = [...this.activeLineup];
+            }
+            if (this.lineupHistory.length === 0) {
+                this.lineupHistory = [{
+                    players: [...this.activeLineup],
+                    startEventIndex: this.gameEvents.length,
+                    quarter: this.quarter,
+                    gameSeconds: (this.quarter - 1) * this.QUARTER_LENGTH_SECONDS + this.quarterSeconds
+                }];
+            }
         }
 
         document.getElementById('lineup-panel').style.display = 'none';
@@ -814,14 +903,10 @@ class GameTracker {
                                 <!-- FT -->
                                 <div class="d-flex justify-content-between align-items-center">
                                     <span class="font-weight-bold small text-muted" style="width: 40px;">FT</span>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="gameTracker.updateShooting('${p}', 'ft', -1, -1)">-M</button>
-                                        <button class="btn btn-outline-secondary py-0" onclick="gameTracker.updateShooting('${p}', 'ft', 0, -1)">-A</button>
-                                    </div>
+                                    <div></div>
                                     <span class="mx-2 font-weight-bold" id="disp-ft-${p}">${s.ftm}/${s.fta}</span>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-danger py-0" onclick="gameTracker.updateShooting('${p}', 'ft', 0, 1)">Miss</button>
-                                        <button class="btn btn-success font-weight-bold py-0" onclick="gameTracker.updateShooting('${p}', 'ft', 1, 1)">+1</button>
+                                        <button class="btn btn-warning font-weight-bold py-0" onclick="gameTracker.openFTModal('${p}')">FT</button>
                                     </div>
                                 </div>
                             </div>
@@ -1229,15 +1314,57 @@ class GameTracker {
         this.saveState();
     }
 
-    logEvent(type, player = null, detail = null) {
+    logEvent(type, player = null, detail = null, playId = null) {
+        const remaining = Math.max(0, this.QUARTER_LENGTH_SECONDS - this.quarterSeconds);
+        const mins = Math.floor(remaining / 60);
+        const secs = remaining % 60;
+        const timeRemaining = `${mins}:${secs.toString().padStart(2, '0')}`;
+        
+        const teamScore = this.calculateTeamScore();
+        const margin = teamScore - this.opponentScore;
+        
+        const gameSeconds = (this.quarter - 1) * this.QUARTER_LENGTH_SECONDS + this.quarterSeconds;
+        
+        if (['SHOT_2PT', 'SHOT_3PT', 'FT', 'TURNOVER', 'OPP_SCORE'].includes(type)) {
+            const isOpponent = type === 'OPP_SCORE';
+            if (this.lastPossessionTeam !== (isOpponent ? 'opp' : 'team')) {
+                this.possessionNumber++;
+            }
+            this.lastPossessionTeam = isOpponent ? 'opp' : 'team';
+        }
+        
         this.gameEvents.push({
             type,
             player,
             detail,
             quarter: this.quarter,
             clockSeconds: this.quarterSeconds,
+            time_remaining: timeRemaining,
+            score_margin: margin,
+            game_seconds: gameSeconds,
+            possession_number: this.possessionNumber,
+            play_id: playId,
+            event_index: this.gameEvents.length,
+            active_lineup: [...this.activeLineup],
             timestamp: Date.now()
         });
+    }
+
+    setStartingLineup(players) {
+        this.startingLineup = players;
+        this.activeLineup = players;
+        this.lineupHistory = [{
+            players: [...players],
+            startEventIndex: 0,
+            quarter: this.quarter,
+            gameSeconds: (this.quarter - 1) * this.QUARTER_LENGTH_SECONDS + this.quarterSeconds
+        }];
+        this.renderActivePlayers();
+        this.saveState();
+    }
+
+    calculateTeamScore() {
+        return Object.values(this.stats).reduce((sum, s) => sum + (s.points || 0), 0);
     }
 
     updateOppScore(points) {
@@ -1254,6 +1381,510 @@ class GameTracker {
             this.updateUI(pName);
         });
         this.updateScoreboard();
+        this.trackOppAction('OPP_SCORE', { points, manual: true });
+        this.saveState();
+    }
+    
+    // --- FREE THROW TRIP HANDLING ---
+    
+    openFTModal(player) {
+        this.pendingFTTrip = { player, totalFt: 2, ftm: 0 };
+        
+        document.getElementById('ft-player-name').innerText = player;
+        document.getElementById('ft-count-select').value = 2;
+        document.getElementById('ft-made-input').value = 0;
+        document.getElementById('ft-made-input').max = 2;
+        
+        $('#ftModal').modal('show');
+    }
+    
+    setFTCount(count) {
+        this.pendingFTTrip.totalFt = parseInt(count);
+        const madeInput = document.getElementById('ft-made-input');
+        madeInput.max = count;
+        if (parseInt(madeInput.value) > count) {
+            madeInput.value = count;
+        }
+    }
+    
+    confirmFTCount() {
+        const totalFt = this.pendingFTTrip.totalFt;
+        const ftm = Math.min(parseInt(document.getElementById('ft-made-input').value) || 0, totalFt);
+        
+        this.pendingFTTrip.ftm = ftm;
+        
+        $('#ftModal').modal('hide');
+        
+        // Open play selector for this FT trip
+        this.openPlaySelector('FT', this.pendingFTTrip.player, 'ft');
+    }
+    
+    confirmFTPlaySelection(play) {
+        if (!this.pendingFTTrip) return;
+        
+        const { player, totalFt, ftm } = this.pendingFTTrip;
+        
+        // Update stats
+        this.stats[player].ftm += ftm;
+        this.stats[player].fta += totalFt;
+        this.stats[player].points += ftm;
+        
+        // Update plus/minus for active lineup
+        this.activeLineup.forEach(pName => {
+            if (this.stats[pName]) {
+                this.stats[pName].plus_minus += ftm;
+            }
+        });
+        
+        // Log single batch event with play_id
+        this.logEvent('FT', player, { ftm: ftm, fta: totalFt }, play ? play.id : null);
+        
+        this.updateUI(player);
+        this.activeLineup.forEach(pName => this.updateUI(pName));
+        this.updateScoreboard();
+        this.pendingFTTrip = null;
+        this.saveState();
+    }
+    
+    // --- OPPONENT SHOT TRACKING ---
+    
+    oppShot(type) {
+        const points = type === '2pt' ? 2 : (type === '3pt' ? 3 : 1);
+        this.pendingOppShot = { type, points };
+        
+        document.getElementById('opp-shot-type').innerText = type.toUpperCase();
+        $('#oppShotModal').modal('show');
+    }
+    
+    trackOppAction(type, detail = null) {
+        this.oppRecentActions.push({
+            eventIndex: this.gameEvents.length - 1,
+            type,
+            detail,
+            timestamp: Date.now()
+        });
+        if (this.oppRecentActions.length > 10) {
+            this.oppRecentActions.shift();
+        }
+        this.updateRemoveActionDropdown();
+    }
+
+    updateRemoveActionDropdown() {
+        const list = document.getElementById('remove-action-list');
+        if (!list) return;
+        
+        list.innerHTML = '';
+        
+        const recentOpp = this.oppRecentActions.slice(-5).reverse();
+        
+        if (recentOpp.length === 0) {
+            list.innerHTML = '<a class="dropdown-item text-muted" href="#">No recent actions</a>';
+            return;
+        }
+        
+        recentOpp.forEach((action, idx) => {
+            const a = document.createElement('a');
+            a.className = 'dropdown-item';
+            a.href = '#';
+            
+            let label = '';
+            if (action.type === 'OPP_SCORE') {
+                const pts = action.detail?.points || 0;
+                const result = action.detail?.result || 'made';
+                label = `OPP ${pts}PT ${result.toUpperCase()}`;
+            } else if (action.type === 'OPP_OREB') {
+                label = 'OPP OREB';
+            } else {
+                label = action.type;
+            }
+            
+            a.innerText = label;
+            a.onclick = (e) => {
+                e.preventDefault();
+                this.removeOppAction(action);
+            };
+            list.appendChild(a);
+        });
+    }
+
+    removeOppAction(action) {
+        if (action.eventIndex >= 0 && action.eventIndex < this.gameEvents.length) {
+            const event = this.gameEvents[action.eventIndex];
+            
+            if (event.type === 'OPP_SCORE' && event.detail?.result === 'made') {
+                const pts = event.detail?.points || 0;
+                this.opponentScore -= pts;
+                if (this.opponentScore < 0) this.opponentScore = 0;
+                document.getElementById('opp-score-display').innerText = this.opponentScore;
+                
+                this.activeLineup.forEach(pName => {
+                    if (this.stats[pName]) {
+                        this.stats[pName].plus_minus += pts;
+                    }
+                    this.updateUI(pName);
+                });
+            }
+            
+            this.gameEvents.splice(action.eventIndex, 1);
+            
+            this.oppRecentActions = this.oppRecentActions.filter(a => a.eventIndex !== action.eventIndex);
+            
+            this.oppRecentActions.forEach(a => {
+                if (a.eventIndex > action.eventIndex) {
+                    a.eventIndex--;
+                }
+            });
+            
+            this.updateScoreboard();
+            this.updateRemoveActionDropdown();
+            this.saveState();
+        }
+    }
+    
+    confirmOppShot(made) {
+        if (!this.pendingOppShot) return;
+        
+        const { type, points } = this.pendingOppShot;
+        
+        if (made) {
+            this.logEvent('OPP_SCORE', null, { 
+                points, 
+                shot_type: type,
+                result: 'made' 
+            });
+            
+            this.trackOppAction('OPP_SCORE', { points, shot_type: type, result: 'made' });
+            
+            this.opponentScore += points;
+            document.getElementById('opp-score-display').innerText = this.opponentScore;
+            
+            this.activeLineup.forEach(pName => {
+                if (this.stats[pName]) {
+                    this.stats[pName].plus_minus -= points;
+                }
+                this.updateUI(pName);
+            });
+            
+            this.pendingOppShotLocation = { type, points };
+            document.getElementById('opp-shotloc-info').innerText = `${type.toUpperCase()} MADE (${points}PT)`;
+            document.getElementById('opp-shotloc-coords').innerText = '';
+            document.getElementById('btn-confirm-opp-shotloc').disabled = true;
+            
+            const marker = document.getElementById('opp-shotloc-marker');
+            marker.setAttribute('cx', -20);
+            marker.setAttribute('cy', -20);
+            
+            this.setupOppShotLocationClick();
+            
+            $('#oppShotModal').modal('hide');
+            $('#oppShotLocModal').modal('show');
+        } else {
+            this.showOppMissedShotLocModal();
+        }
+    }
+    
+    showOppMissedShotLocModal() {
+        let modal = document.getElementById('oppMissedShotLocModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = 'oppMissedShotLocModal';
+            modal.setAttribute('tabindex', '-1');
+            modal.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning py-2">
+                            <h5 class="modal-title h6">Missed Shot Location (Optional)</h5>
+                            <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class="modal-body text-center">
+                            <p class="small text-muted mb-2">Click on the court to mark where the shot was missed</p>
+                            <svg id="oppMissedHalfCourtSvg" viewBox="0 0 500 470" style="width:100%; max-width:300px; background:#f8f9fa; border:1px solid #ddd;">
+                                <!-- Half court background -->
+                                <rect width="500" height="470" fill="#f8f9fa"/>
+                                <!-- Three point arc -->
+                                <path d="M 0 470 Q 250 170 500 470" fill="none" stroke="#333" stroke-width="2"/>
+                                <!-- Paint -->
+                                <rect x="175" y="370" width="150" height="100" fill="none" stroke="#333" stroke-width="2"/>
+                                <!-- Basket -->
+                                <circle cx="250" cy="420" r="15" fill="none" stroke="#e74c3c" stroke-width="3"/>
+                                <!-- Hitbox for clicking -->
+                                <rect id="opp-missed-hitbox" width="500" height="470" fill="transparent" style="cursor:crosshair"/>
+                                <!-- Marker -->
+                                <circle id="opp-missed-marker" cx="-20" cy="-20" r="8" fill="#e74c3c" style="display:none"/>
+                            </svg>
+                            <div id="opp-missed-coords" class="small text-muted mt-1"></div>
+                        </div>
+                        <div class="modal-footer py-2">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="gameTracker.skipOppMissedShotLoc()">
+                                Skip Location
+                            </button>
+                            <button type="button" class="btn btn-warning btn-sm" id="btn-confirm-opp-missed" onclick="gameTracker.confirmOppMissedShotLoc()" disabled>
+                                Confirm & Continue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            const svg = document.getElementById('oppMissedHalfCourtSvg');
+            const hitbox = document.getElementById('opp-missed-hitbox');
+            const marker = document.getElementById('opp-missed-marker');
+            
+            const clickHandler = (e) => {
+                const rect = svg.getBoundingClientRect();
+                const scaleX = 500 / rect.width;
+                const scaleY = 470 / rect.height;
+                
+                let clientX, clientY;
+                if (e.touches) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                } else {
+                    clientX = e.clientX;
+                    clientY = e.clientY;
+                }
+                
+                const x = (clientX - rect.left) * scaleX;
+                const y = (clientY - rect.top) * scaleY;
+                
+                marker.setAttribute('cx', x);
+                marker.setAttribute('cy', y);
+                marker.style.display = 'block';
+                
+                this._pendingMissedX = x;
+                this._pendingMissedY = y;
+                
+                document.getElementById('opp-missed-coords').innerText = `(${Math.round(x)}, ${Math.round(y)})`;
+                document.getElementById('btn-confirm-opp-missed').disabled = false;
+            };
+            
+            hitbox.onclick = clickHandler;
+            hitbox.ontouchstart = (e) => { e.preventDefault(); clickHandler(e); };
+        }
+        
+        const marker = document.getElementById('opp-missed-marker');
+        marker.setAttribute('cx', -20);
+        marker.setAttribute('cy', -20);
+        marker.style.display = 'none';
+        this._pendingMissedX = null;
+        this._pendingMissedY = null;
+        document.getElementById('opp-missed-coords').innerText = '';
+        document.getElementById('btn-confirm-opp-missed').disabled = true;
+        
+        $('#oppShotModal').modal('hide');
+        $('#oppMissedShotLocModal').modal('show');
+    }
+
+    skipOppMissedShotLoc() {
+        this._pendingMissedX = null;
+        this._pendingMissedY = null;
+        $('#oppMissedShotLocModal').modal('hide');
+        this.showOppReboundModal();
+    }
+
+    confirmOppMissedShotLoc() {
+        this._confirmedMissedX = this._pendingMissedX;
+        this._confirmedMissedY = this._pendingMissedY;
+        this._pendingMissedX = null;
+        this._pendingMissedY = null;
+        $('#oppMissedShotLocModal').modal('hide');
+        this.showOppReboundModal();
+    }
+    
+    setupOppShotLocationClick() {
+        const svg = document.getElementById('oppHalfCourtSvg');
+        const hitbox = document.getElementById('opp-court-hitbox');
+        const marker = document.getElementById('opp-shotloc-marker');
+        
+        const clickHandler = (e) => {
+            const rect = svg.getBoundingClientRect();
+            const scaleX = 500 / rect.width;
+            const scaleY = 470 / rect.height;
+            
+            let clientX, clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            
+            const x = (clientX - rect.left) * scaleX;
+            const y = (clientY - rect.top) * scaleY;
+            
+            marker.setAttribute('cx', x);
+            marker.setAttribute('cy', y);
+            
+            this._pendingOppShotX = x;
+            this._pendingOppShotY = y;
+            
+            document.getElementById('opp-shotloc-coords').innerText = `(${Math.round(x)}, ${Math.round(y)})`;
+            document.getElementById('btn-confirm-opp-shotloc').disabled = false;
+        };
+        
+        hitbox.onclick = clickHandler;
+        hitbox.ontouchstart = (e) => { e.preventDefault(); clickHandler(e); };
+    }
+
+    confirmOppShotLocation() {
+        if (!this.pendingOppShotLocation) return;
+        
+        this.pendingOppShotLocation = null;
+        this._pendingOppShotX = null;
+        this._pendingOppShotY = null;
+        
+        $('#oppShotLocModal').modal('hide');
+        this.pendingOppShot = null;
+        this.updateScoreboard();
+        this.saveState();
+    }
+
+    skipOppShotLocation() {
+        this.pendingOppShotLocation = null;
+        this._pendingOppShotX = null;
+        this._pendingOppShotY = null;
+        
+        $('#oppShotLocModal').modal('hide');
+        this.pendingOppShot = null;
+        this.updateScoreboard();
+        this.saveState();
+    }
+    
+    confirmOppRebound(reboundType) {
+        // DEPRECATED: Use confirmOppReboundNew instead
+        if (!this.pendingOppShot) return;
+        
+        const { type, points } = this.pendingOppShot;
+        
+        this.logEvent('OPP_SCORE', null, { 
+            points: 0, 
+            shot_type: type,
+            result: 'missed' 
+        });
+        
+        if (reboundType === 'offensive') {
+            this.logEvent('OPP_OREB', null, { shot_type: type });
+            this.trackOppAction('OPP_OREB');
+            this.pendingOppShot = null;
+            $('#oppReboundModal').modal('hide');
+            this.saveState();
+        } else {
+            $('#oppReboundModal').modal('hide');
+            this.showDrebPlayerSelector();
+        }
+    }
+    
+    showOppReboundModal() {
+        let modal = document.getElementById('oppReboundModalNew');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = 'oppReboundModalNew';
+            modal.setAttribute('tabindex', '-1');
+            modal.innerHTML = `
+                <div class="modal-dialog modal-sm modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning py-2">
+                            <h5 class="modal-title h6">Shot Missed - Rebound?</h5>
+                        </div>
+                        <div class="modal-body p-0">
+                            <div class="list-group list-group-flush">
+                                <button class="list-group-item list-group-item-action text-danger font-weight-bold py-3"
+                                        onclick="gameTracker.confirmOppReboundNew('offensive')">
+                                    <i class="fas fa-arrow-down mr-2"></i>OPP Offensive Rebound
+                                </button>
+                                <button class="list-group-item list-group-item-action text-success font-weight-bold py-3"
+                                        onclick="gameTracker.confirmOppReboundNew('defensive')">
+                                    <i class="fas fa-arrow-up mr-2"></i>OUR Defensive Rebound
+                                </button>
+                                <button class="list-group-item list-group-item-action text-muted font-weight-bold py-3"
+                                        onclick="gameTracker.confirmOppReboundNew('none')">
+                                    <i class="fas fa-minus mr-2"></i>No Rebound (dead ball)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        $('#oppReboundModalNew').modal('show');
+    }
+
+    confirmOppReboundNew(reboundType) {
+        if (!this.pendingOppShot) return;
+        
+        const { type, points } = this.pendingOppShot;
+        
+        this.logEvent('OPP_SCORE', null, { 
+            points: 0, 
+            shot_type: type,
+            result: 'missed',
+            x_loc: this._confirmedMissedX,
+            y_loc: this._confirmedMissedY
+        });
+        
+        this._confirmedMissedX = null;
+        this._confirmedMissedY = null;
+        
+        if (reboundType === 'offensive') {
+            this.logEvent('OPP_OREB', null, { shot_type: type });
+            this.trackOppAction('OPP_OREB');
+            
+            this.activeLineup.forEach(pName => {
+                if (this.stats[pName]) {
+                    this.stats[pName].reb_conceded = (this.stats[pName].reb_conceded || 0) + 1;
+                    this.updateUI(pName);
+                }
+            });
+            
+            this.pendingOppShot = null;
+            $('#oppReboundModalNew').modal('hide');
+            this.saveState();
+        } else if (reboundType === 'defensive') {
+            $('#oppReboundModalNew').modal('hide');
+            this.showDrebPlayerSelector();
+        } else {
+            this.pendingOppShot = null;
+            $('#oppReboundModalNew').modal('hide');
+            this.saveState();
+        }
+    }
+    
+    showDrebPlayerSelector() {
+        const list = document.getElementById('dreb-player-list');
+        list.innerHTML = '';
+        
+        // Add "Team" option for unknown player
+        const teamBtn = document.createElement('button');
+        teamBtn.className = 'list-group-item list-group-item-action text-muted';
+        teamBtn.innerText = 'Team (unknown)';
+        teamBtn.onclick = () => this.confirmDrebPlayer(null);
+        list.appendChild(teamBtn);
+        
+        // Add active players
+        this.activeLineup.forEach(p => {
+            const btn = document.createElement('button');
+            btn.className = 'list-group-item list-group-item-action';
+            btn.innerText = p;
+            btn.onclick = () => this.confirmDrebPlayer(p);
+            list.appendChild(btn);
+        });
+        
+        $('#drebPlayerModal').modal('show');
+    }
+    
+    confirmDrebPlayer(player) {
+        if (player && this.stats[player]) {
+            this.updateStat(player, 'dreb', 1);
+        }
+        
+        this.pendingOppShot = null;
+        $('#drebPlayerModal').modal('hide');
         this.saveState();
     }
 
@@ -1304,7 +1935,9 @@ class GameTracker {
             gameSeconds: this.gameSeconds,
             gameDate: document.getElementById('game-date').value,
             opponentName: document.getElementById('opponent').value,
-            gameType: document.getElementById('game-type').value
+            gameType: document.getElementById('game-type').value,
+            lineupHistory: JSON.parse(JSON.stringify(this.lineupHistory)),
+            startingLineup: [...this.startingLineup]
         };
     }
 
@@ -1371,16 +2004,26 @@ class GameTracker {
     }
 
     nextQuarter() {
+        if (this.quarter === 2) {
+            if (confirm('End of Q2 - Generate Half-Time Summary PDF?')) {
+                this.generateHalftimePDF();
+            }
+        }
+        
         if (this.isClockRunning) this.toggleClock();
+        
+        this.logEvent('NEXT_QUARTER', null, { from_quarter: this.quarter, to_quarter: this.quarter + 1 });
+        
         this.quarter++;
-        document.getElementById('quarter-display').innerText = 'Q' + this.quarter;
         this.quarterSeconds = 0;
-        this.updateClockDisplay();
-
-        this.logEvent('NEXT_QUARTER', null, { quarter: this.quarter });
-
-        this.addToCache(this.getCurrentState());
+        this.updateQuarterDisplay();
         this.saveState();
+        
+        alert(`Started Quarter ${this.quarter}`);
+    }
+    
+    updateQuarterDisplay() {
+        document.getElementById('quarter-display').innerText = 'Q' + this.quarter;
     }
 
     updateClockDisplay() {
@@ -1475,10 +2118,22 @@ class GameTracker {
         const prevLineup = new Set(this.activeLineup);
         const newLineup = new Set(this._tempLineup);
 
+        if (this.lineupHistory.length > 0) {
+            this.lineupHistory[this.lineupHistory.length - 1].endEventIndex = this.gameEvents.length;
+        }
+
         [...prevLineup].filter(p => !newLineup.has(p)).forEach(p => this.logEvent('SUB_OUT', p));
         [...newLineup].filter(p => !prevLineup.has(p)).forEach(p => this.logEvent('SUB_IN', p));
 
         this.activeLineup = [...this._tempLineup];
+
+        this.lineupHistory.push({
+            players: [...this.activeLineup],
+            startEventIndex: this.gameEvents.length,
+            quarter: this.quarter,
+            gameSeconds: (this.quarter - 1) * this.QUARTER_LENGTH_SECONDS + this.quarterSeconds
+        });
+
         this.renderActivePlayers();
         $('#subModal').modal('hide');
 
@@ -1605,6 +2260,10 @@ class GameTracker {
 
         if (this.isClockRunning) this.toggleClock();
 
+        if (this.lineupHistory.length > 0) {
+            this.lineupHistory[this.lineupHistory.length - 1].endEventIndex = this.gameEvents.length;
+        }
+
         let total = 0;
         Object.values(this.stats).forEach(s => total += s.points);
 
@@ -1616,6 +2275,9 @@ class GameTracker {
         });
 
         const payload = {
+            schema_version: this.SCHEMA_VERSION,
+            features: this.FEATURES,
+            
             opponent: document.getElementById('opponent').value,
             date: document.getElementById('game-date').value,
             game_type: document.getElementById('game-type').value,
@@ -1623,7 +2285,9 @@ class GameTracker {
             opponent_score: this.opponentScore,
             shot_locations: this.shotLocations,
             game_events: this.gameEvents,
-            player_stats: finalStats
+            player_stats: finalStats,
+            starting_lineup: this.startingLineup,
+            lineup_history: this.lineupHistory
         };
 
         const csrfToken = document.getElementById('csrf_token').value;
@@ -1646,6 +2310,50 @@ class GameTracker {
             alert("Network error occurred.");
             console.error(err);
         });
+    }
+
+    async generateHalftimePDF() {
+        const payload = {
+            opponent: document.getElementById('opponent').value,
+            date: document.getElementById('game-date').value,
+            team_score: this.calculateTeamScore(),
+            opp_score: this.opponentScore,
+            player_stats: this.stats,
+            game_events: this.gameEvents.filter(e => e.quarter === 1 || e.quarter === 2),
+            schema_version: this.SCHEMA_VERSION
+        };
+        
+        try {
+            const csrfToken = document.getElementById('csrf_token').value;
+            
+            const response = await fetch('/reports/live/halftime-pdf', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `halftime_${payload.opponent}_${payload.date}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                console.log('Half-time PDF generated successfully');
+            } else {
+                console.error('Failed to generate halftime PDF');
+            }
+        } catch (err) {
+            console.error('Error generating halftime PDF:', err);
+        }
     }
 }
 

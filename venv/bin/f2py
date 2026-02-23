@@ -1,4 +1,4 @@
-#!/Users/giuliomastromartino/Documents/basket/Game_STATS/basketball_stats_analyzer/venv/bin/python3.12
+#!/Users/giuliomastromartino/Documents/basket/Game_STATS/Basketball_Stats/Basketball-stats/venv/bin/python
 import sys
 from numpy.f2py.f2py2e import main
 if __name__ == '__main__':

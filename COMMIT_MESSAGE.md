@@ -23,10 +23,10 @@ enabling detailed efficiency analysis and player rankings per play type.
 ## Key Changes
 
 ### Database Layer
-- Add `Play` table with 10 offensive play types (Pick & Roll, Isolation, etc.)
+- Add `Play` table for offensive play types (Pick & Roll, Isolation, etc.)
 - Add `ShotEvent` table for individual shot tracking
 - Create migration with proper indexes (game_id, play_id, player_name, result)
-- Seed initial play data
+- Plays are created dynamically from imported games
 
 ### Data Access Layer
 - Implement `PlaysStatsAggregator` class in `core/plays_stats.py`
@@ -169,9 +169,6 @@ CREATE TABLE shot_events (
 ```bash
 # Run migration
 flask db upgrade
-
-# Seed initial plays
-python scripts/seed_plays.py
 ```
 
 ## Files Modified
@@ -182,7 +179,6 @@ python scripts/seed_plays.py
 - ✅ web/templates/game_detail.html (add shot entry, export)
 - ✅ web/templates/player_detail.html (add export button)
 - ✅ migrations/versions/add_plays_and_shot_events.py (new migration)
-- ✅ scripts/seed_plays.py (new seed script)
 - ✅ requirements.txt (add reportlab)
 - ✅ app.py (register pdf_export blueprint)
 
@@ -194,6 +190,7 @@ Closes: [Issue number if applicable]
 
 - ReportLab chosen over WeasyPrint for simplicity and reliability
 - Play table ensures consistency (no typos)
+- Plays are created dynamically from imported game data
 - Nullable play_id allows gradual tagging
 - All queries optimized with indexes
 - Error handling covers 404 (missing data) and 500 (generation errors)

@@ -620,6 +620,88 @@ class LineupAnalytics:
         
         return gantt_data
 
+    @staticmethod
+    def get_game_lineup_rankings(game_id: int, top_n: int = 4) -> List[Dict]:
+        """
+        Get top N 5-player lineups for a specific game, ranked by minutes played.
+        
+        This provides per-game lineup analysis to see which combinations played
+        the most and performed best together.
+        
+        Args:
+            game_id: ID of the game to analyze
+            top_n: Number of top lineups to return (default: 4)
+        
+        Returns:
+            List of dictionaries with lineup stats sorted by total_seconds descending:
+            - lineup_hash: Unique identifier for the lineup
+            - players: List of 5 player names
+            - total_seconds: Total time on court together
+            - total_minutes: Time in minutes (rounded)
+            - points_scored, points_allowed, possessions
+            - ortg: Offensive rating (points per 100 possessions)
+            - drtg: Defensive rating (points allowed per 100 possessions)
+            - net_rating: ortg - drtg
+            - segment_count: Number of separate stints this lineup played
+        """
+        segments = LineupSegment.query.filter_by(game_id=game_id).all()
+        
+        # Aggregate by lineup_hash
+        lineup_stats = defaultdict(lambda: {
+            'players': [],
+            'total_seconds': 0,
+            'points_scored': 0,
+            'points_allowed': 0,
+            'possessions': 0,
+            'segment_count': 0
+        })
+        
+        for segment in segments:
+            # Handle potential JSON string vs List issue
+            players = segment.players
+            if isinstance(players, str):
+                try:
+                    players = json.loads(players)
+                except:
+                    players = []
+            if not players:
+                players = []
+            
+            if len(players) != 5:
+                continue
+            
+            key = segment.lineup_hash
+            lineup_stats[key]['players'] = players
+            lineup_stats[key]['total_seconds'] += segment.duration_seconds or 0
+            lineup_stats[key]['points_scored'] += segment.points_scored or 0
+            lineup_stats[key]['points_allowed'] += segment.points_allowed or 0
+            lineup_stats[key]['possessions'] += segment.possessions or 0
+            lineup_stats[key]['segment_count'] += 1
+        
+        # Calculate ratings and build results
+        results = []
+        for lineup_hash, stats in lineup_stats.items():
+            possessions = stats['possessions'] or 1  # Avoid division by zero
+            ortg = round(stats['points_scored'] / possessions * 100, 1)
+            drtg = round(stats['points_allowed'] / possessions * 100, 1)
+            
+            results.append({
+                'lineup_hash': lineup_hash,
+                'players': stats['players'],
+                'total_seconds': stats['total_seconds'],
+                'total_minutes': round(stats['total_seconds'] / 60, 1),
+                'points_scored': stats['points_scored'],
+                'points_allowed': stats['points_allowed'],
+                'possessions': stats['possessions'],
+                'segment_count': stats['segment_count'],
+                'ortg': ortg,
+                'drtg': drtg,
+                'net_rating': round(ortg - drtg, 1)
+            })
+        
+        # Sort by minutes played (descending)
+        return sorted(results, key=lambda x: x['total_seconds'], reverse=True)[:top_n]
+
 
 # =============================================================================
 # POSSESSION RECONSTRUCTION

@@ -1,13 +1,1 @@
-2026-01-20 15:36:04,934 WARNING [web]: Shot event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,936 WARNING [web]: Shot event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,937 WARNING [web]: Shot event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,938 WARNING [web]: Shot event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,939 WARNING [web]: Shot event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,940 WARNING [web]: Shot event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,941 WARNING [web]: Game event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,943 WARNING [web]: Game event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,944 WARNING [web]: Game event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,945 WARNING [web]: Game event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,945 WARNING [web]: Game event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,946 WARNING [web]: Game event play validation error: Play ID 1 does not exist in the database.
-2026-01-20 15:36:04,950 INFO [web]: Live game saved successfully: Game ID 11
+2026-02-23 11:08:43,896 INFO [web]: Auto-created play: Corna Basso (ID: 6)

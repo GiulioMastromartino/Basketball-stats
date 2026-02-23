@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .stat-with-tooltip {
+        position: relative;
+        cursor: help;
+    }
+
+    .stat-tooltip {
+        visibility: hidden;
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #2d3748;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 11px;
+        white-space: nowrap;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+        margin-bottom: 5px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .stat-tooltip::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #2d3748 transparent transparent transparent;
+    }
+
+    .stat-with-tooltip:hover .stat-tooltip {
+        visibility: visible;
+        opacity: 1;
+    }
+
+    .lineup-card-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+
+    .lineup-stat {
+        text-align: center;
+        padding: 8px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        transition: all 0.2s;
+    }
+
+    .lineup-stat:hover {
+        background: #e9ecef;
+        transform: translateY(-2px);
+    }
+
+    .stat-excellent { color: #2f855a; font-weight: 700; }
+    .stat-good { color: #3182ce; }
+    .stat-poor { color: #c53030; }
+
+    .lineup-players {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+
+    .lineup-player-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .net-rating-badge {
+        display: inline-block;
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-weight: 700;
+        font-size: 18px;
+    }
+
+    .net-positive { background: #c6f6d5; color: #2f855a; }
+    .net-negative { background: #fed7d7; color: #c53030; }
+    .net-neutral { background: #e2e8f0; color: #4a5568; }
+</style>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>Lineups</h1>
+            <p class="text-muted" id="lineupCount">Loading lineups...</p>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body p-3">
+            <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
+                <div style="flex: 1; min-width: 250px; position: relative;">
+                    <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                    <input type="text" id="searchInput" placeholder="Search players in lineup..." style="padding-left: 36px; width: 100%; border-radius: var(--border-radius);" onkeyup="filterLineups()">
+                </div>
+
+                <div class="d-flex gap-2 align-items-center">
+                    <label class="text-muted mb-0" style="white-space: nowrap;">Min Minutes:</label>
+                    <input type="number" id="minMinutes" class="form-control" style="width: 100px;" value="0" min="0" step="1" onchange="filterLineups()">
+                </div>
+
+                <div class="d-flex gap-2 align-items-center">
+                    <label class="text-muted mb-0" style="white-space: nowrap;">Sort By:</label>
+                    <select id="sortBy" class="form-select" style="width: auto;" onchange="sortLineups()">
+                        <option value="net_rating">Net Rating</option>
+                        <option value="minutes">Minutes</option>
+                        <option value="games">Games Played</option>
+                        <option value="ortg">Offensive Rating</option>
+                        <option value="drtg">Defensive Rating</option>
+                    </select>
+                    <button class="btn btn-outline-secondary" id="sortOrder" onclick="toggleSortOrder()" title="Toggle sort order">
+                        <i class="fas fa-sort-amount-down"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Progress Bar -->
+    <div id="loadingBar" class="card mb-4">
+        <div class="card-body text-center py-4">
+            <div class="mb-3">
+                <i class="fas fa-spinner fa-spin fa-2x" style="color: var(--secondary);"></i>
+            </div>
+            <h5 class="mb-2">Loading Lineups...</h5>
+            <p class="text-muted mb-3">Fetching lineup statistics from database</p>
+            <div class="progress" style="height: 8px; max-width: 300px; margin: 0 auto;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="lineupsGrid" class="grid-lineups" style="display: none; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: var(--spacing-md);">
+    </div>
+
+    <div id="noResults" class="text-center py-5" style="display: none;">
+        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+        <p class="text-muted">No lineups found matching your criteria.</p>
+    </div>
+</div>
+
+<script>
+    let allLineups = [];
+    let filteredLineups = [];
+    let sortDescending = true;
+
+    $(document).ready(function() {
+        fetchLineups();
+    });
+
+    function fetchLineups() {
+        $.ajax({
+            url: '/api/advanced/lineups',
+            method: 'GET',
+            success: function(data) {
+                allLineups = data.lineups || data || [];
+                filteredLineups = [...allLineups];
+                sortLineups();
+                renderLineups();
+            },
+            error: function(xhr, status, error) {
+                console.error('Error fetching lineups:', error);
+                $('#loadingBar').hide();
+                $('#lineupsGrid').show().html('<div class="alert alert-warning" style="grid-column: 1 / -1;"><i class="fas fa-exclamation-triangle mr-2"></i>No lineups found. <a href="/upload-game">Create a test game</a> to see lineup data.</div>');
+                $('#lineupCount').text('0 lineups - No games with lineup tracking found');
+            }
+        });
+    }
+
+    function renderLineups() {
+        const grid = $('#lineupsGrid');
+        const noResults = $('#noResults');
+        const loadingBar = $('#loadingBar');
+        
+        // Hide loading bar
+        loadingBar.hide();
+        
+        if (filteredLineups.length === 0) {
+            grid.hide();
+            noResults.show();
+            $('#lineupCount').text('0 lineups found');
+            return;
+        }
+
+        grid.show();
+        noResults.hide();
+        $('#lineupCount').text(filteredLineups.length + ' lineups found');
+
+        let html = '';
+        filteredLineups.forEach(function(lineup) {
+            const netRating = lineup.net_rating || 0;
+            let netClass = 'net-neutral';
+            if (netRating > 0) netClass = 'net-positive';
+            else if (netRating < 0) netClass = 'net-negative';
+
+            const ortgClass = lineup.ortg > 110 ? 'stat-excellent' : (lineup.ortg < 90 ? 'stat-poor' : '');
+            const drtgClass = lineup.drtg < 100 ? 'stat-excellent' : (lineup.drtg > 110 ? 'stat-poor' : '');
+
+            html += `
+                <div class="player-card lineup-card" data-id="${lineup.id}" data-players="${(lineup.players || []).join(' ').toLowerCase()}" style="cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onclick="navigateToLineup(${lineup.id})">
+                    <div class="player-card-header w-100">
+                        <div class="d-flex justify-content-between align-items-center w-100">
+                            <div>
+                                <div class="text-muted small">${lineup.games_played || lineup.games || 0} Games</div>
+                            </div>
+                            <div class="net-rating-badge ${netClass}">
+                                ${netRating > 0 ? '+' : ''}${netRating.toFixed(1)} Net
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lineup-players mt-2">
+                        ${(lineup.players || []).map(p => `<span class="lineup-player-badge">${p}</span>`).join('')}
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-3 text-muted">
+                        <span><i class="fas fa-clock"></i> ${(lineup.total_minutes || lineup.minutes || 0).toFixed(1)} min</span>
+                        <span><i class="fas fa-basketball-ball"></i> ${lineup.points_scored || lineup.pts || 0} pts scored</span>
+                        <span><i class="fas fa-shield-alt"></i> ${lineup.points_allowed || lineup.pts_allowed || 0} pts allowed</span>
+                    </div>
+
+                    <div class="lineup-card-stats">
+                        <div class="lineup-stat stat-with-tooltip">
+                            <div class="player-stat-value ${ortgClass}" style="font-weight: 700;">${(lineup.ortg || 0).toFixed(1)}</div>
+                            <div class="player-stat-label">ORtg</div>
+                            <span class="stat-tooltip">Offensive Rating<span class="stat-formula">Points / 100 Poss</span></span>
+                        </div>
+                        <div class="lineup-stat stat-with-tooltip">
+                            <div class="player-stat-value ${drtgClass}" style="font-weight: 700;">${(lineup.drtg || 0).toFixed(1)}</div>
+                            <div class="player-stat-label">DRtg</div>
+                            <span class="stat-tooltip">Defensive Rating<span class="stat-formula">Points Allowed / 100 Poss</span></span>
+                        </div>
+                        <div class="lineup-stat stat-with-tooltip">
+                            <div class="player-stat-value ${netClass}" style="font-weight: 700;">${netRating > 0 ? '+' : ''}${netRating.toFixed(1)}</div>
+                            <div class="player-stat-label">Net</div>
+                            <span class="stat-tooltip">Net Rating<span class="stat-formula">ORtg - DRtg</span></span>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 d-flex justify-content-end">
+                        <i class="fas fa-chevron-right" style="color: #999;"></i>
+                    </div>
+                </div>
+            `;
+        });
+
+        grid.html(html);
+    }
+
+    function filterLineups() {
+        const searchQuery = $('#searchInput').val().toLowerCase();
+        const minMinutes = parseFloat($('#minMinutes').val()) || 0;
+
+        filteredLineups = allLineups.filter(function(lineup) {
+            const minutes = lineup.total_minutes || lineup.minutes || 0;
+            const players = (lineup.players || []).join(' ').toLowerCase();
+            
+            return minutes >= minMinutes && players.includes(searchQuery);
+        });
+
+        sortLineups();
+        renderLineups();
+    }
+
+    function sortLineups() {
+        const sortBy = $('#sortBy').val();
+
+        filteredLineups.sort(function(a, b) {
+            let valA, valB;
+
+            switch(sortBy) {
+                case 'net_rating':
+                    valA = a.net_rating || 0;
+                    valB = b.net_rating || 0;
+                    break;
+                case 'minutes':
+                    valA = a.total_minutes || a.minutes || 0;
+                    valB = b.total_minutes || b.minutes || 0;
+                    break;
+                case 'games':
+                    valA = a.games_played || a.games || 0;
+                    valB = b.games_played || b.games || 0;
+                    break;
+                case 'ortg':
+                    valA = a.ortg || 0;
+                    valB = b.ortg || 0;
+                    break;
+                case 'drtg':
+                    valA = a.drtg || 0;
+                    valB = b.drtg || 0;
+                    break;
+                default:
+                    valA = a.net_rating || 0;
+                    valB = b.net_rating || 0;
+            }
+
+            if (sortDescending) {
+                return valB - valA;
+            } else {
+                return valA - valB;
+            }
+        });
+
+        renderLineups();
+    }
+
+    function toggleSortOrder() {
+        sortDescending = !sortDescending;
+        const icon = $('#sortOrder i');
+        if (sortDescending) {
+            icon.removeClass('fa-sort-amount-up').addClass('fa-sort-amount-down');
+        } else {
+            icon.removeClass('fa-sort-amount-down').addClass('fa-sort-amount-up');
+        }
+        sortLineups();
+    }
+
+    function navigateToLineup(id) {
+        window.location.href = '/lineup/' + id;
+    }
+</script>
+{% endblock %}

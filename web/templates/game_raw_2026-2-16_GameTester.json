@@ -1,0 +1,134 @@
+{
+  "game": {
+    "opponent": "Test Rivals",
+    "date": "14/02/2026",
+    "sort_date": "2026-02-14",
+    "team_score": 102,
+    "opponent_score": 98,
+    "result": "W",
+    "game_type": "Season"
+  },
+  "player_stats": [
+    {
+      "player_name": "Giulio",
+      "minutes": "32:00",
+      "points": 28,
+      "fgm": 10,
+      "fga": 20,
+      "fg_percent": 50.0,
+      "tpm": 4,
+      "tpa": 8,
+      "tp_percent": 50.0,
+      "ftm": 4,
+      "fta": 5,
+      "ft_percent": 80.0,
+      "oreb": 2,
+      "dreb": 4,
+      "reb": 6,
+      "ast": 7,
+      "tov": 3,
+      "stl": 2,
+      "blk": 1,
+      "pf": 2,
+      "plus_minus": 12
+    },
+    {
+      "player_name": "Teammate A",
+      "minutes": "28:00",
+      "points": 15,
+      "fgm": 6,
+      "fga": 12,
+      "tpm": 1,
+      "tpa": 3,
+      "ftm": 2,
+      "fta": 2,
+      "reb": 8,
+      "ast": 2,
+      "plus_minus": 5
+    }
+  ],
+  "shot_events": [
+    {
+      "player_name": "Giulio",
+      "shot_type": "3pt",
+      "result": "made",
+      "points": 3,
+      "x_loc": 250,
+      "y_loc": 100,
+      "quarter": 1
+    },
+    {
+      "player_name": "Giulio",
+      "shot_type": "2pt",
+      "result": "made",
+      "points": 2,
+      "x_loc": 250,
+      "y_loc": 50,
+      "quarter": 1
+    },
+    {
+      "player_name": "Giulio",
+      "shot_type": "2pt",
+      "result": "missed",
+      "points": 0,
+      "x_loc": 450,
+      "y_loc": 45,
+      "quarter": 2
+    },
+    {
+      "player_name": "Giulio",
+      "shot_type": "3pt",
+      "result": "made",
+      "points": 3,
+      "x_loc": 50,
+      "y_loc": 400,
+      "quarter": 3
+    },
+    {
+      "player_name": "Giulio",
+      "shot_type": "2pt",
+      "result": "made",
+      "points": 2,
+      "x_loc": 250,
+      "y_loc": 60,
+      "quarter": 4
+    },
+     {
+      "player_name": "Teammate A",
+      "shot_type": "3pt",
+      "result": "missed",
+      "points": 0,
+      "x_loc": 100,
+      "y_loc": 350,
+      "quarter": 2
+    }
+  ],
+  "game_events": [
+    {
+      "event_type": "SUB_IN",
+      "player_name": "Giulio",
+      "quarter": 4,
+      "timestamp": "08:00",
+      "score_margin": 2,
+      "time_remaining": "08:00"
+    },
+    {
+      "event_type": "SHOT_3PT",
+      "player_name": "Giulio",
+      "quarter": 4,
+      "timestamp": "01:30",
+      "score_margin": 1,
+      "time_remaining": "01:30",
+      "shot_attempt": true
+    },
+    {
+      "event_type": "FT_MADE",
+      "player_name": "Giulio",
+      "quarter": 4,
+      "timestamp": "00:15",
+      "score_margin": 4,
+      "time_remaining": "00:15",
+      "shot_attempt": false
+    }
+  ]
+}

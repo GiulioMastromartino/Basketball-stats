@@ -202,14 +202,27 @@
                         
                         <!-- Global controls row - Responsive -->
                         <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top border-secondary global-controls-row">
+                            <!-- Opponent Actions -->
                             <div>
-                                <small class="mr-2 d-block d-md-inline mb-1 mb-md-0">Opponent Score:</small>
-                                <div class="btn-group btn-group-sm d-inline-flex">
-                                    <button class="btn btn-danger" onclick="gameTracker.updateOppScore(1)">+1</button>
-                                    <button class="btn btn-danger" onclick="gameTracker.updateOppScore(2)">+2</button>
-                                    <button class="btn btn-danger" onclick="gameTracker.updateOppScore(3)">+3</button>
+                                <small class="mr-2 d-block d-md-inline mb-1 mb-md-0">Opponent Actions:</small>
+                                <div class="btn-group btn-group-sm d-inline-flex mr-2">
+                                    <button class="btn btn-outline-danger" onclick="gameTracker.oppShot('2pt')">OPP 2PT</button>
+                                    <button class="btn btn-outline-danger" onclick="gameTracker.oppShot('3pt')">OPP 3PT</button>
+                                    <button class="btn btn-outline-danger" onclick="gameTracker.oppShot('ft')">OPP FT</button>
                                 </div>
-                                <span class="ml-2 font-weight-bold" id="opp-score-display">0</span>
+                            </div>
+                            
+                            <!-- Remove Last Action -->
+                            <div class="d-flex align-items-center">
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-warning btn-sm dropdown-toggle" type="button" id="removeActionDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                        <i class="fas fa-undo"></i> <span class="d-none d-md-inline">Remove</span>
+                                    </button>
+                                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="removeActionDropdown" id="remove-action-list">
+                                        <a class="dropdown-item text-muted" href="#">No recent actions</a>
+                                    </div>
+                                </div>
+                                <span class="ml-2 font-weight-bold text-danger" id="opp-score-display">0</span>
                             </div>
 
                             <div class="d-flex flex-column flex-md-row gap-2">
@@ -406,6 +419,146 @@
             </div>
             <div class="modal-footer py-1">
                 <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- FT Trip Modal -->
+<div class="modal fade" id="ftModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark py-2">
+                <h5 class="modal-title h6">Free Throws - <span id="ft-player-name"></span></h5>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="font-weight-bold">Number of FTs:</label>
+                    <select id="ft-count-select" class="form-control form-control-lg" onchange="gameTracker.setFTCount(this.value)">
+                        <option value="1">1 FT</option>
+                        <option value="2" selected>2 FTs</option>
+                        <option value="3">3 FTs</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="font-weight-bold">Made:</label>
+                    <input type="number" id="ft-made-input" class="form-control form-control-lg text-center" 
+                           min="0" max="2" value="0">
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success font-weight-bold" onclick="gameTracker.confirmFTCount()">Next: Select Play</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Opponent Shot Modal -->
+<div class="modal fade" id="oppShotModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white py-2">
+                <h5 class="modal-title h6">Opponent Shot - <span id="opp-shot-type"></span></h5>
+            </div>
+            <div class="modal-body p-0">
+                <div class="list-group list-group-flush">
+                    <button class="list-group-item list-group-item-action text-success font-weight-bold py-3" 
+                            onclick="gameTracker.confirmOppShot(true)">
+                        <i class="fas fa-check mr-2"></i>MADE
+                    </button>
+                    <button class="list-group-item list-group-item-action text-danger font-weight-bold py-3"
+                            onclick="gameTracker.confirmOppShot(false)">
+                        <i class="fas fa-times mr-2"></i>MISSED
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Opponent Shot Location Modal -->
+<div class="modal fade" id="oppShotLocModal" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" role="document" style="max-width: 500px;">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white py-2">
+                <h5 class="modal-title h6">Opponent Shot Location</h5>
+                <button type="button" class="btn btn-sm btn-outline-light" onclick="gameTracker.skipOppShotLocation()">Skip</button>
+            </div>
+            <div class="modal-body p-0 text-center bg-light">
+                <div class="py-1 border-bottom">
+                    <strong id="opp-shotloc-info"></strong>
+                    <span class="text-muted ml-2" id="opp-shotloc-coords"></span>
+                </div>
+                <!-- SVG Court -->
+                <div class="position-relative d-inline-block">
+                    <svg id="oppHalfCourtSvg" width="100%" viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="max-height: 60vh; background-color: #d2b48c;">
+                        <!-- Court Floor -->
+                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                        
+                        <!-- 3-Point Arc (Approximate) -->
+                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Key / Paint Area -->
+                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Free Throw Circle -->
+                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Hoop / Backboard -->
+                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                        
+                        <!-- Baseline -->
+                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                        
+                        <!-- Click Hitbox -->
+                        <rect id="opp-court-hitbox" x="0" y="0" width="500" height="470" fill="transparent" style="cursor: crosshair; touch-action: none;"/>
+
+                        <!-- Marker Circle -->
+                        <circle id="opp-shotloc-marker" cx="-20" cy="-20" r="8" fill="red" stroke="white" stroke-width="3"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="modal-footer py-1">
+                <button type="button" class="btn btn-primary btn-block btn-lg" id="btn-confirm-opp-shotloc" onclick="gameTracker.confirmOppShotLocation()" disabled>Confirm Location</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Opponent Rebound Modal -->
+<div class="modal fade" id="oppReboundModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-warning py-2">
+                <h5 class="modal-title h6">Rebound?</h5>
+            </div>
+            <div class="modal-body p-0">
+                <div class="list-group list-group-flush">
+                    <button class="list-group-item list-group-item-action text-danger font-weight-bold py-3"
+                            onclick="gameTracker.confirmOppRebound('offensive')">
+                        <i class="fas fa-arrow-down mr-2"></i>OPP Offensive Rebound
+                    </button>
+                    <button class="list-group-item list-group-item-action text-success font-weight-bold py-3"
+                            onclick="gameTracker.confirmOppRebound('defensive')">
+                        <i class="fas fa-arrow-up mr-2"></i>OUR Defensive Rebound
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Defensive Rebound Player Selector Modal -->
+<div class="modal fade" id="drebPlayerModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white py-2">
+                <h5 class="modal-title h6">Who got the rebound?</h5>
+            </div>
+            <div class="modal-body p-0">
+                <div class="list-group list-group-flush" id="dreb-player-list"></div>
             </div>
         </div>
     </div>

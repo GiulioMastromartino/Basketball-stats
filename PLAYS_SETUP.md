@@ -4,9 +4,9 @@ This guide explains how to set up and use the new Plays feature in HoopsStats.
 
 ## Overview
 
-The Plays module provides a complete playbook management system based on the DR 4 Playbook 2025-2026. It includes:
+The Plays module provides a complete playbook management system. It includes:
 
-- **65+ Pre-loaded Plays**: Offensive, Defensive, and Special plays from the DR 4 playbook
+- **Dynamic Play Creation**: Plays are created from imported game data
 - **Play Gallery**: Grid view with filtering by play type
 - **Detailed Views**: Full play information with descriptions and diagrams
 - **CRUD Operations**: Add, edit, view, and delete plays
@@ -18,7 +18,6 @@ The Plays module provides a complete playbook management system based on the DR 
 ```
 core/
 ├── models.py                 # Play model definition
-└── seed_plays.py             # Pre-loaded plays data (65 plays)
 
 web/
 ├── routes/
@@ -47,20 +46,7 @@ flask init-db
 
 This creates the `plays` table in your database.
 
-### Step 2: Seed Pre-loaded Plays
-
-Populate the database with 65 plays from the DR 4 playbook:
-
-```bash
-flask seed
-```
-
-This command:
-- Adds 20 offensive plays (PNR, Isolation, Screens, etc.)
-- Adds 20 defensive plays (Man-to-Man, Zones, Press, etc.)
-- Adds 25 special plays (Out of bounds, ATO, Quick clock, etc.)
-
-### Step 3: Create Uploads Directory
+### Step 2: Create Uploads Directory
 
 Make sure the uploads directory exists:
 
@@ -70,7 +56,9 @@ mkdir -p web/static/uploads/plays
 
 This directory stores uploaded play diagrams.
 
-### Step 4: Register Blueprint (if not already done)
+**Note:** Plays are created automatically when games are imported. There are no pre-loaded plays to seed.
+
+### Step 3: Register Blueprint (if not already done)
 
 Ensure the plays blueprint is registered in `web/__init__.py`:
 
@@ -105,36 +93,6 @@ app.register_blueprint(plays_bp)
 - **Type**: Select Offense, Defense, or Special
 - **Description**: Detailed play explanation
 - **Diagram**: Upload PNG, JPG, GIF, or WEBP image
-
-### Pre-loaded Plays Reference
-
-#### Offensive Plays (20)
-- Horns Twist, Spain PNR, Dribble Handoff
-- Pick and Pop, Pick and Roll, High Post Entry
-- Wing Isolation, Weak Side Cut, Ball Screen
-- Flare Screen, Staggered Screen, Cross Screen
-- UCLA Cut, Zipper Cut, Back Screen
-- Down Screen, Transition Offense, Triangle Offense
-- Motion Offense, Spread P&R
-
-#### Defensive Plays (20)
-- Man-to-Man Defense, Zone Defense
-- 2-3 Zone, 3-2 Zone, 1-3-1 Zone
-- Box-and-One, Triangle-and-Two
-- Full Court Press, Half Court Press
-- Trap and Recover, Screen Coverage
-- Switch Defense, Drop Coverage, High Coverage
-- Hedging, Help and Recover, Deny Ball Handler
-- Weak Side Rotation, Transition Defense, Rebounding Position
-
-#### Special Plays (25)
-- Inbound from Sideline, Inbound from Baseline
-- Against Full Court Press, Against Half Court Press
-- Baseline Out of Bounds, Sideline Out of Bounds
-- Backdoor Cut, Lob Play, Curl to Three
-- Punch Through, Elevator Door, Pick Pocket
-- Crash Boards, Short Clock, Game Winner
-- And more...
 
 ## Database Reset
 
@@ -181,10 +139,10 @@ Response:
 
 ## Troubleshooting
 
-### Plays Not Showing After Seed
-1. Restart Flask application
-2. Verify database was initialized: `flask init-db`
-3. Check plays were seeded: Query database directly
+### Plays Not Showing
+1. Import a game to create plays from game data
+2. Restart Flask application
+3. Verify database was initialized: `flask init-db`
 
 ### Upload Fails
 1. Ensure `web/static/uploads/plays/` directory exists and is writable
@@ -218,9 +176,8 @@ Response:
 
 For issues or questions:
 1. Check the troubleshooting section above
-2. Review the code comments in `core/seed_plays.py`
-3. Verify all files were created correctly
-4. Check Flask logs for error messages
+2. Verify all files were created correctly
+3. Check Flask logs for error messages
 
 ## Integration with Other Modules
 
