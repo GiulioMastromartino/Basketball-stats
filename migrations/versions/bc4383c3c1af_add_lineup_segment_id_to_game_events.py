@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'bc4383c3c1af'
-down_revision = '005_add_game_event_timeline_fields'
+down_revision = '005_add_game_event_timeline'
 branch_labels = None
 depends_on = None
 
@@ -21,14 +21,14 @@ def upgrade():
     conn = op.get_bind()
     inspector = sa.inspect(conn)
     columns = [col['name'] for col in inspector.get_columns('game_events')]
-    
+
     if 'lineup_segment_id' not in columns:
         # Add lineup_segment_id column to game_events table
         op.add_column(
             'game_events',
             sa.Column('lineup_segment_id', sa.Integer(), nullable=True)
         )
-        
+
         # Add foreign key constraint
         op.create_foreign_key(
             'fk_game_events_lineup_segment_id',
@@ -44,10 +44,10 @@ def downgrade():
     conn = op.get_bind()
     inspector = sa.inspect(conn)
     columns = [col['name'] for col in inspector.get_columns('game_events')]
-    
+
     if 'lineup_segment_id' in columns:
         # Drop foreign key constraint
         op.drop_constraint('fk_game_events_lineup_segment_id', 'game_events', type_='foreignkey')
-        
+
         # Drop column
         op.drop_column('game_events', 'lineup_segment_id')
