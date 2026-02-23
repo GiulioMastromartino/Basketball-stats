@@ -1,6 +1,6 @@
 """Add timeline fields to game_events table
 
-Revision ID: 005_add_game_event_timeline_fields
+Revision ID: 005_add_game_event_timeline
 Revises: 004_add_game_events_columns
 Create Date: 2026-02-17
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy.engine.reflection import Inspector
 
 
-revision = "005_add_game_event_timeline_fields"
+revision = "005_add_game_event_timeline"
 down_revision = "004_add_game_events_columns"
 branch_labels = None
 depends_on = None

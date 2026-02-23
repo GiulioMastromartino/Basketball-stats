@@ -1,7 +1,7 @@
 """create lineups table
 
-Revision ID: 009_create_lineups_table
-Revises: 007_add_duration_seconds_to_lineup_segments
+Revision ID: 009_create_lineups
+Revises: 007_add_duration_seconds_to_lineup
 Create Date: 2026-02-20
 
 """
@@ -10,8 +10,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "009_create_lineups_table"
-down_revision = "007_add_duration_seconds_to_lineup_segments"
+revision = "009_create_lineups"
+down_revision = "007_add_duration_seconds_to_lineup"
 branch_labels = None
 depends_on = None
 
@@ -29,18 +29,18 @@ def upgrade():
                 players JSON NOT NULL,
                 display_name VARCHAR(100),
                 is_starting BOOLEAN DEFAULT 0,
-                
+
                 total_seconds INTEGER DEFAULT 0,
                 total_possessions INTEGER DEFAULT 0,
                 points_scored INTEGER DEFAULT 0,
                 points_allowed INTEGER DEFAULT 0,
                 games_played INTEGER DEFAULT 0,
                 segment_count INTEGER DEFAULT 0,
-                
+
                 ortg FLOAT DEFAULT 0,
                 drtg FLOAT DEFAULT 0,
                 net_rating FLOAT DEFAULT 0,
-                
+
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )

@@ -10,8 +10,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "010_add_reb_conceded"
-down_revision = "009_create_lineups_table"
+revision = "010_add_reb"
+down_revision = "009_create_lineups"
 branch_labels = None
 depends_on = None
 
