@@ -1,7 +1,7 @@
 """add reb_conceded column
 
 Revision ID: 010_add_reb_conceded
-Revises: 009_create_lineups_table
+Revises: 009_create_lineups
 Create Date: 2026-02-20
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "010_add_reb"
+revision = "010_add_reb_conceded"
 down_revision = "009_create_lineups"
 branch_labels = None
 depends_on = None
