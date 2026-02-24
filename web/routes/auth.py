@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import os
 from flask import (
     Blueprint,
     flash,
@@ -83,11 +84,16 @@ def callback():
                     username = f"{base_username}{counter}"
                     counter += 1
 
+                # Check if this is the admin email
+                admin_email = os.getenv("ADMIN_EMAIL", "").lower()
+                is_admin = admin_email and workos_user.email.lower() == admin_email
+
                 user = User(
                     workos_id=workos_user.id,
                     email=workos_user.email,
                     username=username,
-                    role="editor",
+                    role="admin" if is_admin else "editor",
+                    is_admin=is_admin,  # Legacy field
                     email_verified=True,
                     password_hash=None,
                 )
