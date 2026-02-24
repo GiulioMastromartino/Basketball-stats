@@ -10,28 +10,30 @@
             <div class="card-body p-4">
                 <h4 class="card-title text-center mb-4">Sign In</h4>
                 
+                <!-- WorkOS AuthKit Sign In Button -->
+                <div class="d-grid gap-3 mb-4">
+                    <a href="{{ auth_url }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-sign-in-alt me-2"></i>Sign in with WorkOS
+                    </a>
+                </div>
+                
+                <hr class="my-4">
+                
+                <!-- Magic Link Option -->
+                <h6 class="text-center text-muted mb-3">Or sign in with Magic Link</h6>
                 <form method="POST">
-                    {{ form.hidden_tag() }}
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     
                     <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        {{ form.username(class="form-control", placeholder="Enter your username") }}
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email" 
+                               placeholder="Enter your email" required>
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        {{ form.password(class="form-control", placeholder="Enter your password") }}
-                    </div>
-                    
-                    <div class="mb-3 form-check">
-                        {{ form.remember_me(class="form-check-input") }}
-                        <label class="form-check-label" for="remember_me">
-                            Keep me logged in
-                        </label>
-                    </div>
-                    
-                    <div class="d-grid gap-2">
-                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="fas fa-magic me-2"></i>Send Magic Link
+                        </button>
                     </div>
                 </form>
             </div>

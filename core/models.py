@@ -13,7 +13,9 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
+    password_hash = db.Column(
+        db.String(255), nullable=True
+    )  # Nullable for WorkOS users
 
     # New Role Field
     # Options: 'admin', 'editor', 'viewer'
@@ -22,7 +24,13 @@ class User(UserMixin, db.Model):
     # Deprecated but kept for safety during migration
     is_admin = db.Column(db.Boolean, default=False)
 
-    # OTP Fields
+    # WorkOS fields
+    workos_id = db.Column(
+        db.String(255), unique=True, nullable=True
+    )  # WorkOS user ID for auth
+    email_verified = db.Column(db.Boolean, default=False)
+
+    # OTP Fields (deprecated - will be removed after WorkOS migration)
     otp_code = db.Column(db.String(6), nullable=True)
     otp_expiry = db.Column(db.DateTime, nullable=True)
 

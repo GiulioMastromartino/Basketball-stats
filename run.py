@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 from web import create_app
 
 # Support for 'flask run' and 'flask db' commands

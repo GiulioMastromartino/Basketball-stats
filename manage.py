@@ -4,6 +4,11 @@ CLI entry point for database management
 Run with: python3 manage.py [command]
 """
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 from flask.cli import FlaskGroup
 from web import create_app
 
