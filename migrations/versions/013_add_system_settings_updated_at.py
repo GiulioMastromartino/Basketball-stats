@@ -1,7 +1,7 @@
 """Add updated_at to system_settings table
 
-Revision ID: 013_add_system_settings_updated_at
-Revises: 012_add_games_schema_version
+Revision ID: s3tt1ngs_upd4t
+Revises: g4m3s_sch3m4
 Create Date: 2026-02-24 13:40:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.engine.reflection import Inspector
 
 
-revision = '013_add_system_settings_updated_at'
-down_revision = '012_add_games_schema_version'
+revision = 's3tt1ngs_upd4t'
+down_revision = 'g4m3s_sch3m4'
 branch_labels = None
 depends_on = None
 
@@ -20,7 +20,6 @@ def upgrade():
     conn = op.get_bind()
     inspector = Inspector.from_engine(conn)
     
-    # Check if system_settings table exists and column is missing
     if 'system_settings' in inspector.get_table_names():
         columns = [col['name'] for col in inspector.get_columns('system_settings')]
         
