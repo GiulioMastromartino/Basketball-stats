@@ -5,11 +5,9 @@
 echo "Applying database migrations..."
 flask db upgrade
 
-# Force Admin Credential Sync from Environment
-# This ensures that even if Gunicorn swallows logs or app factory behaves oddly,
-# the password is STRICTLY enforced from the .env file before the server starts.
-echo "Syncing admin credentials..."
-python scripts/reset_admin_password.py
+# Promote admin user from ADMIN_EMAIL
+echo "Ensuring admin role for ADMIN_EMAIL..."
+python scripts/promote_admin.py
 
 # Start Gunicorn
 echo "Starting Gunicorn with smart memory monitoring..."
