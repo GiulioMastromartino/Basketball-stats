@@ -9,31 +9,11 @@ Handles all lineup segment processing including:
 - Populating player lineup stats
 """
 
-import hashlib
-from typing import Optional
-
-from core.models import (
-    db,
-    GameEvent,
-    Lineup,
-    LineupSegment,
-    PlayerLineupStats,
-)
-
+from core import rust_analytics
 
 def generate_lineup_hash(players: list) -> str:
-    """
-    Create MD5 hash of sorted player names for quick lineup lookup.
-
-    Args:
-        players: List of player names in the lineup
-
-    Returns:
-        MD5 hash string of the sorted player names
-    """
-    sorted_players = sorted(players)
-    players_string = "|".join(sorted_players)
-    return hashlib.md5(players_string.encode("utf-8")).hexdigest()
+    """Use high-performance Rust implementation for lineup hashing."""
+    return rust_analytics.calculate_lineup_hash(players)
 
 
 def calculate_segment_duration(segment, all_events: list) -> int:
@@ -568,31 +548,119 @@ def process_game_lineups(
     game_id: int, events: list, starting_lineup: list = None
 ) -> None:
     """
-    Main entry point that orchestrates all lineup processing.
-
-    Builds segments, links events, calculates stats, and populates player stats.
-
-    Args:
-        game_id: ID of the game to process
-        events: List of GameEvent objects sorted chronologically
-        starting_lineup: Optional list of 5 player names as initial lineup
+    Optimized entry point for lineup processing.
+    Uses batch operations to avoid timeouts.
     """
+    # 1. Build segments
     segment_ids = build_lineup_segments(game_id, events, starting_lineup)
-
     if not segment_ids:
         return
 
+    # 2. Link events efficiently
     link_events_to_segments(game_id)
 
-    # Get unique lineup_ids that were affected
+    # 3. Bulk fetch segments and events
+    segments = LineupSegment.query.filter(LineupSegment.id.in_(segment_ids)).all()
+    all_segment_events = GameEvent.query.filter(GameEvent.lineup_segment_id.in_(segment_ids)).all()
+    
+    # Group events by segment for fast access
+    events_by_segment = {}
+    for event in all_segment_events:
+        sid = event.lineup_segment_id
+        if sid not in events_by_segment:
+            events_by_segment[sid] = []
+        events_by_segment[sid].append(event)
+
+    # 4. Clear existing player stats for these segments in one go
+    PlayerLineupStats.query.filter(PlayerLineupStats.lineup_segment_id.in_(segment_ids)).delete(synchronize_session=False)
+    db.session.commit()
+
+    # 5. Process each segment
     lineup_ids = set()
-    for segment_id in segment_ids:
-        calculate_segment_stats(segment_id, events)
-        populate_player_lineup_stats(segment_id)
-        segment = LineupSegment.query.get(segment_id)
-        if segment and segment.lineup_id:
+    new_player_stats = []
+
+    for segment in segments:
+        seg_events = events_by_segment.get(segment.id, [])
+        
+        # Calculate segment aggregates
+        pts_scored = 0
+        pts_allowed = 0
+        poss = 0
+        poss_ending = set()
+        
+        player_map = {p: {
+            "points": 0, "fga": 0, "fgm": 0, "tpa": 0, "tpm": 0, "fta": 0, "ftm": 0,
+            "oreb": 0, "dreb": 0, "ast": 0, "stl": 0, "blk": 0, "tov": 0, "reb_conceded": 0
+        } for p in (segment.players or [])}
+
+        for event in seg_events:
+            et = event.event_type
+            if et == "SHOT_2PT":
+                if event.shot_attempt == "made":
+                    pts_scored += 2
+                    if event.player_name in player_map:
+                        player_map[event.player_name]["points"] += 2
+                        player_map[event.player_name]["fgm"] += 1
+                if event.player_name in player_map:
+                    player_map[event.player_name]["fga"] += 1
+            elif et == "SHOT_3PT":
+                if event.shot_attempt == "made":
+                    pts_scored += 3
+                    if event.player_name in player_map:
+                        player_map[event.player_name]["points"] += 3
+                        player_map[event.player_name]["fgm"] += 1
+                        player_map[event.player_name]["tpm"] += 1
+                if event.player_name in player_map:
+                    player_map[event.player_name]["fga"] += 1
+                    player_map[event.player_name]["tpa"] += 1
+            elif et == "FT_MADE":
+                pts_scored += 1
+                if event.player_name in player_map:
+                    player_map[event.player_name]["points"] += 1
+                    player_map[event.player_name]["fta"] += 1
+                    player_map[event.player_name]["ftm"] += 1
+            elif et == "OPP_SCORE":
+                try: pts_allowed += int(event.detail or 2)
+                except: pts_allowed += 2
+            elif et == "OPP_OREB":
+                for p in player_map: player_map[p]["reb_conceded"] += 1
+            
+            # Atomic stats
+            if event.player_name in player_map:
+                p_stats = player_map[event.player_name]
+                if et == "FT": p_stats["fta"] += 1
+                elif et == "FT_MISS": p_stats["fta"] += 1
+                elif et == "TURNOVER": p_stats["tov"] += 1
+                elif et == "AST": p_stats["ast"] += 1
+                elif et == "STL": p_stats["stl"] += 1
+                elif et == "BLK": p_stats["blk"] += 1
+                elif et in ("OREB", "REBOUND_OFFENSIVE"): p_stats["oreb"] += 1
+                elif et in ("DREB", "REBOUND_DEFENSIVE"): p_stats["dreb"] += 1
+
+            # Possession tracking
+            if et in ["SHOT_2PT", "SHOT_3PT", "TURNOVER", "FT", "FT_MADE", "FT_MISS", "OPP_OREB", "OPP_SCORE"]:
+                if event.possession_number and event.possession_number not in poss_ending:
+                    poss_ending.add(event.possession_number)
+                    poss += 1
+
+        # Update segment model
+        segment.points_scored = pts_scored
+        segment.points_allowed = pts_allowed
+        segment.possessions = poss
+        segment.duration_seconds = calculate_segment_duration(segment, events)
+        if segment.lineup_id:
             lineup_ids.add(segment.lineup_id)
 
-    # Update cached stats for all affected lineups
-    for lineup_id in lineup_ids:
-        update_lineup_cached_stats(lineup_id)
+        # Batch preparation for player stats
+        for p_name, s in player_map.items():
+            new_player_stats.append(PlayerLineupStats(
+                lineup_segment_id=segment.id, player_name=p_name, **s
+            ))
+
+    # 6. Bulk save everything
+    db.session.bulk_save_objects(new_player_stats)
+    db.session.commit()
+
+    # 7. Update affected lineups
+    for lid in lineup_ids:
+        update_lineup_cached_stats(lid)
