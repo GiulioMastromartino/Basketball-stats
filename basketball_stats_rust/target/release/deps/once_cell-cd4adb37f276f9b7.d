@@ -1,0 +1,9 @@
+/Users/giuliomastromartino/Documents/basket/Game_STATS/Basketball_Stats/Basketball-stats/basketball_stats_rust/target/release/deps/once_cell-cd4adb37f276f9b7.d: /Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/lib.rs /Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/imp_std.rs /Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/race.rs
+
+/Users/giuliomastromartino/Documents/basket/Game_STATS/Basketball_Stats/Basketball-stats/basketball_stats_rust/target/release/deps/libonce_cell-cd4adb37f276f9b7.rlib: /Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/lib.rs /Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/imp_std.rs /Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/race.rs
+
+/Users/giuliomastromartino/Documents/basket/Game_STATS/Basketball_Stats/Basketball-stats/basketball_stats_rust/target/release/deps/libonce_cell-cd4adb37f276f9b7.rmeta: /Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/lib.rs /Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/imp_std.rs /Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/race.rs
+
+/Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/lib.rs:
+/Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/imp_std.rs:
+/Users/giuliomastromartino/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/once_cell-1.21.3/src/race.rs:

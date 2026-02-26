@@ -172,7 +172,7 @@ def _create_court_plot(shots, is_team=False):
         plt.close('all')
         return ""
 
-def generate_player_charts(stats, game_map, player_name):
+def generate_player_charts(stats, game_map, player_name, db_session=None):
     """
     Generate charts for player report.
     Plus/Minus chart only includes LIVE game data for accuracy.

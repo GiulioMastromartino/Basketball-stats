@@ -2,6 +2,7 @@
 Shared utility functions for basketball statistics calculations
 """
 from statistics import mean
+from core import rust_analytics
 
 FT_ATTEMPT_WEIGHT = 0.44
 THREE_POINT_WEIGHT = 0.5
@@ -13,8 +14,8 @@ def safe_divide(numerator, denominator, default=0.0):
 
 
 def safe_percentage(numerator, denominator, decimals=1):
-    """Calculate percentage safely (returns 0-100 range)"""
-    result = safe_divide(numerator * 100, denominator)
+    """Calculate percentage safely using Rust (returns 0-100 range)"""
+    result = rust_analytics.safe_percentage(int(numerator), int(denominator))
     return round(result, decimals)
 
 
@@ -38,13 +39,13 @@ def parse_minutes(minutes_str):
 
 
 def calculate_possessions(fga, fta, oreb, tov):
-    """Calculate possessions used by a player"""
-    return fga + (FT_ATTEMPT_WEIGHT * fta) - oreb + tov
+    """Calculate possessions used by a player using Rust."""
+    return rust_analytics.calculate_possessions(int(fga), int(fta), int(oreb), int(tov))
 
 
 def calculate_ortg(points, possessions):
-    """Calculate offensive rating (points per 100 possessions)"""
-    return safe_divide(points * 100, possessions)
+    """Calculate offensive rating (points per 100 possessions) using Rust."""
+    return rust_analytics.calculate_offensive_rating(int(points), int(possessions))
 
 
 def calculate_ppp(points, possessions):
@@ -53,14 +54,13 @@ def calculate_ppp(points, possessions):
 
 
 def calculate_ts_percent(points, fga, fta):
-    """Calculate True Shooting Percentage (returns 0-100)"""
-    denominator = 2 * (fga + FT_ATTEMPT_WEIGHT * fta)
-    return safe_percentage(points, denominator)
+    """Calculate True Shooting Percentage using Rust (returns 0-100)"""
+    return rust_analytics.calculate_true_shooting_pct(int(points), int(fga), int(fta))
 
 
 def calculate_efg_percent(fgm, tpm, fga):
-    """Calculate Effective Field Goal Percentage (returns 0-100)"""
-    return safe_percentage(fgm + THREE_POINT_WEIGHT * tpm, fga)
+    """Calculate Effective Field Goal Percentage using Rust (returns 0-100)"""
+    return rust_analytics.calculate_efg_pct(int(fgm), int(tpm), int(fga))
 
 
 def calculate_usg_percent(possessions, team_possessions):

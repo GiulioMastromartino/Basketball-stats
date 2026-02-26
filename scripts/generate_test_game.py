@@ -16,6 +16,11 @@ import random
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
+import sys
+import os
+sys.path.append(os.getcwd())
+from core import rust_analytics
+
 # =============================================================================
 # SHOT ZONE CONSTANTS
 # =============================================================================
@@ -162,34 +167,9 @@ def _get_shot_location(shot_type: str, zone: Optional[str] = None) -> Tuple[floa
 def _classify_shot_zone(x_loc: float, y_loc: float, shot_type: str) -> str:
     """
     Classify a shot into a zone based on court coordinates.
-    Mirrors the logic in core.advanced_analytics.classify_shot_zone
+    Uses high-performance Rust implementation.
     """
-    if not shot_type:
-        return 'Midrange'
-    
-    st = shot_type.lower()
-    
-    if st == 'ft':
-        return 'FT'
-    
-    if x_loc is None or y_loc is None:
-        return 'Midrange'
-    
-    # Distance from basket (centered at x=250, y=50)
-    dx = x_loc - 250
-    dy = y_loc - 50
-    distance = (dx**2 + dy**2)**0.5
-    
-    if distance <= 40:
-        return 'Rim'
-    elif distance <= 100:
-        return 'Paint'
-    elif '3pt' in st:
-        if y_loc < 140:
-            return 'Corner_3'
-        return 'Above_Break_3'
-    else:
-        return 'Midrange'
+    return rust_analytics.classify_shot_zone(x_loc, y_loc, shot_type)
 
 
 def _get_make_probability(zone: str) -> float:
@@ -317,11 +297,6 @@ def _generate_lineup_segments(events: List[Dict], starters: List[str], bench: Li
     current_quarter = 1
 
     for i, event in enumerate(events):
-        if event["event_type"] == "SUB_OUT":
-            player_out = event["player_name"]
-            if player_out in current_lineup:
-                pass
-
         if event["event_type"] == "SUB_IN":
             player_in = event["player_name"]
             sub_out_event = None
@@ -336,10 +311,7 @@ def _generate_lineup_segments(events: List[Dict], starters: List[str], bench: Li
                     idx = current_lineup.index(player_out)
                     current_lineup[idx] = player_in
 
-                    sorted_players = sorted(current_lineup)
-                    lineup_hash = hashlib.md5(
-                        ",".join(sorted_players).encode()
-                    ).hexdigest()
+                    lineup_hash = rust_analytics.calculate_lineup_hash(current_lineup)
 
                     segments.append(
                         {
@@ -365,8 +337,7 @@ def _generate_lineup_segments(events: List[Dict], starters: List[str], bench: Li
         if event.get("quarter", 1) != current_quarter:
             current_quarter = event.get("quarter", current_quarter)
 
-    sorted_players = sorted(current_lineup)
-    lineup_hash = hashlib.md5(",".join(sorted_players).encode()).hexdigest()
+    lineup_hash = rust_analytics.calculate_lineup_hash(current_lineup)
 
     segments.append(
         {

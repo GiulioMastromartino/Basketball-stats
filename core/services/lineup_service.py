@@ -169,9 +169,9 @@ def update_lineup_cached_stats(lineup_id: int):
     lineup.tov = total_tov
 
     if total_possessions > 0:
-        lineup.ortg = (points_scored / total_possessions) * 100
-        lineup.drtg = (points_allowed / total_possessions) * 100
-        lineup.net_rating = lineup.ortg - lineup.drtg
+        lineup.ortg = round((points_scored / total_possessions) * 100, 1)
+        lineup.drtg = round((points_allowed / total_possessions) * 100, 1)
+        lineup.net_rating = round(lineup.ortg - lineup.drtg, 1)
     else:
         lineup.ortg = 0
         lineup.drtg = 0

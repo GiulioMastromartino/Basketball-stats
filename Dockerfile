@@ -1,3 +1,23 @@
+# STAGE 1: Rust Builder
+FROM rust:1.80-slim-bullseye AS rust-builder
+
+RUN apt-get update && apt-get install -y \
+    python3-dev \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY basketball_stats_rust ./basketball_stats_rust
+
+# Install maturin to build the python wheel
+RUN pip3 install maturin
+
+# Build the Rust library into a Python wheel
+RUN cd basketball_stats_rust && \
+    maturin build --release --out ../dist
+
+# STAGE 2: Final Image
 FROM python:3.11-slim
 
 # Install system dependencies required for WeasyPrint and compilation
@@ -18,11 +38,13 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy requirements first to leverage Docker cache
+# Copy requirements first
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy and install the Rust wheel from the builder stage
+COPY --from=rust-builder /build/dist/*.whl /tmp/
+RUN pip install /tmp/*.whl && rm -rf /tmp/*.whl
 
 # Copy the rest of the application
 COPY . .

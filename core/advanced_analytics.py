@@ -27,6 +27,7 @@ from core.utils import (
     safe_divide, safe_percentage, parse_minutes,
     calculate_possessions, FT_ATTEMPT_WEIGHT
 )
+from core import rust_analytics
 
 
 # =============================================================================
@@ -48,52 +49,14 @@ def classify_shot_zone(x_loc: Optional[float], y_loc: Optional[float],
                        shot_type: str) -> str:
     """
     Classify a shot into a zone based on court coordinates.
-    Court coordinates: 0-500 (x), 0-470 (y), basket at (250, 50)
-    
-    Args:
-        x_loc: X coordinate (0-500, left to right)
-        y_loc: Y coordinate (0-470, basket to opposite end)
-        shot_type: '2pt', '3pt', or 'ft'
-    
-    Returns:
-        Zone name string
+    Uses high-performance Rust implementation.
     """
-    if not shot_type:
-        return 'Midrange'
-
-    st = shot_type.lower()
-    
-    if st == 'ft':
-        return 'FT'
-    
-    if x_loc is None or y_loc is None:
-        return 'Midrange'  # Default for unknown locations
-    
-    # Distance from basket (centered at x=250, y=50)
-    dx = x_loc - 250
-    dy = y_loc - 50
-    distance = (dx**2 + dy**2)**0.5
-    
-    # 3-point line is approximately 237 units from basket (scaled)
-    # Paint area: roughly 0-80 units from basket
-    
-    if distance <= 40:
-        return 'Rim'
-    elif distance <= 100:
-        return 'Paint'
-    elif '3pt' in st:
-        # Corner 3s are typically closer to baseline (y < 140)
-        # Based on SVG path where break is at y=140
-        if y_loc < 140:
-            return 'Corner_3'
-        return 'Above_Break_3'
-    else:
-        return 'Midrange'
+    return rust_analytics.classify_shot_zone(x_loc, y_loc, shot_type)
 
 
 def get_expected_value(zone: str) -> float:
-    """Get expected point value for a zone."""
-    return DEFAULT_ZONE_VALUES.get(zone, 0.80)
+    """Get expected point value for a zone using Rust implementation."""
+    return rust_analytics.get_expected_value(zone)
 
 
 # =============================================================================
@@ -101,114 +64,31 @@ def get_expected_value(zone: str) -> float:
 # =============================================================================
 
 class AdvancedPlayerStats:
-    """Advanced individual player metrics."""
+    """Advanced individual player metrics using Rust for performance."""
     
     @staticmethod
     def calculate_true_usage_rate(fga: int, fta: int, tov: int,
                                    team_fga: int, team_fta: int, team_tov: int,
                                    minutes: float, team_minutes: float = 200.0) -> float:
-        """
-        Calculate True Usage Rate (USG%).
-        Formula: ((FGA + 0.44*FTA + TOV) * (Team Minutes / 5)) / (Minutes * Team Possessions)
-        
-        This represents the percentage of team plays used by a player while on court.
-        
-        Args:
-            fga: Player field goal attempts
-            fta: Player free throw attempts
-            tov: Player turnovers
-            team_fga: Team total field goal attempts
-            team_fta: Team total free throw attempts
-            team_tov: Team total turnovers
-            minutes: Player minutes played
-            team_minutes: Total team minutes (default 200 for 5 players * 40 min)
-        
-        Returns:
-            Usage rate as percentage (0-100)
-        """
-        if minutes <= 0:
-            return 0.0
-        
-        player_possessions = fga + (FT_ATTEMPT_WEIGHT * fta) + tov
-        team_possessions = team_fga + (FT_ATTEMPT_WEIGHT * team_fta) + team_tov
-        
-        # Adjust for minutes played
-        if team_possessions == 0:
-            return 0.0
-            
-        usage = (player_possessions * (team_minutes / 5)) / (minutes * team_possessions) * 100
-        
-        return round(min(usage, 100.0), 1)  # Cap at 100%
+        """Calculate True Usage Rate (USG%) using Rust."""
+        return rust_analytics.calculate_true_usage_rate(
+            fga, fta, tov, team_fga, team_fta, team_tov, minutes, team_minutes
+        )
     
     @staticmethod
     def calculate_points_per_shot(points: int, fga: int) -> float:
-        """
-        Calculate Points Per Shot (PPS).
-        Simple efficiency metric: Points / FGA
-        
-        Higher is better. League average is typically around 1.0-1.1.
-        """
-        return round(safe_divide(points, fga), 2)
+        """Calculate Points Per Shot (PPS) using Rust."""
+        return rust_analytics.calculate_points_per_shot(points, fga)
     
     @staticmethod
     def calculate_shot_quality_delta(actual_points: float, expected_points: float) -> float:
-        """
-        Calculate Shot Quality Delta.
-        Difference between actual points and expected points.
-        
-        Positive = "tough shot maker" (outperforming expectations)
-        Negative = "poor shot selection" (underperforming expectations)
-        """
-        return round(actual_points - expected_points, 2)
+        """Calculate Shot Quality Delta using Rust."""
+        return rust_analytics.calculate_shot_quality_delta(actual_points, expected_points)
     
     @staticmethod
     def calculate_shot_quality_score(shots: List[Dict]) -> Dict:
-        """
-        Calculate comprehensive shot quality metrics for a player.
-        
-        Args:
-            shots: List of shot dictionaries with 'points', 'x_loc', 'y_loc', 'shot_type'
-        
-        Returns:
-            Dictionary with shot quality metrics
-        """
-        if not shots:
-            return {
-                'total_shots': 0,
-                'total_points': 0,
-                'expected_points': 0.0,
-                'shot_quality_delta': 0.0,
-                'ppps': 0.0,  # Points per shot
-                'zone_breakdown': {}
-            }
-        
-        total_points = sum(s.get('points', 0) for s in shots)
-        total_expected = 0.0
-        zone_stats = defaultdict(lambda: {'makes': 0, 'attempts': 0, 'points': 0, 'expected': 0.0})
-        
-        for shot in shots:
-            zone = classify_shot_zone(
-                shot.get('x_loc'), 
-                shot.get('y_loc'), 
-                shot.get('shot_type', '2pt')
-            )
-            expected = get_expected_value(zone)
-            total_expected += expected
-            
-            zone_stats[zone]['attempts'] += 1
-            zone_stats[zone]['points'] += shot.get('points', 0)
-            zone_stats[zone]['expected'] += expected
-            if shot.get('points', 0) > 0:
-                zone_stats[zone]['makes'] += 1
-        
-        return {
-            'total_shots': len(shots),
-            'total_points': total_points,
-            'expected_points': round(total_expected, 2),
-            'shot_quality_delta': round(total_points - total_expected, 2),
-            'ppps': round(total_points / len(shots), 2) if shots else 0.0,
-            'zone_breakdown': dict(zone_stats)
-        }
+        """Calculate comprehensive shot quality metrics for a player using Rust."""
+        return rust_analytics.calculate_shot_quality_score(shots)
 
 
 # =============================================================================
@@ -216,16 +96,15 @@ class AdvancedPlayerStats:
 # =============================================================================
 
 class ClutchPerformance:
-    """Clutch time performance analysis (score within 5 points, < 5 minutes)."""
+    """Clutch time performance analysis (score within 5 points, < 5 minutes) using Rust."""
     
     CLUTCH_MARGIN = 5  # Points
     CLUTCH_TIME_SECONDS = 300  # 5 minutes
     
     @staticmethod
     def is_clutch_situation(score_margin: int, time_remaining_seconds: int) -> bool:
-        """Determine if a situation qualifies as 'clutch'."""
-        return (abs(score_margin) <= ClutchPerformance.CLUTCH_MARGIN and 
-               time_remaining_seconds <= ClutchPerformance.CLUTCH_TIME_SECONDS)
+        """Determine if a situation qualifies as 'clutch' using Rust."""
+        return rust_analytics.is_clutch_situation(score_margin, time_remaining_seconds)
     
     @staticmethod
     def get_clutch_stats(game_id: int, player_name: str = None) -> Dict:
@@ -290,14 +169,8 @@ class ClutchPerformance:
 
 
 def parse_time_to_seconds(time_str: str) -> int:
-    """Convert MM:SS to total seconds."""
-    try:
-        if ':' in time_str:
-            parts = time_str.split(':')
-            return int(parts[0]) * 60 + int(parts[1])
-        return int(time_str)
-    except (ValueError, AttributeError):
-        return 300  # Default to end of game
+    """Convert MM:SS to total seconds using Rust."""
+    return rust_analytics.parse_time_to_seconds(time_str)
 
 
 # =============================================================================
@@ -382,7 +255,7 @@ class LineupAnalytics:
     @staticmethod
     def calculate_duo_compatibility(game_ids: List[int] = None) -> List[Dict]:
         """
-        Calculate synergy metrics for all 2-player combinations.
+        Calculate synergy metrics for all 2-player combinations using high-performance aggregation.
         
         Returns:
             List of duo combinations with compatibility metrics
@@ -393,45 +266,37 @@ class LineupAnalytics:
         
         segments = query.all()
         
-        # Track stats for each duo
-        duo_stats = defaultdict(lambda: {
-            'segments': 0, 'points_scored': 0, 'points_allowed': 0, 'possessions': 0
-        })
-        
-        for segment in segments:
-            # Handle potential JSON string vs List issue
-            players = segment.players
+        # Prepare data for high-performance aggregator
+        segment_data = []
+        for s in segments:
+            players = s.players
             if isinstance(players, str):
-                try:
-                    players = json.loads(players)
-                except:
-                    players = []
-            if not players:
-                players = []
-
-            if len(players) < 2:
-                continue
+                try: players = json.loads(players)
+                except: players = []
             
-            # Generate all 2-player combinations
-            for i, p1 in enumerate(players):
-                for p2 in players[i+1:]:
-                    duo_key = tuple(sorted([p1, p2]))
-                    duo_stats[duo_key]['segments'] += 1
-                    duo_stats[duo_key]['points_scored'] += segment.points_scored or 0
-                    duo_stats[duo_key]['points_allowed'] += segment.points_allowed or 0
-                    duo_stats[duo_key]['possessions'] += segment.possessions or 0
+            segment_data.append({
+                'players': players or [],
+                'points_scored': s.points_scored or 0,
+                'points_allowed': s.points_allowed or 0,
+                'possessions': s.possessions or 0
+            })
+
+        # Use Rust-backed aggregator
+        stats = rust_analytics.aggregate_combinatorial_stats(segment_data)
+        duo_stats = stats.get('duos', {})
         
-        # Calculate net ratings
+        # Calculate net ratings and format results
         results = []
-        for (p1, p2), stats in duo_stats.items():
-            if stats['possessions'] > 0:
-                ortg = stats['points_scored'] / stats['possessions'] * 100
-                drtg = stats['points_allowed'] / stats['possessions'] * 100
+        for key, s in duo_stats.items():
+            if s['possessions'] > 0:
+                p1, p2 = key.split(',')
+                ortg = s['points_scored'] / s['possessions'] * 100
+                drtg = s['points_allowed'] / s['possessions'] * 100
                 results.append({
                     'player1': p1,
                     'player2': p2,
-                    'segments': stats['segments'],
-                    'possessions': stats['possessions'],
+                    'segments': s['segments'],
+                    'possessions': s['possessions'],
                     'ortg': round(ortg, 1),
                     'drtg': round(drtg, 1),
                     'net_rating': round(ortg - drtg, 1)
@@ -441,48 +306,41 @@ class LineupAnalytics:
     
     @staticmethod
     def calculate_trio_compatibility(game_ids: List[int] = None) -> List[Dict]:
-        """Calculate synergy metrics for all 3-player combinations."""
-        from itertools import combinations
-        
+        """Calculate synergy metrics for all 3-player combinations using high-performance aggregation."""
         query = LineupSegment.query
         if game_ids:
             query = query.filter(LineupSegment.game_id.in_(game_ids))
         
         segments = query.all()
         
-        trio_stats = defaultdict(lambda: {
-            'segments': 0, 'points_scored': 0, 'points_allowed': 0, 'possessions': 0
-        })
-        
-        for segment in segments:
-            # Handle potential JSON string vs List issue
-            players = segment.players
+        # Prepare data for high-performance aggregator
+        segment_data = []
+        for s in segments:
+            players = s.players
             if isinstance(players, str):
-                try:
-                    players = json.loads(players)
-                except:
-                    players = []
-            if not players:
-                players = []
-
-            if len(players) < 3:
-                continue
+                try: players = json.loads(players)
+                except: players = []
             
-            for trio in combinations(sorted(players), 3):
-                trio_stats[trio]['segments'] += 1
-                trio_stats[trio]['points_scored'] += segment.points_scored or 0
-                trio_stats[trio]['points_allowed'] += segment.points_allowed or 0
-                trio_stats[trio]['possessions'] += segment.possessions or 0
+            segment_data.append({
+                'players': players or [],
+                'points_scored': s.points_scored or 0,
+                'points_allowed': s.points_allowed or 0,
+                'possessions': s.possessions or 0
+            })
+
+        # Use Rust-backed aggregator
+        stats = rust_analytics.aggregate_combinatorial_stats(segment_data)
+        trio_stats = stats.get('trios', {})
         
         results = []
-        for trio, stats in trio_stats.items():
-            if stats['possessions'] > 0:
-                ortg = stats['points_scored'] / stats['possessions'] * 100
-                drtg = stats['points_allowed'] / stats['possessions'] * 100
+        for key, s in trio_stats.items():
+            if s['possessions'] > 0:
+                ortg = s['points_scored'] / s['possessions'] * 100
+                drtg = s['points_allowed'] / s['possessions'] * 100
                 results.append({
-                    'players': list(trio),
-                    'segments': stats['segments'],
-                    'possessions': stats['possessions'],
+                    'players': key.split(','),
+                    'segments': s['segments'],
+                    'possessions': s['possessions'],
                     'ortg': round(ortg, 1),
                     'drtg': round(drtg, 1),
                     'net_rating': round(ortg - drtg, 1)
@@ -725,7 +583,7 @@ class PossessionReconstructor:
     @staticmethod
     def reconstruct_possessions(game_id: int) -> List[Dict]:
         """
-        Reconstruct all possessions from game events.
+        Reconstruct all possessions from game events using high-performance Rust implementation.
         
         Args:
             game_id: Game to analyze
@@ -740,84 +598,18 @@ class PossessionReconstructor:
         if not events:
             return []
         
-        possessions = []
-        current_possession = None
-        team_possession = True  # True = our team, False = opponent
-        
-        for event in events:
-            event_type = event.event_type
+        # Prepare event data for Rust
+        event_data = []
+        for e in events:
+            event_data.append({
+                'id': e.id,
+                'event_type': e.event_type,
+                'timestamp': float(e.timestamp or 0),
+                'quarter': e.quarter or 1,
+                'shot_attempt': e.shot_attempt
+            })
             
-            # Determine possession change
-            is_possession_end = event_type in PossessionReconstructor.POSSESSION_END_EVENTS
-            is_possession_start = event_type in PossessionReconstructor.POSSESSION_START_EVENTS
-            
-            # Handle shot outcomes
-            if event_type in ['SHOT_2PT', 'SHOT_3PT']:
-                if current_possession is None:
-                    current_possession = {
-                        'start_event_id': event.id,
-                        'team_possession': team_possession,
-                        'quarter': event.quarter,
-                        'events': [event.id],
-                        'points': 0
-                    }
-                else:
-                    current_possession['events'].append(event.id)
-                
-                if event.shot_attempt == 'made':
-                    points = 2 if event_type == 'SHOT_2PT' else 3
-                    current_possession['points'] = points
-                    is_possession_end = True
-            
-            elif event_type == 'FT_MADE':
-                if current_possession:
-                    current_possession['points'] += 1
-                    current_possession['events'].append(event.id)
-            
-            elif event_type == 'TURNOVER':
-                if current_possession:
-                    current_possession['events'].append(event.id)
-                    is_possession_end = True
-                team_possession = not team_possession
-            
-            elif event_type == 'OPP_SCORE':
-                # Opponent scored - end our possession analysis
-                is_possession_end = True
-                team_possession = not team_possession
-            
-            elif event_type == 'REBOUND_DEFENSIVE':
-                # Defensive rebound = new possession
-                team_possession = True
-                is_possession_start = True
-            
-            elif event_type == 'REBOUND_OFFENSIVE':
-                # Offensive rebound = continuation
-                if current_possession:
-                    current_possession['events'].append(event.id)
-                continue
-            
-            # Finalize possession if ended
-            if is_possession_end and current_possession:
-                current_possession['end_event_id'] = event.id
-                possessions.append(current_possession)
-                current_possession = None
-            
-            # Start new possession
-            if is_possession_start and current_possession is None:
-                current_possession = {
-                    'start_event_id': event.id,
-                    'team_possession': team_possession,
-                    'quarter': event.quarter,
-                    'events': [event.id],
-                    'points': 0
-                }
-        
-        # Close any remaining possession
-        if current_possession:
-            current_possession['end_event_id'] = events[-1].id
-            possessions.append(current_possession)
-        
-        return possessions
+        return rust_analytics.reconstruct_possessions(event_data)
     
     @staticmethod
     def save_possessions(game_id: int) -> int:

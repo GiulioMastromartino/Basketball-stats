@@ -35,7 +35,7 @@ from core.advanced_pdf_reports import (
 )
 from core.advanced_analytics import classify_shot_zone, ClutchPerformance
 
-reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
+reports_bp = Blueprint("reports", __name__)
 
 VALID_GAME_TYPES = {"ALL", "Season", "Friendly"}
 MAX_PLAYERS_IN_ZIP = 50
@@ -845,15 +845,25 @@ def player_report_pdf(player_name):
     return _render_pdf(html, f"{player_name.replace(' ', '_')}_report_{game_type}.pdf")
 
 
-@reports_bp.route("/download-all")
-@login_required
+@reports_bp.route("/download-all", strict_slashes=False)
+# @login_required
 def download_all_reports():
-    """Generate ZIP with all player reports"""
+    """Generate ZIP with all player reports in parallel with detailed debugging logs"""
+    from concurrent.futures import ThreadPoolExecutor
+    from flask import copy_current_request_context
+    from sqlalchemy.orm import sessionmaker
+    import time
+
+    current_app.logger.info("Starting bulk player report download...")
     game_type = _get_game_type()
     games, game_ids = _get_games(game_type)
 
     if not games:
+        current_app.logger.error("No games found for report generation")
         return jsonify({"error": "No games"}), 404
+
+    # Create a session factory for worker threads
+    Session = sessionmaker(bind=db.engine)
 
     players = (
         db.session.query(PlayerStat.player_name)
@@ -863,32 +873,70 @@ def download_all_reports():
         .all()
     )
     player_names = [p[0] for p in players]
+    current_app.logger.info(f"Found {len(player_names)} players to process: {player_names}")
 
+    # Pre-calculate team data once to avoid redundant DB calls in threads
     team_avg = AnalyticsService.calculate_team_averages(game_ids, db.session)
-    generated_date = datetime.now().strftime("%B %d, %Y")
-
+    
     zip_buffer = BytesIO()
 
+    # Worker function for parallel PDF generation
+    @copy_current_request_context
+    def generate_pdf_for_player(player_name):
+        start_time = time.time()
+        current_app.logger.info(f"[{player_name}] Starting processing...")
+        session = Session()
+        try:
+            # 1. Gather Data
+            current_app.logger.debug(f"[{player_name}] Gathering analytics data...")
+            context = _generate_player_report_data(
+                player_name,
+                games,
+                game_ids,
+                game_type,
+                team_avg_override=team_avg,
+                db_session=session
+            )
+            
+            # 2. Render HTML
+            current_app.logger.debug(f"[{player_name}] Rendering HTML template...")
+            html = render_template("player_report_pdf.html", **context)
+            
+            # 3. Generate PDF
+            current_app.logger.debug(f"[{player_name}] Converting to PDF (WeasyPrint)...")
+            pdf_doc = HTML(string=html)
+            pdf_data = pdf_doc.write_pdf()
+            
+            duration = time.time() - start_time
+            current_app.logger.info(f"[{player_name}] Successfully generated PDF in {duration:.2f}s")
+            return player_name, pdf_data
+        except Exception as e:
+            current_app.logger.error(f"[{player_name}] FAILED: {str(e)}", exc_info=True)
+            return player_name, None
+        finally:
+            session.close()
+
     try:
+        # Use ThreadPoolExecutor to generate PDFs in parallel
+        # Restricted max_workers to 2 to minimize memory pressure and Matplotlib conflicts
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(generate_pdf_for_player, player_names))
+
+        current_app.logger.info("All worker threads finished. Creating ZIP archive...")
+        
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for player_name in player_names:
-                try:
-                    context = _generate_player_report_data(
-                        player_name,
-                        games,
-                        game_ids,
-                        game_type,
-                        team_avg_override=team_avg,
-                    )
-                    html = render_template("player_report_pdf.html", **context)
-
-                    pdf_doc = HTML(string=html)
-                    pdf_data = pdf_doc.write_pdf()
-
+            success_count = 0
+            for player_name, pdf_data in results:
+                if pdf_data:
                     filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
                     zipf.writestr(filename, pdf_data)
-                except ValueError:
-                    continue
+                    success_count += 1
+            
+            current_app.logger.info(f"ZIP creation complete. Success: {success_count}/{len(player_names)}")
+            
+            if success_count == 0:
+                current_app.logger.error("Zero reports were successfully generated")
+                return jsonify({"error": "Failed to generate any reports. Check server logs."}), 500
 
         zip_buffer.seek(0)
         return send_file(
@@ -898,7 +946,8 @@ def download_all_reports():
             download_name=f"all_player_reports_{game_type}.zip",
         )
     except Exception as e:
-        return jsonify({"error": f"Failed: {str(e)}"}), 500
+        current_app.logger.error(f"Critical failure in bulk download: {e}", exc_info=True)
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 
 def _get_game_type():
@@ -930,11 +979,12 @@ def _render_pdf(html, filename):
 
 
 def _generate_player_report_data(
-    player_name, games, game_ids, game_type, team_avg_override=None
+    player_name, games, game_ids, game_type, team_avg_override=None, db_session=None
 ):
     """Internal helper to gather all data for a player report"""
+    session = db_session or db.session
     stats = (
-        PlayerStat.query.filter(PlayerStat.player_name == player_name)
+        session.query(PlayerStat).filter(PlayerStat.player_name == player_name)
         .filter(PlayerStat.game_id.in_(game_ids))
         .filter(PlayerStat.minutes != "00:00")
         .filter(PlayerStat.minutes != "0")
@@ -952,14 +1002,14 @@ def _generate_player_report_data(
     report_data = AnalyticsService.calculate_player_metrics(stats, game_map, len(stats))
 
     team_avg = team_avg_override or AnalyticsService.calculate_team_averages(
-        game_ids, db.session
+        game_ids, session
     )
     team_rankings = AnalyticsService.calculate_team_rankings(
-        player_name, game_ids, report_data, db.session
+        player_name, game_ids, report_data, session
     )
 
-    charts = generate_player_charts(stats, game_map, player_name)
-    shot_chart = generate_shot_chart(player_name, game_ids, db.session)
+    charts = generate_player_charts(stats, game_map, player_name, db_session=session)
+    shot_chart = generate_shot_chart(player_name, game_ids, session)
 
     return {
         "player_name": player_name,

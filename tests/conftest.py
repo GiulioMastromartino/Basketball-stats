@@ -95,35 +95,18 @@ def admin_user(db_session):
 @pytest.fixture
 def auth_client(client, editor_user):
     """Authenticated client as editor user."""
-    client.post(
-        "/auth/login",
-        data={"username": "test_editor", "password": "password123"},
-        follow_redirects=True,
-    )
+    with client.session_transaction() as sess:
+        sess['_user_id'] = str(editor_user.id)
+        sess['_fresh'] = True
     return client
 
 
 @pytest.fixture
-def admin_client(client, monkeypatch):
+def admin_client(client, admin_user):
     """Authenticated client as admin user."""
-    user = User(username="test_admin", email="admin@test.com", role="admin")
-    user.set_password("admin123")
-    db.session.add(user)
-    db.session.commit()
-
-    monkeypatch.setattr("web.routes.auth.send_otp_email", lambda email, code: True)
-    client.post(
-        "/auth/login",
-        data={"username": "test_admin", "password": "admin123"},
-        follow_redirects=True,
-    )
-    user = User.query.filter_by(username="test_admin").first()
-    if user and user.otp_code:
-        client.post(
-            "/auth/verify-otp",
-            data={"otp_code": user.otp_code},
-            follow_redirects=True,
-        )
+    with client.session_transaction() as sess:
+        sess['_user_id'] = str(admin_user.id)
+        sess['_fresh'] = True
     return client
 
 
