@@ -1,17 +1,19 @@
 # STAGE 1: Rust Builder
-FROM rust:1.80-slim-bullseye AS rust-builder
+FROM python:3.11-slim AS rust-builder
 
+# Install Rust and build dependencies
 RUN apt-get update && apt-get install -y \
-    python3-dev \
-    python3-pip \
-    python3-venv \
-    && rm -rf /var/lib/apt/lists/*
+    curl \
+    build-essential \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /build
 COPY basketball_stats_rust ./basketball_stats_rust
 
 # Install maturin to build the python wheel
-RUN pip3 install maturin
+RUN pip install maturin
 
 # Build the Rust library into a Python wheel
 RUN cd basketball_stats_rust && \
@@ -20,10 +22,9 @@ RUN cd basketball_stats_rust && \
 # STAGE 2: Final Image
 FROM python:3.11-slim
 
-# Install system dependencies required for WeasyPrint and compilation
+# Install system dependencies required for WeasyPrint
 RUN apt-get update && apt-get install -y \
     build-essential \
-    python3-dev \
     python3-cffi \
     python3-brotli \
     libpango-1.0-0 \
