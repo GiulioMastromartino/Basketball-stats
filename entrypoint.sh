@@ -1,9 +1,9 @@
 #!/bin/sh
-# entrypoint.sh - wrapper to handle migrations before startup
+# entrypoint.sh - wrapper to handle database initialization before startup
 
-# Run migrations
-echo "Applying database migrations..."
-flask db upgrade
+# Initialize database (creates tables from models, seeds data)
+echo "Initializing database..."
+python scripts/init_db.py
 
 # Promote admin user from ADMIN_EMAIL
 echo "Ensuring admin role for ADMIN_EMAIL..."
