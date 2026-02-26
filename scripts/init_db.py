@@ -3,6 +3,12 @@
 Initialize database with all tables from SQLAlchemy models.
 Replaces Flask-Migrate for fresh database deployments.
 
+This script:
+1. Creates all tables from models (db.create_all)
+2. Detects and adds missing columns to existing tables
+3. Backfills lineup data to link segments to lineups
+4. Seeds default data
+
 Usage:
     python scripts/init_db.py
 """
@@ -23,58 +29,288 @@ from core.models import db, User, SystemSetting, Game, PlayerStat
 from core.models import Play, PlaySequence, PlayType, ShotEvent, GameEvent
 from core.models import LineupSegment, Lineup, Possession, ShotZone, PlayerLineupStats
 from core.models import bcrypt
+from sqlalchemy import inspect, text
 
 
-def init_database():
-    """Create all tables and seed default data."""
-    app = create_app(os.getenv("FLASK_ENV", "development"))
-
+def add_missing_columns(app):
+    """Detect and add missing columns to existing tables."""
     with app.app_context():
-        print("=" * 50)
-        print("Initializing database...")
-        print("=" * 50)
+        print("\n[Schema Check] Detecting and adding missing columns...")
 
-        # 1. Create all tables from models
-        print("\n[1/4] Creating tables from models...")
-        db.create_all()
-        print("  ✓ All tables created")
+        inspector = inspect(db.engine)
 
-        # 2. Create indexes for performance
-        print("\n[2/4] Creating performance indexes...")
-        indexes = [
-            "CREATE INDEX IF NOT EXISTS idx_playerstats_player_name ON player_stats(player_name)",
-            "CREATE INDEX IF NOT EXISTS idx_playerstats_game_id ON player_stats(game_id)",
-            "CREATE INDEX IF NOT EXISTS idx_playerstats_minutes ON player_stats(minutes)",
-            "CREATE INDEX IF NOT EXISTS idx_games_sort_date ON games(sort_date)",
-            "CREATE INDEX IF NOT EXISTS idx_games_game_type ON games(game_type)",
-            "CREATE INDEX IF NOT EXISTS idx_games_opponent ON games(opponent)",
-            "CREATE INDEX IF NOT EXISTS idx_games_result ON games(result)",
-            "CREATE INDEX IF NOT EXISTS idx_playerstats_game_player ON player_stats(game_id, player_name)",
-            "CREATE INDEX IF NOT EXISTS idx_games_type_date ON games(game_type, sort_date)",
+        # Define columns to check for each table
+        # Format: {table_name: {column_name: column_definition}}
+        columns_to_add = {
+            # Users table
+            "users": {
+                "role": "VARCHAR(20) DEFAULT 'editor'",
+                "workos_id": "VARCHAR(255)",
+                "email_verified": "BOOLEAN DEFAULT 0",
+                "otp_code": "VARCHAR(6)",
+                "otp_expiry": "DATETIME",
+            },
+            # System settings table
+            "system_settings": {
+                "updated_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
+            },
+            # Games table
+            "games": {
+                "source": "VARCHAR(20) DEFAULT 'IMPORT'",
+                "schema_version": "INTEGER DEFAULT 1",
+            },
+            # Plays table
+            "plays": {
+                "source": "VARCHAR(20) DEFAULT 'imported'",
+                "canvas_data": "JSON",
+                "diagram_svg": "TEXT",
+                "difficulty": "VARCHAR(20) DEFAULT 'Medium'",
+                "personnel_required": "TEXT",
+                "tags": "TEXT",
+            },
+            # Game events table
+            "game_events": {
+                "quarter": "INTEGER",
+                "time_remaining": "VARCHAR(10)",
+                "score_margin": "INTEGER",
+                "possession_number": "INTEGER",
+                "game_seconds": "INTEGER",
+                "x_loc": "FLOAT",
+                "y_loc": "FLOAT",
+                "lineup_segment_id": "INTEGER",
+            },
+            # Lineups table - these columns were added in later migrations
+            "lineups": {
+                "fgm": "INTEGER DEFAULT 0",
+                "fga": "INTEGER DEFAULT 0",
+                "tpm": "INTEGER DEFAULT 0",
+                "tpa": "INTEGER DEFAULT 0",
+                "ftm": "INTEGER DEFAULT 0",
+                "fta": "INTEGER DEFAULT 0",
+                "oreb": "INTEGER DEFAULT 0",
+                "dreb": "INTEGER DEFAULT 0",
+                "ast": "INTEGER DEFAULT 0",
+                "stl": "INTEGER DEFAULT 0",
+                "blk": "INTEGER DEFAULT 0",
+                "tov": "INTEGER DEFAULT 0",
+                "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
+                "last_updated": "DATETIME DEFAULT CURRENT_TIMESTAMP",
+            },
+            # Lineup segments table - lineup_id links to lineups
+            "lineup_segments": {
+                "lineup_id": "INTEGER",
+                "duration_seconds": "INTEGER DEFAULT 0",
+            },
+            # Player lineup stats table
+            "player_lineup_stats": {
+                "reb_conceded": "INTEGER DEFAULT 0",
+            },
+            # Player stats table
+            "player_stats": {
+                "reb_conceded": "INTEGER DEFAULT 0",
+            },
+        }
+
+        columns_added = 0
+
+        for table_name, columns in columns_to_add.items():
+            if not inspector.has_table(table_name):
+                print(f"  - Table {table_name} does not exist, skipping column check")
+                continue
+
+            existing_cols = [c["name"] for c in inspector.get_columns(table_name)]
+
+            for col_name, col_def in columns.items():
+                if col_name not in existing_cols:
+                    try:
+                        sql = (
+                            f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}"
+                        )
+                        db.session.execute(text(sql))
+                        db.session.commit()
+                        print(f"  + Added column {col_name} to {table_name}")
+                        columns_added += 1
+                    except Exception as e:
+                        # Column might already exist (race condition) or other error
+                        db.session.rollback()
+                        pass
+
+        if columns_added > 0:
+            print(f"  ✓ Added {columns_added} missing columns")
+        else:
+            print("  ✓ All columns up to date")
+
+
+def backfill_lineups(app):
+    """Backfill lineup data - create lineups and link segments."""
+    with app.app_context():
+        print("\n[Backfill] Linking lineup segments to lineups...")
+
+        inspector = inspect(db.engine)
+
+        # Check if lineup_id column exists in lineup_segments
+        if inspector.has_table("lineup_segments"):
+            cols = [c["name"] for c in inspector.get_columns("lineup_segments")]
+            if "lineup_id" not in cols:
+                print("  ! lineup_id column missing, skipping backfill")
+                return
+
+        # Check if lineups table exists
+        if not inspector.has_table("lineups"):
+            print("  ! lineups table missing, skipping backfill")
+            return
+
+        # Get segments without lineup_id
+        segments = LineupSegment.query.filter(
+            (LineupSegment.lineup_id == None) | (LineupSegment.lineup_id == 0)
+        ).all()
+
+        if not segments:
+            # Also check for segments with lineup_id = 0 (invalid)
+            zero_linked = LineupSegment.query.filter(
+                LineupSegment.lineup_id == 0
+            ).count()
+            if zero_linked > 0:
+                print(f"  ! Found {zero_linked} segments with invalid lineup_id=0")
+
+            print("  ✓ All lineup segments already linked")
+            return
+
+        print(f"  Found {len(segments)} segments to link...")
+
+        # Get existing lineups
+        lineup_cache = {}
+        existing_lineups = Lineup.query.all()
+        for lineup in existing_lineups:
+            lineup_cache[lineup.lineup_hash] = lineup.id
+        print(f"  Found {len(existing_lineups)} existing lineups")
+
+        created_count = 0
+        linked_count = 0
+
+        for i, segment in enumerate(segments, 1):
+            try:
+                lineup_hash = segment.lineup_hash
+
+                # Parse players if stored as string
+                players = segment.players
+                if isinstance(players, str):
+                    import json
+
+                    try:
+                        players = json.loads(players)
+                    except:
+                        players = []
+
+                # Create lineup if doesn't exist
+                if lineup_hash not in lineup_cache:
+                    lineup = Lineup(
+                        lineup_hash=lineup_hash,
+                        players=sorted(players) if players else [],
+                        is_starting=(created_count == 0),
+                    )
+                    db.session.add(lineup)
+                    db.session.flush()
+                    lineup_cache[lineup_hash] = lineup.id
+                    created_count += 1
+
+                # Link segment to lineup
+                segment.lineup_id = lineup_cache[lineup_hash]
+                linked_count += 1
+
+                if i % 100 == 0:
+                    db.session.commit()
+                    print(f"    Processed {i}/{len(segments)} segments...")
+
+            except Exception as e:
+                print(f"    Error processing segment {segment.id}: {e}")
+                db.session.rollback()
+
+        db.session.commit()
+
+        # Update cached stats for all lineups
+        print("  Updating lineup cached stats...")
+        try:
+            from core.services.lineup_service import update_lineup_cached_stats
+
+            all_lineups = Lineup.query.all()
+            for lineup in all_lineups:
+                try:
+                    update_lineup_cached_stats(lineup.id)
+                except Exception as e:
+                    pass  # Stats calculation might fail for empty lineups
+        except ImportError:
+            print("  ! Could not import lineup_service, skipping stats update")
+
+        print(
+            f"  ✓ Created {created_count} new lineups, linked {linked_count} segments"
+        )
+
+
+def add_indexes_if_missing(app):
+    """Ensure all required indexes exist."""
+    with app.app_context():
+        print("\n[Indexes] Checking for missing indexes...")
+
+        inspector = inspect(db.engine)
+
+        indexes_to_create = [
+            ("idx_playerstats_player_name", "player_stats", "player_name"),
+            ("idx_playerstats_game_id", "player_stats", "game_id"),
+            ("idx_playerstats_minutes", "player_stats", "minutes"),
+            ("idx_games_sort_date", "games", "sort_date"),
+            ("idx_games_game_type", "games", "game_type"),
+            ("idx_games_opponent", "games", "opponent"),
+            ("idx_games_result", "games", "result"),
+            ("idx_playerstats_game_player", "player_stats", "game_id, player_name"),
+            ("idx_games_type_date", "games", "game_type, sort_date"),
             # Advanced analytics indexes
-            "CREATE INDEX IF NOT EXISTS idx_lineups_hash ON lineups(lineup_hash)",
-            "CREATE INDEX IF NOT EXISTS idx_lineups_net_rating ON lineups(net_rating)",
-            "CREATE INDEX IF NOT EXISTS idx_lineup_segments_game_id ON lineup_segments(game_id)",
-            "CREATE INDEX IF NOT EXISTS idx_lineup_segments_hash ON lineup_segments(lineup_hash)",
-            "CREATE INDEX IF NOT EXISTS idx_lineup_segments_lineup_id ON lineup_segments(lineup_id)",
-            "CREATE INDEX IF NOT EXISTS idx_possessions_game_id ON possessions(game_id)",
-            "CREATE INDEX IF NOT EXISTS idx_player_lineup_stats_segment ON player_lineup_stats(lineup_segment_id)",
-            "CREATE INDEX IF NOT EXISTS idx_player_lineup_stats_player ON player_lineup_stats(player_name)",
+            ("idx_lineups_hash", "lineups", "lineup_hash"),
+            ("idx_lineups_net_rating", "lineups", "net_rating"),
+            ("idx_lineup_segments_game_id", "lineup_segments", "game_id"),
+            ("idx_lineup_segments_hash", "lineup_segments", "lineup_hash"),
+            ("idx_lineup_segments_lineup_id", "lineup_segments", "lineup_id"),
+            ("idx_possessions_game_id", "possessions", "game_id"),
+            (
+                "idx_player_lineup_stats_segment",
+                "player_lineup_stats",
+                "lineup_segment_id",
+            ),
+            ("idx_player_lineup_stats_player", "player_lineup_stats", "player_name"),
         ]
 
-        from sqlalchemy import text
+        # Get existing indexes
+        existing_indexes = {}
+        for table_name in inspector.get_table_names():
+            for idx in inspector.get_indexes(table_name):
+                existing_indexes[idx["name"]] = table_name
 
-        for idx_sql in indexes:
-            try:
-                db.session.execute(text(idx_sql))
-            except Exception as e:
-                # Index might already exist, continue
-                pass
-        db.session.commit()
-        print("  ✓ Indexes created")
+        indexes_created = 0
+        for idx_name, table_name, columns in indexes_to_create:
+            if table_name not in inspector.get_table_names():
+                continue
 
-        # 3. Seed default data
-        print("\n[3/4] Seeding default data...")
+            if idx_name not in existing_indexes:
+                try:
+                    sql = f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name}({columns})"
+                    db.session.execute(text(sql))
+                    db.session.commit()
+                    print(f"  + Created index {idx_name}")
+                    indexes_created += 1
+                except Exception as e:
+                    db.session.rollback()
+                    pass
+
+        if indexes_created > 0:
+            print(f"  ✓ Created {indexes_created} missing indexes")
+        else:
+            print("  ✓ All indexes up to date")
+
+
+def seed_default_data(app):
+    """Seed default data if not exists."""
+    with app.app_context():
+        print("\n[Seeding] Checking default data...")
 
         # Seed PlayTypes
         if not PlayType.query.first():
@@ -157,8 +393,8 @@ def init_database():
         else:
             print("  ✓ ShotZones already exist")
 
-        # 4. Create admin user if not exists
-        print("\n[4/4] Setting up admin user...")
+        # Create admin user if not exists
+        print("\n[Admin] Setting up admin user...")
         admin_email = os.getenv("ADMIN_EMAIL")
         admin_username = os.getenv("ADMIN_USERNAME", "admin")
         admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
@@ -168,7 +404,6 @@ def init_database():
         else:
             user = User.query.filter_by(email=admin_email).first()
             if not user:
-                # Check by username too
                 user = User.query.filter_by(username=admin_username).first()
 
             if not user:
@@ -186,7 +421,6 @@ def init_database():
                 db.session.commit()
                 print(f"  ✓ Created admin user: {admin_email}")
             else:
-                # Update email and ensure admin role
                 user.email = admin_email
                 user.role = "admin"
                 user.is_admin = True
@@ -197,16 +431,41 @@ def init_database():
                 db.session.commit()
                 print(f"  ✓ Updated admin user: {admin_email}")
 
-        print("\n" + "=" * 50)
+
+def init_database():
+    """Main initialization function."""
+    app = create_app(os.getenv("FLASK_ENV", "development"))
+
+    with app.app_context():
+        print("=" * 60)
+        print("Initializing database...")
+        print("=" * 60)
+
+        # Step 1: Create all tables from models
+        print("\n[1/5] Creating tables from models...")
+        db.create_all()
+        print("  ✓ All tables created")
+
+        # Step 2: Add missing columns to existing tables
+        add_missing_columns(app)
+
+        # Step 3: Add missing indexes
+        add_indexes_if_missing(app)
+
+        # Step 4: Backfill lineup data
+        backfill_lineups(app)
+
+        # Step 5: Seed default data
+        seed_default_data(app)
+
+        print("\n" + "=" * 60)
         print("Database initialization complete!")
-        print("=" * 50)
+        print("=" * 60)
 
         # List all tables
-        from sqlalchemy import inspect
-
         inspector = inspect(db.engine)
         tables = inspector.get_table_names()
-        print(f"\nTables created ({len(tables)}):")
+        print(f"\nTables ({len(tables)}):")
         for t in sorted(tables):
             print(f"  - {t}")
 
