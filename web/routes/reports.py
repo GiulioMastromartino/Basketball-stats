@@ -848,22 +848,18 @@ def player_report_pdf(player_name):
 @reports_bp.route("/download-all", strict_slashes=False)
 # @login_required
 def download_all_reports():
-    """Generate ZIP with all player reports in parallel with detailed debugging logs"""
-    from concurrent.futures import ThreadPoolExecutor
-    from flask import copy_current_request_context
-    from sqlalchemy.orm import sessionmaker
+    """Generate ZIP with all player reports sequentially to stay under 500MB RAM"""
     import time
+    import gc
+    import psutil
+    import os
 
-    current_app.logger.info("Starting bulk player report download...")
+    current_app.logger.info("Starting memory-optimized bulk player report download...")
     game_type = _get_game_type()
     games, game_ids = _get_games(game_type)
 
     if not games:
-        current_app.logger.error("No games found for report generation")
         return jsonify({"error": "No games"}), 404
-
-    # Create a session factory for worker threads
-    Session = sessionmaker(bind=db.engine)
 
     players = (
         db.session.query(PlayerStat.player_name)
@@ -873,72 +869,66 @@ def download_all_reports():
         .all()
     )
     player_names = [p[0] for p in players]
-    current_app.logger.info(f"Found {len(player_names)} players to process: {player_names}")
-
-    # Pre-calculate team data once to avoid redundant DB calls in threads
-    team_avg = AnalyticsService.calculate_team_averages(game_ids, db.session)
     
+    team_avg = AnalyticsService.calculate_team_averages(game_ids, db.session)
     zip_buffer = BytesIO()
 
-    # Worker function for parallel PDF generation
-    @copy_current_request_context
-    def generate_pdf_for_player(player_name):
-        start_time = time.time()
-        current_app.logger.info(f"[{player_name}] Starting processing...")
-        session = Session()
-        try:
-            # 1. Gather Data
-            current_app.logger.debug(f"[{player_name}] Gathering analytics data...")
-            context = _generate_player_report_data(
-                player_name,
-                games,
-                game_ids,
-                game_type,
-                team_avg_override=team_avg,
-                db_session=session
-            )
-            
-            # 2. Render HTML
-            current_app.logger.debug(f"[{player_name}] Rendering HTML template...")
-            html = render_template("player_report_pdf.html", **context)
-            
-            # 3. Generate PDF
-            current_app.logger.debug(f"[{player_name}] Converting to PDF (WeasyPrint)...")
-            pdf_doc = HTML(string=html)
-            pdf_data = pdf_doc.write_pdf()
-            
-            duration = time.time() - start_time
-            current_app.logger.info(f"[{player_name}] Successfully generated PDF in {duration:.2f}s")
-            return player_name, pdf_data
-        except Exception as e:
-            current_app.logger.error(f"[{player_name}] FAILED: {str(e)}", exc_info=True)
-            return player_name, None
-        finally:
-            session.close()
+    process = psutil.Process(os.getpid())
+    
+    def get_mem():
+        return process.memory_info().rss / 1024 / 1024
+
+    results = []
+    current_app.logger.info(f"Processing {len(player_names)} players sequentially. Initial Mem: {get_mem():.1f}MB")
 
     try:
-        # Use ThreadPoolExecutor to generate PDFs in parallel
-        # Restricted max_workers to 2 to minimize memory pressure and Matplotlib conflicts
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            results = list(executor.map(generate_pdf_for_player, player_names))
-
-        current_app.logger.info("All worker threads finished. Creating ZIP archive...")
-        
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
             success_count = 0
-            for player_name, pdf_data in results:
-                if pdf_data:
-                    filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
-                    zipf.writestr(filename, pdf_data)
-                    success_count += 1
             
-            current_app.logger.info(f"ZIP creation complete. Success: {success_count}/{len(player_names)}")
-            
+            for i, player_name in enumerate(player_names):
+                player_start_time = time.time()
+                try:
+                    # Clear memory before starting each player
+                    gc.collect()
+                    
+                    context = _generate_player_report_data(
+                        player_name,
+                        games,
+                        game_ids,
+                        game_type,
+                        team_avg_override=team_avg
+                    )
+                    html = render_template("player_report_pdf.html", **context)
+                    
+                    pdf_doc = HTML(string=html)
+                    pdf_data = pdf_doc.write_pdf()
+                    
+                    if pdf_data:
+                        filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
+                        zipf.writestr(filename, pdf_data)
+                        success_count += 1
+                    
+                    duration = time.time() - player_start_time
+                    current_app.logger.info(
+                        f"[{i+1}/{len(player_names)}] {player_name}: {duration:.2f}s | Mem: {get_mem():.1f}MB"
+                    )
+                    
+                    # Force cleanup after each report
+                    del context
+                    del html
+                    del pdf_doc
+                    del pdf_data
+                    
+                except Exception as e:
+                    current_app.logger.error(f"Failed report for {player_name}: {e}")
+                    continue
+
             if success_count == 0:
-                current_app.logger.error("Zero reports were successfully generated")
-                return jsonify({"error": "Failed to generate any reports. Check server logs."}), 500
+                return jsonify({"error": "Failed to generate any reports"}), 500
 
         zip_buffer.seek(0)
+        current_app.logger.info(f"Bulk download complete. Final Mem: {get_mem():.1f}MB")
+        
         return send_file(
             zip_buffer,
             mimetype="application/zip",
@@ -946,8 +936,8 @@ def download_all_reports():
             download_name=f"all_player_reports_{game_type}.zip",
         )
     except Exception as e:
-        current_app.logger.error(f"Critical failure in bulk download: {e}", exc_info=True)
-        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+        current_app.logger.error(f"Bulk download critical failure: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 
 def _get_game_type():

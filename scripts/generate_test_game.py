@@ -1162,7 +1162,16 @@ def generate_test_game_payload():
 # =============================================================================
 
 if __name__ == "__main__":
+    import gc
+    import psutil
+    
+    process = psutil.Process(os.getpid())
+    print(f"Initial Memory Usage: {process.memory_info().rss / 1024 / 1024:.1f} MB")
+    
     payload = generate_test_game_payload()
+    gc.collect()
+    
+    print(f"Memory after payload generation: {process.memory_info().rss / 1024 / 1024:.1f} MB")
 
     print(f"Generated test game payload:")
     print(
