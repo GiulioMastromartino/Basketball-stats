@@ -535,6 +535,7 @@ def get_lineup_combination_detail():
             "players": sorted_players,
             "min_minutes": min_minutes,
             "combination": combo,
+            "games": _summarize_combination_by_game(with_segments),
             "shots": {
                 "with_teammates": with_shots,
                 "without_teammates": without_shots,
@@ -1473,6 +1474,48 @@ def _summarize_shots(shots):
         "efg_pct": efg_pct,
         "pps": round(points / attempts, 2) if attempts > 0 else 0.0,
     }
+
+
+def _summarize_combination_by_game(segments):
+    """Aggregate stats by game for a list of segments."""
+    from collections import defaultdict
+    from core.models import Game
+
+    game_stats = defaultdict(lambda: {
+        "points_scored": 0, "points_allowed": 0, "possessions": 0, "duration_seconds": 0
+    })
+    
+    for s in segments:
+        gs = game_stats[s.game_id]
+        gs["points_scored"] += (s.points_scored or 0)
+        gs["points_allowed"] += (s.points_allowed or 0)
+        gs["possessions"] += (s.possessions or 0)
+        gs["duration_seconds"] += (s.duration_seconds or 0)
+        
+    result = []
+    for game_id, stats in game_stats.items():
+        game = Game.query.get(game_id)
+        if not game: continue
+        
+        # Calculate ratings
+        poss = stats["possessions"]
+        ortg = round((stats["points_scored"] / poss * 100), 1) if poss > 0 else 0
+        drtg = round((stats["points_allowed"] / poss * 100), 1) if poss > 0 else 0
+        
+        result.append({
+            "game_id": game_id,
+            "date": game.date,
+            "opponent": game.opponent,
+            "result": game.result,
+            "team_score": game.team_score,
+            "opponent_score": game.opponent_score,
+            **stats,
+            "ortg": ortg,
+            "drtg": drtg,
+            "net": round(ortg - drtg, 1)
+        })
+        
+    return sorted(result, key=lambda x: x["date"] or "", reverse=True)
 
 
 @advanced_api_bp.route("/lineup/<int:lineup_id>", methods=["PUT"])

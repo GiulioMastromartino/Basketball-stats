@@ -28,8 +28,65 @@
 .factor-item { text-align: center; padding: 1rem; }
 .factor-item .factor-value { font-size: 2rem; font-weight: 700; color: #1e3c72; }
 .factor-item .factor-label { font-size: 0.75rem; color: #6c757d; text-transform: uppercase; }
-.factor-bar { height: 6px; background: #e9ecef; border-radius: 3px; margin-top: 0.5rem; }
-.factor-bar-fill { height: 100%; background: #1e3c72; border-radius: 3px; }
+.shot-chart-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+}
+.shot-chart-wrapper svg {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+.shots-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+.shot-point {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+.shot-point:hover {
+    transform: translate(-50%, -50%) scale(1.5);
+    z-index: 20;
+}
+.shot-make { 
+    background-color: #28a745; 
+    border: 1px solid #fff;
+}
+.shot-miss { 
+    background-color: transparent; 
+    border: 2px solid #dc3545; 
+    box-sizing: border-box;
+}
+.chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 15px;
+    font-size: 13px;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
 </style>
 {% endblock %}
 
@@ -102,10 +159,32 @@
             <div class="row">
                 <div class="col-lg-8">
                     <div class="stat-card">
-                        <div class="shot-chart-container" id="shot-chart-container">
-                            <div class="loading-state" id="shot-loading">
+                        <div class="shot-chart-container">
+                            <div id="shot-loading" class="loading-state">
                                 <i class="fas fa-spinner fa-spin"></i>
                                 <p>Loading shot chart...</p>
+                            </div>
+                            <div class="shot-chart-wrapper" id="shot-chart-wrapper" style="display:none;">
+                                <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c; border-radius: 8px;">
+                                    <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                                    <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                                    <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                                    <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                                    <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                                    <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                                    <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                                </svg>
+                                <div class="shots-layer" id="shots-layer"></div>
+                            </div>
+                            <div id="chart-legend" class="chart-legend" style="display:none;">
+                                <div class="legend-item">
+                                    <span class="legend-dot" style="background-color: #28a745; border: 1px solid #fff;"></span>
+                                    <span>Made: <strong id="makes-count">0</strong></span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-dot" style="border: 2px solid #dc3545;"></span>
+                                    <span>Missed: <strong id="misses-count">0</strong></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -215,88 +294,52 @@ function fetchData(url, callback) {
         });
 }
 
-// Draw shot chart on canvas
+// Draw shot chart using SVG layers
 function drawShotChart(shots) {
-    var container = document.getElementById('shot-chart-container');
-    container.innerHTML = '';
+    var wrapper = document.getElementById('shot-chart-wrapper');
+    var layer = document.getElementById('shots-layer');
+    var legend = document.getElementById('chart-legend');
+    var loading = document.getElementById('shot-loading');
     
-    var canvas = document.createElement('canvas');
-    canvas.width = 500;
-    canvas.height = 470;
-    canvas.style.maxWidth = '100%';
-    container.appendChild(canvas);
+    layer.innerHTML = '';
     
-    var ctx = canvas.getContext('2d');
+    if (!shots || shots.length === 0) {
+        wrapper.style.display = 'none';
+        legend.style.display = 'none';
+        loading.innerHTML = '<div class="empty-state"><p>No shots recorded</p></div>';
+        loading.style.display = 'block';
+        return;
+    }
     
-    // Draw court background
-    ctx.fillStyle = '#f8f9fa';
-    ctx.fillRect(0, 0, 500, 470);
+    loading.style.display = 'none';
+    wrapper.style.display = 'block';
+    legend.style.display = 'flex';
     
-    // Court outline
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, 500, 470);
-    
-    // Three point arc
-    ctx.beginPath();
-    ctx.arc(250, 50, 235, 0, Math.PI, false);
-    ctx.stroke();
-    
-    // Paint
-    ctx.strokeRect(150, 0, 200, 150);
-    
-    // Free throw circle
-    ctx.beginPath();
-    ctx.arc(250, 150, 60, 0, Math.PI, false);
-    ctx.stroke();
-    
-    // Rim
-    ctx.beginPath();
-    ctx.arc(250, 50, 20, 0, 2 * Math.PI);
-    ctx.stroke();
-    
-    // Draw shots
-    log('Drawing ' + shots.length + ' shots', 'info');
     var makes = 0, misses = 0;
     
-    for (var i = 0; i < shots.length; i++) {
-        var shot = shots[i];
+    shots.forEach(function(shot) {
         var x = shot.x_loc || 250;
         var y = shot.y_loc || 50;
         
-        ctx.beginPath();
-        ctx.arc(x, y, 8, 0, 2 * Math.PI);
+        var dot = document.createElement('div');
+        dot.className = 'shot-point ' + (shot.result === 'made' ? 'shot-make' : 'shot-miss');
+        dot.style.left = (x / 500 * 100) + '%';
+        dot.style.top = (y / 470 * 100) + '%';
         
-        if (shot.result === 'made') {
-            ctx.fillStyle = 'rgba(40, 167, 69, 0.8)';
-            ctx.fill();
-            makes++;
-        } else {
-            ctx.strokeStyle = 'rgba(220, 53, 69, 0.8)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            misses++;
-        }
-    }
+        var title = (shot.player_name || 'Unknown') + ' - ' + (shot.shot_type || 'Shot');
+        if (shot.game_id) title += ' (Game #' + shot.game_id + ')';
+        dot.title = title;
+        
+        layer.appendChild(dot);
+        
+        if (shot.result === 'made') makes++;
+        else misses++;
+    });
     
-    // Legend
-    ctx.fillStyle = 'rgba(40, 167, 69, 0.8)';
-    ctx.beginPath();
-    ctx.arc(20, 440, 6, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.fillStyle = '#333';
-    ctx.font = '12px sans-serif';
-    ctx.fillText('Made (' + makes + ')', 35, 444);
+    document.getElementById('makes-count').textContent = makes;
+    document.getElementById('misses-count').textContent = misses;
     
-    ctx.strokeStyle = 'rgba(220, 53, 69, 0.8)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(130, 440, 6, 0, 2 * Math.PI);
-    ctx.stroke();
-    ctx.fillStyle = '#333';
-    ctx.fillText('Missed (' + misses + ')', 145, 444);
-    
-    log('Shot chart drawn: ' + makes + ' makes, ' + misses + ' misses', 'success');
+    log('Shot chart rendered: ' + makes + ' makes, ' + misses + ' misses', 'success');
 }
 
 // Update zone stats display
