@@ -533,7 +533,7 @@ def get_lineup_combination_detail():
             "game_type": game_type,
             "type": combo_type,
             "players": sorted_players,
-            "min_possessions": max(min_possessions, 1),
+            "min_minutes": min_minutes,
             "combination": combo,
             "shots": {
                 "with_teammates": with_shots,
@@ -1402,36 +1402,40 @@ def _get_segments_for_combination(combo_players, game_ids=None, with_combo=True)
 
 
 def _get_team_shots_for_segments(segments, player_filter=None):
-    """Get 2PT/3PT shot events with coordinates for given segments."""
+    """Get 2PT/3PT shot events with coordinates for given segments in a single batch query."""
+    if not segments:
+        return []
+        
     normalized_filter = {p.strip() for p in (player_filter or []) if p and p.strip()}
-    shots = []
-    for segment in segments:
-        segment_shots = GameEvent.query.filter(
-            GameEvent.game_id == segment.game_id,
-            GameEvent.event_type.in_(["SHOT_2PT", "SHOT_3PT"]),
-            GameEvent.timestamp >= segment.start_timestamp,
-            GameEvent.timestamp <= (segment.end_timestamp or 9999999999999),
-            GameEvent.x_loc.isnot(None),
-            GameEvent.y_loc.isnot(None),
-        ).all()
+    segment_ids = [s.id for s in segments]
+    
+    # Efficient batch query for all shots in all provided segments
+    from core.models import GameEvent
+    all_shots = GameEvent.query.filter(
+        GameEvent.lineup_segment_id.in_(segment_ids),
+        GameEvent.event_type.in_(["SHOT_2PT", "SHOT_3PT"]),
+        GameEvent.x_loc.isnot(None),
+        GameEvent.y_loc.isnot(None),
+    ).all()
 
-        for shot in segment_shots:
-            if normalized_filter and (shot.player_name or "").strip() not in normalized_filter:
-                continue
-            made = shot.shot_attempt == "made"
-            shot_type = "3pt" if shot.event_type == "SHOT_3PT" else "2pt"
-            shots.append(
-                {
-                    "x": shot.x_loc,
-                    "y": shot.y_loc,
-                    "result": "made" if made else "missed",
-                    "shot_type": shot_type,
-                    "points": 3 if (made and shot_type == "3pt") else (2 if made else 0),
-                    "quarter": shot.quarter,
-                    "game_id": shot.game_id,
-                    "player_name": shot.player_name,
-                }
-            )
+    shots = []
+    for shot in all_shots:
+        if normalized_filter and (shot.player_name or "").strip() not in normalized_filter:
+            continue
+        made = shot.shot_attempt == "made"
+        shot_type = "3pt" if shot.event_type == "SHOT_3PT" else "2pt"
+        shots.append(
+            {
+                "x": shot.x_loc,
+                "y": shot.y_loc,
+                "result": "made" if made else "missed",
+                "shot_type": shot_type,
+                "points": 3 if (made and shot_type == "3pt") else (2 if made else 0),
+                "quarter": shot.quarter,
+                "game_id": shot.game_id,
+                "player_name": shot.player_name,
+            }
+        )
     return shots
 
 
