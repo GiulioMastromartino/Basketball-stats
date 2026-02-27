@@ -147,36 +147,36 @@ def assign_possession_numbers(game_id: int) -> None:
     if not events:
         return
 
-    possession_number = 0
+    possession_number = 1
     last_ft_player = None
     ft_possession_active = False
 
-    POSSESSION_ENDING = {"SHOT_2PT", "SHOT_3PT", "TURNOVER"}
+    # Define ending events
+    POSSESSION_ENDING = {"SHOT_2PT", "SHOT_3PT", "TURNOVER", "OPP_SCORE", "OPP_OREB"}
     FT_EVENTS = {"FT", "FT_MADE", "FT_MISS"}
 
     for event in events:
-        if event.event_type in POSSESSION_ENDING:
-            possession_number += 1
-            event.possession_number = possession_number
-            ft_possession_active = False
-            last_ft_player = None
-
-        elif event.event_type in FT_EVENTS:
+        # 1. Start new possession for new FT trip BEFORE assignment
+        if event.event_type in FT_EVENTS:
             if not ft_possession_active or event.player_name != last_ft_player:
-                possession_number += 1
+                if ft_possession_active or (not ft_possession_active and event.timestamp > events[0].timestamp):
+                   possession_number += 1
                 ft_possession_active = True
                 last_ft_player = event.player_name
-            event.possession_number = possession_number
+        else:
+            # Any non-FT event after a FT sequence ends that FT possession trip
+            if ft_possession_active and event.event_type not in ["SUB_IN", "SUB_OUT"]:
+                ft_possession_active = False
+                last_ft_player = None
 
-        elif event.event_type == "OPP_SCORE":
+        # 2. Assign current possession to the event
+        event.possession_number = possession_number
+
+        # 3. Increment AFTER possession-ending event (except FT which handles it at start)
+        if event.event_type in POSSESSION_ENDING:
             possession_number += 1
-            event.possession_number = possession_number
             ft_possession_active = False
             last_ft_player = None
-
-        elif event.event_type == "OPP_OREB":
-            if possession_number > 0:
-                event.possession_number = possession_number
 
     db.session.commit()
     current_app.logger.info(

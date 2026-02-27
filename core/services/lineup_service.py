@@ -16,24 +16,11 @@ def generate_lineup_hash(players: list) -> str:
     return rust_analytics.calculate_lineup_hash(players)
 
 
-def calculate_segment_duration(segment, all_events: list) -> int:
+def calculate_segment_duration(segment_events: list) -> int:
     """
     Calculate the duration in seconds for a lineup segment based on game_seconds.
-
-    Args:
-        segment: LineupSegment object with start_timestamp and end_timestamp
-        all_events: List of all GameEvent objects for the game
-
-    Returns:
-        Duration in seconds (0 if cannot be calculated)
+    Optimized to use pre-filtered segment events.
     """
-    segment_events = [
-        e
-        for e in all_events
-        if e.timestamp >= segment.start_timestamp
-        and (segment.end_timestamp is None or e.timestamp <= segment.end_timestamp)
-    ]
-
     if not segment_events:
         return 0
 
@@ -42,7 +29,6 @@ def calculate_segment_duration(segment, all_events: list) -> int:
     if len(game_secs) >= 2:
         return max(game_secs) - min(game_secs)
     elif len(game_secs) == 1:
-        quarter = segment_events[0].quarter or 1
         return 60
 
     return 0
@@ -309,47 +295,53 @@ def build_lineup_segments(
 
 def link_events_to_segments(game_id: int) -> None:
     """
-    Assign lineup_segment_id to each GameEvent based on timestamp.
-
-    Uses segment's start_timestamp and end_timestamp to determine which
-    segment each event belongs to.
-
-    Args:
-        game_id: ID of the game to process
+    Assign lineup_segment_id to each GameEvent based on timestamp and ID.
+    O(N+M) complexity to avoid timeouts on production.
     """
     segments = (
         LineupSegment.query.filter_by(game_id=game_id)
-        .order_by(LineupSegment.start_timestamp)
+        .order_by(LineupSegment.start_timestamp, LineupSegment.id)
         .all()
     )
 
     if not segments:
         return
 
+    # Use ID as tie-breaker for deterministic ordering of simultaneous events
     events = (
-        GameEvent.query.filter_by(game_id=game_id).order_by(GameEvent.timestamp).all()
+        GameEvent.query.filter_by(game_id=game_id)
+        .order_by(GameEvent.timestamp, GameEvent.id)
+        .all()
     )
 
     segment_index = 0
+    num_segments = len(segments)
 
     for event in events:
-        while segment_index < len(segments):
-            segment = segments[segment_index]
-
-            in_segment = event.timestamp >= segment.start_timestamp
-
-            if segment.end_timestamp is not None:
-                in_segment = in_segment and event.timestamp <= segment.end_timestamp
-
-            if in_segment:
-                event.lineup_segment_id = segment.id
-                break
-            elif segment.end_timestamp and event.timestamp > segment.end_timestamp:
+        # Move segment pointer if event is past current segment
+        while segment_index < num_segments - 1:
+            curr_seg = segments[segment_index]
+            # If next segment starts at or before this event, and its ID is higher or timestamp is higher
+            next_seg = segments[segment_index + 1]
+            
+            if event.timestamp > next_seg.start_timestamp:
                 segment_index += 1
-                if segment_index >= len(segments):
+            elif event.timestamp == next_seg.start_timestamp:
+                # If it's a substitution event at the boundary, SUB_IN usually starts the new segment
+                if event.event_type == "SUB_IN":
+                    segment_index += 1
+                else:
                     break
             else:
                 break
+
+        segment = segments[segment_index]
+        # Final check if event fits in this segment's time bounds
+        is_after_start = event.timestamp >= segment.start_timestamp
+        is_before_end = segment.end_timestamp is None or event.timestamp <= segment.end_timestamp
+        
+        if is_after_start and is_before_end:
+            event.lineup_segment_id = segment.id
 
     db.session.commit()
 
@@ -650,7 +642,7 @@ def process_game_lineups(
         segment.points_scored = pts_scored
         segment.points_allowed = pts_allowed
         segment.possessions = poss
-        segment.duration_seconds = calculate_segment_duration(segment, events)
+        segment.duration_seconds = calculate_segment_duration(seg_events)
         if segment.lineup_id:
             lineup_ids.add(segment.lineup_id)
 
