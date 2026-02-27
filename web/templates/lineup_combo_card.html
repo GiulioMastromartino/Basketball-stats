@@ -1,0 +1,481 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .page-loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(6px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 200ms ease;
+    }
+
+    .page-loading-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .page-loading-card {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 14px;
+        padding: 18px 22px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #333;
+        font-weight: 600;
+    }
+
+    .spinner {
+        width: 18px;
+        height: 18px;
+        border: 3px solid #e9ecef;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .page-hidden { visibility: hidden; }
+
+    .combo-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 36px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .combo-players {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+    }
+
+    .player-chip {
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        padding: 8px 16px;
+        border-radius: 22px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .section-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin: 30px 0 14px;
+        color: #2d3748;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 10px;
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 14px;
+        margin-top: 14px;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 16px 14px;
+        border-radius: 10px;
+        text-align: center;
+        border: 1px solid #e0e0e0;
+        min-height: 90px;
+    }
+
+    .stat-card.highlight {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+
+    .stat-card-value {
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.15;
+    }
+
+    .stat-card-label {
+        font-size: 11px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+    }
+
+    .stat-card.highlight .stat-card-label,
+    .stat-card.highlight .stat-card-value {
+        color: white;
+    }
+
+    .split-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .chart-container {
+        background: white;
+        padding: 18px;
+        border-radius: 12px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .split-title {
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 10px;
+        color: #2d3748;
+    }
+
+    .shot-chart-wrapper {
+        position: relative;
+        width: 100%;
+        max-width: 500px;
+        margin: 0 auto;
+    }
+
+    .shot-chart-wrapper svg {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .shots-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+
+    .shot-point {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: auto;
+        cursor: pointer;
+        transition: transform 0.1s;
+    }
+
+    .shot-point:hover {
+        transform: translate(-50%, -50%) scale(1.4);
+        z-index: 20;
+    }
+
+    .shot-make {
+        border: 1px solid #fff;
+    }
+
+    .shot-miss {
+        background: transparent;
+        border: 2px solid;
+        box-sizing: border-box;
+    }
+
+    .split-kpis {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .split-kpi {
+        background: #f8f9fa;
+        border-radius: 8px;
+        text-align: center;
+        padding: 8px;
+        font-size: 12px;
+    }
+
+    .split-kpi strong {
+        display: block;
+        font-size: 16px;
+        color: #2d3748;
+    }
+
+    .player-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 10px;
+        font-size: 12px;
+    }
+
+    .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f8f9fa;
+        border-radius: 999px;
+        padding: 4px 10px;
+    }
+
+    .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    @media (max-width: 992px) {
+        .split-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<div id="pageLoader" class="page-loading-overlay">
+    <div class="page-loading-card">
+        <span class="spinner"></span>
+        Loading combo card...
+    </div>
+</div>
+
+<div class="container-fluid page-hidden" id="comboPage">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <a href="/lineups" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Lineups</a>
+    </div>
+
+    <div class="combo-header">
+        <h2 class="mb-1">{{ "Duo" if combo_type == "duo" else "Trio" }} Impact Card</h2>
+        <p class="mb-0">Performance when this group is together vs when it is not together</p>
+        <div class="combo-players">
+            {% for player in players %}
+            <div class="player-chip">{{ player }}</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-chart-line" style="color: #667eea;"></i>
+        Impact Summary
+    </div>
+
+    <div class="stat-grid" id="impactSummary"></div>
+
+    <div class="section-title">
+        <i class="fas fa-basketball-ball" style="color: #e53e3e;"></i>
+        Shooting Split: Together vs Not Together
+    </div>
+
+    <div class="split-grid">
+        <div class="chart-container">
+            <div class="split-title">With Teammates</div>
+            <div class="split-kpis" id="withShotKpis"></div>
+            <div class="player-legend" id="withShotLegend"></div>
+            <div class="shot-chart-wrapper">
+                <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c;">
+                    <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                    <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                    <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                    <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                    <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                    <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                    <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                </svg>
+                <div class="shots-layer" id="withShotsLayer"></div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="split-title">Without Teammates</div>
+            <div class="split-kpis" id="withoutShotKpis"></div>
+            <div class="player-legend" id="withoutShotLegend"></div>
+            <div class="shot-chart-wrapper">
+                <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c;">
+                    <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                    <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                    <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                    <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                    <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                    <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                    <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                </svg>
+                <div class="shots-layer" id="withoutShotsLayer"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const comboType = {{ combo_type | tojson }};
+    const comboPlayers = {{ players | tojson }};
+    const PLAYER_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#f59e0b', '#7c3aed'];
+
+    function signed(value) {
+        return value >= 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
+    }
+
+    function renderSummary(combo, shotStats) {
+        const withShots = shotStats?.with_teammates || {};
+        const withoutShots = shotStats?.without_teammates || {};
+
+        const summary = [
+            { label: 'Synergy (Net Diff)', value: signed(combo.impact?.net_differential || 0), highlight: true },
+            { label: 'Offense Delta', value: signed(combo.impact?.offense_delta || 0) },
+            { label: 'Defense Delta', value: signed(combo.impact?.defense_delta || 0) },
+            { label: 'With ORtg / DRtg', value: `${(combo.on?.ortg || 0).toFixed(1)} / ${(combo.on?.drtg || 0).toFixed(1)}` },
+            { label: 'Without ORtg / DRtg', value: `${(combo.off?.ortg || 0).toFixed(1)} / ${(combo.off?.drtg || 0).toFixed(1)}` },
+            { label: 'With Net', value: signed(combo.on?.net || 0) },
+            { label: 'Without Net', value: signed(combo.off?.net || 0) },
+            { label: 'With Possessions', value: (combo.on?.possessions || 0).toFixed(1) },
+            { label: 'Without Possessions', value: (combo.off?.possessions || 0).toFixed(1) },
+            { label: 'With eFG%', value: `${(withShots.efg_pct || 0).toFixed(1)}%` },
+            { label: 'Without eFG%', value: `${(withoutShots.efg_pct || 0).toFixed(1)}%` },
+            { label: 'Segments Together', value: `${combo.segments || 0}` },
+        ];
+
+        const html = summary.map(s => `
+            <div class="stat-card ${s.highlight ? 'highlight' : ''}">
+                <div class="stat-card-value">${s.value}</div>
+                <div class="stat-card-label">${s.label}</div>
+            </div>
+        `).join('');
+
+        document.getElementById('impactSummary').innerHTML = html;
+    }
+
+    function renderShotKpis(containerId, stats) {
+        const html = `
+            <div class="split-kpi"><strong>${stats.attempts || 0}</strong>FGA</div>
+            <div class="split-kpi"><strong>${(stats.fg_pct || 0).toFixed(1)}%</strong>FG%</div>
+            <div class="split-kpi"><strong>${(stats.efg_pct || 0).toFixed(1)}%</strong>eFG%</div>
+            <div class="split-kpi"><strong>${stats.two_pt?.makes || 0}/${stats.two_pt?.attempts || 0}</strong>2PT</div>
+            <div class="split-kpi"><strong>${stats.three_pt?.makes || 0}/${stats.three_pt?.attempts || 0}</strong>3PT</div>
+            <div class="split-kpi"><strong>${(stats.pps || 0).toFixed(2)}</strong>PPS</div>
+        `;
+        document.getElementById(containerId).innerHTML = html;
+    }
+
+    function getPlayerColorMap(players) {
+        const map = {};
+        (players || []).forEach((player, idx) => {
+            map[player] = PLAYER_COLORS[idx % PLAYER_COLORS.length];
+        });
+        return map;
+    }
+
+    function renderPlayerLegend(containerId, shots, colorMap) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        const grouped = {};
+        (shots || []).forEach(shot => {
+            const player = shot.player_name || 'Unknown';
+            if (!grouped[player]) grouped[player] = { attempts: 0, makes: 0 };
+            grouped[player].attempts += 1;
+            if (shot.result === 'made') grouped[player].makes += 1;
+        });
+
+        const html = (comboPlayers || []).map(player => {
+            const attempts = grouped[player]?.attempts || 0;
+            const makes = grouped[player]?.makes || 0;
+            const pct = attempts > 0 ? ((makes / attempts) * 100).toFixed(1) : '0.0';
+            const color = colorMap[player] || '#6b7280';
+            return `
+                <div class="legend-item">
+                    <span class="legend-dot" style="background:${color};"></span>
+                    <span>${player}: ${makes}/${attempts} (${pct}%)</span>
+                </div>
+            `;
+        }).join('');
+
+        container.innerHTML = html;
+    }
+
+    function renderShots(layerId, shots, colorMap) {
+        const layer = document.getElementById(layerId);
+        if (!layer) return;
+
+        layer.innerHTML = '';
+
+        if (!shots || shots.length === 0) {
+            layer.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#777;font-size:13px;">No shot data</div>';
+            return;
+        }
+
+        shots.forEach(shot => {
+            const dot = document.createElement('div');
+            const color = colorMap[shot.player_name] || '#6b7280';
+            dot.className = `shot-point ${shot.result === 'made' ? 'shot-make' : 'shot-miss'}`;
+            dot.style.left = `${((shot.x || 250) / 500) * 100}%`;
+            dot.style.top = `${((shot.y || 150) / 470) * 100}%`;
+            if (shot.result === 'made') {
+                dot.style.backgroundColor = color;
+                dot.style.borderColor = '#fff';
+            } else {
+                dot.style.borderColor = color;
+            }
+            dot.title = `${shot.player_name || 'Unknown'} - ${shot.shot_type || 'shot'} (${shot.result || 'unknown'})`;
+            layer.appendChild(dot);
+        });
+    }
+
+    function hideLoader() {
+        const loader = document.getElementById('pageLoader');
+        const page = document.getElementById('comboPage');
+        if (page) page.classList.remove('page-hidden');
+        if (loader) {
+            loader.classList.add('hidden');
+            setTimeout(() => loader.remove(), 250);
+        }
+    }
+
+    function loadComboCard() {
+        $.ajax({
+            url: '/api/advanced/lineups/combinations/detail',
+            method: 'GET',
+            data: {
+                type: comboType,
+                players: comboPlayers.join(','),
+                min_possessions: 1
+            },
+            success: function(data) {
+                const combo = data.combination || {};
+                const shots = data.shots || {};
+                const shotStats = data.shot_stats || {};
+                const colorMap = getPlayerColorMap(comboPlayers);
+
+                renderSummary(combo, shotStats);
+                renderShotKpis('withShotKpis', shotStats.with_teammates || {});
+                renderShotKpis('withoutShotKpis', shotStats.without_teammates || {});
+                renderPlayerLegend('withShotLegend', shots.with_teammates || [], colorMap);
+                renderPlayerLegend('withoutShotLegend', shots.without_teammates || [], colorMap);
+                renderShots('withShotsLayer', shots.with_teammates || [], colorMap);
+                renderShots('withoutShotsLayer', shots.without_teammates || [], colorMap);
+                hideLoader();
+            },
+            error: function(xhr) {
+                console.error('Failed to load combo card', xhr);
+                hideLoader();
+                const message = xhr.responseJSON?.error || 'Failed to load combination details.';
+                document.getElementById('impactSummary').innerHTML = `<div class="alert alert-warning">${message}</div>`;
+            }
+        });
+    }
+
+    window.addEventListener('load', () => {
+        requestAnimationFrame(() => requestAnimationFrame(loadComboCard));
+    });
+</script>
+{% endblock %}

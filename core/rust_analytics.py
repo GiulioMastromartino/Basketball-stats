@@ -93,6 +93,61 @@ def _python_calculate_lineup_hash(players: List[str]) -> str:
     sorted_players = sorted(players)
     return hashlib.md5(",".join(sorted_players).encode()).hexdigest()
 
+
+def _python_aggregate_combinatorial_stats(segments: List[Dict]) -> Dict:
+    duo_stats = defaultdict(
+        lambda: {"segments": 0, "points_scored": 0, "points_allowed": 0, "possessions": 0.0, "duration_seconds": 0}
+    )
+    trio_stats = defaultdict(
+        lambda: {"segments": 0, "points_scored": 0, "points_allowed": 0, "possessions": 0.0, "duration_seconds": 0}
+    )
+    totals = {"segments": 0, "points_scored": 0, "points_allowed": 0, "possessions": 0.0, "duration_seconds": 0}
+
+    for segment in segments or []:
+        players = segment.get("players") or []
+        if isinstance(players, str):
+            try:
+                players = json.loads(players)
+            except Exception:
+                players = []
+
+        points_scored = int(segment.get("points_scored", 0) or 0)
+        points_allowed = int(segment.get("points_allowed", 0) or 0)
+        possessions = float(segment.get("possessions", 0) or 0)
+        duration_seconds = int(segment.get("duration_seconds", 0) or 0)
+
+        totals["segments"] += 1
+        totals["points_scored"] += points_scored
+        totals["points_allowed"] += points_allowed
+        totals["possessions"] += possessions
+        totals["duration_seconds"] += duration_seconds
+
+        if len(players) < 2:
+            continue
+
+        sorted_players = sorted(players)
+
+        for duo in combinations(sorted_players, 2):
+            key = ",".join(duo)
+            s = duo_stats[key]
+            s["segments"] += 1
+            s["points_scored"] += points_scored
+            s["points_allowed"] += points_allowed
+            s["possessions"] += possessions
+            s["duration_seconds"] += duration_seconds
+
+        if len(sorted_players) >= 3:
+            for trio in combinations(sorted_players, 3):
+                key = ",".join(trio)
+                s = trio_stats[key]
+                s["segments"] += 1
+                s["points_scored"] += points_scored
+                s["points_allowed"] += points_allowed
+                s["possessions"] += possessions
+                s["duration_seconds"] += duration_seconds
+
+    return {"duos": dict(duo_stats), "trios": dict(trio_stats), "totals": totals}
+
 # =============================================================================
 # Public API
 # =============================================================================
@@ -178,7 +233,7 @@ def aggregate_combinatorial_stats(segments):
     if RUST_AVAILABLE:
         try: return json.loads(rust_aggregate_combinatorial_stats(json.dumps(segments)))
         except: pass
-    return {"duos": {}, "trios": {}}
+    return _python_aggregate_combinatorial_stats(segments)
 
 def reconstruct_possessions(events):
     if RUST_AVAILABLE:

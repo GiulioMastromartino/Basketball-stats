@@ -436,6 +436,117 @@ def get_lineup_rankings():
     )
 
 
+@advanced_api_bp.route("/lineups/combinations")
+@login_required
+def get_lineup_combinations():
+    """Get top lineup combinations (duos/trios) by ON vs OFF net differential."""
+    game_type = request.args.get("game_type", "ALL")
+    combo_type = request.args.get("type", "duo").strip().lower()
+    min_minutes = request.args.get("min_minutes", 5.0, type=float)
+
+    if combo_type not in {"duo", "trio"}:
+        return jsonify({"error": "Invalid type. Use 'duo' or 'trio'."}), 400
+
+    query = Game.query
+    if game_type == "Season":
+        query = query.filter(Game.game_type == "Season")
+    elif game_type == "Friendly":
+        query = query.filter(Game.game_type == "Friendly")
+
+    game_ids = [g.id for g in query.all()]
+
+    combinations = safe_query(
+        lambda: LineupAnalytics.get_combination_net_differentials(
+            combination_type=combo_type,
+            game_ids=game_ids,
+            min_minutes=max(min_minutes, 0.1),
+            top_n=10,
+        ),
+        fallback_result=[],
+        error_message="lineup_segments table missing",
+    )
+
+    return jsonify(
+        {
+            "game_type": game_type,
+            "type": combo_type,
+            "min_minutes": max(min_minutes, 0.1),
+            "total": len(combinations),
+            "combinations": combinations,
+        }
+    )
+
+
+@advanced_api_bp.route("/lineups/combinations/detail")
+@login_required
+def get_lineup_combination_detail():
+    """Get detailed ON/OFF card data for a specific duo/trio combination."""
+    game_type = request.args.get("game_type", "ALL")
+    combo_type = request.args.get("type", "duo").strip().lower()
+    min_minutes = request.args.get("min_minutes", 0.1, type=float)
+    players_param = request.args.get("players", "")
+
+    if combo_type not in {"duo", "trio"}:
+        return jsonify({"error": "Invalid type. Use 'duo' or 'trio'."}), 400
+
+    players = [p.strip() for p in players_param.split(",") if p.strip()]
+    expected_count = 2 if combo_type == "duo" else 3
+    if len(players) != expected_count:
+        return (
+            jsonify({"error": f"Expected {expected_count} players for type '{combo_type}'."}),
+            400,
+        )
+
+    query = Game.query
+    if game_type == "Season":
+        query = query.filter(Game.game_type == "Season")
+    elif game_type == "Friendly":
+        query = query.filter(Game.game_type == "Friendly")
+
+    game_ids = [g.id for g in query.all()]
+
+    combo = safe_query(
+        lambda: LineupAnalytics.get_combination_detail(
+            combination_type=combo_type,
+            players=players,
+            game_ids=game_ids,
+            min_minutes=max(min_minutes, 0.1),
+        ),
+        fallback_result=None,
+        error_message="lineup_segments table missing",
+    )
+
+    if not combo:
+        return jsonify({"error": "Combination not found for the selected filters."}), 404
+
+    sorted_players = sorted(players)
+    with_segments = _get_segments_for_combination(sorted_players, game_ids, with_combo=True)
+    without_segments = _get_segments_for_combination(
+        sorted_players, game_ids, with_combo=False
+    )
+
+    with_shots = _get_team_shots_for_segments(with_segments, sorted_players)
+    without_shots = _get_team_shots_for_segments(without_segments, sorted_players)
+
+    return jsonify(
+        {
+            "game_type": game_type,
+            "type": combo_type,
+            "players": sorted_players,
+            "min_possessions": max(min_possessions, 1),
+            "combination": combo,
+            "shots": {
+                "with_teammates": with_shots,
+                "without_teammates": without_shots,
+            },
+            "shot_stats": {
+                "with_teammates": _summarize_shots(with_shots),
+                "without_teammates": _summarize_shots(without_shots),
+            },
+        }
+    )
+
+
 @advanced_api_bp.route("/rotation/<int:game_id>")
 @login_required
 def get_rotation_analysis(game_id):
@@ -1258,6 +1369,106 @@ def get_opponent_shots_for_lineup(lineup_id):
                 })
     
     return shots
+
+
+def _normalize_segment_players(raw_players):
+    if isinstance(raw_players, str):
+        try:
+            import json
+
+            return json.loads(raw_players)
+        except Exception:
+            return []
+    return raw_players or []
+
+
+def _segment_matches_combination(segment_players, combo_players):
+    segment_set = set(segment_players or [])
+    return all(player in segment_set for player in combo_players)
+
+
+def _get_segments_for_combination(combo_players, game_ids=None, with_combo=True):
+    query = LineupSegment.query
+    if game_ids:
+        query = query.filter(LineupSegment.game_id.in_(game_ids))
+
+    segments = []
+    for segment in query.all():
+        players = _normalize_segment_players(segment.players)
+        is_match = _segment_matches_combination(players, combo_players)
+        if (with_combo and is_match) or (not with_combo and not is_match):
+            segments.append(segment)
+    return segments
+
+
+def _get_team_shots_for_segments(segments, player_filter=None):
+    """Get 2PT/3PT shot events with coordinates for given segments."""
+    normalized_filter = {p.strip() for p in (player_filter or []) if p and p.strip()}
+    shots = []
+    for segment in segments:
+        segment_shots = GameEvent.query.filter(
+            GameEvent.game_id == segment.game_id,
+            GameEvent.event_type.in_(["SHOT_2PT", "SHOT_3PT"]),
+            GameEvent.timestamp >= segment.start_timestamp,
+            GameEvent.timestamp <= (segment.end_timestamp or 9999999999999),
+            GameEvent.x_loc.isnot(None),
+            GameEvent.y_loc.isnot(None),
+        ).all()
+
+        for shot in segment_shots:
+            if normalized_filter and (shot.player_name or "").strip() not in normalized_filter:
+                continue
+            made = shot.shot_attempt == "made"
+            shot_type = "3pt" if shot.event_type == "SHOT_3PT" else "2pt"
+            shots.append(
+                {
+                    "x": shot.x_loc,
+                    "y": shot.y_loc,
+                    "result": "made" if made else "missed",
+                    "shot_type": shot_type,
+                    "points": 3 if (made and shot_type == "3pt") else (2 if made else 0),
+                    "quarter": shot.quarter,
+                    "game_id": shot.game_id,
+                    "player_name": shot.player_name,
+                }
+            )
+    return shots
+
+
+def _summarize_shots(shots):
+    attempts = len(shots)
+    makes = sum(1 for s in shots if s.get("result") == "made")
+    points = sum(int(s.get("points", 0) or 0) for s in shots)
+    two_att = sum(1 for s in shots if s.get("shot_type") == "2pt")
+    two_made = sum(
+        1
+        for s in shots
+        if s.get("shot_type") == "2pt" and s.get("result") == "made"
+    )
+    three_att = sum(1 for s in shots if s.get("shot_type") == "3pt")
+    three_made = sum(
+        1
+        for s in shots
+        if s.get("shot_type") == "3pt" and s.get("result") == "made"
+    )
+
+    fg_pct = round((makes / attempts) * 100, 1) if attempts > 0 else 0.0
+    two_pct = round((two_made / two_att) * 100, 1) if two_att > 0 else 0.0
+    three_pct = round((three_made / three_att) * 100, 1) if three_att > 0 else 0.0
+    efg_pct = (
+        round(((makes + 0.5 * three_made) / attempts) * 100, 1) if attempts > 0 else 0.0
+    )
+
+    return {
+        "attempts": attempts,
+        "makes": makes,
+        "points": points,
+        "fg_pct": fg_pct,
+        "two_pt": {"attempts": two_att, "makes": two_made, "pct": two_pct},
+        "three_pt": {"attempts": three_att, "makes": three_made, "pct": three_pct},
+        "efg_pct": efg_pct,
+        "pps": round(points / attempts, 2) if attempts > 0 else 0.0,
+    }
 
 
 @advanced_api_bp.route("/lineup/<int:lineup_id>", methods=["PUT"])

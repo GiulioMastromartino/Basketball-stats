@@ -93,6 +93,69 @@
     .net-positive { background: #c6f6d5; color: #2f855a; }
     .net-negative { background: #fed7d7; color: #c53030; }
     .net-neutral { background: #e2e8f0; color: #4a5568; }
+
+    .combo-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .combo-row {
+        background: white;
+        border-radius: var(--border-radius);
+        border: 1px solid var(--border-color);
+        padding: 16px;
+        display: grid;
+        grid-template-columns: 220px 1fr 200px auto;
+        align-items: center;
+        gap: 20px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .combo-row:hover {
+        transform: translateX(4px);
+        border-color: var(--secondary);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .combo-players {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .combo-stats-summary {
+        display: flex;
+        gap: 24px;
+        justify-content: center;
+    }
+
+    .combo-stat-box {
+        text-align: center;
+    }
+
+    .combo-stat-value {
+        font-size: 16px;
+        font-weight: 700;
+        display: block;
+    }
+
+    .combo-stat-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .synergy-badge {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-weight: 700;
+        font-size: 15px;
+        text-align: center;
+        min-width: 110px;
+    }
 </style>
 
 <div class="container-fluid">
@@ -130,6 +193,45 @@
                     </button>
                 </div>
             </div>
+
+            <hr class="my-3">
+
+            <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
+                <div class="d-flex gap-2 align-items-center">
+                    <label class="text-muted mb-0" style="white-space: nowrap;">Combo Game Type:</label>
+                    <select id="gameTypeFilter" class="form-select" style="width: auto;" onchange="refreshCombinationData()">
+                        <option value="ALL">General</option>
+                        <option value="Season">Season</option>
+                        <option value="Friendly">Friendly</option>
+                    </select>
+                </div>
+
+                <div class="d-flex gap-2 align-items-center">
+                    <label class="text-muted mb-0" style="white-space: nowrap;">Combo Search:</label>
+                    <input type="text" id="comboSearchInput" class="form-control" placeholder="Search duo/trio players..." style="width: 240px;" onkeyup="applyCombinationFiltersAndSort()">
+                </div>
+
+                <div class="d-flex gap-2 align-items-center">
+                    <label class="text-muted mb-0" style="white-space: nowrap;">Min Minutes:</label>
+                    <input type="number" id="comboMinMinutes" class="form-control" style="width: 100px;" value="5" min="0.1" step="0.5" onchange="refreshCombinationData()">
+                </div>
+
+                <div class="d-flex gap-2 align-items-center">
+                    <label class="text-muted mb-0" style="white-space: nowrap;">Combo Sort:</label>
+                    <select id="comboSortBy" class="form-select" style="width: auto;" onchange="applyCombinationFiltersAndSort()">
+                        <option value="net_differential">Synergy</option>
+                        <option value="offense_delta">Offense Delta</option>
+                        <option value="defense_delta">Defense Delta</option>
+                        <option value="on_net">ON Net</option>
+                        <option value="off_net">OFF Net</option>
+                        <option value="on_minutes">ON Minutes</option>
+                        <option value="segments">Segments</option>
+                    </select>
+                    <button class="btn btn-outline-secondary" id="comboSortOrder" onclick="toggleComboSortOrder()" title="Toggle combo sort order">
+                        <i class="fas fa-sort-amount-down"></i>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -147,22 +249,57 @@
         </div>
     </div>
 
-    <div id="lineupsGrid" class="grid-lineups" style="display: none; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: var(--spacing-md);">
-    </div>
+    <ul class="nav nav-tabs mb-3" id="lineupTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="lineups-tab" data-bs-toggle="tab" data-bs-target="#lineups-pane" type="button" role="tab">
+                5-Man Lineups
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="duos-tab" data-bs-toggle="tab" data-bs-target="#duos-pane" type="button" role="tab">
+                Top 10 Duos
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="trios-tab" data-bs-toggle="tab" data-bs-target="#trios-pane" type="button" role="tab">
+                Top 10 Trios
+            </button>
+        </li>
+    </ul>
 
-    <div id="noResults" class="text-center py-5" style="display: none;">
-        <i class="fas fa-users fa-3x text-muted mb-3"></i>
-        <p class="text-muted">No lineups found matching your criteria.</p>
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="lineups-pane" role="tabpanel">
+            <div id="lineupsGrid" class="grid-lineups" style="display: none; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: var(--spacing-md);"></div>
+            <div id="noResults" class="text-center py-5" style="display: none;">
+                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No lineups found matching your criteria.</p>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="duos-pane" role="tabpanel">
+            <div id="duosLoading" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i> Loading top duos...</div>
+            <div id="duosGrid" class="combo-list" style="display:none;"></div>
+        </div>
+
+        <div class="tab-pane fade" id="trios-pane" role="tabpanel">
+            <div id="triosLoading" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i> Loading top trios...</div>
+            <div id="triosGrid" class="combo-list" style="display:none;"></div>
+        </div>
     </div>
 </div>
 
 <script>
     let allLineups = [];
     let filteredLineups = [];
+    let duoCombinations = [];
+    let trioCombinations = [];
     let sortDescending = true;
+    let comboSortDescending = true;
 
     $(document).ready(function() {
         fetchLineups();
+        fetchCombinations('duo');
+        fetchCombinations('trio');
     });
 
     function fetchLineups() {
@@ -264,6 +401,178 @@
         grid.html(html);
     }
 
+    function fetchCombinations(type) {
+        const gameType = $('#gameTypeFilter').val() || 'ALL';
+        const minMinutes = parseFloat($('#comboMinMinutes').val()) || 5;
+
+        $.ajax({
+            url: '/api/advanced/lineups/combinations',
+            method: 'GET',
+            data: {
+                type: type,
+                min_minutes: minMinutes,
+                game_type: gameType
+            },
+            success: function(data) {
+                if (type === 'duo') {
+                    duoCombinations = data.combinations || [];
+                } else {
+                    trioCombinations = data.combinations || [];
+                }
+                applyCombinationFiltersAndSort(type);
+            },
+            error: function() {
+                if (type === 'duo') {
+                    duoCombinations = [];
+                } else {
+                    trioCombinations = [];
+                }
+                applyCombinationFiltersAndSort(type);
+            }
+        });
+    }
+
+    function getSortedFilteredCombinations(type) {
+        const isDuo = type === 'duo';
+        const items = [...(isDuo ? duoCombinations : trioCombinations)];
+        const comboSearch = ($('#comboSearchInput').val() || '').toLowerCase();
+        const comboSortBy = $('#comboSortBy').val() || 'net_differential';
+
+        const filtered = items.filter(function(item) {
+            const playersText = (item.players || []).join(' ').toLowerCase();
+            return playersText.includes(comboSearch);
+        });
+
+        filtered.sort(function(a, b) {
+            let valA = 0;
+            let valB = 0;
+
+            switch (comboSortBy) {
+                case 'offense_delta':
+                    valA = a.impact?.offense_delta || 0;
+                    valB = b.impact?.offense_delta || 0;
+                    break;
+                case 'defense_delta':
+                    valA = a.impact?.defense_delta || 0;
+                    valB = b.impact?.defense_delta || 0;
+                    break;
+                case 'on_net':
+                    valA = a.on?.net || 0;
+                    valB = b.on?.net || 0;
+                    break;
+                case 'off_net':
+                    valA = a.off?.net || 0;
+                    valB = b.off?.net || 0;
+                    break;
+                case 'on_minutes':
+                    valA = a.on?.minutes || 0;
+                    valB = b.on?.minutes || 0;
+                    break;
+                case 'segments':
+                    valA = a.segments || 0;
+                    valB = b.segments || 0;
+                    break;
+                case 'net_differential':
+                default:
+                    valA = a.impact?.net_differential || 0;
+                    valB = b.impact?.net_differential || 0;
+            }
+
+            return comboSortDescending ? (valB - valA) : (valA - valB);
+        });
+
+        return filtered;
+    }
+
+    function renderCombinations(type) {
+        const items = getSortedFilteredCombinations(type);
+        const isDuo = type === 'duo';
+        const grid = isDuo ? $('#duosGrid') : $('#triosGrid');
+        const loading = isDuo ? $('#duosLoading') : $('#triosLoading');
+
+        loading.hide();
+
+        if (!items.length) {
+            grid.show().html('<div class="alert alert-secondary">No qualifying ' + (isDuo ? 'duos' : 'trios') + ' found for the current filters.</div>');
+            return;
+        }
+
+        let html = '';
+        items.forEach(function(item) {
+            const synergy = item.impact?.net_differential || 0;
+            const synergyClass = synergy > 0 ? 'net-positive' : (synergy < 0 ? 'net-negative' : 'net-neutral');
+            const players = item.players || [];
+            
+            const onNet = (item.on?.net || 0);
+            const offNet = (item.off?.net || 0);
+
+            html += `
+                <div class="combo-row" onclick='navigateToCombination("${type}", ${JSON.stringify(players)})'>
+                    <div class="combo-players">
+                        ${players.map(p => `<span class="lineup-player-badge">${p}</span>`).join('')}
+                    </div>
+                    
+                    <div class="combo-stats-summary">
+                        <div class="combo-stat-box">
+                            <span class="combo-stat-value">${(item.on?.ortg || 0).toFixed(1)}</span>
+                            <span class="combo-stat-label">ON ORtg</span>
+                        </div>
+                        <div class="combo-stat-box">
+                            <span class="combo-stat-value">${(item.on?.drtg || 0).toFixed(1)}</span>
+                            <span class="combo-stat-label">ON DRtg</span>
+                        </div>
+                        <div class="combo-stat-box">
+                            <span class="combo-stat-value" style="color: ${onNet > 0 ? '#2f855a' : '#c53030'}">${onNet > 0 ? '+' : ''}${onNet.toFixed(1)}</span>
+                            <span class="combo-stat-label">ON Net</span>
+                        </div>
+                        <div class="combo-stat-box" style="border-left: 1px solid #e2e8f0; padding-left: 20px;">
+                            <span class="combo-stat-value" style="color: #718096;">${offNet > 0 ? '+' : ''}${offNet.toFixed(1)}</span>
+                            <span class="combo-stat-label">OFF Net</span>
+                        </div>
+                    </div>
+
+                    <div class="text-center">
+                        <span class="synergy-badge ${synergyClass}">
+                            Synergy ${synergy > 0 ? '+' : ''}${synergy.toFixed(1)}
+                        </span>
+                        <div class="text-muted small mt-1">${(item.on?.minutes || 0).toFixed(1)} ON minutes</div>
+                    </div>
+
+                    <div class="text-end">
+                        <i class="fas fa-chevron-right text-muted"></i>
+                    </div>
+                </div>
+            `;
+        });
+
+        grid.show().html(html);
+    }
+
+    function applyCombinationFiltersAndSort(type = null) {
+        if (!type || type === 'duo') renderCombinations('duo');
+        if (!type || type === 'trio') renderCombinations('trio');
+    }
+
+    function refreshCombinationData() {
+        $('#duosLoading').show();
+        $('#triosLoading').show();
+        $('#duosGrid').hide();
+        $('#triosGrid').hide();
+        fetchCombinations('duo');
+        fetchCombinations('trio');
+    }
+
+    function toggleComboSortOrder() {
+        comboSortDescending = !comboSortDescending;
+        const icon = $('#comboSortOrder i');
+        if (comboSortDescending) {
+            icon.removeClass('fa-sort-amount-up').addClass('fa-sort-amount-down');
+        } else {
+            icon.removeClass('fa-sort-amount-down').addClass('fa-sort-amount-up');
+        }
+        applyCombinationFiltersAndSort();
+    }
+
     function filterLineups() {
         const searchQuery = $('#searchInput').val().toLowerCase();
         const minMinutes = parseFloat($('#minMinutes').val()) || 0;
@@ -334,6 +643,11 @@
 
     function navigateToLineup(id) {
         window.location.href = '/lineup/' + id;
+    }
+
+    function navigateToCombination(type, players) {
+        const playersKey = encodeURIComponent((players || []).join(','));
+        window.location.href = '/lineup-combo/' + type + '/' + playersKey;
     }
 </script>
 {% endblock %}

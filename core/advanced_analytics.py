@@ -185,6 +185,47 @@ class LineupAnalytics:
         """Generate a unique hash for a lineup combination."""
         sorted_players = sorted(players)
         return hashlib.md5(','.join(sorted_players).encode()).hexdigest()
+
+    @staticmethod
+    def _build_segment_payload(game_ids: List[int] = None) -> List[Dict]:
+        """Build normalized lineup segment payload for aggregation engines."""
+        query = LineupSegment.query
+        if game_ids:
+            query = query.filter(LineupSegment.game_id.in_(game_ids))
+
+        payload = []
+        for segment in query.all():
+            players = segment.players
+            if isinstance(players, str):
+                try:
+                    players = json.loads(players)
+                except Exception:
+                    players = []
+
+            payload.append(
+                {
+                    "players": players or [],
+                    "points_scored": segment.points_scored or 0,
+                    "points_allowed": segment.points_allowed or 0,
+                    "possessions": segment.possessions or 0,
+                    "duration_seconds": segment.duration_seconds or 0,
+                }
+            )
+        return payload
+
+    @staticmethod
+    def _rating(points_scored: float, points_allowed: float, possessions: float) -> Dict:
+        """Return per-100 possession ORtg/DRtg/Net for a stat line."""
+        if possessions <= 0:
+            return {"ortg": 0.0, "drtg": 0.0, "net": 0.0}
+
+        ortg = points_scored / possessions * 100
+        drtg = points_allowed / possessions * 100
+        return {
+            "ortg": round(ortg, 1),
+            "drtg": round(drtg, 1),
+            "net": round(ortg - drtg, 1),
+        }
     
     @staticmethod
     def calculate_on_off_splits(player_name: str, game_ids: List[int] = None) -> Dict:
@@ -260,26 +301,7 @@ class LineupAnalytics:
         Returns:
             List of duo combinations with compatibility metrics
         """
-        query = LineupSegment.query
-        if game_ids:
-            query = query.filter(LineupSegment.game_id.in_(game_ids))
-        
-        segments = query.all()
-        
-        # Prepare data for high-performance aggregator
-        segment_data = []
-        for s in segments:
-            players = s.players
-            if isinstance(players, str):
-                try: players = json.loads(players)
-                except: players = []
-            
-            segment_data.append({
-                'players': players or [],
-                'points_scored': s.points_scored or 0,
-                'points_allowed': s.points_allowed or 0,
-                'possessions': s.possessions or 0
-            })
+        segment_data = LineupAnalytics._build_segment_payload(game_ids)
 
         # Use Rust-backed aggregator
         stats = rust_analytics.aggregate_combinatorial_stats(segment_data)
@@ -307,26 +329,7 @@ class LineupAnalytics:
     @staticmethod
     def calculate_trio_compatibility(game_ids: List[int] = None) -> List[Dict]:
         """Calculate synergy metrics for all 3-player combinations using high-performance aggregation."""
-        query = LineupSegment.query
-        if game_ids:
-            query = query.filter(LineupSegment.game_id.in_(game_ids))
-        
-        segments = query.all()
-        
-        # Prepare data for high-performance aggregator
-        segment_data = []
-        for s in segments:
-            players = s.players
-            if isinstance(players, str):
-                try: players = json.loads(players)
-                except: players = []
-            
-            segment_data.append({
-                'players': players or [],
-                'points_scored': s.points_scored or 0,
-                'points_allowed': s.points_allowed or 0,
-                'possessions': s.possessions or 0
-            })
+        segment_data = LineupAnalytics._build_segment_payload(game_ids)
 
         # Use Rust-backed aggregator
         stats = rust_analytics.aggregate_combinatorial_stats(segment_data)
@@ -347,6 +350,179 @@ class LineupAnalytics:
                 })
         
         return sorted(results, key=lambda x: x['net_rating'], reverse=True)
+
+    @staticmethod
+    def get_combination_net_differentials(
+        combination_type: str,
+        game_ids: List[int] = None,
+        min_minutes: float = 5.0,
+        top_n: int = 10,
+    ) -> List[Dict]:
+        """
+        Rank duo/trio combinations by ON vs OFF net rating differential.
+
+        Differential is calculated as:
+        (ON ORtg - ON DRtg) - (OFF ORtg - OFF DRtg)
+        """
+        if combination_type not in {"duo", "trio"}:
+            raise ValueError("combination_type must be 'duo' or 'trio'")
+
+        segment_data = LineupAnalytics._build_segment_payload(game_ids)
+        if not segment_data:
+            return []
+
+        stats = rust_analytics.aggregate_combinatorial_stats(segment_data)
+        combo_key = "duos" if combination_type == "duo" else "trios"
+        combo_stats = stats.get(combo_key, {})
+
+        # Robust totals calculation with fallback to segment_data sum
+        totals = stats.get("totals") or {}
+        total_points_scored = float(totals.get("points_scored") or sum(s.get("points_scored", 0) for s in segment_data))
+        total_points_allowed = float(totals.get("points_allowed") or sum(s.get("points_allowed", 0) for s in segment_data))
+        total_possessions = float(totals.get("possessions") or sum(s.get("possessions", 0) for s in segment_data))
+        total_duration = float(totals.get("duration_seconds") or sum(s.get("duration_seconds", 0) for s in segment_data))
+
+        results = []
+        for key, on_stats in combo_stats.items():
+            on_duration = float(on_stats.get("duration_seconds") or 0)
+            on_possessions = float(on_stats.get("possessions", 0) or 0)
+            
+            # Fallback for minutes if duration is missing but possessions exist
+            if on_duration <= 0 and on_possessions > 0 and total_possessions > 0:
+                on_duration = (on_possessions / total_possessions) * total_duration
+            
+            on_minutes = on_duration / 60.0
+            if on_minutes < min_minutes:
+                continue
+            off_possessions = total_possessions - on_possessions
+            if off_possessions <= 0:
+                continue
+
+            on_points_scored = float(on_stats.get("points_scored", 0) or 0)
+            on_points_allowed = float(on_stats.get("points_allowed", 0) or 0)
+            off_points_scored = total_points_scored - on_points_scored
+            off_points_allowed = total_points_allowed - on_points_allowed
+
+            on_rating = LineupAnalytics._rating(
+                on_points_scored, on_points_allowed, on_possessions
+            )
+            off_rating = LineupAnalytics._rating(
+                off_points_scored, off_points_allowed, off_possessions
+            )
+            net_diff = round(on_rating["net"] - off_rating["net"], 1)
+
+            players = key.split(",")
+            results.append(
+                {
+                    "type": combination_type,
+                    "players": players,
+                    "segments": int(on_stats.get("segments", 0) or 0),
+                    "on": {
+                        "minutes": round(on_minutes, 1),
+                        "possessions": round(on_possessions, 1),
+                        "points_scored": round(on_points_scored, 1),
+                        "points_allowed": round(on_points_allowed, 1),
+                        **on_rating,
+                    },
+                    "off": {
+                        "possessions": round(off_possessions, 1),
+                        "points_scored": round(off_points_scored, 1),
+                        "points_allowed": round(off_points_allowed, 1),
+                        **off_rating,
+                    },
+                    "impact": {
+                        "offense_delta": round(on_rating["ortg"] - off_rating["ortg"], 1),
+                        "defense_delta": round(off_rating["drtg"] - on_rating["drtg"], 1),
+                        "net_differential": net_diff,
+                    },
+                }
+            )
+
+        results.sort(key=lambda item: item["impact"]["net_differential"], reverse=True)
+        return results[:top_n]
+
+    @staticmethod
+    def get_combination_detail(
+        combination_type: str,
+        players: List[str],
+        game_ids: List[int] = None,
+        min_minutes: float = 0.1,
+    ) -> Optional[Dict]:
+        """Get ON vs OFF detail card data for a specific duo/trio."""
+        if combination_type not in {"duo", "trio"}:
+            raise ValueError("combination_type must be 'duo' or 'trio'")
+
+        expected_size = 2 if combination_type == "duo" else 3
+        normalized_players = sorted(
+            [str(p).strip() for p in (players or []) if str(p).strip()]
+        )
+        if len(normalized_players) != expected_size:
+            return None
+
+        segment_data = LineupAnalytics._build_segment_payload(game_ids)
+        if not segment_data:
+            return None
+
+        stats = rust_analytics.aggregate_combinatorial_stats(segment_data)
+        combo_key = "duos" if combination_type == "duo" else "trios"
+        combo_stats = stats.get(combo_key, {})
+        key = ",".join(normalized_players)
+        on_stats = combo_stats.get(key)
+        if not on_stats:
+            return None
+
+        # Robust totals calculation
+        totals = stats.get("totals") or {}
+        total_points_scored = float(totals.get("points_scored") or sum(s.get("points_scored", 0) for s in segment_data))
+        total_points_allowed = float(totals.get("points_allowed") or sum(s.get("points_allowed", 0) for s in segment_data))
+        total_possessions = float(totals.get("possessions") or sum(s.get("possessions", 0) for s in segment_data))
+        total_duration = float(totals.get("duration_seconds") or sum(s.get("duration_seconds", 0) for s in segment_data))
+
+        on_possessions = float(on_stats.get("possessions", 0) or 0)
+        on_duration = float(on_stats.get("duration_seconds") or 0)
+        
+        # Fallback for minutes
+        if on_duration <= 0 and on_possessions > 0 and total_possessions > 0:
+            on_duration = (on_possessions / total_possessions) * total_duration
+            
+        on_minutes = on_duration / 60.0
+        if on_minutes < min_minutes:
+            return None
+        off_possessions = total_possessions - on_possessions
+        if off_possessions <= 0:
+            return None
+
+        on_points_scored = float(on_stats.get("points_scored", 0) or 0)
+        on_points_allowed = float(on_stats.get("points_allowed", 0) or 0)
+        off_points_scored = total_points_scored - on_points_scored
+        off_points_allowed = total_points_allowed - on_points_allowed
+
+        on_rating = LineupAnalytics._rating(on_points_scored, on_points_allowed, on_possessions)
+        off_rating = LineupAnalytics._rating(off_points_scored, off_points_allowed, off_possessions)
+
+        return {
+            "type": combination_type,
+            "players": normalized_players,
+            "segments": int(on_stats.get("segments", 0) or 0),
+            "on": {
+                "minutes": round(on_minutes, 1),
+                "possessions": round(on_possessions, 1),
+                "points_scored": round(on_points_scored, 1),
+                "points_allowed": round(on_points_allowed, 1),
+                **on_rating,
+            },
+            "off": {
+                "possessions": round(off_possessions, 1),
+                "points_scored": round(off_points_scored, 1),
+                "points_allowed": round(off_points_allowed, 1),
+                **off_rating,
+            },
+            "impact": {
+                "offense_delta": round(on_rating["ortg"] - off_rating["ortg"], 1),
+                "defense_delta": round(off_rating["drtg"] - on_rating["drtg"], 1),
+                "net_differential": round(on_rating["net"] - off_rating["net"], 1),
+            },
+        }
     
     @staticmethod
     def get_lineup_efficiency_rankings(game_ids: List[int] = None, 

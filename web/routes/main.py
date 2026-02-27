@@ -8,6 +8,7 @@ from werkzeug.utils import secure_filename
 
 from flask import (
     Blueprint,
+    abort,
     render_template,
     request,
     redirect,
@@ -17,6 +18,7 @@ from flask import (
     jsonify,
     make_response,
 )
+from urllib.parse import unquote
 from flask_login import login_required
 from sqlalchemy import case, func
 
@@ -1629,6 +1631,27 @@ def lineup_card(lineup_id):
 
     lineup = Lineup.query.get_or_404(lineup_id)
     return render_template("lineup_card.html", lineup=lineup)
+
+
+@main_bp.route("/lineup-combo/<combo_type>/<path:players_key>")
+@login_required
+def lineup_combo_card(combo_type, players_key):
+    """Single duo/trio combination card page."""
+    combo_type = (combo_type or "").strip().lower()
+    if combo_type not in {"duo", "trio"}:
+        abort(404)
+
+    raw_players = unquote(players_key or "")
+    players = [p.strip() for p in raw_players.split(",") if p.strip()]
+    expected_count = 2 if combo_type == "duo" else 3
+    if len(players) != expected_count:
+        abort(404)
+
+    return render_template(
+        "lineup_combo_card.html",
+        combo_type=combo_type,
+        players=sorted(players),
+    )
 
 
 # =============================================================================

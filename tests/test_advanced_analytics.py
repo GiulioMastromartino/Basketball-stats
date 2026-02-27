@@ -789,6 +789,170 @@ class TestLineupsAPI:
         assert data['success'] is True
         assert data['lineup']['display_name'] == 'Bench Mob'
 
+    @pytest.mark.integration
+    def test_combination_net_differentials_duo(self, db_session, sample_game):
+        """Test duo ON/OFF net differential ranking."""
+        from core.models import LineupSegment
+
+        segments = [
+            LineupSegment(
+                game_id=sample_game.id,
+                start_timestamp=1,
+                end_timestamp=2,
+                players=["A", "B", "C", "D", "E"],
+                lineup_hash=LineupAnalytics.generate_lineup_hash(["A", "B", "C", "D", "E"]),
+                points_scored=10,
+                points_allowed=6,
+                possessions=5,
+            ),
+            LineupSegment(
+                game_id=sample_game.id,
+                start_timestamp=3,
+                end_timestamp=4,
+                players=["A", "B", "F", "G", "H"],
+                lineup_hash=LineupAnalytics.generate_lineup_hash(["A", "B", "F", "G", "H"]),
+                points_scored=8,
+                points_allowed=4,
+                possessions=5,
+            ),
+            LineupSegment(
+                game_id=sample_game.id,
+                start_timestamp=5,
+                end_timestamp=6,
+                players=["C", "D", "F", "G", "H"],
+                lineup_hash=LineupAnalytics.generate_lineup_hash(["C", "D", "F", "G", "H"]),
+                points_scored=3,
+                points_allowed=8,
+                possessions=5,
+            ),
+        ]
+        db_session.add_all(segments)
+        db_session.commit()
+
+        results = LineupAnalytics.get_combination_net_differentials(
+            combination_type="duo",
+            game_ids=[sample_game.id],
+            min_possessions=5,
+            top_n=10,
+        )
+
+        assert len(results) > 0
+        ab_result = next((r for r in results if r["players"] == ["A", "B"]), None)
+        assert ab_result is not None
+        assert ab_result["impact"]["net_differential"] > 0
+        assert ab_result["on"]["possessions"] == 10.0
+
+    @pytest.mark.integration
+    def test_api_get_lineup_combinations(self, auth_client):
+        """Test combinations API endpoint."""
+        response = auth_client.get("/api/advanced/lineups/combinations?type=duo")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["type"] == "duo"
+        assert "combinations" in data
+
+    @pytest.mark.integration
+    def test_api_get_lineup_combinations_invalid_type(self, auth_client):
+        """Test combinations API validates type parameter."""
+        response = auth_client.get("/api/advanced/lineups/combinations?type=quartet")
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+
+    @pytest.mark.integration
+    def test_api_get_lineup_combination_detail(self, auth_client, db_session, sample_game):
+        """Test detail endpoint for a specific duo."""
+        from core.models import LineupSegment, GameEvent
+
+        segment_with = LineupSegment(
+            game_id=sample_game.id,
+            start_timestamp=1,
+            end_timestamp=2,
+            players=["A", "B", "C", "D", "E"],
+            lineup_hash=LineupAnalytics.generate_lineup_hash(["A", "B", "C", "D", "E"]),
+            points_scored=8,
+            points_allowed=4,
+            possessions=4,
+        )
+        segment_without = LineupSegment(
+            game_id=sample_game.id,
+            start_timestamp=3,
+            end_timestamp=4,
+            players=["C", "D", "F", "G", "H"],
+            lineup_hash=LineupAnalytics.generate_lineup_hash(["C", "D", "F", "G", "H"]),
+            points_scored=2,
+            points_allowed=7,
+            possessions=4,
+        )
+        db_session.add_all([segment_with, segment_without])
+        db_session.flush()
+
+        db_session.add_all(
+            [
+                GameEvent(
+                    game_id=sample_game.id,
+                    event_type="SHOT_2PT",
+                    player_name="A",
+                    timestamp=1,
+                    shot_attempt="made",
+                    x_loc=240,
+                    y_loc=120,
+                ),
+                GameEvent(
+                    game_id=sample_game.id,
+                    event_type="SHOT_3PT",
+                    player_name="C",
+                    timestamp=2,
+                    shot_attempt="missed",
+                    x_loc=120,
+                    y_loc=220,
+                ),
+                GameEvent(
+                    game_id=sample_game.id,
+                    event_type="SHOT_2PT",
+                    player_name="F",
+                    timestamp=3,
+                    shot_attempt="missed",
+                    x_loc=300,
+                    y_loc=180,
+                ),
+                GameEvent(
+                    game_id=sample_game.id,
+                    event_type="SHOT_3PT",
+                    player_name="B",
+                    timestamp=4,
+                    shot_attempt="made",
+                    x_loc=120,
+                    y_loc=250,
+                ),
+            ]
+        )
+        db_session.commit()
+
+        response = auth_client.get(
+            "/api/advanced/lineups/combinations/detail?type=duo&players=A,B"
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["type"] == "duo"
+        assert data["players"] == ["A", "B"]
+        assert "combination" in data
+        assert "shots" in data
+        assert "shot_stats" in data
+        assert data["shot_stats"]["with_teammates"]["attempts"] == 1
+        assert data["shot_stats"]["without_teammates"]["attempts"] == 1
+
+    @pytest.mark.integration
+    def test_api_get_lineup_combination_detail_not_found(self, auth_client):
+        """Test detail endpoint returns 404 for unknown combination."""
+        response = auth_client.get(
+            "/api/advanced/lineups/combinations/detail?type=duo&players=Nope1,Nope2"
+        )
+        assert response.status_code == 404
+
 
 # =============================================================================
 # Conceded Rebounds Tests
