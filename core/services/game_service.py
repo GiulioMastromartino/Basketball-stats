@@ -310,38 +310,41 @@ def create_game_from_live_data(data):
     db.session.add(game)
     db.session.flush()
 
+    # --- Performance Optimization: Play Cache ---
+    # Pre-fetch all plays to minimize O(N) lookups
+    from core.models import Play
+    play_cache = {p.name: p.id for p in Play.query.all()}
+
+    def get_cached_play_id(name):
+        if not name: return None
+        name = name.strip()
+        if name in play_cache:
+            return play_cache[name]
+        
+        # Create new if not in cache
+        new_p = Play(name=name, play_type="Offense", source="imported")
+        db.session.add(new_p)
+        db.session.flush()
+        play_cache[name] = new_p.id
+        return new_p.id
+
+    # Objects to batch insert
+    all_player_stats = []
+    all_shot_events = []
+    all_game_events = []
+
     # --- Process Player Stats ---
     if is_nested_import:
-        # List of dicts
         for p_data in player_stats_source:
-            # Normalize player name key
-            player_name = get_nested_value(
-                p_data, "player_name", "PlayerName", "name", "Name", "player"
-            )
-            if not player_name:
-                continue
-
-            # Filter valid keys
-            valid_keys = {
-                c.name
-                for c in PlayerStat.__table__.columns
-                if c.name not in ("id", "game_id")
-            }
+            player_name = get_nested_value(p_data, "player_name", "PlayerName", "name", "Name", "player")
+            if not player_name: continue
+            valid_keys = {c.name for c in PlayerStat.__table__.columns if c.name not in ("id", "game_id")}
             stat_kwargs = {k: v for k, v in p_data.items() if k in valid_keys}
-
-            # Ensure player_name is set
-            if "player_name" not in stat_kwargs:
-                stat_kwargs["player_name"] = player_name
-
-            stat = PlayerStat(game_id=game.id, **stat_kwargs)
-            db.session.add(stat)
+            if "player_name" not in stat_kwargs: stat_kwargs["player_name"] = player_name
+            all_player_stats.append(PlayerStat(game_id=game.id, **stat_kwargs))
     else:
-        # Dict of dicts (LIVE)
         for p_name, stats in player_stats_source.items():
-            if not p_name:
-                continue
-
-            # Support legacy key names in player stats
+            if not p_name: continue
             fgm = get_nested_value(stats, "fgm", "FGM", "fg", default=0)
             fga = get_nested_value(stats, "fga", "FGA", default=0)
             tpm = get_nested_value(stats, "tpm", "3PM", "tp", "three_pm", default=0)
@@ -357,194 +360,89 @@ def create_game_from_live_data(data):
             pf = get_nested_value(stats, "pf", "PF", "fouls", default=0)
             points = get_nested_value(stats, "points", "PTS", "pts", default=0)
             minutes = get_nested_value(stats, "minutes", "MIN", "min", default="00:00")
-            plus_minus = get_nested_value(
-                stats, "plus_minus", "+/-", "pm", "PlusMinus", default=0
-            )
+            plus_minus = get_nested_value(stats, "plus_minus", "+/-", "pm", "PlusMinus", default=0)
 
             fg_pct = (fgm / fga * 100) if fga > 0 else 0.0
             tp_pct = (tpm / tpa * 100) if tpa > 0 else 0.0
             ft_pct = (ftm / fta * 100) if fta > 0 else 0.0
 
-            new_stat = PlayerStat(
-                game_id=game.id,
-                player_name=p_name,
-                minutes=minutes,
-                points=points,
-                fgm=fgm,
-                fga=fga,
-                fg_percent=fg_pct,
-                tpm=tpm,
-                tpa=tpa,
-                tp_percent=tp_pct,
-                ftm=ftm,
-                fta=fta,
-                ft_percent=ft_pct,
-                oreb=oreb,
-                dreb=dreb,
-                reb=oreb + dreb,
-                ast=ast,
-                tov=tov,
-                stl=stl,
-                blk=blk,
-                pf=pf,
-                plus_minus=int(plus_minus or 0),
-            )
-            db.session.add(new_stat)
+            all_player_stats.append(PlayerStat(
+                game_id=game.id, player_name=p_name, minutes=minutes, points=points,
+                fgm=fgm, fga=fga, fg_percent=fg_pct, tpm=tpm, tpa=tpa, tp_percent=tp_pct,
+                ftm=ftm, fta=fta, ft_percent=ft_pct, oreb=oreb, dreb=dreb, reb=oreb + dreb,
+                ast=ast, tov=tov, stl=stl, blk=blk, pf=pf, plus_minus=int(plus_minus or 0),
+            ))
+
+    db.session.add_all(all_player_stats)
 
     # --- Process Shot Events ---
     for s_data in shot_events_source:
         if is_nested_import:
-            # List of dicts with DB keys
-            valid_keys = {
-                c.name
-                for c in ShotEvent.__table__.columns
-                if c.name not in ("id", "game_id", "play_id")
-            }
+            valid_keys = {c.name for c in ShotEvent.__table__.columns if c.name not in ("id", "game_id", "play_id")}
             shot_kwargs = {k: v for k, v in s_data.items() if k in valid_keys}
-
-            # Extract play_name from detail and create/find play
-            play_id_nested = None
-            detail_nested = s_data.get("detail")
-            play_name_nested = extract_play_name_from_detail(detail_nested)
-            if play_name_nested:
-                play_nested = find_or_create_play(play_name_nested)
-                if play_nested:
-                    play_id_nested = play_nested.id
-
-            shot = ShotEvent(game_id=game.id, play_id=play_id_nested, **shot_kwargs)
+            play_id_nested = get_cached_play_id(extract_play_name_from_detail(s_data.get("detail")))
+            all_shot_events.append(ShotEvent(game_id=game.id, play_id=play_id_nested, **shot_kwargs))
         else:
-            # LIVE format - support legacy key names
-            shooter = get_nested_value(
-                s_data, "shooter", "player", "player_name", default=""
-            )
-            shot_type = get_nested_value(
-                s_data, "type", "shot_type", "ShotType", default=""
-            )
-            points = int(get_nested_value(s_data, "points", "Points", "pts", default=0))
-            result = get_nested_value(
-                s_data, "result", "Result", "made", default="made"
-            )
-            play_id = get_nested_value(s_data, "play_id", "PlayId", "playId")
+            shooter = get_nested_value(s_data, "shooter", "player", "player_name", default="")
+            shot_type = get_nested_value(s_data, "type", "shot_type", "ShotType", default="")
+            pts = int(get_nested_value(s_data, "points", "Points", "pts", default=0))
+            result = get_nested_value(s_data, "result", "Result", "made", default="made")
             x = get_nested_value(s_data, "x", "x_loc", "xLoc")
             y = get_nested_value(s_data, "y", "y_loc", "yLoc")
             q = get_nested_value(s_data, "quarter", "q", "period")
+            
+            p_name = extract_play_name_from_detail(get_nested_value(s_data, "detail", "Detail"))
+            v_play_id = get_cached_play_id(p_name)
 
-            validated_play_id = None
-            if play_id:
-                try:
-                    validated_play_id = validate_play_id(play_id)
-                except ValueError:
-                    pass
-
-            # If no valid play_id, try to extract play_name from detail and create/find play
-            if not validated_play_id:
-                detail_val = get_nested_value(s_data, "detail", "Detail")
-                play_name = extract_play_name_from_detail(detail_val)
-                if play_name:
-                    play = find_or_create_play(play_name)
-                    if play:
-                        validated_play_id = play.id
-
-            shot = ShotEvent(
-                game_id=game.id,
-                player_name=shooter.strip() if shooter else "",
-                shot_type=shot_type.strip() if shot_type else "",
-                result=result,
-                points=points,
-                x_loc=float(x) if x is not None else None,
-                y_loc=float(y) if y is not None else None,
-                quarter=int(q) if q is not None else None,
-                play_id=validated_play_id,
-            )
-        db.session.add(shot)
+            all_shot_events.append(ShotEvent(
+                game_id=game.id, player_name=shooter.strip() if shooter else "",
+                shot_type=shot_type.strip() if shot_type else "", result=result, points=pts,
+                x_loc=float(x) if x is not None else None, y_loc=float(y) if y is not None else None,
+                quarter=int(q) if q is not None else None, play_id=v_play_id,
+            ))
+    
+    db.session.add_all(all_shot_events)
 
     # --- Process Game Events ---
     for e_data in game_events_source:
         if is_nested_import:
-            # List of dicts with DB keys
-            valid_keys = {
-                c.name
-                for c in GameEvent.__table__.columns
-                if c.name not in ("id", "game_id", "play_id")
-            }
+            valid_keys = {c.name for c in GameEvent.__table__.columns if c.name not in ("id", "game_id", "play_id")}
             event_kwargs = {k: v for k, v in e_data.items() if k in valid_keys}
-
-            # Extract play_name from detail and create/find play
-            play_id_nested = None
-            detail_nested = e_data.get("detail")
-            play_name_nested = extract_play_name_from_detail(detail_nested)
-            if play_name_nested:
-                play_nested = find_or_create_play(play_name_nested)
-                if play_nested:
-                    play_id_nested = play_nested.id
-
-            event = GameEvent(game_id=game.id, play_id=play_id_nested, **event_kwargs)
+            p_id = get_cached_play_id(extract_play_name_from_detail(e_data.get("detail")))
+            all_game_events.append(GameEvent(game_id=game.id, play_id=p_id, **event_kwargs))
         else:
-            # LIVE format - support legacy key names
-
             event_type = get_nested_value(e_data, "type", "event_type", "EventType")
-            player_name = get_nested_value(
-                e_data, "player", "player_name", "PlayerName"
-            )
+            player_name = get_nested_value(e_data, "player", "player_name", "PlayerName")
             detail = get_nested_value(e_data, "detail", "Detail", "description")
-            timestamp = get_nested_value(
-                e_data, "timestamp", "time", "Timestamp", default=0
-            )
+            timestamp = get_nested_value(e_data, "timestamp", "time", "Timestamp", default=0)
             shot_attempt = get_nested_value(e_data, "shot_attempt", "ShotAttempt")
-            play_id = get_nested_value(e_data, "play_id", "PlayId", "playId")
-
-            # New timeline fields
             quarter = get_nested_value(e_data, "quarter", "q", "period")
-            time_remaining = get_nested_value(
-                e_data, "time_remaining", "timeRemaining", "time_remaining"
-            )
+            time_remaining = get_nested_value(e_data, "time_remaining", "timeRemaining", "time_remaining")
             score_margin = get_nested_value(e_data, "score_margin", "scoreMargin")
-            possession_number = get_nested_value(
-                e_data, "possession_number", "possessionNumber"
-            )
+            possession_number = get_nested_value(e_data, "possession_number", "possessionNumber")
             game_seconds = get_nested_value(e_data, "game_seconds", "gameSeconds")
             x = get_nested_value(e_data, "x_loc", "x", "xLoc")
             y = get_nested_value(e_data, "y_loc", "y", "yLoc")
 
-            validated_play_id = None
-            if play_id:
-                try:
-                    validated_play_id = validate_play_id(play_id)
-                except ValueError:
-                    pass
+            v_p_id = get_cached_play_id(extract_play_name_from_detail(detail))
+            if isinstance(detail, dict): detail = json.dumps(detail)
 
-            # If no valid play_id, try to extract play_name from detail and create/find play
-            if not validated_play_id and detail:
-                play_name = extract_play_name_from_detail(detail)
-                if play_name:
-                    play = find_or_create_play(play_name)
-                    if play:
-                        validated_play_id = play.id
-
-            # Serialize detail if it's a dict
-            if isinstance(detail, dict):
-                detail = json.dumps(detail)
-
-            event = GameEvent(
-                game_id=game.id,
-                event_type=event_type,
+            all_game_events.append(GameEvent(
+                game_id=game.id, event_type=event_type,
                 player_name=player_name.strip() if player_name else None,
                 detail=str(detail) if detail is not None else None,
                 timestamp=int(timestamp) if timestamp else 0,
-                shot_attempt=shot_attempt,
-                play_id=validated_play_id,
+                shot_attempt=shot_attempt, play_id=v_p_id,
                 quarter=int(quarter) if quarter is not None else None,
                 time_remaining=time_remaining,
                 score_margin=int(score_margin) if score_margin is not None else None,
-                possession_number=int(possession_number)
-                if possession_number is not None
-                else None,
+                possession_number=int(possession_number) if possession_number is not None else None,
                 game_seconds=int(game_seconds) if game_seconds is not None else None,
                 x_loc=float(x) if x is not None else None,
                 y_loc=float(y) if y is not None else None,
-            )
-        db.session.add(event)
-
+            ))
+    
+    db.session.add_all(all_game_events)
     db.session.commit()
 
     # Assign possession numbers to events (for lineup stats calculation)
