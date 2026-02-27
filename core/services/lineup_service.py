@@ -90,12 +90,14 @@ def update_lineup_cached_stats(lineup_id: int):
     total_stl = 0
     total_blk = 0
     total_tov = 0
+    total_reb_conceded = 0
 
     for segment in segments:
         total_seconds += segment.duration_seconds or 0
         total_possessions += segment.possessions or 0
         points_scored += segment.points_scored or 0
         points_allowed += segment.points_allowed or 0
+        total_reb_conceded += segment.reb_conceded or 0
         games.add(segment.game_id)
 
         player_stats = PlayerLineupStats.query.filter_by(
@@ -134,6 +136,7 @@ def update_lineup_cached_stats(lineup_id: int):
     lineup.stl = total_stl
     lineup.blk = total_blk
     lineup.tov = total_tov
+    lineup.reb_conceded = total_reb_conceded
 
     if total_possessions > 0:
         lineup.ortg = round((points_scored / total_possessions) * 100, 1)
@@ -369,9 +372,13 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
     points_scored = 0
     points_allowed = 0
     possessions = 0
+    reb_conceded = 0
     possession_ending_events = set()
 
     for event in events:
+        if event.event_type == "OPP_OREB":
+            reb_conceded += 1
+            
         if event.event_type == "SHOT_2PT" and event.shot_attempt == "made":
             points_scored += 2
         elif event.event_type == "SHOT_3PT" and event.shot_attempt == "made":
@@ -379,11 +386,21 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
         elif event.event_type == "FT_MADE":
             points_scored += 1
         elif event.event_type == "OPP_SCORE":
-            try:
-                points = int(event.detail) if event.detail else 2
-            except (ValueError, TypeError):
-                points = 2
-            points_allowed += points
+            pts = 2
+            if event.detail:
+                try:
+                    if isinstance(event.detail, str) and (event.detail.startswith('{') or event.detail.startswith('[')):
+                        import json
+                        detail_data = json.loads(event.detail)
+                        if isinstance(detail_data, dict):
+                            pts = int(detail_data.get('points', 2))
+                        else:
+                            pts = int(event.detail)
+                    else:
+                        pts = int(event.detail)
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    pts = 2
+            points_allowed += pts
 
         if event.event_type in [
             "SHOT_2PT",
@@ -410,6 +427,7 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
     segment.points_scored = points_scored
     segment.points_allowed = points_allowed
     segment.possessions = possessions
+    segment.reb_conceded = reb_conceded
 
     if all_events:
         segment.duration_seconds = calculate_segment_duration(segment, all_events)
@@ -420,6 +438,7 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
         "points_scored": points_scored,
         "points_allowed": points_allowed,
         "possessions": possessions,
+        "reb_conceded": reb_conceded,
     }
 
 
@@ -616,8 +635,21 @@ def process_game_lineups(
                     player_map[event.player_name]["fta"] += 1
                     player_map[event.player_name]["ftm"] += 1
             elif et == "OPP_SCORE":
-                try: pts_allowed += int(event.detail or 2)
-                except: pts_allowed += 2
+                pts = 2
+                if event.detail:
+                    try:
+                        if isinstance(event.detail, str) and (event.detail.startswith('{') or event.detail.startswith('[')):
+                            import json
+                            detail_data = json.loads(event.detail)
+                            if isinstance(detail_data, dict):
+                                pts = int(detail_data.get('points', 2))
+                            else:
+                                pts = int(event.detail)
+                        else:
+                            pts = int(event.detail)
+                    except (ValueError, TypeError, json.JSONDecodeError):
+                        pts = 2
+                pts_allowed += pts
             elif et == "OPP_OREB":
                 for p in player_map: player_map[p]["reb_conceded"] += 1
             

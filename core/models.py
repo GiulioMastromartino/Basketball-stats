@@ -256,6 +256,7 @@ class LineupSegment(db.Model):
     points_scored = db.Column(db.Integer, default=0)
     points_allowed = db.Column(db.Integer, default=0)
     possessions = db.Column(db.Integer, default=0)
+    reb_conceded = db.Column(db.Integer, default=0)
     duration_seconds = db.Column(
         db.Integer, default=0
     )  # Actual playing time in seconds
@@ -304,6 +305,7 @@ class Lineup(db.Model):
     stl = db.Column(db.Integer, default=0)
     blk = db.Column(db.Integer, default=0)
     tov = db.Column(db.Integer, default=0)
+    reb_conceded = db.Column(db.Integer, default=0)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_updated = db.Column(

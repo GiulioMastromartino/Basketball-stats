@@ -56,6 +56,7 @@ from core.utils import (
     calculate_efg_percent,
     calculate_game_score,
     calculate_ortg,
+    calculate_pace,
     calculate_per_100_minutes,
     calculate_possessions,
     calculate_ppp,
@@ -905,6 +906,7 @@ def export_game_raw(game_id):
 def game_detail(game_id):
     """Detailed stats for a specific game with Advanced Metrics"""
     game = Game.query.get_or_404(game_id)
+    from core.advanced_analytics import LineupAnalytics
     stats = (
         PlayerStat.query.filter_by(game_id=game.id)
         .order_by(PlayerStat.points.desc())
@@ -988,13 +990,23 @@ def game_detail(game_id):
         "stl": sum(p.stl for p in stats),
         "blk": sum(p.blk for p in stats),
         "pf": sum(p.pf for p in stats),
+        "reb_conceded": sum(p.reb_conceded or 0 for p in stats),
     }
 
     team_poss = calculate_possessions(
         team_stats["fga"], team_stats["fta"], team_stats["oreb"], team_stats["tov"]
     )
-    if team_poss <= 0:
+    
+    # Try to get more accurate possessions from lineup segments if available
+    from core.models import LineupSegment
+    segment_poss = db.session.query(func.sum(LineupSegment.possessions)).filter_by(game_id=game.id).scalar() or 0
+    if segment_poss > 0:
+        team_poss = float(segment_poss)
+    elif team_poss <= 0:
         team_poss = team_possessions
+
+    total_game_min = sum(p.min_decimal for p in stats) / 5.0
+    pace = calculate_pace(team_poss, total_game_min)
 
     efg = calculate_efg_percent(team_stats["fgm"], team_stats["tpm"], team_stats["fga"])
     ortg = calculate_ortg(game.team_score, team_poss)
@@ -1002,6 +1014,7 @@ def game_detail(game_id):
 
     advanced = {
         "possessions": round(team_poss, 1),
+        "pace": round(pace, 1),
         "efg_pct": round(efg, 1),
         "ts_pct": round(
             calculate_ts_percent(
@@ -1062,6 +1075,80 @@ def game_detail(game_id):
         if s.x_loc is not None and s.y_loc is not None
     ]
 
+    try:
+        top_game_lineups_off = LineupAnalytics.get_game_lineup_rankings(
+            game.id, top_n=3, rank_by="offensive", min_possessions=0.0,
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss
+        )
+        top_game_lineups_def = LineupAnalytics.get_game_lineup_rankings(
+            game.id, top_n=3, rank_by="defensive", min_possessions=0.0,
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss
+        )
+    except Exception as e:
+        print(f"[GameDetail] Error fetching lineups: {e}")
+        top_game_lineups_off = []
+        top_game_lineups_def = []
+
+    try:
+        top_game_duos_off = LineupAnalytics.get_combination_net_differentials(
+            combination_type="duo",
+            game_ids=[game.id],
+            min_possessions=0.0,
+            top_n=3,
+            require_positive=False,
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss,
+            rank_by="offensive"
+        )
+        top_game_duos_def = LineupAnalytics.get_combination_net_differentials(
+            combination_type="duo",
+            game_ids=[game.id],
+            min_possessions=0.0,
+            top_n=3,
+            require_positive=False,
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss,
+            rank_by="defensive"
+        )
+    except Exception as e:
+        print(f"[GameDetail] Error fetching duos: {e}")
+        top_game_duos_off = []
+        top_game_duos_def = []
+
+    try:
+        top_game_trios_off = LineupAnalytics.get_combination_net_differentials(
+            combination_type="trio",
+            game_ids=[game.id],
+            min_possessions=0.0,
+            top_n=3,
+            require_positive=False,
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss,
+            rank_by="offensive"
+        )
+        top_game_trios_def = LineupAnalytics.get_combination_net_differentials(
+            combination_type="trio",
+            game_ids=[game.id],
+            min_possessions=0.0,
+            top_n=3,
+            require_positive=False,
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss,
+            rank_by="defensive"
+        )
+    except Exception as e:
+        print(f"[GameDetail] Error fetching trios: {e}")
+        top_game_trios_off = []
+        top_game_trios_def = []
+
     return render_template(
         "game_detail.html",
         game=game,
@@ -1075,6 +1162,12 @@ def game_detail(game_id):
         team_stats=team_stats,
         advanced=advanced,
         shot_summary=shot_summary,
+        top_game_lineups_off=top_game_lineups_off,
+        top_game_lineups_def=top_game_lineups_def,
+        top_game_duos_off=top_game_duos_off,
+        top_game_duos_def=top_game_duos_def,
+        top_game_trios_off=top_game_trios_off,
+        top_game_trios_def=top_game_trios_def,
     )
 
 
@@ -1631,6 +1724,49 @@ def lineup_card(lineup_id):
 
     lineup = Lineup.query.get_or_404(lineup_id)
     return render_template("lineup_card.html", lineup=lineup)
+
+
+@main_bp.route("/game/<int:game_id>/lineup-combinations")
+@login_required
+def game_lineup_combinations(game_id):
+    """Game subpage with top 3 lineups, duos, and trios."""
+    game = Game.query.get_or_404(game_id)
+    from core.advanced_analytics import LineupAnalytics
+
+    try:
+        top_lineups = LineupAnalytics.get_game_lineup_rankings(game_id, top_n=3)
+    except Exception:
+        top_lineups = []
+
+    try:
+        top_duos = LineupAnalytics.get_combination_net_differentials(
+            combination_type="duo",
+            game_ids=[game_id],
+            min_possessions=0,
+            top_n=3,
+            require_positive=False,
+        )
+    except Exception:
+        top_duos = []
+
+    try:
+        top_trios = LineupAnalytics.get_combination_net_differentials(
+            combination_type="trio",
+            game_ids=[game_id],
+            min_possessions=0,
+            top_n=3,
+            require_positive=False,
+        )
+    except Exception:
+        top_trios = []
+
+    return render_template(
+        "game_lineup_combinations.html",
+        game=game,
+        top_lineups=top_lineups,
+        top_duos=top_duos,
+        top_trios=top_trios,
+    )
 
 
 @main_bp.route("/lineup-combo/<combo_type>/<path:players_key>")

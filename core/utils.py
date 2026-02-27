@@ -133,6 +133,13 @@ def calculate_per_100_minutes(value, minutes):
     return safe_divide(value * 100, minutes)
 
 
+def calculate_pace(possessions, minutes, standard_game_minutes=40.0):
+    """Calculate pace (possessions per standard game length)"""
+    if minutes <= 0:
+        return 0.0
+    return (possessions / minutes) * standard_game_minutes
+
+
 def normalize_date_to_display(date_str: str) -> str:
     """Return DD/MM/YYYY."""
     if not date_str:

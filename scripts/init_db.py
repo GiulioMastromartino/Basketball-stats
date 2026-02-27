@@ -93,6 +93,7 @@ def add_missing_columns(app):
                 "stl": "INTEGER DEFAULT 0",
                 "blk": "INTEGER DEFAULT 0",
                 "tov": "INTEGER DEFAULT 0",
+                "reb_conceded": "INTEGER DEFAULT 0",
                 "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
                 "last_updated": "DATETIME DEFAULT CURRENT_TIMESTAMP",
             },
@@ -100,6 +101,7 @@ def add_missing_columns(app):
             "lineup_segments": {
                 "lineup_id": "INTEGER",
                 "duration_seconds": "INTEGER DEFAULT 0",
+                "reb_conceded": "INTEGER DEFAULT 0",
             },
             # Player lineup stats table
             "player_lineup_stats": {

@@ -127,6 +127,178 @@
     .pm-neg { color: #b91c1c; background: #fee2e2; }
     .pm-neu { color: #6b7280; background: #f3f4f6; }
 
+    /* Redesigned Combinations Tab */
+    .combo-highlight-card {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 20px;
+        color: white;
+        padding: 30px;
+        margin-bottom: 40px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .combo-highlight-card::after {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 300px;
+        height: 300px;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
+    .combo-highlight-card.defensive {
+        background: linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%);
+    }
+    
+    .combo-highlight-card.defensive .h-stat-val {
+        color: #f87171;
+    }
+
+    .highlight-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #94a3b8;
+        font-weight: 700;
+        margin-bottom: 15px;
+        display: block;
+    }
+
+    .highlight-title {
+        font-size: 1.5rem;
+        font-weight: 800;
+        margin-bottom: 20px;
+        line-height: 1.2;
+    }
+
+    .highlight-stats {
+        display: flex;
+        gap: 25px;
+    }
+
+    .h-stat-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .h-stat-val {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #3b82f6;
+    }
+
+    .h-stat-label {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        color: #64748b;
+    }
+
+    .section-divider {
+        display: flex;
+        align-items: center;
+        margin: 40px 0 25px;
+    }
+
+    .section-divider span {
+        padding-right: 20px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #1e293b;
+        font-size: 1.1rem;
+    }
+
+    .section-divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: #e2e8f0;
+    }
+
+    .modern-stat-card {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid #f1f5f9;
+        padding: 24px;
+        transition: all 0.3s ease;
+        margin-bottom: 20px;
+    }
+
+    .modern-stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 20px -10px rgba(0, 0, 0, 0.08);
+        border-color: #3b82f640;
+    }
+
+    .card-rank-badge {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 0.9rem;
+        margin-bottom: 15px;
+    }
+
+    .rank-1 { background: #fef3c7; color: #92400e; }
+    .rank-2 { background: #f1f5f9; color: #475569; }
+    .rank-3 { background: #fafaf9; color: #78716c; }
+
+    .rating-bar-container {
+        height: 8px;
+        background: #f1f5f9;
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 10px 0;
+    }
+
+    .rating-bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 1s ease-out;
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 1px solid #f8fafc;
+    }
+
+    .player-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #334155;
+        margin-right: 6px;
+        margin-bottom: 6px;
+    }
+
+    .combo-meta {
+        font-size: 0.75rem;
+        color: #64748b;
+        display: flex;
+        gap: 15px;
+        margin-top: 5px;
+    }
+    .bg-primary-soft { background-color: rgba(59, 130, 246, 0.1); }
+    .bg-danger-soft { background-color: rgba(239, 68, 68, 0.1); }
+    .bg-success-soft { background-color: rgba(34, 197, 94, 0.1); }
+
 </style>
 
 <!-- Game Header -->
@@ -175,6 +347,11 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="analytics-tab" data-bs-toggle="pill" data-bs-target="#analytics" type="button" role="tab">
                     <i class="fas fa-chart-pie me-2"></i>Team Analytics
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="combinations-tab" data-bs-toggle="pill" data-bs-target="#combinations" type="button" role="tab">
+                    <i class="fas fa-users me-2"></i>Top Combinations
                 </button>
             </li>
 
@@ -258,6 +435,7 @@
                                 <th class="text-center">BLK</th>
                                 <th class="text-center">TOV</th>
                                 <th class="text-center">PF</th>
+                                <th class="text-center text-danger" title="Offensive Rebounds Conceded to Opponent">CONC</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -290,9 +468,30 @@
                                 <td class="text-center">{{ p.blk }}</td>
                                 <td class="text-center text-danger">{{ p.tov }}</td>
                                 <td class="text-center text-muted">{{ p.pf }}</td>
+                                <td class="text-center text-danger fw-bold">{{ p.reb_conceded }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
+                        <tfoot class="bg-light fw-bold">
+                            <tr class="table-secondary">
+                                <td class="ps-4">TOTAL</td>
+                                <td class="text-center">-</td>
+                                <td class="text-center bg-light fs-4">{{ team_stats.points }}</td>
+                                <td class="text-center">-</td>
+                                <td class="text-center">{{ team_stats.fgm }}-{{ team_stats.fga }}</td>
+                                <td class="text-center">{{ team_stats.tpm }}-{{ team_stats.tpa }}</td>
+                                <td class="text-center">{{ team_stats.ftm }}-{{ team_stats.fta }}</td>
+                                <td class="text-center text-muted">{{ team_stats.oreb }}</td>
+                                <td class="text-center text-muted">{{ team_stats.dreb }}</td>
+                                <td class="text-center fs-5">{{ team_stats.reb }}</td>
+                                <td class="text-center fs-5">{{ team_stats.ast }}</td>
+                                <td class="text-center">{{ team_stats.stl }}</td>
+                                <td class="text-center">{{ team_stats.blk }}</td>
+                                <td class="text-center text-danger">{{ team_stats.tov }}</td>
+                                <td class="text-center text-muted">{{ team_stats.pf }}</td>
+                                <td class="text-center">-</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -341,6 +540,20 @@
                             </tr>
                             {% endfor %}
                         </tbody>
+                        <tfoot class="bg-light fw-bold">
+                            <tr class="table-secondary">
+                                <td class="ps-4">TOTAL</td>
+                                <td class="text-center">-</td>
+                                <td class="text-center">100.0%</td>
+                                <td class="text-center fw-bold {% if advanced.ortg >= 110 %}text-success{% elif advanced.ortg <= 90 %}text-danger{% endif %}">{{ "%.1f"|format(advanced.ortg) }}</td>
+                                <td class="text-center">{{ "%.2f"|format(advanced.ppp|default(0)) }}</td>
+                                <td class="text-center text-info">{{ "%.1f"|format(advanced.ts_pct) }}%</td>
+                                <td class="text-center">{{ "%.1f"|format(advanced.efg_pct) }}%</td>
+                                <td class="text-center">-</td>
+                                <td class="text-center">-</td>
+                                <td class="text-center">{{ "%.1f"|format(advanced.ft_rate) }}%</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -421,6 +634,209 @@
                                 FT ({{ (ft/total_pts*100)|round }}%)
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Top Combinations -->
+        <div class="tab-pane fade" id="combinations" role="tabpanel">
+            
+            <div class="d-flex justify-content-center mb-4">
+                <ul class="nav nav-pills bg-light p-1 rounded-pill shadow-sm" id="comboSubTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active rounded-pill px-4" id="combo-off-tab" data-bs-toggle="pill" data-bs-target="#combo-off" type="button" role="tab">
+                            <i class="fas fa-fire me-2"></i>Offensive Power
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-pill px-4" id="combo-def-tab" data-bs-toggle="pill" data-bs-target="#combo-def" type="button" role="tab">
+                            <i class="fas fa-shield-alt me-2"></i>Defensive Anchors
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="tab-content" id="comboSubTabsContent">
+                <!-- 4A: OFFENSIVE COMBINATIONS -->
+                <div class="tab-pane fade show active" id="combo-off" role="tabpanel">
+                    <!-- Top Highlights Banner -->
+                    <div class="row g-4 mb-5">
+                        {% if top_game_lineups_off %}
+                        <div class="col-lg-12">
+                            <div class="combo-highlight-card">
+                                <span class="highlight-label"><i class="fas fa-trophy me-2 text-warning"></i>Best Offensive Unit</span>
+                                <div class="row align-items-center">
+                                    <div class="col-lg-7">
+                                        <div class="highlight-title">
+                                            {% for player in top_game_lineups_off[0].players %}
+                                                <span class="player-pill bg-white border-0">{{ player }}</span>
+                                            {% endfor %}
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-4 mt-3">
+                                            <div class="h-stat-item">
+                                                <div class="h-stat-val text-white">{{ "%.1f"|format(top_game_lineups_off[0].ortg) }}</div>
+                                                <div class="h-stat-label">OFF Rating</div>
+                                            </div>
+                                            <div class="h-stat-item">
+                                                <div class="h-stat-val text-white">{{ "%.1f"|format(top_game_lineups_off[0].total_minutes) }}'</div>
+                                                <div class="h-stat-label">Min Played</div>
+                                            </div>
+                                            <div class="h-stat-item">
+                                                <div class="h-stat-val text-white">{{ top_game_lineups_off[0].points_scored }} PTS</div>
+                                                <div class="h-stat-label">Production</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-5 d-none d-lg-block text-end">
+                                        <div class="display-1 opacity-25 fw-bold text-white">OFF</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="section-divider"><span>Top Offensive Lineups</span></div>
+                    <div class="row">
+                        {% for lineup in top_game_lineups_off %}
+                        <div class="col-lg-12 mb-4">
+                            <div class="modern-stat-card shadow-sm border-start border-4 border-primary">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <div class="card-rank-badge rank-{{ loop.index }}">#{{ loop.index }}</div>
+                                        <div class="d-flex flex-wrap">
+                                            {% for player in lineup.players %}
+                                                <span class="player-pill">{{ player }}</span>
+                                            {% endfor %}
+                                        </div>
+                                        <div class="combo-meta">
+                                            <span><i class="far fa-clock me-1"></i>{{ "%.1f"|format(lineup.total_minutes) }} Minutes</span>
+                                            <span><i class="fas fa-layer-group me-1"></i>{{ lineup.segment_count }} Segments</span>
+                                        </div>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="h3 mb-0 fw-bold text-primary">{{ "+" if lineup.impact.offense_delta >= 0 else "" }}{{ "%.1f"|format(lineup.impact.offense_delta) }}</div>
+                                        <div class="small text-muted text-uppercase fw-bold letter-spacing-1" style="font-size: 0.6rem;">OFFENSE DELTA</div>
+                                        <div class="fw-bold text-primary" style="font-size: 0.7rem;">{{ "%.1f"|format(lineup.ortg) }} ORTG</div>
+                                    </div>
+                                </div>
+                                <div class="rating-bar-container"><div class="rating-bar-fill bg-primary" style="width: {{ [lineup.ortg, 150]|min / 1.5 }}%"></div></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="section-divider"><span>Offensive Synergy Duos</span></div>
+                    <div class="row">
+                        {% for duo in top_game_duos_off %}
+                        <div class="col-lg-4 mb-4">
+                            <div class="modern-stat-card h-100">
+                                <div class="card-rank-badge rank-{{ loop.index }}">#{{ loop.index }}</div>
+                                <h5 class="fw-bold mb-3">{{ duo.players|join(' + ') }}</h5>
+                                <div class="d-flex justify-content-between align-items-end">
+                                    <div>
+                                        <div class="small text-muted text-uppercase mb-1">Offense Delta</div>
+                                        <div class="h2 mb-0 fw-black text-primary">+{{ "%.1f"|format(duo.impact.offense_delta) }}</div>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="badge bg-primary-soft text-primary rounded-pill px-3">{{ "%.1f"|format(duo.on.ortg) }} ON</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- 4B: DEFENSIVE COMBINATIONS -->
+                <div class="tab-pane fade" id="combo-def" role="tabpanel">
+                    <!-- Top Highlights Banner -->
+                    <div class="row g-4 mb-5">
+                        {% if top_game_lineups_def %}
+                        <div class="col-lg-12">
+                            <div class="combo-highlight-card defensive">
+                                <span class="highlight-label"><i class="fas fa-shield-alt me-2 text-danger"></i>Best Defensive Unit</span>
+                                <div class="row align-items-center">
+                                    <div class="col-lg-7">
+                                        <div class="highlight-title">
+                                            {% for player in top_game_lineups_def[0].players %}
+                                                <span class="player-pill bg-white border-0">{{ player }}</span>
+                                            {% endfor %}
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-4 mt-3">
+                                            <div class="h-stat-item">
+                                                <div class="h-stat-val text-white">{{ "%.1f"|format(top_game_lineups_def[0].drtg) }}</div>
+                                                <div class="h-stat-label">DEF Rating</div>
+                                            </div>
+                                            <div class="h-stat-item">
+                                                <div class="h-stat-val text-white">{{ "%.1f"|format(top_game_lineups_def[0].total_minutes) }}'</div>
+                                                <div class="h-stat-label">Min Played</div>
+                                            </div>
+                                            <div class="h-stat-item">
+                                                <div class="h-stat-val text-white">{{ top_game_lineups_def[0].points_allowed }} ALL</div>
+                                                <div class="h-stat-label">Resistance</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-5 d-none d-lg-block text-end">
+                                        <div class="display-1 opacity-25 fw-bold text-white">DEF</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="section-divider"><span>Top Defensive Lineups</span></div>
+                    <div class="row">
+                        {% for lineup in top_game_lineups_def %}
+                        <div class="col-lg-12 mb-4">
+                            <div class="modern-stat-card shadow-sm border-start border-4 border-danger">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <div class="card-rank-badge rank-{{ loop.index }}">#{{ loop.index }}</div>
+                                        <div class="d-flex flex-wrap">
+                                            {% for player in lineup.players %}
+                                                <span class="player-pill">{{ player }}</span>
+                                            {% endfor %}
+                                        </div>
+                                        <div class="combo-meta">
+                                            <span><i class="far fa-clock me-1"></i>{{ "%.1f"|format(lineup.total_minutes) }} Minutes</span>
+                                            <span><i class="fas fa-layer-group me-1"></i>{{ lineup.segment_count }} Segments</span>
+                                        </div>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="h3 mb-0 fw-bold text-danger">{{ "+" if lineup.impact.defense_delta >= 0 else "" }}{{ "%.1f"|format(lineup.impact.defense_delta) }}</div>
+                                        <div class="small text-muted text-uppercase fw-bold letter-spacing-1" style="font-size: 0.6rem;">DEFENSE DELTA</div>
+                                        <div class="fw-bold text-danger" style="font-size: 0.7rem;">{{ "%.1f"|format(lineup.drtg) }} DRTG</div>
+                                    </div>
+                                </div>
+                                <div class="rating-bar-container"><div class="rating-bar-fill bg-danger" style="width: {{ [lineup.drtg, 150]|min / 1.5 }}%"></div></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="section-divider"><span>Defensive Synergy Duos</span></div>
+                    <div class="row">
+                        {% for duo in top_game_duos_def %}
+                        <div class="col-lg-4 mb-4">
+                            <div class="modern-stat-card h-100">
+                                <div class="card-rank-badge rank-{{ loop.index }}">#{{ loop.index }}</div>
+                                <h5 class="fw-bold mb-3">{{ duo.players|join(' + ') }}</h5>
+                                <div class="d-flex justify-content-between align-items-end">
+                                    <div>
+                                        <div class="small text-muted text-uppercase mb-1">Defense Delta</div>
+                                        <div class="h2 mb-0 fw-black text-danger">+{{ "%.1f"|format(duo.impact.defense_delta) }}</div>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="badge bg-danger-soft text-danger rounded-pill px-3">{{ "%.1f"|format(duo.on.drtg) }} ON</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>

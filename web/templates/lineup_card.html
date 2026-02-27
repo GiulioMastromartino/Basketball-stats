@@ -420,6 +420,52 @@
     </div>
 
     <div class="section-title">
+        <i class="fas fa-users" style="color: #4a90e2;"></i>
+        Full Lineup Offensive Profile
+    </div>
+    <div class="row mb-4">
+        <div class="col-lg-8 mx-auto">
+            <div class="chart-container">
+                <h5 class="text-center mb-3">Total Lineup Shots <span id="lineupTotalShots" class="badge bg-primary">0</span></h5>
+                <div class="shot-chart-wrapper mx-auto" style="max-width: 500px;">
+                    <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" />
+                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                    </svg>
+                    <div id="fullLineupShotsLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+                </div>
+                <div class="d-flex justify-content-center gap-4 mt-3">
+                    <div class="text-center">
+                        <div class="h4 mb-0 fw-bold text-success" id="lineupTotalMakes">0</div>
+                        <div class="small text-muted">Makes</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="h4 mb-0 fw-bold text-danger" id="lineupTotalMisses">0</div>
+                        <div class="small text-muted">Misses</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="h4 mb-0 fw-bold text-primary" id="lineupTotalFgPct">0%</div>
+                        <div class="small text-muted">FG%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-user-friends" style="color: #20c997;"></i>
+        Individual Player Breakdown
+    </div>
+    <div id="playerBreakdownContainer" class="row">
+        <!-- Will be populated by JS -->
+    </div>
+
+    <div class="section-title">
         <i class="fas fa-crosshairs" style="color: #e53e3e;"></i>
         Opponent Shot Chart
     </div>
@@ -449,6 +495,14 @@
         .shot-point:hover {
             transform: translate(-50%, -50%) scale(1.5);
             z-index: 20;
+        }
+        .shot-team-make { 
+            background-color: #28a745; 
+        }
+        .shot-team-miss { 
+            background-color: transparent; 
+            border: 2px solid #dc3545; 
+            box-sizing: border-box;
         }
         .shot-opponent-make { 
             background-color: #f59e0b; 
@@ -603,7 +657,7 @@
     }
 
     function renderLineup(data) {
-        const { lineup, stats, games, opponent_shots } = data;
+        const { lineup, stats, games, opponent_shots, player_shots } = data;
 
         document.getElementById('lineupDisplayName').value = lineup.display_name || '';
         
@@ -666,6 +720,85 @@
         if (opponent_shots) {
             renderOpponentShotCharts(opponent_shots);
         }
+
+        // Render player-specific breakdowns
+        if (player_shots) {
+            renderPlayerBreakdown(lineup.players, player_shots);
+        }
+    }
+
+    function renderPlayerBreakdown(players, playerShots) {
+        const container = document.getElementById('playerBreakdownContainer');
+        container.innerHTML = '';
+        
+        const fullLayer = document.getElementById('fullLineupShotsLayer');
+        fullLayer.innerHTML = '';
+        
+        let totalMakes = 0;
+        let totalMisses = 0;
+
+        players.forEach(player => {
+            const shots = playerShots[player] || [];
+            const makes = shots.filter(s => s.result === 'made');
+            const misses = shots.filter(s => s.result === 'missed');
+            
+            totalMakes += makes.length;
+            totalMisses += misses.length;
+
+            const playerCol = document.createElement('div');
+            playerCol.className = 'col-lg-4 col-md-6 mb-4';
+            playerCol.innerHTML = `
+                <div class="chart-container h-100">
+                    <h6 class="text-center fw-bold mb-2">${player}</h6>
+                    <div class="d-flex justify-content-center gap-2 mb-3">
+                        <span class="badge bg-success">${makes.length} Made</span>
+                        <span class="badge bg-danger">${misses.length} Missed</span>
+                    </div>
+                    <div class="shot-chart-wrapper mx-auto" style="max-width: 300px;">
+                        <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c; border-radius: 8px;">
+                            <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" />
+                            <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                            <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                            <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                            <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                            <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                            <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                        </svg>
+                        <div id="playerLayer_${player.replace(/\s+/g, '_')}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(playerCol);
+
+            // Populate player shots AND full lineup layer
+            const layer = document.getElementById(`playerLayer_${player.replace(/\s+/g, '_')}`);
+            shots.forEach(shot => {
+                const dotClass = shot.result === 'made' ? 'shot-team-make' : 'shot-team-miss';
+                const title = `${player}: ${shot.type.toUpperCase()} ${shot.result} - Q${shot.quarter}`;
+                
+                // Add to individual chart
+                const dot = document.createElement('div');
+                dot.className = `shot-point ${dotClass}`;
+                dot.style.left = `${(shot.x || 250) / 500 * 100}%`;
+                dot.style.top = `${(shot.y || 150) / 470 * 100}%`;
+                dot.title = title;
+                dot.style.pointerEvents = 'auto';
+                layer.appendChild(dot);
+                
+                // Add to full lineup aggregate chart
+                const aggregateDot = dot.cloneNode(true);
+                aggregateDot.title = title;
+                aggregateDot.style.pointerEvents = 'auto';
+                fullLayer.appendChild(aggregateDot);
+            });
+        });
+        
+        // Update summary stats for the aggregate chart
+        const totalShots = totalMakes + totalMisses;
+        document.getElementById('lineupTotalShots').textContent = totalShots;
+        document.getElementById('lineupTotalMakes').textContent = totalMakes;
+        document.getElementById('lineupTotalMisses').textContent = totalMisses;
+        document.getElementById('lineupTotalFgPct').textContent = totalShots > 0 ? ((totalMakes / totalShots) * 100).toFixed(1) + '%' : '0%';
     }
 
     function renderGamesTable(games) {

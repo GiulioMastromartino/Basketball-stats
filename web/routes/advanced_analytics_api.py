@@ -409,6 +409,7 @@ def get_lineup_rankings():
     """Get 5-man lineup efficiency rankings."""
     game_type = request.args.get("game_type", "ALL")
     min_possessions = request.args.get("min_possessions", 5, type=int)
+    rank_by = request.args.get("rank_by", "overall")
 
     query = Game.query
     if game_type == "Season":
@@ -421,7 +422,7 @@ def get_lineup_rankings():
 
     rankings = safe_query(
         lambda: LineupAnalytics.get_lineup_efficiency_rankings(
-            game_ids, min_possessions
+            game_ids, min_possessions, rank_by=rank_by
         ),
         fallback_result=[],
         error_message="lineup_segments table missing",
@@ -442,7 +443,10 @@ def get_lineup_combinations():
     """Get top lineup combinations (duos/trios) by ON vs OFF net differential."""
     game_type = request.args.get("game_type", "ALL")
     combo_type = request.args.get("type", "duo").strip().lower()
-    min_minutes = request.args.get("min_minutes", 5.0, type=float)
+    min_possessions = request.args.get("min_possessions", type=float)
+    if min_possessions is None:
+        # Backward compatibility with older clients.
+        min_possessions = request.args.get("min_minutes", 0, type=float)
 
     if combo_type not in {"duo", "trio"}:
         return jsonify({"error": "Invalid type. Use 'duo' or 'trio'."}), 400
@@ -454,13 +458,16 @@ def get_lineup_combinations():
         query = query.filter(Game.game_type == "Friendly")
 
     game_ids = [g.id for g in query.all()]
+    rank_by = request.args.get("rank_by", "overall")
 
     combinations = safe_query(
         lambda: LineupAnalytics.get_combination_net_differentials(
             combination_type=combo_type,
             game_ids=game_ids,
-            min_minutes=max(min_minutes, 0.1),
+            min_possessions=max(min_possessions, 0),
             top_n=10,
+            require_positive=True,
+            rank_by=rank_by
         ),
         fallback_result=[],
         error_message="lineup_segments table missing",
@@ -470,7 +477,7 @@ def get_lineup_combinations():
         {
             "game_type": game_type,
             "type": combo_type,
-            "min_minutes": max(min_minutes, 0.1),
+            "min_possessions": max(min_possessions, 0),
             "total": len(combinations),
             "combinations": combinations,
         }
@@ -483,7 +490,9 @@ def get_lineup_combination_detail():
     """Get detailed ON/OFF card data for a specific duo/trio combination."""
     game_type = request.args.get("game_type", "ALL")
     combo_type = request.args.get("type", "duo").strip().lower()
-    min_minutes = request.args.get("min_minutes", 0.1, type=float)
+    min_possessions = request.args.get("min_possessions", type=float)
+    if min_possessions is None:
+        min_possessions = request.args.get("min_minutes", 0, type=float)
     players_param = request.args.get("players", "")
 
     if combo_type not in {"duo", "trio"}:
@@ -510,7 +519,7 @@ def get_lineup_combination_detail():
             combination_type=combo_type,
             players=players,
             game_ids=game_ids,
-            min_minutes=max(min_minutes, 0.1),
+            min_possessions=max(min_possessions, 0),
         ),
         fallback_result=None,
         error_message="lineup_segments table missing",
@@ -533,7 +542,7 @@ def get_lineup_combination_detail():
             "game_type": game_type,
             "type": combo_type,
             "players": sorted_players,
-            "min_minutes": min_minutes,
+            "min_possessions": min_possessions,
             "combination": combo,
             "games": _summarize_combination_by_game(with_segments),
             "shots": {
@@ -1330,6 +1339,7 @@ def get_lineup_card(lineup_id):
             },
             "games": games_list,
             "opponent_shots": get_opponent_shots_for_lineup(lineup_id),
+            "player_shots": get_player_shots_for_lineup(lineup_id),
         }
     )
 
@@ -1372,6 +1382,56 @@ def get_opponent_shots_for_lineup(lineup_id):
     return shots
 
 
+def get_player_shots_for_lineup(lineup_id):
+    """Get individual shot locations for all players in a lineup during its segments."""
+    from core.models import ShotEvent, Lineup
+    
+    lineup = Lineup.query.get(lineup_id)
+    if not lineup or not lineup.players:
+        return {}
+        
+    segments = LineupSegment.query.filter_by(lineup_id=lineup_id).all()
+    if not segments:
+        return {p: [] for p in lineup.players}
+    
+    player_shots = {p: [] for p in lineup.players}
+    
+    for segment in segments:
+        # Fetch shots for all players in the lineup during this segment's window
+        shots = ShotEvent.query.filter(
+            ShotEvent.game_id == segment.game_id,
+            ShotEvent.player_name.in_(lineup.players),
+            ShotEvent.x_loc.isnot(None),
+            ShotEvent.y_loc.isnot(None)
+        ).all()
+        
+        # We need to filter shots that happened during this specific segment
+        # Since ShotEvent doesn't have lineup_segment_id, we use timestamp from GameEvent if possible
+        # or just use the Game ID if we assume segments cover the whole time they were on.
+        # Actually, for a specific 5-man lineup, if they are on court, any shot by them 
+        # in that game should ideally be attributed to that lineup segment if we had the link.
+        
+        # To be precise, we'll look for GameEvents of type SHOT_2PT/SHOT_3PT linked to this segment
+        from core.models import GameEvent
+        linked_shots = GameEvent.query.filter(
+            GameEvent.lineup_segment_id == segment.id,
+            GameEvent.event_type.in_(["SHOT_2PT", "SHOT_3PT"])
+        ).all()
+        
+        for ls in linked_shots:
+            if ls.player_name in player_shots:
+                player_shots[ls.player_name].append({
+                    "x": ls.x_loc,
+                    "y": ls.y_loc,
+                    "result": "made" if ls.shot_attempt == "made" else "missed",
+                    "type": "3pt" if ls.event_type == "SHOT_3PT" else "2pt",
+                    "quarter": ls.quarter,
+                    "game_id": segment.game_id
+                })
+                
+    return player_shots
+
+
 def _normalize_segment_players(raw_players):
     if isinstance(raw_players, str):
         try:
@@ -1403,25 +1463,53 @@ def _get_segments_for_combination(combo_players, game_ids=None, with_combo=True)
 
 
 def _get_team_shots_for_segments(segments, player_filter=None):
-    """Get 2PT/3PT shot events with coordinates for given segments in a single batch query."""
+    """Get 2PT/3PT shot events with coordinates for given segments.
+
+    Supports both linked events (`lineup_segment_id`) and legacy events that
+    only have timestamp ranges.
+    """
     if not segments:
         return []
-        
-    normalized_filter = {p.strip() for p in (player_filter or []) if p and p.strip()}
+
+    normalized_filter = {
+        p.strip().lower() for p in (player_filter or []) if p and p.strip()
+    }
     segment_ids = [s.id for s in segments]
-    
-    # Efficient batch query for all shots in all provided segments
+
+    game_ranges = {}
+    for segment in segments:
+        game_ranges.setdefault(segment.game_id, []).append(
+            (segment.start_timestamp, segment.end_timestamp or 9999999999999)
+        )
+
     from core.models import GameEvent
-    all_shots = GameEvent.query.filter(
+    linked_shots = GameEvent.query.filter(
         GameEvent.lineup_segment_id.in_(segment_ids),
         GameEvent.event_type.in_(["SHOT_2PT", "SHOT_3PT"]),
         GameEvent.x_loc.isnot(None),
         GameEvent.y_loc.isnot(None),
     ).all()
 
+    # Legacy fallback: events without lineup_segment_id, matched by timestamp.
+    unlinked_shots = GameEvent.query.filter(
+        GameEvent.game_id.in_(list(game_ranges.keys())),
+        GameEvent.lineup_segment_id.is_(None),
+        GameEvent.event_type.in_(["SHOT_2PT", "SHOT_3PT"]),
+        GameEvent.x_loc.isnot(None),
+        GameEvent.y_loc.isnot(None),
+    ).all()
+
+    selected_shots = {shot.id: shot for shot in linked_shots}
+    for shot in unlinked_shots:
+        ranges = game_ranges.get(shot.game_id, [])
+        ts = shot.timestamp or 0
+        if any(start <= ts <= end for start, end in ranges):
+            selected_shots[shot.id] = shot
+
     shots = []
-    for shot in all_shots:
-        if normalized_filter and (shot.player_name or "").strip() not in normalized_filter:
+    for shot in selected_shots.values():
+        shot_player = (shot.player_name or "").strip().lower()
+        if normalized_filter and shot_player not in normalized_filter:
             continue
         made = shot.shot_attempt == "made"
         shot_type = "3pt" if shot.event_type == "SHOT_3PT" else "2pt"

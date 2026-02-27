@@ -209,6 +209,7 @@ class LineupAnalytics:
                     "points_allowed": segment.points_allowed or 0,
                     "possessions": segment.possessions or 0,
                     "duration_seconds": segment.duration_seconds or 0,
+                    "reb_conceded": segment.reb_conceded or 0,
                 }
             )
         return payload
@@ -355,90 +356,88 @@ class LineupAnalytics:
     def get_combination_net_differentials(
         combination_type: str,
         game_ids: List[int] = None,
-        min_minutes: float = 5.0,
+        min_possessions: float = 0.0,
         top_n: int = 10,
+        require_positive: bool = True,
+        total_pts_scored_override: float = None,
+        total_pts_allowed_override: float = None,
+        total_possessions_override: float = None,
+        rank_by: str = "overall",  # overall, offensive, defensive
     ) -> List[Dict]:
         """
-        Rank duo/trio combinations by ON vs OFF net rating differential.
-
-        Differential is calculated as:
-        (ON ORtg - ON DRtg) - (OFF ORtg - OFF DRtg)
+        Rank duo/trio combinations by ON vs OFF rating differential.
+        Uses optimized Rust backend.
         """
         if combination_type not in {"duo", "trio"}:
             raise ValueError("combination_type must be 'duo' or 'trio'")
 
         segment_data = LineupAnalytics._build_segment_payload(game_ids)
         if not segment_data:
+            print(f"[LineupAnalytics] No segments found for game_ids: {game_ids}")
             return []
 
-        stats = rust_analytics.aggregate_combinatorial_stats(segment_data)
-        combo_key = "duos" if combination_type == "duo" else "trios"
-        combo_stats = stats.get(combo_key, {})
+        # Use Rust to do the heavy lifting
+        # The wrapper in core/rust_analytics.py already does json.loads
+        results = rust_analytics.calculate_impact_metrics(
+            segment_data, combination_type, float(min_possessions)
+        )
+        
+        if not results:
+            return []
+        
+        # Override deltas if totals provided (Hybrid approach: use Rust for agg, Python for final delta fix)
+        # Note: Rust function calculates its own totals from segments. 
+        # If overrides are provided, we need to adjust the OFF ratings here.
+        if total_possessions_override:
+            # Re-calculate OFF ratings based on overrides
+            for item in results:
+                on_poss = item['on']['possessions']
+                on_pts = item['on']['points_scored']
+                on_allowed = item['on']['points_allowed']
+                
+                off_poss = total_possessions_override - on_poss
+                if off_poss > 0:
+                    off_pts = total_pts_scored_override - on_pts
+                    off_allowed = total_pts_allowed_override - on_allowed
+                    
+                    off_ortg = round(off_pts / off_poss * 100, 1)
+                    off_drtg = round(off_allowed / off_poss * 100, 1)
+                    off_net = round(off_ortg - off_drtg, 1)
+                    
+                    item['off']['ortg'] = off_ortg
+                    item['off']['drtg'] = off_drtg
+                    item['off']['net'] = off_net
+                    item['off']['possessions'] = round(off_poss, 1)
+                    
+                    item['impact']['offense_delta'] = round(item['on']['ortg'] - off_ortg, 1)
+                    item['impact']['defense_delta'] = round(off_drtg - item['on']['drtg'], 1)
+                    item['impact']['net_differential'] = round(item['on']['net'] - off_net, 1)
+                else:
+                    # Fallback for when combination is on for the whole game
+                    item['off']['ortg'] = 0.0
+                    item['off']['drtg'] = 0.0
+                    item['off']['net'] = 0.0
+                    item['impact']['offense_delta'] = 0.0
+                    item['impact']['defense_delta'] = 0.0
+                    item['impact']['net_differential'] = 0.0
 
-        # Robust totals calculation with fallback to segment_data sum
-        totals = stats.get("totals") or {}
-        total_points_scored = float(totals.get("points_scored") or sum(s.get("points_scored", 0) for s in segment_data))
-        total_points_allowed = float(totals.get("points_allowed") or sum(s.get("points_allowed", 0) for s in segment_data))
-        total_possessions = float(totals.get("possessions") or sum(s.get("possessions", 0) for s in segment_data))
-        total_duration = float(totals.get("duration_seconds") or sum(s.get("duration_seconds", 0) for s in segment_data))
+        # Filtering
+        if require_positive:
+            if rank_by == "overall":
+                results = [r for r in results if r['impact']['net_differential'] > 0]
+            elif rank_by == "offensive":
+                results = [r for r in results if r['impact']['offense_delta'] > 0]
+            elif rank_by == "defensive":
+                results = [r for r in results if r['impact']['defense_delta'] > 0]
 
-        results = []
-        for key, on_stats in combo_stats.items():
-            on_duration = float(on_stats.get("duration_seconds") or 0)
-            on_possessions = float(on_stats.get("possessions", 0) or 0)
-            
-            # Fallback for minutes if duration is missing but possessions exist
-            if on_duration <= 0 and on_possessions > 0 and total_possessions > 0:
-                on_duration = (on_possessions / total_possessions) * total_duration
-            
-            on_minutes = on_duration / 60.0
-            if on_minutes < min_minutes:
-                continue
-            off_possessions = total_possessions - on_possessions
-            if off_possessions <= 0:
-                continue
+        # Sorting
+        if rank_by == "offensive":
+            results.sort(key=lambda x: (x['impact']['offense_delta'], x['on']['minutes']), reverse=True)
+        elif rank_by == "defensive":
+            results.sort(key=lambda x: (x['impact']['defense_delta'], x['on']['minutes']), reverse=True)
+        else:
+            results.sort(key=lambda x: (x['impact']['net_differential'], x['on']['minutes']), reverse=True)
 
-            on_points_scored = float(on_stats.get("points_scored", 0) or 0)
-            on_points_allowed = float(on_stats.get("points_allowed", 0) or 0)
-            off_points_scored = total_points_scored - on_points_scored
-            off_points_allowed = total_points_allowed - on_points_allowed
-
-            on_rating = LineupAnalytics._rating(
-                on_points_scored, on_points_allowed, on_possessions
-            )
-            off_rating = LineupAnalytics._rating(
-                off_points_scored, off_points_allowed, off_possessions
-            )
-            net_diff = round(on_rating["net"] - off_rating["net"], 1)
-
-            players = key.split(",")
-            results.append(
-                {
-                    "type": combination_type,
-                    "players": players,
-                    "segments": int(on_stats.get("segments", 0) or 0),
-                    "on": {
-                        "minutes": round(on_minutes, 1),
-                        "possessions": round(on_possessions, 1),
-                        "points_scored": round(on_points_scored, 1),
-                        "points_allowed": round(on_points_allowed, 1),
-                        **on_rating,
-                    },
-                    "off": {
-                        "possessions": round(off_possessions, 1),
-                        "points_scored": round(off_points_scored, 1),
-                        "points_allowed": round(off_points_allowed, 1),
-                        **off_rating,
-                    },
-                    "impact": {
-                        "offense_delta": round(on_rating["ortg"] - off_rating["ortg"], 1),
-                        "defense_delta": round(off_rating["drtg"] - on_rating["drtg"], 1),
-                        "net_differential": net_diff,
-                    },
-                }
-            )
-
-        results.sort(key=lambda item: item["impact"]["net_differential"], reverse=True)
         return results[:top_n]
 
     @staticmethod
@@ -446,7 +445,7 @@ class LineupAnalytics:
         combination_type: str,
         players: List[str],
         game_ids: List[int] = None,
-        min_minutes: float = 0.1,
+        min_possessions: float = 0.0,
     ) -> Optional[Dict]:
         """Get ON vs OFF detail card data for a specific duo/trio."""
         if combination_type not in {"duo", "trio"}:
@@ -486,11 +485,13 @@ class LineupAnalytics:
             on_duration = (on_possessions / total_possessions) * total_duration
             
         on_minutes = on_duration / 60.0
-        if on_minutes < min_minutes:
+        if on_possessions < float(min_possessions or 0):
             return None
         off_possessions = total_possessions - on_possessions
         if off_possessions <= 0:
             return None
+        off_duration = max(total_duration - on_duration, 0.0)
+        off_minutes = off_duration / 60.0
 
         on_points_scored = float(on_stats.get("points_scored", 0) or 0)
         on_points_allowed = float(on_stats.get("points_allowed", 0) or 0)
@@ -512,6 +513,7 @@ class LineupAnalytics:
                 **on_rating,
             },
             "off": {
+                "minutes": round(off_minutes, 1),
                 "possessions": round(off_possessions, 1),
                 "points_scored": round(off_points_scored, 1),
                 "points_allowed": round(off_points_allowed, 1),
@@ -526,13 +528,15 @@ class LineupAnalytics:
     
     @staticmethod
     def get_lineup_efficiency_rankings(game_ids: List[int] = None, 
-                                        min_possessions: int = 10) -> List[Dict]:
+                                        min_possessions: int = 10,
+                                        rank_by: str = "overall") -> List[Dict]:
         """
-        Rank 5-man lineups by Net Rating.
+        Rank 5-man lineups by performance metrics.
         
         Args:
             game_ids: Optional game filter
             min_possessions: Minimum possessions to qualify
+            rank_by: 'overall', 'offensive', or 'defensive'
         
         Returns:
             List of lineup rankings
@@ -546,7 +550,8 @@ class LineupAnalytics:
         # Aggregate by lineup hash
         lineup_stats = defaultdict(lambda: {
             'players': [], 'segments': 0, 'points_scored': 0, 
-            'points_allowed': 0, 'possessions': 0
+            'points_allowed': 0, 'possessions': 0, 'total_seconds': 0,
+            'games': set(), 'lineup_id': None
         })
         
         for segment in segments:
@@ -569,6 +574,10 @@ class LineupAnalytics:
             lineup_stats[lineup_hash]['points_scored'] += segment.points_scored or 0
             lineup_stats[lineup_hash]['points_allowed'] += segment.points_allowed or 0
             lineup_stats[lineup_hash]['possessions'] += segment.possessions or 0
+            lineup_stats[lineup_hash]['total_seconds'] += segment.duration_seconds or 0
+            lineup_stats[lineup_hash]['games'].add(segment.game_id)
+            if segment.lineup_id:
+                lineup_stats[lineup_hash]['lineup_id'] = segment.lineup_id
         
         # Calculate ratings and filter
         results = []
@@ -577,10 +586,13 @@ class LineupAnalytics:
                 ortg = stats['points_scored'] / stats['possessions'] * 100
                 drtg = stats['points_allowed'] / stats['possessions'] * 100
                 results.append({
+                    'id': stats['lineup_id'],
                     'lineup_hash': lineup_hash,
                     'players': stats['players'],
                     'segments': stats['segments'],
+                    'games_played': len(stats['games']),
                     'possessions': stats['possessions'],
+                    'total_minutes': round(stats['total_seconds'] / 60, 1),
                     'points_scored': stats['points_scored'],
                     'points_allowed': stats['points_allowed'],
                     'ortg': round(ortg, 1),
@@ -588,7 +600,15 @@ class LineupAnalytics:
                     'net_rating': round(ortg - drtg, 1)
                 })
         
-        return sorted(results, key=lambda x: x['net_rating'], reverse=True)
+        # Performance-based sorting
+        if rank_by == "offensive":
+            results.sort(key=lambda x: (x['ortg'], x['total_minutes']), reverse=True)
+        elif rank_by == "defensive":
+            results.sort(key=lambda x: (x['drtg'], -x['total_minutes'])) # Lower DRtg first, then more mins
+        else:
+            results.sort(key=lambda x: (x['net_rating'], x['total_minutes']), reverse=True)
+            
+        return results
     
     @staticmethod
     def get_rotation_analysis(game_id: int) -> Dict:
@@ -655,31 +675,29 @@ class LineupAnalytics:
         return gantt_data
 
     @staticmethod
-    def get_game_lineup_rankings(game_id: int, top_n: int = 4) -> List[Dict]:
+    def get_game_lineup_rankings(
+        game_id: int,
+        top_n: int = 4,
+        rank_by: str = "overall",
+        min_possessions: float = 2.0,
+        total_pts_scored_override: float = None,
+        total_pts_allowed_override: float = None,
+        total_possessions_override: float = None,
+    ) -> List[Dict]:
         """
-        Get top N 5-player lineups for a specific game, ranked by minutes played.
+        Get top N 5-player lineups for a specific game, ranked by performance impact.
         
-        This provides per-game lineup analysis to see which combinations played
-        the most and performed best together.
-        
-        Args:
-            game_id: ID of the game to analyze
-            top_n: Number of top lineups to return (default: 4)
-        
-        Returns:
-            List of dictionaries with lineup stats sorted by total_seconds descending:
-            - lineup_hash: Unique identifier for the lineup
-            - players: List of 5 player names
-            - total_seconds: Total time on court together
-            - total_minutes: Time in minutes (rounded)
-            - points_scored, points_allowed, possessions
-            - ortg: Offensive rating (points per 100 possessions)
-            - drtg: Defensive rating (points allowed per 100 possessions)
-            - net_rating: ortg - drtg
-            - segment_count: Number of separate stints this lineup played
+        Impact is calculated relative to the team's overall performance in that game.
         """
         segments = LineupSegment.query.filter_by(game_id=game_id).all()
         
+        # Calculate game-wide averages for delta comparison
+        game_ortg = 0
+        game_drtg = 0
+        if total_possessions_override and total_possessions_override > 0:
+            game_ortg = (total_pts_scored_override / total_possessions_override) * 100
+            game_drtg = (total_pts_allowed_override / total_possessions_override) * 100
+
         # Aggregate by lineup_hash
         lineup_stats = defaultdict(lambda: {
             'players': [],
@@ -691,17 +709,12 @@ class LineupAnalytics:
         })
         
         for segment in segments:
-            # Handle potential JSON string vs List issue
             players = segment.players
             if isinstance(players, str):
-                try:
-                    players = json.loads(players)
-                except:
-                    players = []
-            if not players:
-                players = []
+                try: players = json.loads(players)
+                except: players = []
             
-            if len(players) != 5:
+            if not players or len(players) != 5:
                 continue
             
             key = segment.lineup_hash
@@ -712,12 +725,20 @@ class LineupAnalytics:
             lineup_stats[key]['possessions'] += segment.possessions or 0
             lineup_stats[key]['segment_count'] += 1
         
-        # Calculate ratings and build results
         results = []
         for lineup_hash, stats in lineup_stats.items():
-            possessions = stats['possessions'] or 1  # Avoid division by zero
+            possessions = stats['possessions']
+            if stats['total_seconds'] <= 0 or possessions < min_possessions:
+                continue
+                
             ortg = round(stats['points_scored'] / possessions * 100, 1)
             drtg = round(stats['points_allowed'] / possessions * 100, 1)
+            net = round(ortg - drtg, 1)
+            
+            # Calculate impact deltas
+            off_delta = round(ortg - game_ortg, 1)
+            def_delta = round(game_drtg - drtg, 1) # Higher is better (positive = allowed fewer than avg)
+            net_delta = round(net - (game_ortg - game_drtg), 1)
             
             results.append({
                 'lineup_hash': lineup_hash,
@@ -730,11 +751,23 @@ class LineupAnalytics:
                 'segment_count': stats['segment_count'],
                 'ortg': ortg,
                 'drtg': drtg,
-                'net_rating': round(ortg - drtg, 1)
+                'net_rating': net,
+                'impact': {
+                    'offense_delta': off_delta,
+                    'defense_delta': def_delta,
+                    'net_delta': net_delta
+                }
             })
         
-        # Sort by minutes played (descending)
-        return sorted(results, key=lambda x: x['total_seconds'], reverse=True)[:top_n]
+        # Sort by impact delta (higher is always better)
+        if rank_by == "offensive":
+            results.sort(key=lambda x: (x['impact']['offense_delta'], x['total_seconds']), reverse=True)
+        elif rank_by == "defensive":
+            results.sort(key=lambda x: (x['impact']['defense_delta'], x['total_seconds']), reverse=True)
+        else:
+            results.sort(key=lambda x: (x['impact']['net_delta'], x['total_seconds']), reverse=True)
+            
+        return results[:top_n]
 
 
 # =============================================================================
@@ -1087,40 +1120,39 @@ class ShotChartAnalytics:
     @staticmethod
     def get_heatmap_data(game_ids: List[int] = None, player_name: str = None) -> Dict:
         """
-        Generate heatmap data for shot zones.
+        Generate heatmap data for shot zones using optimized Rust backend.
         
         Returns:
-            Dictionary with zone-based shooting percentages
+            Dict mapping zone names to {makes, attempts, frequency, fg_pct, pps}
         """
-        shots = ShotChartAnalytics.get_shot_chart_data(
-            player_name=player_name, game_ids=game_ids
-        )
-        
-        zone_stats = defaultdict(lambda: {'makes': 0, 'attempts': 0, 'points': 0})
-        
-        for shot in shots:
-            zone = shot['zone']
-            zone_stats[zone]['attempts'] += 1
-            zone_stats[zone]['points'] += shot['points'] or 0
-            if shot['result'] == 'made':
-                zone_stats[zone]['makes'] += 1
-        
-        heatmap = {}
-        for zone, stats in zone_stats.items():
-            fg_pct = safe_percentage(stats['makes'], stats['attempts'])
-            expected = get_expected_value(zone)
-            actual_pps = safe_divide(stats['points'], stats['attempts'])
+        query = ShotEvent.query
+        if game_ids:
+            query = query.filter(ShotEvent.game_id.in_(game_ids))
+        if player_name:
+            query = query.filter(ShotEvent.player_name == player_name)
             
-            heatmap[zone] = {
-                'attempts': stats['attempts'],
-                'makes': stats['makes'],
-                'fg_pct': fg_pct,
-                'expected_value': expected,
-                'actual_pps': round(actual_pps, 2),
-                'efficiency_delta': round(actual_pps - expected, 2)
-            }
+        shots = query.all()
         
-        return heatmap
+        # Prepare data for Rust
+        shot_data = [
+            {
+                "points": s.points or 0,
+                "x_loc": s.x_loc,
+                "y_loc": s.y_loc,
+                "shot_type": s.shot_type or ""
+            }
+            for s in shots
+        ]
+        
+        # Calculate in Rust
+        # The wrapper in core/rust_analytics.py already does json.loads
+        heatmap_list = rust_analytics.calculate_shot_heatmap(shot_data)
+        
+        if not heatmap_list:
+            return {}
+        
+        # Convert list back to dict keyed by zone
+        return {item['zone']: item for item in heatmap_list}
     
     @staticmethod
     def get_hexbin_data(game_ids: List[int] = None, player_name: str = None,

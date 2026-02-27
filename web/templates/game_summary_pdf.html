@@ -196,6 +196,103 @@
                 padding-bottom: 4px;
             }
 
+            /* Redesigned Combinations Section (PDF Optimized) */
+            .pdf-combo-section {
+                margin-top: 20px;
+                page-break-inside: auto;
+            }
+            .pdf-highlight-card {
+                background-color: #1a202c;
+                color: white;
+                border-radius: 12px;
+                padding: 15px;
+                margin-bottom: 20px;
+            }
+            .pdf-highlight-label {
+                font-size: 8px;
+                text-transform: uppercase;
+                color: #a0aec0;
+                font-weight: bold;
+                margin-bottom: 8px;
+            }
+            .pdf-highlight-title {
+                font-size: 14px;
+                font-weight: bold;
+                margin-bottom: 10px;
+            }
+            .pdf-modern-card {
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                padding: 12px;
+                margin-bottom: 10px;
+                background-color: white;
+                page-break-inside: avoid;
+            }
+            .pdf-rank-badge {
+                display: inline-block;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 9px;
+                margin-bottom: 8px;
+            }
+            .pdf-rank-1 { background: #fef3c7; color: #92400e; }
+            .pdf-rank-2 { background: #f1f5f9; color: #475569; }
+            .pdf-rank-3 { background: #fafaf9; color: #78716c; }
+
+            .pdf-player-tag {
+                display: inline-block;
+                padding: 2px 6px;
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 4px;
+                font-size: 9px;
+                margin-right: 4px;
+                margin-bottom: 4px;
+            }
+            .pdf-stat-row {
+                display: table;
+                width: 100%;
+                margin-top: 8px;
+            }
+            .pdf-stat-col {
+                display: table-cell;
+                width: 33%;
+            }
+            .pdf-stat-val {
+                font-size: 12px;
+                font-weight: bold;
+            }
+            .pdf-stat-label {
+                font-size: 7px;
+                text-transform: uppercase;
+                color: #718096;
+            }
+            .pdf-bar-container {
+                height: 4px;
+                background: #f1f5f9;
+                border-radius: 2px;
+                overflow: hidden;
+                margin: 4px 0;
+                width: 100%;
+            }
+            .pdf-bar-fill {
+                height: 100%;
+                border-radius: 2px;
+            }
+            .pdf-team-marker {
+                position: absolute;
+                width: 2px;
+                height: 8px;
+                background: #1a202c;
+                top: -2px;
+                z-index: 10;
+            }
+            .pdf-bar-wrapper {
+                position: relative;
+                padding: 2px 0;
+            }
+
             /* Bottom Stats Grid */
             .stat-row-bottom td.grey-box-cell {
                 background-color: #e5e7eb;
@@ -537,6 +634,164 @@
             </div>
         </div>
 
+        <!-- TOP COMBINATIONS SECTION -->
+        <div class="pdf-combo-section">
+            <div class="section-title">Offensive Performance Highlights</div>
+            <div class="row">
+                <!-- TOP OFFENSIVE LINEUP HIGHLIGHT -->
+                <div class="col">
+                    {% if top_lineups_off %}
+                    <div class="pdf-highlight-card" style="background-color: #2b6cb0;">
+                        <div class="pdf-highlight-label">Best Offensive Unit</div>
+                        <div class="pdf-highlight-title">{{ top_lineups_off[0].players|join(' · ') }}</div>
+                        <div class="pdf-stat-row">
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">{{ "%.1f"|format(top_lineups_off[0].ortg) }}</div>
+                                <div class="pdf-stat-label">OFF Rating</div>
+                            </div>
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">{{ "%.1f"|format(top_lineups_off[0].total_minutes) }}'</div>
+                                <div class="pdf-stat-label">Minutes</div>
+                            </div>
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">{{ top_lineups_off[0].points_scored }}</div>
+                                <div class="pdf-stat-label">Production</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- TOP OFFENSIVE DUO HIGHLIGHT -->
+                <div class="col">
+                    {% if top_duos_off %}
+                    <div class="pdf-highlight-card" style="background-color: #2c5282;">
+                        <div class="pdf-highlight-label">Top Offensive Synergy</div>
+                        <div class="pdf-highlight-title">{{ top_duos_off[0].players|join(' + ') }}</div>
+                        <div class="pdf-stat-row">
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">+{{ "%.1f"|format(top_duos_off[0].impact.offense_delta) }}</div>
+                                <div class="pdf-stat-label">Offense Δ</div>
+                            </div>
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">{{ "%.1f"|format(top_duos_off[0].on.minutes) }}'</div>
+                                <div class="pdf-stat-label">Minutes</div>
+                            </div>
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">{{ "%.1f"|format(top_duos_off[0].on.ortg) }}</div>
+                                <div class="pdf-stat-label">On ORtg</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="section-title" style="margin-top: 30px;">Defensive Performance Highlights</div>
+            <div class="row">
+                <!-- TOP DEFENSIVE LINEUP HIGHLIGHT -->
+                <div class="col">
+                    {% if top_lineups_def %}
+                    <div class="pdf-highlight-card" style="background-color: #9b2c2c;">
+                        <div class="pdf-highlight-label">Best Defensive Unit</div>
+                        <div class="pdf-highlight-title">{{ top_lineups_def[0].players|join(' · ') }}</div>
+                        <div class="pdf-stat-row">
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">{{ "%.1f"|format(top_lineups_def[0].drtg) }}</div>
+                                <div class="pdf-stat-label">DEF Rating</div>
+                            </div>
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">{{ "%.1f"|format(top_lineups_def[0].total_minutes) }}'</div>
+                                <div class="pdf-stat-label">Minutes</div>
+                            </div>
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">{{ top_lineups_def[0].points_allowed }}</div>
+                                <div class="pdf-stat-label">Resistance</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- TOP DEFENSIVE DUO HIGHLIGHT -->
+                <div class="col">
+                    {% if top_duos_def %}
+                    <div class="pdf-highlight-card" style="background-color: #742a2a;">
+                        <div class="pdf-highlight-label">Top Defensive Synergy</div>
+                        <div class="pdf-highlight-title">{{ top_duos_def[0].players|join(' + ') }}</div>
+                        <div class="pdf-stat-row">
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">+{{ "%.1f"|format(top_duos_def[0].impact.defense_delta) }}</div>
+                                <div class="pdf-stat-label">Defense Δ</div>
+                            </div>
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">{{ "%.1f"|format(top_duos_def[0].on.minutes) }}'</div>
+                                <div class="pdf-stat-label">Minutes</div>
+                            </div>
+                            <div class="pdf-stat-col">
+                                <div class="pdf-stat-val">{{ "%.1f"|format(top_duos_def[0].on.drtg) }}</div>
+                                <div class="pdf-stat-label">On DRtg</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- DETAILED COMBINATIONS TABLES (Modernized) -->
+            <div class="row" style="margin-top: 20px;">
+                <!-- Offensive Table -->
+                <div class="col">
+                    <table class="layout-table">
+                        <tr><th class="text-left" style="background: transparent; border: none; padding-bottom: 5px; font-size: 11px;">Top Offensive Units</th></tr>
+                        {% for lineup in top_lineups_off[:2] %}
+                        <tr><td>
+                            <div class="pdf-modern-card">
+                                <div class="pdf-rank-badge pdf-rank-{{ loop.index }}">#{{ loop.index }} OFF Lineup</div>
+                                <div style="font-size: 9px; font-weight: bold; margin-bottom: 5px;">{{ lineup.players|join(' · ') }}</div>
+                                <div class="pdf-stat-row" style="border-top: 1px solid #edf2f7; padding-top: 5px;">
+                                    <div class="pdf-stat-col" style="width: 50%;">
+                                        <div style="font-size: 10px; font-weight: bold; color: #2b6cb0;">Δ {{ "+" if lineup.impact.offense_delta >= 0 else "" }}{{ "%.1f"|format(lineup.impact.offense_delta) }}</div>
+                                        <div class="pdf-stat-label">Offense Impact</div>
+                                    </div>
+                                    <div class="pdf-stat-col" style="width: 50%; text-align: right;">
+                                        <div style="font-size: 10px; font-weight: bold;">{{ "%.1f"|format(lineup.ortg) }} ORtg</div>
+                                        <div class="pdf-stat-label">Lineup Rating</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+
+                <!-- Defensive Table -->
+                <div class="col">
+                    <table class="layout-table">
+                        <tr><th class="text-left" style="background: transparent; border: none; padding-bottom: 5px; font-size: 11px;">Top Defensive Units</th></tr>
+                        {% for lineup in top_lineups_def[:2] %}
+                        <tr><td>
+                            <div class="pdf-modern-card">
+                                <div class="pdf-rank-badge pdf-rank-{{ loop.index }}">#{{ loop.index }} DEF Lineup</div>
+                                <div style="font-size: 9px; font-weight: bold; margin-bottom: 5px;">{{ lineup.players|join(' · ') }}</div>
+                                <div class="pdf-stat-row" style="border-top: 1px solid #edf2f7; padding-top: 5px;">
+                                    <div class="pdf-stat-col" style="width: 50%;">
+                                        <div style="font-size: 10px; font-weight: bold; color: #9b2c2c;">Δ {{ "+" if lineup.impact.defense_delta >= 0 else "" }}{{ "%.1f"|format(lineup.impact.defense_delta) }}</div>
+                                        <div class="pdf-stat-label">Defense Impact</div>
+                                    </div>
+                                    <div class="pdf-stat-col" style="width: 50%; text-align: right;">
+                                        <div style="font-size: 10px; font-weight: bold;">{{ "%.1f"|format(lineup.drtg) }} DRtg</div>
+                                        <div class="pdf-stat-label">Lineup Rating</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+        </div>
+
         {% if time_progression %}
         <div class="time-progression-container">
             <div class="section-title">Time Progression</div>
@@ -737,6 +992,7 @@
                         <th>BLK</th>
                         <th>TOV</th>
                         <th>PF</th>
+                        <th style="color: #c53030">CONC</th>
                         <th>EFF</th>
                     </tr>
                 </thead>
@@ -752,12 +1008,28 @@
                         <td>{{ p.blk }}</td>
                         <td>{{ p.tov }}</td>
                         <td class="{{ 'stat-bad' if p.pf >= 4 }}">{{ p.pf }}</td>
+                        <td style="color: #c53030">{{ p.reb_conceded }}</td>
                         <td style="background: #edf2f7; font-weight: bold">
                             {{ p.eff }}
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot style="background: #edf2f7; font-weight: bold;">
+                    <tr>
+                        <td class="text-left">TOTAL</td>
+                        <td>-</td>
+                        <td style="font-weight: bold">{{ team_stats.points }}</td>
+                        <td>{{ team_stats.reb }}</td>
+                        <td>{{ team_stats.ast }}</td>
+                        <td>{{ team_stats.stl }}</td>
+                        <td>{{ team_stats.blk }}</td>
+                        <td>{{ team_stats.tov }}</td>
+                        <td>{{ team_stats.pf }}</td>
+                        <td>-</td>
+                        <td style="background: #cbd5e0;">{{ team_aggregates.eff }}</td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
         
@@ -806,6 +1078,28 @@
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot style="background: #edf2f7; font-weight: bold;">
+                    <tr>
+                        <td class="text-left">TOTAL</td>
+                        <td>
+                            {{ team_stats.fgm }}/{{ team_stats.fga }}
+                            <span style="color: #718096; font-size: 9px">({{ team_aggregates.fg_pct|int }}%)</span>
+                        </td>
+                        <td>
+                            {{ team_stats.two_pt_made }}/{{ team_stats.two_pt_att }}
+                            <span style="color: #718096; font-size: 9px">({{ team_aggregates.two_pt_pct|int }}%)</span>
+                        </td>
+                        <td>
+                            {{ team_stats.tpm }}/{{ team_stats.tpa }}
+                            <span style="color: #718096; font-size: 9px">({{ team_aggregates.tp_pct|int }}%)</span>
+                        </td>
+                        <td>
+                            {{ team_stats.ftm }}/{{ team_stats.fta }}
+                            <span style="color: #718096; font-size: 9px">({{ team_aggregates.ft_pct|int }}%)</span>
+                        </td>
+                        <td>{{ team_aggregates.efg_pct|round(1) }}%</td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
 

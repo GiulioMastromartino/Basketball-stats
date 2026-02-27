@@ -164,20 +164,41 @@ def _get_shot_location(shot_type: str, zone: Optional[str] = None) -> Tuple[floa
     return x, y, zone
 
 
-def _classify_shot_zone(x_loc: float, y_loc: float, shot_type: str) -> str:
-    """
-    Classify a shot into a zone based on court coordinates.
-    Uses high-performance Rust implementation.
-    """
-    return rust_analytics.classify_shot_zone(x_loc, y_loc, shot_type)
+# =============================================================================
+# PLAYER DEFINITIONS & ARCHETYPES
+# =============================================================================
 
+PLAYER_ARCHETYPES = {
+    "Smith": {"role": "Playmaker", "3pt_freq": 0.3, "2pt_freq": 0.7, "ast_boost": 0.25},
+    "Johnson": {"role": "Elite Shooter", "3pt_freq": 0.7, "2pt_freq": 0.3, "3pt_pct_boost": 0.1},
+    "Williams": {"role": "Versatile Wing", "3pt_freq": 0.4, "2pt_freq": 0.6, "stl_boost": 0.15},
+    "Brown": {"role": "Defensive Specialist", "3pt_freq": 0.2, "2pt_freq": 0.8, "blk_boost": 0.1, "drtg_impact": -5},
+    "Davis": {"role": "Inside Big", "3pt_freq": 0.05, "2pt_freq": 0.95, "reb_boost": 0.3, "rim_freq": 0.7},
+    "Miller": {"role": "Bench Spark", "3pt_freq": 0.5, "2pt_freq": 0.5, "3pt_pct_boost": 0.05},
+    "Wilson": {"role": "Backup Big", "3pt_freq": 0.1, "2pt_freq": 0.9, "reb_boost": 0.2},
+    "Moore": {"role": "3&D Specialist", "3pt_freq": 0.8, "2pt_freq": 0.2, "3pt_pct_boost": 0.05},
+    "Taylor": {"role": "Youth Prospect", "3pt_freq": 0.4, "2pt_freq": 0.6, "tov_risk": 0.1},
+    "Anderson": {"role": "Glue Guy", "3pt_freq": 0.3, "2pt_freq": 0.7, "ast_boost": 0.1},
+}
 
-def _get_make_probability(zone: str) -> float:
-    """Get make probability for a zone with some randomness."""
+def _get_shot_type_for_player(player_name: str) -> str:
+    archetype = PLAYER_ARCHETYPES.get(player_name, {"3pt_freq": 0.4, "2pt_freq": 0.6})
+    return random.choices(["3pt", "2pt"], weights=[archetype["3pt_freq"], archetype["2pt_freq"]])[0]
+
+def _get_make_probability(zone: str, player_name: str = None) -> float:
+    """Get make probability for a zone with player-specific adjustments."""
     base_pct = SHOT_ZONES.get(zone, SHOT_ZONES['Midrange'])['fg_pct']
-    # Add ±5% variance
-    variance = random.uniform(-0.05, 0.05)
-    return max(0.20, min(0.75, base_pct + variance))
+    boost = 0
+    if player_name:
+        arch = PLAYER_ARCHETYPES.get(player_name, {})
+        if zone in ['Above_Break_3', 'Corner_3']:
+            boost = arch.get("3pt_pct_boost", 0)
+        elif zone == 'Rim':
+            boost = 0.05 if arch.get("role") == "Inside Big" else 0
+            
+    # Add ±3% variance
+    variance = random.uniform(-0.03, 0.03)
+    return max(0.15, min(0.85, base_pct + boost + variance))
 
 
 def _select_play() -> Dict:
@@ -286,8 +307,50 @@ def _create_empty_stats(name: str) -> Dict:
     }
 
 
+def _get_segment_stats(events: List[Dict], start_ts: int, end_ts: Optional[int]) -> Tuple[int, int, int]:
+    """Calculate aggregate stats for events between two timestamps."""
+    pts_scored = 0
+    pts_allowed = 0
+    poss = 0
+    seen_possessions = set()
+    
+    for e in events:
+        # If end_ts is None, it's the last segment
+        if e["timestamp"] < start_ts:
+            continue
+        if end_ts and e["timestamp"] >= end_ts:
+            continue
+            
+        et = e["event_type"]
+        if et == "SHOT_2PT" and e["shot_attempt"] == "made":
+            pts_scored += 2
+        elif et == "SHOT_3PT" and e["shot_attempt"] == "made":
+            pts_scored += 3
+        elif et == "FT_MADE":
+            pts_scored += 1
+        elif et == "OPP_SCORE":
+            try:
+                # Handle both JSON string and dict
+                detail = e.get("detail", "2")
+                if isinstance(detail, str) and detail.startswith('{'):
+                    pts_allowed += json.loads(detail).get("points", 2)
+                else:
+                    pts_allowed += int(detail)
+            except:
+                pts_allowed += 2
+                
+        # Possession tracking (rough estimate based on ending events)
+        if et in ["SHOT_2PT", "SHOT_3PT", "TURNOVER", "FT_MADE", "FT_MISS", "OPP_SCORE", "OPP_OREB"]:
+            # In generator we don't always have possession_number, so we use a timestamp-based heuristic if missing
+            poss_id = e.get("possession_number", e["timestamp"] // 20000) # ~20 sec windows
+            if poss_id not in seen_possessions:
+                seen_possessions.add(poss_id)
+                poss += 1
+                
+    return pts_scored, pts_allowed, max(1, poss)
+
 def _generate_lineup_segments(events: List[Dict], starters: List[str], bench: List[str]) -> List[Dict]:
-    """Generate lineup segments tracking which players are on court."""
+    """Generate lineup segments tracking which players are on court with true stats."""
     segments = []
     current_lineup = starters.copy()
     segment_id = 1
@@ -299,8 +362,9 @@ def _generate_lineup_segments(events: List[Dict], starters: List[str], bench: Li
     for i, event in enumerate(events):
         if event["event_type"] == "SUB_IN":
             player_in = event["player_name"]
+            # Find the most recent SUB_OUT before this SUB_IN
             sub_out_event = None
-            for j in range(i - 1, max(0, i - 5), -1):
+            for j in range(i - 1, -1, -1):
                 if events[j]["event_type"] == "SUB_OUT":
                     sub_out_event = events[j]
                     break
@@ -308,37 +372,39 @@ def _generate_lineup_segments(events: List[Dict], starters: List[str], bench: Li
             if sub_out_event:
                 player_out = sub_out_event["player_name"]
                 if player_out in current_lineup:
-                    idx = current_lineup.index(player_out)
-                    current_lineup[idx] = player_in
-
+                    # Closing current segment
+                    end_ts = event["timestamp"]
+                    pts_s, pts_a, poss = _get_segment_stats(events, start_ts, end_ts)
+                    
                     lineup_hash = rust_analytics.calculate_lineup_hash(current_lineup)
-
                     segments.append(
                         {
                             "id": segment_id,
                             "start_timestamp": start_ts,
-                            "end_timestamp": event["timestamp"],
+                            "end_timestamp": end_ts,
                             "quarter": current_quarter,
                             "players": current_lineup.copy(),
                             "lineup_hash": lineup_hash,
-                            "points_scored": random.randint(2, 8),
-                            "points_allowed": random.randint(2, 6),
-                            "possessions": random.randint(3, 6),
-                            "duration_seconds": event.get("game_seconds", 0)
-                            - start_game_seconds,
+                            "points_scored": pts_s,
+                            "points_allowed": pts_a,
+                            "possessions": poss,
+                            "duration_seconds": event.get("game_seconds", 0) - start_game_seconds,
                         }
                     )
                     segment_id += 1
 
-                    start_ts = event["timestamp"]
+                    # Swapping players
+                    idx = current_lineup.index(player_out)
+                    current_lineup[idx] = player_in
+                    
+                    # Starting new segment
+                    start_ts = end_ts
                     start_game_seconds = event.get("game_seconds", 0)
                     current_quarter = event.get("quarter", current_quarter)
 
-        if event.get("quarter", 1) != current_quarter:
-            current_quarter = event.get("quarter", current_quarter)
-
+    # Add final segment
+    pts_s, pts_a, poss = _get_segment_stats(events, start_ts, None)
     lineup_hash = rust_analytics.calculate_lineup_hash(current_lineup)
-
     segments.append(
         {
             "id": segment_id,
@@ -347,10 +413,10 @@ def _generate_lineup_segments(events: List[Dict], starters: List[str], bench: Li
             "quarter": current_quarter,
             "players": current_lineup.copy(),
             "lineup_hash": lineup_hash,
-            "points_scored": random.randint(2, 8),
-            "points_allowed": random.randint(2, 6),
-            "possessions": random.randint(3, 6),
-            "duration_seconds": 60,
+            "points_scored": pts_s,
+            "points_allowed": pts_a,
+            "possessions": poss,
+            "duration_seconds": 60, # Final segment default
         }
     )
 
@@ -514,220 +580,103 @@ def generate_test_game_payload():
                             idx = current_lineup.index(out_player)
                             current_lineup[idx] = in_player
 
-            # 2PT shots with zone and play tracking
-            if minute in [9, 8, 7, 6, 5, 4, 3, 2, 1] and made_2pt > 0:
-                shooter = random.choice(current_lineup)
-                
-                # Select zone and get location
-                zone = _get_zone_for_shot_type("2pt")
-                x, y = _get_shot_location_for_zone(zone)
-                
-                # Zone-aware make probability with dynamic adjustment
-                make_prob = _get_make_probability(zone)
-                # Increase make rate if we need more points this quarter
-                remaining_team_pts = q_team_score - q_team_score_tracker
-                if remaining_team_pts > made_2pt * 2:
-                    make_prob = min(0.80, make_prob + 0.20)
-                is_made = random.random() < make_prob
-                
-                # Select play
-                play = _select_play()
-                play_name = play["name"]
-                
-                # Assign play_id (simulated - in real usage would be from DB)
-                if play_name not in plays_used:
-                    plays_used[play_name] = play_counter
-                    play_counter += 1
-                play_id = plays_used[play_name]
-
-                quarter_events.append(
-                    {
-                        "id": event_id,
-                        "event_type": "SHOT_2PT",
-                        "player_name": shooter,
-                        "detail": json.dumps({"zone": zone, "play_name": play_name}),
-                        "timestamp": ts,
-                        "shot_attempt": "made" if is_made else "missed",
-                        "quarter": quarter,
-                        "time_remaining": time_remaining,
-                        "score_margin": team_score - opp_score,
-                        "game_seconds": game_seconds,
-                        "x_loc": x,
-                        "y_loc": y,
-                        "zone": zone,
-                        "play_id": play_id,
-                        "play_name": play_name,
-                    }
-                )
-                event_id += 1
-
-                shot_events.append(
-                    {
-                        "id": shot_id,
-                        "player_name": shooter,
-                        "shot_type": "2pt",
-                        "result": "made" if is_made else "missed",
-                        "points": 2 if is_made else 0,
-                        "x_loc": x,
-                        "y_loc": y,
-                        "quarter": quarter,
-                        "zone": zone,
-                        "play_id": play_id,
-                        "play_name": play_name,
-                    }
-                )
-                shot_id += 1
-
-                player_stats[shooter]["fga"] += 1
-                if is_made:
-                    player_stats[shooter]["fgm"] += 1
-                    player_stats[shooter]["points"] += 2
-                    team_score += 2
-                    q_team_score_tracker += 2
-                    made_2pt -= 1
+            # Shots with archetype-aware selection
+            if minute in [9, 8, 7, 6, 5, 4, 3, 2, 1]:
+                # Chance of a shot this minute
+                shot_chance = 0.7
+                if random.random() < shot_chance and (made_2pt > 0 or made_3pt > 0):
+                    shooter = random.choice(current_lineup)
+                    shot_type = _get_shot_type_for_player(shooter)
                     
-                    # Assist chance varies by zone (higher for Rim/Paint)
-                    assist_chance = 0.6 if zone in ['Rim', 'Paint'] else 0.4
-                    if random.random() < assist_chance:
-                        passer = random.choice(
-                            [p for p in current_lineup if p != shooter]
-                        )
-                        quarter_events.append(
-                            {
-                                "id": event_id,
-                                "event_type": "AST",
-                                "player_name": passer,
-                                "detail": None,
-                                "timestamp": ts,
-                                "shot_attempt": None,
-                                "quarter": quarter,
-                                "time_remaining": time_remaining,
-                                "score_margin": team_score - opp_score,
-                                "game_seconds": game_seconds,
-                            }
-                        )
-                        event_id += 1
-                        player_stats[passer]["ast"] += 1
-                else:
-                    # Rebound on miss
-                    rebounder = random.choice(current_lineup)
-                    is_oreb = random.random() > 0.6
-                    reb_type = "OREB" if is_oreb else "DREB"
-                    quarter_events.append(
-                        {
-                            "id": event_id,
-                            "event_type": reb_type,
-                            "player_name": rebounder,
-                            "detail": None,
-                            "timestamp": ts + 50,
-                            "shot_attempt": None,
-                            "quarter": quarter,
-                            "time_remaining": time_remaining,
-                            "score_margin": team_score - opp_score,
-                            "game_seconds": game_seconds,
-                        }
-                    )
-                    event_id += 1
-                    if is_oreb:
-                        player_stats[rebounder]["oreb"] += 1
-                    else:
-                        player_stats[rebounder]["dreb"] += 1
-                    player_stats[rebounder]["reb"] += 1
-
-            # 3PT shots with zone and play tracking
-            if minute in [8, 6, 4, 2] and made_3pt > 0:
-                shooter = random.choice(current_lineup)
-                
-                # Select zone (Corner_3 or Above_Break_3)
-                zone = _get_zone_for_shot_type("3pt")
-                x, y = _get_shot_location_for_zone(zone)
-                
-                # Zone-aware make probability with dynamic adjustment
-                make_prob = _get_make_probability(zone)
-                # Increase make rate if we need more points this quarter
-                remaining_team_pts = q_team_score - q_team_score_tracker
-                if remaining_team_pts > made_3pt * 3:
-                    make_prob = min(0.75, make_prob + 0.20)
-                is_made = random.random() < make_prob
-                
-                # Select play
-                play = _select_play()
-                play_name = play["name"]
-                
-                if play_name not in plays_used:
-                    plays_used[play_name] = play_counter
-                    play_counter += 1
-                play_id = plays_used[play_name]
-
-                quarter_events.append(
-                    {
-                        "id": event_id,
-                        "event_type": "SHOT_3PT",
-                        "player_name": shooter,
-                        "detail": json.dumps({"zone": zone, "play_name": play_name}),
-                        "timestamp": ts,
-                        "shot_attempt": "made" if is_made else "missed",
-                        "quarter": quarter,
-                        "time_remaining": time_remaining,
-                        "score_margin": team_score - opp_score,
-                        "game_seconds": game_seconds,
-                        "x_loc": x,
-                        "y_loc": y,
-                        "zone": zone,
-                        "play_id": play_id,
-                        "play_name": play_name,
-                    }
-                )
-                event_id += 1
-
-                shot_events.append(
-                    {
-                        "id": shot_id,
-                        "player_name": shooter,
-                        "shot_type": "3pt",
-                        "result": "made" if is_made else "missed",
-                        "points": 3 if is_made else 0,
-                        "x_loc": x,
-                        "y_loc": y,
-                        "quarter": quarter,
-                        "zone": zone,
-                        "play_id": play_id,
-                        "play_name": play_name,
-                    }
-                )
-                shot_id += 1
-
-                player_stats[shooter]["tpa"] += 1
-                player_stats[shooter]["fga"] += 1
-                if is_made:
-                    player_stats[shooter]["tpm"] += 1
-                    player_stats[shooter]["fgm"] += 1
-                    player_stats[shooter]["points"] += 3
-                    team_score += 3
-                    q_team_score_tracker += 3
-                    made_3pt -= 1
+                    # Check if we still need this type of shot to meet quarter target
+                    if shot_type == "3pt" and made_3pt <= 0: shot_type = "2pt"
+                    if shot_type == "2pt" and made_2pt <= 0: shot_type = "3pt"
                     
-                    # Higher assist rate on 3s
-                    if random.random() < 0.5:
-                        passer = random.choice(
-                            [p for p in current_lineup if p != shooter]
-                        )
-                        quarter_events.append(
-                            {
-                                "id": event_id,
-                                "event_type": "AST",
-                                "player_name": passer,
-                                "detail": None,
-                                "timestamp": ts,
-                                "shot_attempt": None,
-                                "quarter": quarter,
-                                "time_remaining": time_remaining,
-                                "score_margin": team_score - opp_score,
-                                "game_seconds": game_seconds,
-                            }
-                        )
+                    if (shot_type == "2pt" and made_2pt > 0) or (shot_type == "3pt" and made_3pt > 0):
+                        # Select zone based on archetype
+                        arch = PLAYER_ARCHETYPES.get(shooter, {})
+                        if shot_type == "2pt":
+                            zone = "Rim" if random.random() < arch.get("rim_freq", 0.35) else _get_zone_for_shot_type("2pt")
+                        else:
+                            zone = _get_zone_for_shot_type("3pt")
+                            
+                        x, y = _get_shot_location_for_zone(zone)
+                        make_prob = _get_make_probability(zone, shooter)
+                        
+                        # Catch up logic if scoring is behind
+                        rem_q_pts = q_team_score - q_team_score_tracker
+                        if rem_q_pts > (made_2pt * 2 + made_3pt * 3):
+                            make_prob = min(0.9, make_prob + 0.15)
+                            
+                        is_made = random.random() < make_prob
+                        play = _select_play()
+                        play_name = play["name"]
+                        if play_name not in plays_used:
+                            plays_used[play_name] = play_counter
+                            play_counter += 1
+                        play_id = plays_used[play_name]
+
+                        event_type = "SHOT_3PT" if shot_type == "3pt" else "SHOT_2PT"
+                        quarter_events.append({
+                            "id": event_id, "event_type": event_type, "player_name": shooter,
+                            "detail": json.dumps({"zone": zone, "play_name": play_name}),
+                            "timestamp": ts, "shot_attempt": "made" if is_made else "missed",
+                            "quarter": quarter, "time_remaining": time_remaining,
+                            "score_margin": team_score - opp_score, "game_seconds": game_seconds,
+                            "x_loc": x, "y_loc": y, "zone": zone, "play_id": play_id, "play_name": play_name,
+                        })
                         event_id += 1
-                        player_stats[passer]["ast"] += 1
+
+                        shot_events.append({
+                            "id": shot_id, "player_name": shooter, "shot_type": shot_type,
+                            "result": "made" if is_made else "missed", "points": (3 if shot_type == "3pt" else 2) if is_made else 0,
+                            "x_loc": x, "y_loc": y, "quarter": quarter, "zone": zone, "play_id": play_id, "play_name": play_name,
+                        })
+                        shot_id += 1
+
+                        player_stats[shooter]["fga"] += 1
+                        if shot_type == "3pt": player_stats[shooter]["tpa"] += 1
+                        
+                        if is_made:
+                            pts = 3 if shot_type == "3pt" else 2
+                            player_stats[shooter]["points"] += pts
+                            if shot_type == "3pt": player_stats[shooter]["tpm"] += 1
+                            player_stats[shooter]["fgm"] += 1
+                            team_score += pts
+                            q_team_score_tracker += pts
+                            if shot_type == "3pt": made_3pt -= 1
+                            else: made_2pt -= 1
+                            
+                            # Archetype-aware assist
+                            ast_base = 0.4
+                            passer = random.choice([p for p in current_lineup if p != shooter])
+                            passer_arch = PLAYER_ARCHETYPES.get(passer, {})
+                            if random.random() < (ast_base + passer_arch.get("ast_boost", 0)):
+                                quarter_events.append({
+                                    "id": event_id, "event_type": "AST", "player_name": passer,
+                                    "detail": None, "timestamp": ts, "shot_attempt": None,
+                                    "quarter": quarter, "time_remaining": time_remaining,
+                                    "score_margin": team_score - opp_score, "game_seconds": game_seconds,
+                                })
+                                event_id += 1
+                                player_stats[passer]["ast"] += 1
+                        else:
+                            # Rebound logic
+                            rebounder = random.choice(current_lineup)
+                            reb_arch = PLAYER_ARCHETYPES.get(rebounder, {})
+                            # Increase chance for bigs
+                            is_oreb = random.random() > (0.7 - reb_arch.get("reb_boost", 0))
+                            reb_type = "OREB" if is_oreb else "DREB"
+                            quarter_events.append({
+                                "id": event_id, "event_type": reb_type, "player_name": rebounder,
+                                "detail": None, "timestamp": ts + 50, "shot_attempt": None,
+                                "quarter": quarter, "time_remaining": time_remaining,
+                                "score_margin": team_score - opp_score, "game_seconds": game_seconds,
+                            })
+                            event_id += 1
+                            if is_oreb: player_stats[rebounder]["oreb"] += 1
+                            else: player_stats[rebounder]["dreb"] += 1
+                            player_stats[rebounder]["reb"] += 1
 
             # Free throws
             if minute in [6, 2] and fts > 0:

@@ -36,6 +36,9 @@ try:
         aggregate_combinatorial_stats as rust_aggregate_combinatorial_stats,
         reconstruct_possessions_rust as rust_reconstruct_possessions_rust,
         calculate_lineup_hash as rust_calculate_lineup_hash,
+        calculate_impact_metrics as rust_calculate_impact_metrics,
+        calculate_shot_heatmap as rust_calculate_shot_heatmap,
+        enhance_possession_tracking as rust_enhance_possession_tracking,
     )
     RUST_AVAILABLE = True
     print("High-performance Rust analytics engine LOADED.")
@@ -96,12 +99,12 @@ def _python_calculate_lineup_hash(players: List[str]) -> str:
 
 def _python_aggregate_combinatorial_stats(segments: List[Dict]) -> Dict:
     duo_stats = defaultdict(
-        lambda: {"segments": 0, "points_scored": 0, "points_allowed": 0, "possessions": 0.0, "duration_seconds": 0}
+        lambda: {"segments": 0, "points_scored": 0, "points_allowed": 0, "possessions": 0.0, "duration_seconds": 0, "reb_conceded": 0}
     )
     trio_stats = defaultdict(
-        lambda: {"segments": 0, "points_scored": 0, "points_allowed": 0, "possessions": 0.0, "duration_seconds": 0}
+        lambda: {"segments": 0, "points_scored": 0, "points_allowed": 0, "possessions": 0.0, "duration_seconds": 0, "reb_conceded": 0}
     )
-    totals = {"segments": 0, "points_scored": 0, "points_allowed": 0, "possessions": 0.0, "duration_seconds": 0}
+    totals = {"segments": 0, "points_scored": 0, "points_allowed": 0, "possessions": 0.0, "duration_seconds": 0, "reb_conceded": 0}
 
     for segment in segments or []:
         players = segment.get("players") or []
@@ -115,12 +118,14 @@ def _python_aggregate_combinatorial_stats(segments: List[Dict]) -> Dict:
         points_allowed = int(segment.get("points_allowed", 0) or 0)
         possessions = float(segment.get("possessions", 0) or 0)
         duration_seconds = int(segment.get("duration_seconds", 0) or 0)
+        reb_conceded = int(segment.get("reb_conceded", 0) or 0)
 
         totals["segments"] += 1
         totals["points_scored"] += points_scored
         totals["points_allowed"] += points_allowed
         totals["possessions"] += possessions
         totals["duration_seconds"] += duration_seconds
+        totals["reb_conceded"] += reb_conceded
 
         if len(players) < 2:
             continue
@@ -135,6 +140,7 @@ def _python_aggregate_combinatorial_stats(segments: List[Dict]) -> Dict:
             s["points_allowed"] += points_allowed
             s["possessions"] += possessions
             s["duration_seconds"] += duration_seconds
+            s["reb_conceded"] += reb_conceded
 
         if len(sorted_players) >= 3:
             for trio in combinations(sorted_players, 3):
@@ -145,8 +151,72 @@ def _python_aggregate_combinatorial_stats(segments: List[Dict]) -> Dict:
                 s["points_allowed"] += points_allowed
                 s["possessions"] += possessions
                 s["duration_seconds"] += duration_seconds
+                s["reb_conceded"] += reb_conceded
 
     return {"duos": dict(duo_stats), "trios": dict(trio_stats), "totals": totals}
+
+def _python_calculate_impact_metrics(segments: List[Dict], combination_type: str, min_poss: float) -> List[Dict]:
+    """Pure python fallback for impact metrics calculation."""
+    stats = _python_aggregate_combinatorial_stats(segments)
+    combo_key = "duos" if combination_type == "duo" else "trios"
+    combo_stats = stats.get(combo_key, {})
+    totals = stats.get("totals", {})
+    
+    total_possessions = float(totals.get("possessions", 0))
+    total_points_scored = float(totals.get("points_scored", 0))
+    total_points_allowed = float(totals.get("points_allowed", 0))
+    
+    results = []
+    for key, on_stats in combo_stats.items():
+        on_poss = float(on_stats.get("possessions", 0))
+        if on_poss < min_poss:
+            continue
+            
+        on_pts_scored = float(on_stats.get("points_scored", 0))
+        on_pts_allowed = float(on_stats.get("points_allowed", 0))
+        
+        on_ortg = (on_pts_scored / on_poss * 100) if on_poss > 0 else 0
+        on_drtg = (on_pts_allowed / on_poss * 100) if on_poss > 0 else 0
+        on_net = on_ortg - on_drtg
+        
+        off_poss = total_possessions - on_poss
+        if off_poss <= 0:
+            continue
+            
+        off_pts_scored = total_points_scored - on_pts_scored
+        off_pts_allowed = total_points_allowed - on_pts_allowed
+        
+        off_ortg = (off_pts_scored / off_poss * 100) if off_poss > 0 else 0
+        off_drtg = (off_pts_allowed / off_poss * 100) if off_poss > 0 else 0
+        off_net = off_ortg - off_drtg
+        
+        results.append({
+            "players": key.split(","),
+            "on": {
+                "ortg": round(on_ortg, 1),
+                "drtg": round(on_drtg, 1),
+                "net": round(on_net, 1),
+                "possessions": round(on_poss, 1),
+                "minutes": round(float(on_stats.get("duration_seconds", 0)) / 60, 1),
+                "points_scored": on_pts_scored,
+                "points_allowed": on_pts_allowed
+            },
+            "off": {
+                "ortg": round(off_ortg, 1),
+                "drtg": round(off_drtg, 1),
+                "net": round(off_net, 1),
+                "possessions": round(off_poss, 1)
+            },
+            "impact": {
+                "offense_delta": round(on_ortg - off_ortg, 1),
+                "defense_delta": round(off_drtg - on_drtg, 1),
+                "net_differential": round(on_net - off_net, 1)
+            },
+            "segments": on_stats.get("segments", 0)
+        })
+        
+    results.sort(key=lambda x: x["impact"]["net_differential"], reverse=True)
+    return results
 
 # =============================================================================
 # Public API
@@ -244,6 +314,75 @@ def reconstruct_possessions(events):
 def calculate_lineup_hash(players):
     if RUST_AVAILABLE: return rust_calculate_lineup_hash(players)
     return _python_calculate_lineup_hash(players)
+
+def _python_calculate_shot_heatmap(shots: List[Dict]) -> List[Dict]:
+    """Pure python fallback for shot heatmap calculation."""
+    if not shots:
+        return []
+        
+    total_attempts = len(shots)
+    zone_stats = defaultdict(lambda: {'makes': 0, 'attempts': 0, 'points': 0})
+    
+    for shot in shots:
+        zone = _python_classify_shot_zone(shot.get('x_loc'), shot.get('y_loc'), shot.get('shot_type', '2pt'))
+        zone_stats[zone]['attempts'] += 1
+        zone_stats[zone]['points'] += shot.get('points', 0)
+        if shot.get('points', 0) > 0:
+            zone_stats[zone]['makes'] += 1
+            
+    results = []
+    for zone, stats in zone_stats.items():
+        freq = (stats['attempts'] / total_attempts * 100) if total_attempts > 0 else 0
+        fg_pct = (stats['makes'] / stats['attempts'] * 100) if stats['attempts'] > 0 else 0
+        pps = (stats['points'] / stats['attempts']) if stats['attempts'] > 0 else 0
+        expected = _python_get_expected_value(zone)
+        
+        results.append({
+            "zone": zone,
+            "makes": stats['makes'],
+            "attempts": stats['attempts'],
+            "frequency": round(freq, 1),
+            "fg_pct": round(fg_pct, 1),
+            "pps": round(pps, 2),
+            "actual_pps": round(pps, 2),
+            "expected_value": expected,
+            "efficiency_delta": round(pps - expected, 2)
+        })
+    return results
+
+def calculate_impact_metrics(segments, combo_type, min_poss):
+    if not segments:
+        return []
+    if RUST_AVAILABLE:
+        try:
+            print(f"[RustAnalytics] Calling Rust calculate_impact_metrics for {combo_type}")
+            res = rust_calculate_impact_metrics(json.dumps(segments), combo_type, float(min_poss))
+            results = json.loads(res)
+            print(f"[RustAnalytics] Rust returned {len(results)} results")
+            return results
+        except Exception as e:
+            print(f"Rust Impact Metrics error: {e}")
+            pass
+    print(f"[RustAnalytics] Using Python fallback for {combo_type}")
+    return _python_calculate_impact_metrics(segments, combo_type, float(min_poss))
+
+def calculate_shot_heatmap(shots):
+    if not shots:
+        return []
+    if RUST_AVAILABLE:
+        try:
+            res = rust_calculate_shot_heatmap(json.dumps(shots))
+            return json.loads(res)
+        except Exception as e:
+            print(f"Rust Heatmap error: {e}")
+            pass
+    return _python_calculate_shot_heatmap(shots)
+
+def enhance_possession_tracking(events):
+    if RUST_AVAILABLE:
+        try: return json.loads(rust_enhance_possession_tracking(json.dumps(events)))
+        except: pass
+    return []
 
 def is_rust_available():
     return RUST_AVAILABLE

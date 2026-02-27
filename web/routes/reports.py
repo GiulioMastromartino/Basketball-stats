@@ -3,6 +3,7 @@ import zipfile
 from collections import defaultdict
 from io import BytesIO
 from datetime import datetime
+from sqlalchemy import func
 from flask import Blueprint, jsonify, render_template, request, send_file
 from flask_login import login_required
 from weasyprint import HTML
@@ -23,7 +24,7 @@ from core.play_analytics import (
     get_untracked_percentages,
     get_player_top_plays_by_points,
 )
-from core.utils import calculate_possessions, safe_percentage
+from core.utils import calculate_efg_percent, calculate_ortg, calculate_possessions, safe_percentage
 from core.advanced_game_report import TeamBox, PlayerBox, build_advanced_game_report
 from core.advanced_pdf_reports import (
     AdvancedPDFReports,
@@ -33,7 +34,11 @@ from core.advanced_pdf_reports import (
     generate_season_trend_report_bytes,
     generate_clutch_report_bytes,
 )
-from core.advanced_analytics import classify_shot_zone, ClutchPerformance
+from core.advanced_analytics import (
+    classify_shot_zone,
+    ClutchPerformance,
+    LineupAnalytics,
+)
 
 reports_bp = Blueprint("reports", __name__)
 
@@ -271,6 +276,117 @@ def generate_game_pdf_bytes(game_id):
     alerts = AnalyticsService.get_game_alerts(stats_with_metrics)
     team_aggregates = AnalyticsService.get_team_aggregates(stats_with_metrics)
 
+    # Calculate game-wide possessions and ratings
+    team_stats = {
+        "points": sum(s.points for s in stats),
+        "reb": sum(s.reb for s in stats),
+        "ast": sum(s.ast for s in stats),
+        "stl": sum(s.stl for s in stats),
+        "blk": sum(s.blk for s in stats),
+        "tov": sum(s.tov for s in stats),
+        "pf": sum(s.pf for s in stats),
+        "reb_conceded": sum(s.reb_conceded or 0 for s in stats),
+        "fgm": sum(s.fgm for s in stats),
+        "fga": sum(s.fga for s in stats),
+        "tpm": sum(s.tpm for s in stats),
+        "tpa": sum(s.tpa for s in stats),
+        "ftm": sum(s.ftm for s in stats),
+        "fta": sum(s.fta for s in stats),
+        "oreb": sum(s.oreb for s in stats),
+        "dreb": sum(s.dreb for s in stats),
+        "two_pt_made": sum(s.fgm for s in stats) - sum(s.tpm for s in stats),
+        "two_pt_att": sum(s.fga for s in stats) - sum(s.tpa for s in stats),
+    }
+    team_poss = calculate_possessions(
+        team_stats["fga"], team_stats["fta"], team_stats["oreb"], team_stats["tov"]
+    )
+    
+    # Use true tracked possessions if available for consistency with lineup stats
+    from core.models import LineupSegment
+    segment_poss = db.session.query(func.sum(LineupSegment.possessions)).filter_by(game_id=game_id).scalar() or 0
+    if segment_poss > 0:
+        team_poss = float(segment_poss)
+    elif team_poss <= 0:
+        team_poss = 1.0  # Avoid division by zero
+
+    team_aggregates["ortg"] = calculate_ortg(game.team_score, team_poss)
+    team_aggregates["drtg"] = calculate_ortg(game.opponent_score, team_poss)
+    team_aggregates["eff"] = sum(s.eff for s in stats_with_metrics)
+    team_aggregates["efg_pct"] = calculate_efg_percent(
+        team_stats["fgm"], team_stats["tpm"], team_stats["fga"]
+    )
+
+    try:
+        top_lineups_off = LineupAnalytics.get_game_lineup_rankings(
+            game_id, top_n=3, rank_by="offensive",
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss
+        )
+        top_lineups_def = LineupAnalytics.get_game_lineup_rankings(
+            game_id, top_n=3, rank_by="defensive",
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss
+        )
+    except Exception:
+        top_lineups_off = []
+        top_lineups_def = []
+
+    try:
+        top_duos_off = LineupAnalytics.get_combination_net_differentials(
+            combination_type="duo",
+            game_ids=[game_id],
+            min_possessions=0,
+            top_n=3,
+            require_positive=False,
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss,
+            rank_by="offensive"
+        )
+        top_duos_def = LineupAnalytics.get_combination_net_differentials(
+            combination_type="duo",
+            game_ids=[game_id],
+            min_possessions=0,
+            top_n=3,
+            require_positive=False,
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss,
+            rank_by="defensive"
+        )
+    except Exception:
+        top_duos_off = []
+        top_duos_def = []
+
+    try:
+        top_trios_off = LineupAnalytics.get_combination_net_differentials(
+            combination_type="trio",
+            game_ids=[game_id],
+            min_possessions=0,
+            top_n=3,
+            require_positive=False,
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss,
+            rank_by="offensive"
+        )
+        top_trios_def = LineupAnalytics.get_combination_net_differentials(
+            combination_type="trio",
+            game_ids=[game_id],
+            min_possessions=0,
+            top_n=3,
+            require_positive=False,
+            total_pts_scored_override=game.team_score,
+            total_pts_allowed_override=game.opponent_score,
+            total_possessions_override=team_poss,
+            rank_by="defensive"
+        )
+    except Exception:
+        top_trios_off = []
+        top_trios_def = []
+
     shot_events = ShotEvent.query.filter_by(game_id=game_id).first()
     shot_chart = generate_team_shot_chart([game_id], db.session) if shot_events else ""
 
@@ -293,6 +409,7 @@ def generate_game_pdf_bytes(game_id):
         stats=stats_with_metrics,
         top_performers=top_performers,
         alerts=alerts,
+        team_stats=team_stats,
         team_aggregates=team_aggregates,
         shot_chart=shot_chart,
         plays_data=plays_data,
@@ -300,6 +417,12 @@ def generate_game_pdf_bytes(game_id):
         players_plays_data=players_plays_data,
         untracked=untracked,
         time_progression=time_progression,
+        top_lineups_off=top_lineups_off,
+        top_lineups_def=top_lineups_def,
+        top_duos_off=top_duos_off,
+        top_duos_def=top_duos_def,
+        top_trios_off=top_trios_off,
+        top_trios_def=top_trios_def,
         generated_date=datetime.now().strftime("%B %d, %Y"),
     )
 
