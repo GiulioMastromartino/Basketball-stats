@@ -366,78 +366,103 @@ class LineupAnalytics:
     ) -> List[Dict]:
         """
         Rank duo/trio combinations by ON vs OFF rating differential.
-        Uses optimized Rust backend.
+        Restored Python version for maximum accuracy and flexibility.
         """
         if combination_type not in {"duo", "trio"}:
             raise ValueError("combination_type must be 'duo' or 'trio'")
 
         segment_data = LineupAnalytics._build_segment_payload(game_ids)
         if not segment_data:
-            print(f"[LineupAnalytics] No segments found for game_ids: {game_ids}")
             return []
 
-        # Use Rust to do the heavy lifting
-        # The wrapper in core/rust_analytics.py already does json.loads
-        results = rust_analytics.calculate_impact_metrics(
-            segment_data, combination_type, float(min_possessions)
-        )
-        
-        if not results:
-            return []
-        
-        # Override deltas if totals provided (Hybrid approach: use Rust for agg, Python for final delta fix)
-        # Note: Rust function calculates its own totals from segments. 
-        # If overrides are provided, we need to adjust the OFF ratings here.
-        if total_possessions_override:
-            # Re-calculate OFF ratings based on overrides
-            for item in results:
-                on_poss = item['on']['possessions']
-                on_pts = item['on']['points_scored']
-                on_allowed = item['on']['points_allowed']
+        # Use Python for aggregation to ensure reb_conceded and other new metrics are handled perfectly
+        stats = rust_analytics.aggregate_combinatorial_stats(segment_data)
+        combo_key = "duos" if combination_type == "duo" else "trios"
+        combo_stats = stats.get(combo_key, {})
+
+        # Robust totals calculation
+        totals = stats.get("totals") or {}
+        total_points_scored = float(total_pts_scored_override if total_pts_scored_override is not None else (totals.get("points_scored") or sum(s.get("points_scored", 0) for s in segment_data)))
+        total_points_allowed = float(total_pts_allowed_override if total_pts_allowed_override is not None else (totals.get("points_allowed") or sum(s.get("points_allowed", 0) for s in segment_data)))
+        total_possessions = float(total_possessions_override if total_possessions_override is not None else (totals.get("possessions") or sum(s.get("possessions", 0) for s in segment_data)))
+        total_duration = float(totals.get("duration_seconds") or sum(s.get("duration_seconds", 0) for s in segment_data))
+
+        results = []
+        for key, on_stats in combo_stats.items():
+            on_duration = float(on_stats.get("duration_seconds") or 0)
+            on_possessions = float(on_stats.get("possessions", 0) or 0)
+            
+            # Fallback for minutes if duration is missing but possessions exist
+            if on_duration <= 0 and on_possessions > 0 and total_possessions > 0:
+                on_duration = (on_possessions / total_possessions) * total_duration
+            
+            on_minutes = on_duration / 60.0
+            if on_possessions < float(min_possessions or 0):
+                continue
+            
+            off_possessions = total_possessions - on_possessions
+            if off_possessions <= 0:
+                continue
                 
-                off_poss = total_possessions_override - on_poss
-                if off_poss > 0:
-                    off_pts = total_pts_scored_override - on_pts
-                    off_allowed = total_pts_allowed_override - on_allowed
-                    
-                    off_ortg = round(off_pts / off_poss * 100, 1)
-                    off_drtg = round(off_allowed / off_poss * 100, 1)
-                    off_net = round(off_ortg - off_drtg, 1)
-                    
-                    item['off']['ortg'] = off_ortg
-                    item['off']['drtg'] = off_drtg
-                    item['off']['net'] = off_net
-                    item['off']['possessions'] = round(off_poss, 1)
-                    
-                    item['impact']['offense_delta'] = round(item['on']['ortg'] - off_ortg, 1)
-                    item['impact']['defense_delta'] = round(off_drtg - item['on']['drtg'], 1)
-                    item['impact']['net_differential'] = round(item['on']['net'] - off_net, 1)
-                else:
-                    # Fallback for when combination is on for the whole game
-                    item['off']['ortg'] = 0.0
-                    item['off']['drtg'] = 0.0
-                    item['off']['net'] = 0.0
-                    item['impact']['offense_delta'] = 0.0
-                    item['impact']['defense_delta'] = 0.0
-                    item['impact']['net_differential'] = 0.0
+            off_duration = max(total_duration - on_duration, 0.0)
+            off_minutes = off_duration / 60.0
 
-        # Filtering
-        if require_positive:
-            if rank_by == "overall":
-                results = [r for r in results if r['impact']['net_differential'] > 0]
-            elif rank_by == "offensive":
-                results = [r for r in results if r['impact']['offense_delta'] > 0]
-            elif rank_by == "defensive":
-                results = [r for r in results if r['impact']['defense_delta'] > 0]
+            on_points_scored = float(on_stats.get("points_scored", 0) or 0)
+            on_points_allowed = float(on_stats.get("points_allowed", 0) or 0)
+            off_points_scored = total_points_scored - on_points_scored
+            off_points_allowed = total_points_allowed - on_points_allowed
 
-        # Sorting
+            on_rating = LineupAnalytics._rating(
+                on_points_scored, on_points_allowed, on_possessions
+            )
+            off_rating = LineupAnalytics._rating(
+                off_points_scored, off_points_allowed, off_possessions
+            )
+            
+            net_diff = round(on_rating["net"] - off_rating["net"], 1)
+            off_diff = round(on_rating["ortg"] - off_rating["ortg"], 1)
+            def_diff = round(off_rating["drtg"] - on_rating["drtg"], 1)
+
+            if require_positive:
+                if rank_by == "overall" and net_diff <= 0: continue
+                if rank_by == "offensive" and off_diff <= 0: continue
+                if rank_by == "defensive" and def_diff <= 0: continue
+
+            players = key.split(",")
+            results.append(
+                {
+                    "type": combination_type,
+                    "players": players,
+                    "segments": int(on_stats.get("segments", 0) or 0),
+                    "on": {
+                        "minutes": round(on_minutes, 1),
+                        "possessions": round(on_possessions, 1),
+                        "points_scored": round(on_points_scored, 1),
+                        "points_allowed": round(on_points_allowed, 1),
+                        **on_rating,
+                    },
+                    "off": {
+                        "minutes": round(off_minutes, 1),
+                        "possessions": round(off_possessions, 1),
+                        "points_scored": round(off_points_scored, 1),
+                        "points_allowed": round(off_points_allowed, 1),
+                        **off_rating,
+                    },
+                    "impact": {
+                        "offense_delta": off_diff,
+                        "defense_delta": def_diff,
+                        "net_differential": net_diff,
+                    },
+                }
+            )
+
         if rank_by == "offensive":
-            results.sort(key=lambda x: (x['impact']['offense_delta'], x['on']['minutes']), reverse=True)
+            results.sort(key=lambda item: (item["impact"]["offense_delta"], item["on"]["minutes"]), reverse=True)
         elif rank_by == "defensive":
-            results.sort(key=lambda x: (x['impact']['defense_delta'], x['on']['minutes']), reverse=True)
+            results.sort(key=lambda item: (item["impact"]["defense_delta"], item["on"]["minutes"]), reverse=True)
         else:
-            results.sort(key=lambda x: (x['impact']['net_differential'], x['on']['minutes']), reverse=True)
-
+            results.sort(key=lambda item: (item["impact"]["net_differential"], item["on"]["minutes"]), reverse=True)
+            
         return results[:top_n]
 
     @staticmethod
