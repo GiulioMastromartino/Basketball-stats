@@ -10,6 +10,7 @@ Handles all lineup segment processing including:
 """
 
 from core import rust_analytics
+from core.models import db, GameEvent, Lineup, LineupSegment, PlayerLineupStats
 
 def generate_lineup_hash(players: list) -> str:
     """Use high-performance Rust implementation for lineup hashing."""
