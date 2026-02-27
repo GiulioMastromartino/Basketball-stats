@@ -1649,10 +1649,22 @@ def create_test_game():
     )
 
     from scripts.generate_test_game import generate_test_game_payload
+    import gc
 
     try:
+        # Clear any existing memory before starting heavy operation
+        gc.collect()
+        
         payload = generate_test_game_payload()
+        
+        # After payload is ready, try to free any generation-time overhead
+        gc.collect()
+        
         game = create_game_from_live_data(payload)
+        
+        # Clear payload from memory after import
+        del payload
+        gc.collect()
 
         current_app.logger.info(f"Test game created: Game ID {game.id}")
         flash(

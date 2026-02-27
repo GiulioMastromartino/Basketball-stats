@@ -179,9 +179,9 @@
         <p style="margin-bottom: 15px; opacity: 0.9; font-size: 0.9rem;">
             Create a comprehensive test game with all features enabled (lineups, shot locations, opponent events, etc.)
         </p>
-        <form action="{{ url_for('main.create_test_game') }}" method="POST" style="display: inline;">
+        <form action="{{ url_for('main.create_test_game') }}" method="POST" style="display: inline;" onsubmit="return confirm('Generate a comprehensive test game? This may take a moment.')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <button type="submit" class="btn btn-light" style="font-weight: 600;">
+            <button type="submit" class="btn btn-light" id="create-test-btn" style="font-weight: 600;" onclick="this.innerHTML='<i class=\'fas fa-spinner fa-spin\'></i> Generating...'; this.disabled=true; this.form.submit();">
                 <i class="fas fa-magic"></i> Create Test Game
             </button>
         </form>

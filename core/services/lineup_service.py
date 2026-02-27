@@ -217,12 +217,15 @@ def build_lineup_segments(
         segment_start_timestamp = None
         current_quarter = None
 
-        for event in events:
+        # Optimization: Pre-filter SUB_IN events to speed up matching
+        sub_in_events = [e for e in events if e.event_type == "SUB_IN"]
+
+        for i, event in enumerate(events):
             if current_segment is None:
                 segment_start_timestamp = event.timestamp
                 current_quarter = event.quarter
                 lineup = get_or_create_lineup(
-                    current_lineup, is_starting=(current_segment is None)
+                    current_lineup, is_starting=True
                 )
 
                 current_segment = LineupSegment(
@@ -244,11 +247,11 @@ def build_lineup_segments(
             if event.event_type == "SUB_OUT" and event.player_name in current_lineup:
                 current_lineup.remove(event.player_name)
 
+                # Find matching SUB_IN that happens at the same time or immediately after
                 sub_in_event = None
-                remaining_events = [e for e in events if e.timestamp > event.timestamp]
-                for next_event in remaining_events:
+                for next_event in sub_in_events:
                     if (
-                        next_event.event_type == "SUB_IN"
+                        next_event.timestamp >= event.timestamp
                         and next_event.player_name not in current_lineup
                     ):
                         sub_in_event = next_event

@@ -153,15 +153,11 @@ def create_app(config_name: str = None) -> Flask:
                         db.session.commit()
                         app.logger.info("Dropped plays table.")
 
-                        # Disabled auto create_all to let migrations handle it
-                        # db.create_all()
+                        db.create_all()
                 else:
-                    # Disabled auto create_all to let migrations handle it
-                    # db.create_all()
-                    pass
+                    db.create_all()
 
-                # Ensure PlayType table exists and is seeded if needed (safely)
-                # But generally rely on migrations. Only seeding if table exists but empty.
+                # Seed PlayType table if it exists but is empty
                 if inspector.has_table("play_types"):
                     if PlayType.query.count() == 0:
                         default_types = ["Offense", "Defense", "Special"]
@@ -367,7 +363,7 @@ def register_blueprints(app: Flask):
     app.register_blueprint(analytics_bp)
     app.register_blueprint(plays_bp)
     app.register_blueprint(builder_api_bp, url_prefix="/api/v1")
-    app.register_blueprint(reports_bp)
+    app.register_blueprint(reports_bp, url_prefix="/reports")
     app.register_blueprint(advanced_api_bp)
 
 
