@@ -234,6 +234,9 @@ def create_game_from_live_data(data):
             game_data, "game_type", "GameType", "type", default="Season"
         )
         source = "IMPORT_JSON"
+        
+        # Override schema version if provided in the nested game object
+        schema_version = get_nested_value(game_data, "schema_version", "schemaversion", default=schema_version)
 
         # Player stats list - support multiple key names
         player_stats_source = get_nested_value(
@@ -273,6 +276,9 @@ def create_game_from_live_data(data):
             data, "game_type", "GameType", "type", default="Season"
         )
         source = "LIVE"
+        
+        # Override schema version if provided in flat payload
+        schema_version = get_nested_value(data, "schema_version", "schemaversion", default=schema_version)
 
         # LIVE payload uses a Dict for player_stats, list for others
         player_stats_source = get_nested_value(
@@ -294,6 +300,14 @@ def create_game_from_live_data(data):
             f"Date format too long: {display_date}. Attempting fix."
         )
         display_date = display_date[:10]
+
+    # Clean schema version (handle string like "3.0")
+    try:
+        if isinstance(schema_version, str):
+            schema_version = float(schema_version)
+        schema_version = int(schema_version)
+    except:
+        schema_version = 1
 
     # Create Game
     game = Game(
@@ -378,10 +392,23 @@ def create_game_from_live_data(data):
     # --- Process Shot Events ---
     for s_data in shot_events_source:
         if is_nested_import:
-            valid_keys = {c.name for c in ShotEvent.__table__.columns if c.name not in ("id", "game_id", "play_id")}
-            shot_kwargs = {k: v for k, v in s_data.items() if k in valid_keys}
-            play_id_nested = get_cached_play_id(extract_play_name_from_detail(s_data.get("detail")))
-            all_shot_events.append(ShotEvent(game_id=game.id, play_id=play_id_nested, **shot_kwargs))
+            # First try mapping exact database keys
+            shooter = get_nested_value(s_data, "player_name", "player", "shooter", default="")
+            shot_type = get_nested_value(s_data, "shot_type", "type", "ShotType", default="")
+            pts = int(get_nested_value(s_data, "points", "Points", "pts", default=0))
+            result = get_nested_value(s_data, "result", "Result", "made", default="made")
+            x = get_nested_value(s_data, "x_loc", "x", "xLoc")
+            y = get_nested_value(s_data, "y_loc", "y", "yLoc")
+            q = get_nested_value(s_data, "quarter", "q", "period")
+            play_name = extract_play_name_from_detail(get_nested_value(s_data, "detail", "Detail"))
+            play_id_nested = get_cached_play_id(play_name)
+            
+            all_shot_events.append(ShotEvent(
+                game_id=game.id, player_name=shooter.strip() if shooter else "",
+                shot_type=shot_type.strip() if shot_type else "", result=result, points=pts,
+                x_loc=float(x) if x is not None else None, y_loc=float(y) if y is not None else None,
+                quarter=int(q) if q is not None else None, play_id=play_id_nested,
+            ))
         else:
             shooter = get_nested_value(s_data, "shooter", "player", "player_name", default="")
             shot_type = get_nested_value(s_data, "type", "shot_type", "ShotType", default="")
@@ -406,10 +433,36 @@ def create_game_from_live_data(data):
     # --- Process Game Events ---
     for e_data in game_events_source:
         if is_nested_import:
-            valid_keys = {c.name for c in GameEvent.__table__.columns if c.name not in ("id", "game_id", "play_id")}
-            event_kwargs = {k: v for k, v in e_data.items() if k in valid_keys}
-            p_id = get_cached_play_id(extract_play_name_from_detail(e_data.get("detail")))
-            all_game_events.append(GameEvent(game_id=game.id, play_id=p_id, **event_kwargs))
+            event_type = get_nested_value(e_data, "event_type", "type", "EventType")
+            player_name = get_nested_value(e_data, "player_name", "player", "PlayerName")
+            detail = get_nested_value(e_data, "detail", "Detail", "description")
+            timestamp = get_nested_value(e_data, "timestamp", "time", "Timestamp", default=0)
+            shot_attempt = get_nested_value(e_data, "shot_attempt", "ShotAttempt")
+            quarter = get_nested_value(e_data, "quarter", "q", "period")
+            time_remaining = get_nested_value(e_data, "time_remaining", "timeRemaining", "time_remaining")
+            score_margin = get_nested_value(e_data, "score_margin", "scoreMargin")
+            possession_number = get_nested_value(e_data, "possession_number", "possessionNumber")
+            game_seconds = get_nested_value(e_data, "game_seconds", "gameSeconds")
+            x = get_nested_value(e_data, "x_loc", "x", "xLoc")
+            y = get_nested_value(e_data, "y_loc", "y", "yLoc")
+
+            p_id = get_cached_play_id(extract_play_name_from_detail(detail))
+            if isinstance(detail, dict): detail = json.dumps(detail)
+
+            all_game_events.append(GameEvent(
+                game_id=game.id, event_type=event_type,
+                player_name=player_name.strip() if player_name else None,
+                detail=str(detail) if detail is not None else None,
+                timestamp=int(timestamp) if timestamp else 0,
+                shot_attempt=shot_attempt, play_id=p_id,
+                quarter=int(quarter) if quarter is not None else None,
+                time_remaining=time_remaining,
+                score_margin=int(score_margin) if score_margin is not None else None,
+                possession_number=int(possession_number) if possession_number is not None else None,
+                game_seconds=int(game_seconds) if game_seconds is not None else None,
+                x_loc=float(x) if x is not None else None,
+                y_loc=float(y) if y is not None else None,
+            ))
         else:
             event_type = get_nested_value(e_data, "type", "event_type", "EventType")
             player_name = get_nested_value(e_data, "player", "player_name", "PlayerName")
