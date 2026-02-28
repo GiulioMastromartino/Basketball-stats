@@ -183,6 +183,7 @@ class ShotEvent(db.Model):
     points = db.Column(db.Integer, default=0)
     x_loc = db.Column(db.Float, nullable=True)  # Normalized 0-500
     y_loc = db.Column(db.Float, nullable=True)  # Normalized 0-470
+    zone = db.Column(db.String(50), nullable=True)  # Shot zone: Rim, Paint, Midrange, Above_Break_3, Corner_3
     quarter = db.Column(db.Integer)
     play_id = db.Column(
         db.Integer, db.ForeignKey("plays.id"), nullable=True
@@ -221,6 +222,7 @@ class GameEvent(db.Model):
     game_seconds = db.Column(db.Integer, nullable=True)  # Absolute game time in seconds
     x_loc = db.Column(db.Float, nullable=True)  # Shot location X (normalized 0-500)
     y_loc = db.Column(db.Float, nullable=True)  # Shot location Y (normalized 0-470)
+    zone = db.Column(db.String(50), nullable=True)  # Shot zone: Rim, Paint, Midrange, Above_Break_3, Corner_3
     lineup_segment_id = db.Column(
         db.Integer, db.ForeignKey("lineup_segments.id"), nullable=True
     )  # Link to active lineup during this event

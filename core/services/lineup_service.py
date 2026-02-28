@@ -602,6 +602,7 @@ def process_game_lineups(
         pts_allowed = 0
         poss = 0
         poss_ending = set()
+        reb_conceded = 0
         
         player_map = {p: {
             "points": 0, "fga": 0, "fgm": 0, "tpa": 0, "tpm": 0, "fta": 0, "ftm": 0,
@@ -651,6 +652,7 @@ def process_game_lineups(
                         pts = 2
                 pts_allowed += pts
             elif et == "OPP_OREB":
+                reb_conceded += 1
                 for p in player_map: player_map[p]["reb_conceded"] += 1
             
             # Atomic stats
@@ -675,6 +677,7 @@ def process_game_lineups(
         segment.points_scored = pts_scored
         segment.points_allowed = pts_allowed
         segment.possessions = poss
+        segment.reb_conceded = reb_conceded
         segment.duration_seconds = calculate_segment_duration(seg_events)
         if segment.lineup_id:
             lineup_ids.add(segment.lineup_id)

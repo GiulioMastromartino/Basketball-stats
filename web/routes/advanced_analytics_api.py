@@ -1370,13 +1370,14 @@ def get_opponent_shots_for_lineup(lineup_id):
             detail = json.loads(shot.detail) if shot.detail else {}
             result = detail.get('result', 'made')
             
-            if x is not None and y is not None:
+            if x is not None and y is not None or shot.zone:
                 shots.append({
                     "x": x,
                     "y": y,
                     "result": result,
                     "quarter": shot.quarter,
                     "game_id": segment.game_id,
+                    "zone": shot.zone,
                 })
     
     return shots

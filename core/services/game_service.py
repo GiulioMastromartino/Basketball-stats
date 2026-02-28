@@ -1,3 +1,4 @@
+import copy
 import json
 import re
 
@@ -120,6 +121,43 @@ def normalize_sort_date(date_str: str) -> str:
     return date_str  # fallback, might fail DB constraints if too long
 
 
+def infer_zone_from_coords(x, y):
+    """Infer shot zone from x, y coordinates.
+    
+    Court dimensions: x (0-500), y (0-470)
+    - Rim: x near basket (around 250) and y close to baseline
+    - Paint: inside the paint area
+    - Midrange: between paint and 3-point line
+    - Corner_3: corner 3-point shots
+    - Above_Break_3: above the break 3-point shots
+    """
+    if x is None or y is None:
+        return None
+    
+    # Court is 500 x 470 (normalized)
+    # Basket is at approximately x=250
+    
+    # Corner 3: x < 50 or x > 450, and y < 150 (close to baseline)
+    if (x < 50 or x > 450) and y < 150:
+        return "Corner_3"
+    
+    # Above break 3: y > 300 (above the 3-point line)
+    if y > 300:
+        return "Above_Break_3"
+    
+    # Paint: x between 170-330 and y < 190 (inside paint)
+    if 170 <= x <= 330 and y < 190:
+        return "Paint"
+    
+    # Rim: very close to basket (x around 250, y < 100)
+    if 220 <= x <= 280 and y < 100:
+        return "Rim"
+    
+    # Midrange: everything else
+    return "Midrange"
+
+
+
 def get_nested_value(data, *keys, default=None):
     """Get a value from a dict trying multiple possible key names."""
     for key in keys:
@@ -200,6 +238,20 @@ def create_game_from_live_data(data):
 
     # Detect structure type (Nested 'game' object vs Flat)
     is_nested_import = "game" in data
+    
+    # For re-imports: remove IDs from data to prevent SQLAlchemy from updating existing records
+    # This ensures new records are created instead of updating existing ones
+    if is_nested_import and "game" in data:
+        data = copy.deepcopy(data)
+        if "game" in data and isinstance(data["game"], dict):
+            data["game"].pop("id", None)
+        for key in ["game_events", "shot_events", "player_stats"]:
+            if key in data and isinstance(data[key], list):
+                for item in data[key]:
+                    if isinstance(item, dict):
+                        item.pop("id", None)
+                        item.pop("game_id", None)
+                        item.pop("lineup_segment_id", None)
 
     if is_nested_import:
         # Structure: {"game": {...}, "player_stats": [...], "shot_events": [...], ...}
@@ -430,6 +482,18 @@ def create_game_from_live_data(data):
     
     db.session.add_all(all_shot_events)
 
+    # Build a lookup for shot results: (player_name, quarter) -> result
+    # This is used to populate game_events with shot_attempt
+    shot_results_lookup = {}
+    for s in all_shot_events:
+        if s.player_name and s.quarter:
+            key = (s.player_name.strip().lower(), s.quarter)
+            shot_results_lookup[key] = s.result  # 'made' or 'missed'
+    
+    # Also build a lookup by player + game_seconds for more precise matching
+    shot_by_time_lookup = {}
+    # We need to store original shot event data, will do this after game_events created
+    
     # --- Process Game Events ---
     for e_data in game_events_source:
         if is_nested_import:
@@ -438,6 +502,23 @@ def create_game_from_live_data(data):
             detail = get_nested_value(e_data, "detail", "Detail", "description")
             timestamp = get_nested_value(e_data, "timestamp", "time", "Timestamp", default=0)
             shot_attempt = get_nested_value(e_data, "shot_attempt", "ShotAttempt")
+            
+            # If shot_attempt is not set, try to get from shot_events lookup or detail
+            if shot_attempt is None and event_type in ("SHOT_2PT", "SHOT_3PT", "FT"):
+                # Try shot_events lookup first
+                if player_name:
+                    key = (player_name.strip().lower(), quarter)
+                    if key in shot_results_lookup:
+                        shot_attempt = shot_results_lookup[key]
+                    # For FT events, also check detail for ftm
+                    elif event_type == "FT" and detail:
+                        try:
+                            if isinstance(detail, str) and detail.startswith("{"):
+                                detail_parsed = json.loads(detail)
+                                ftm = detail_parsed.get("ftm", 0)
+                                shot_attempt = "made" if ftm > 0 else "missed"
+                        except:
+                            pass
             quarter = get_nested_value(e_data, "quarter", "q", "period")
             time_remaining = get_nested_value(e_data, "time_remaining", "timeRemaining", "time_remaining")
             score_margin = get_nested_value(e_data, "score_margin", "scoreMargin")
@@ -445,8 +526,47 @@ def create_game_from_live_data(data):
             game_seconds = get_nested_value(e_data, "game_seconds", "gameSeconds")
             x = get_nested_value(e_data, "x_loc", "x", "xLoc")
             y = get_nested_value(e_data, "y_loc", "y", "yLoc")
+            zone = get_nested_value(e_data, "zone", "Zone")
+            
+            # Extract zone/location from detail field if not at top level
+            # (e.g., OPP_SCORE events store this in detail JSON)
+            detail_parsed = None
+            if detail and isinstance(detail, str) and detail.startswith("{"):
+                try:
+                    detail_parsed = json.loads(detail)
+                except:
+                    pass
+            
+            # Override with detail values if top-level values are missing
+            if detail_parsed:
+                if x is None:
+                    x = detail_parsed.get("x_loc") or detail_parsed.get("x")
+                if y is None:
+                    y = detail_parsed.get("y_loc") or detail_parsed.get("y")
+                if zone is None:
+                    zone = detail_parsed.get("zone")
+                
+                # If still no zone, infer from coordinates
+                if zone is None:
+                    zone = infer_zone_from_coords(x, y)
+            
+            # Ignore IDs from export - create new records for re-import
+            # (prevents SQLAlchemy from trying to update existing records)
+            _event_id = get_nested_value(e_data, "id")
+            _event_game_id = get_nested_value(e_data, "game_id")
+            _lineup_segment_id = get_nested_value(e_data, "lineup_segment_id")
+            
+            play_id_val = get_nested_value(e_data, "play_id", "playId")
+            play_name_val = get_nested_value(e_data, "play_name", "playName")
 
-            p_id = get_cached_play_id(extract_play_name_from_detail(detail))
+            # Use play_id directly if provided, otherwise use play_name, otherwise extract from detail
+            if play_id_val:
+                p_id = int(play_id_val) if play_id_val else None
+            elif play_name_val:
+                p_id = get_cached_play_id(play_name_val)
+            else:
+                p_id = get_cached_play_id(extract_play_name_from_detail(detail))
+            
             if isinstance(detail, dict): detail = json.dumps(detail)
 
             all_game_events.append(GameEvent(
@@ -462,6 +582,7 @@ def create_game_from_live_data(data):
                 game_seconds=int(game_seconds) if game_seconds is not None else None,
                 x_loc=float(x) if x is not None else None,
                 y_loc=float(y) if y is not None else None,
+                zone=zone,
             ))
         else:
             event_type = get_nested_value(e_data, "type", "event_type", "EventType")
@@ -469,6 +590,23 @@ def create_game_from_live_data(data):
             detail = get_nested_value(e_data, "detail", "Detail", "description")
             timestamp = get_nested_value(e_data, "timestamp", "time", "Timestamp", default=0)
             shot_attempt = get_nested_value(e_data, "shot_attempt", "ShotAttempt")
+            
+            # If shot_attempt is not set, try to get from shot_events lookup or detail
+            if shot_attempt is None and event_type in ("SHOT_2PT", "SHOT_3PT", "FT"):
+                # Try shot_events lookup first
+                if player_name:
+                    key = (player_name.strip().lower(), quarter)
+                    if key in shot_results_lookup:
+                        shot_attempt = shot_results_lookup[key]
+                    # For FT events, also check detail for ftm
+                    elif event_type == "FT" and detail:
+                        try:
+                            if isinstance(detail, str) and detail.startswith("{"):
+                                detail_parsed = json.loads(detail)
+                                ftm = detail_parsed.get("ftm", 0)
+                                shot_attempt = "made" if ftm > 0 else "missed"
+                        except:
+                            pass
             quarter = get_nested_value(e_data, "quarter", "q", "period")
             time_remaining = get_nested_value(e_data, "time_remaining", "timeRemaining", "time_remaining")
             score_margin = get_nested_value(e_data, "score_margin", "scoreMargin")
@@ -496,6 +634,18 @@ def create_game_from_live_data(data):
             ))
     
     db.session.add_all(all_game_events)
+    
+    # Copy play_id from game_events to shot_events for analytics
+    # Match by player_name, quarter
+    for ge in all_game_events:
+        if ge.event_type in ("SHOT_2PT", "SHOT_3PT") and ge.play_id and ge.player_name and ge.quarter:
+            for se in all_shot_events:
+                if (se.player_name and se.player_name.lower() == ge.player_name.lower() 
+                    and se.quarter == ge.quarter 
+                    and not se.play_id):
+                    se.play_id = ge.play_id
+                    break
+    
     db.session.commit()
 
     # Assign possession numbers to events (for lineup stats calculation)
@@ -519,10 +669,15 @@ def create_game_from_live_data(data):
         except Exception as e:
             current_app.logger.warning(f"Failed to process lineup segments: {e}")
 
+    # Handle SHOT_ZONES and PLAY_TRACKING feature flags
+    has_shot_zones = schema_version >= 3 or features.get("SHOT_ZONES", False)
+    has_play_tracking = schema_version >= 3 or features.get("PLAY_TRACKING", False)
+
     # Log schema version for debugging/monitoring
     current_app.logger.info(
         f"Game {game.id} saved with schema_version={schema_version}, "
-        f"features={list(features.keys()) if features else 'none'}"
+        f"features={list(features.keys()) if features else 'none'}, "
+        f"has_shot_zones={has_shot_zones}, has_play_tracking={has_play_tracking}"
     )
 
     return game

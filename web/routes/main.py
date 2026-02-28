@@ -1077,13 +1077,13 @@ def game_detail(game_id):
 
     try:
         top_game_lineups_off = LineupAnalytics.get_game_lineup_rankings(
-            game.id, top_n=3, rank_by="offensive", min_possessions=0.0,
+            game.id, top_n=3, rank_by="offensive", min_possessions=10,
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss
         )
         top_game_lineups_def = LineupAnalytics.get_game_lineup_rankings(
-            game.id, top_n=3, rank_by="defensive", min_possessions=0.0,
+            game.id, top_n=3, rank_by="defensive", min_possessions=10,
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss
@@ -1097,7 +1097,7 @@ def game_detail(game_id):
         top_game_duos_off = LineupAnalytics.get_combination_net_differentials(
             combination_type="duo",
             game_ids=[game.id],
-            min_possessions=0.0,
+            min_possessions=10,
             top_n=3,
             require_positive=False,
             total_pts_scored_override=game.team_score,
@@ -1108,7 +1108,7 @@ def game_detail(game_id):
         top_game_duos_def = LineupAnalytics.get_combination_net_differentials(
             combination_type="duo",
             game_ids=[game.id],
-            min_possessions=0.0,
+            min_possessions=10,
             top_n=3,
             require_positive=False,
             total_pts_scored_override=game.team_score,
@@ -1125,7 +1125,7 @@ def game_detail(game_id):
         top_game_trios_off = LineupAnalytics.get_combination_net_differentials(
             combination_type="trio",
             game_ids=[game.id],
-            min_possessions=0.0,
+            min_possessions=10,
             top_n=3,
             require_positive=False,
             total_pts_scored_override=game.team_score,
@@ -1136,7 +1136,7 @@ def game_detail(game_id):
         top_game_trios_def = LineupAnalytics.get_combination_net_differentials(
             combination_type="trio",
             game_ids=[game.id],
-            min_possessions=0.0,
+            min_possessions=10,
             top_n=3,
             require_positive=False,
             total_pts_scored_override=game.team_score,
@@ -1742,7 +1742,7 @@ def game_lineup_combinations(game_id):
         top_duos = LineupAnalytics.get_combination_net_differentials(
             combination_type="duo",
             game_ids=[game_id],
-            min_possessions=0,
+            min_possessions=10,
             top_n=3,
             require_positive=False,
         )
@@ -1753,7 +1753,7 @@ def game_lineup_combinations(game_id):
         top_trios = LineupAnalytics.get_combination_net_differentials(
             combination_type="trio",
             game_ids=[game_id],
-            min_possessions=0,
+            min_possessions=10,
             top_n=3,
             require_positive=False,
         )

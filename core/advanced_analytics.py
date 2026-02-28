@@ -372,6 +372,8 @@ class LineupAnalytics:
             raise ValueError("combination_type must be 'duo' or 'trio'")
 
         segment_data = LineupAnalytics._build_segment_payload(game_ids)
+        # Filter out segments with 0 possessions
+        segment_data = [s for s in segment_data if s.get('possessions', 0) > 0]
         if not segment_data:
             return []
 
@@ -714,7 +716,11 @@ class LineupAnalytics:
         
         Impact is calculated relative to the team's overall performance in that game.
         """
-        segments = LineupSegment.query.filter_by(game_id=game_id).all()
+        # Filter out segments with 0 possessions (can't calculate meaningful ratings)
+        segments = LineupSegment.query.filter(
+            LineupSegment.game_id == game_id,
+            LineupSegment.possessions > 0
+        ).all()
         
         # Calculate game-wide averages for delta comparison
         game_ortg = 0

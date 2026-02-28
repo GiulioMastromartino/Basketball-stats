@@ -1732,6 +1732,24 @@ class GameTracker {
     confirmOppShotLocation() {
         if (!this.pendingOppShotLocation) return;
         
+        // Add location to the last OPP_SCORE event
+        if (this._pendingOppShotX !== null && this._pendingOppShotY !== null) {
+            // Find the last OPP_SCORE event
+            for (let i = this.gameEvents.length - 1; i >= 0; i--) {
+                const ev = this.gameEvents[i];
+                if (ev.type === 'OPP_SCORE') {
+                    // Update detail with location
+                    ev.detail = ev.detail || {};
+                    ev.detail.x_loc = this._pendingOppShotX;
+                    ev.detail.y_loc = this._pendingOppShotY;
+                    // Also add at top level for easier access
+                    ev.x_loc = this._pendingOppShotX;
+                    ev.y_loc = this._pendingOppShotY;
+                    break;
+                }
+            }
+        }
+        
         this.pendingOppShotLocation = null;
         this._pendingOppShotX = null;
         this._pendingOppShotY = null;
