@@ -6,7 +6,7 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use itertools::Itertools;
 
 /// Default expected values for shot zones (can be customized)
@@ -46,7 +46,7 @@ pub struct ShotQualityResult {
     pub expected_points: f64,
     pub shot_quality_delta: f64,
     pub ppps: f64,
-    pub zone_breakdown: HashMap<String, ZoneStats>,
+    pub zone_breakdown: FxHashMap<String, ZoneStats>,
 }
 
 /// Lineup segment for aggregation
@@ -200,14 +200,14 @@ pub fn calculate_shot_quality_score(shots_json: &str) -> PyResult<String> {
             expected_points: 0.0,
             shot_quality_delta: 0.0,
             ppps: 0.0,
-            zone_breakdown: HashMap::new(),
+            zone_breakdown: FxHashMap::default(),
         };
         return Ok(serde_json::to_string(&empty_result).unwrap());
     }
     
     let mut total_points = 0;
     let mut total_expected = 0.0;
-    let mut zone_stats: HashMap<String, ZoneStats> = HashMap::new();
+    let mut zone_stats: FxHashMap<String, ZoneStats> = FxHashMap::default();
     
     for shot in &shots {
         total_points += shot.points;
@@ -381,10 +381,10 @@ pub fn is_clutch_situation(score_margin: i32, time_remaining_seconds: i32) -> bo
 /// Calculate game flow data points
 #[pyfunction]
 pub fn calculate_game_flow(scores_json: &str) -> PyResult<String> {
-    let scores: Vec<HashMap<String, serde_json::Value>> = serde_json::from_str(scores_json)
+    let scores: Vec<FxHashMap<String, serde_json::Value>> = serde_json::from_str(scores_json)
         .map_err(|e| PyValueError::new_err(format!("Invalid JSON: {}", e)))?;
     
-    let mut result: Vec<HashMap<String, serde_json::Value>> = Vec::new();
+    let mut result: Vec<FxHashMap<String, serde_json::Value>> = Vec::new();
     let mut running_score = (0, 0);
     
     for score_point in scores {
@@ -417,18 +417,18 @@ pub fn aggregate_combinatorial_stats(segments_json: &str) -> PyResult<String> {
     let segments: Vec<LineupSegmentData> = serde_json::from_str(segments_json)
         .map_err(|e| PyValueError::new_err(format!("Invalid JSON: {}", e)))?;
     
-    let mut duo_stats: HashMap<Vec<String>, AggregatedStats> = HashMap::new();
-    let mut trio_stats: HashMap<Vec<String>, AggregatedStats> = HashMap::new();
+    let mut duo_stats: FxHashMap<String, AggregatedStats> = FxHashMap::default();
+    let mut trio_stats: FxHashMap<String, AggregatedStats> = FxHashMap::default();
     
     for segment in segments {
         if segment.players.len() < 2 { continue; }
         
-        let mut sorted_players = segment.players.clone();
-        sorted_players.sort();
+        let mut sorted_players: Vec<&str> = segment.players.iter().map(|s| s.as_str()).collect();
+        sorted_players.sort_unstable();
         
         // Duo combinations
         for duo in sorted_players.iter().combinations(2) {
-            let key = duo.into_iter().cloned().collect::<Vec<String>>();
+            let key = format!("{},{}", duo[0], duo[1]);
             let entry = duo_stats.entry(key).or_default();
             entry.segments += 1;
             entry.points_scored += segment.points_scored;
@@ -440,7 +440,7 @@ pub fn aggregate_combinatorial_stats(segments_json: &str) -> PyResult<String> {
         // Trio combinations
         if sorted_players.len() >= 3 {
             for trio in sorted_players.iter().combinations(3) {
-                let key = trio.into_iter().cloned().collect::<Vec<String>>();
+                let key = format!("{},{},{}", trio[0], trio[1], trio[2]);
                 let entry = trio_stats.entry(key).or_default();
                 entry.segments += 1;
                 entry.points_scored += segment.points_scored;
@@ -453,13 +453,13 @@ pub fn aggregate_combinatorial_stats(segments_json: &str) -> PyResult<String> {
     
     #[derive(Serialize)]
     struct CombinedResult {
-        duos: HashMap<String, AggregatedStats>,
-        trios: HashMap<String, AggregatedStats>,
+        duos: FxHashMap<String, AggregatedStats>,
+        trios: FxHashMap<String, AggregatedStats>,
     }
     
     let result = CombinedResult {
-        duos: duo_stats.into_iter().map(|(k, v)| (k.join(","), v)).collect(),
-        trios: trio_stats.into_iter().map(|(k, v)| (k.join(","), v)).collect(),
+        duos: duo_stats,
+        trios: trio_stats,
     };
     
     serde_json::to_string(&result).map_err(|e| PyValueError::new_err(format!("Serialization error: {}", e)))
@@ -568,17 +568,22 @@ pub fn calculate_impact_metrics(segments_json: &str, combination_type: &str, min
     }
 
     // 2. Aggregate per combination
-    let mut combo_stats: HashMap<Vec<String>, AggregatedStats> = HashMap::new();
-    let combo_size = if combination_type == "trio" { 3 } else { 2 };
+    let mut combo_stats: FxHashMap<String, AggregatedStats> = FxHashMap::default();
+    let is_trio = combination_type == "trio";
+    let combo_size = if is_trio { 3 } else { 2 };
 
     for s in &segments {
         if s.players.len() < combo_size { continue; }
         
-        let mut sorted_players = s.players.clone();
-        sorted_players.sort();
+        let mut sorted_players: Vec<&str> = s.players.iter().map(|p| p.as_str()).collect();
+        sorted_players.sort_unstable();
 
         for combo in sorted_players.iter().combinations(combo_size) {
-            let key: Vec<String> = combo.into_iter().cloned().collect();
+            let key = if is_trio {
+                format!("{},{},{}", combo[0], combo[1], combo[2])
+            } else {
+                format!("{},{}", combo[0], combo[1])
+            };
             let entry = combo_stats.entry(key).or_default();
             entry.segments += 1;
             entry.possessions += s.possessions;
@@ -592,16 +597,18 @@ pub fn calculate_impact_metrics(segments_json: &str, combination_type: &str, min
     #[derive(Serialize)]
     struct ImpactResult {
         players: Vec<String>,
-        on: HashMap<String, f64>,
-        off: HashMap<String, f64>,
-        impact: HashMap<String, f64>,
+        on: FxHashMap<String, f64>,
+        off: FxHashMap<String, f64>,
+        impact: FxHashMap<String, f64>,
         segments: i32,
     }
 
     let mut results: Vec<ImpactResult> = Vec::new();
 
-    for (players, stats) in combo_stats {
+    for (key, stats) in combo_stats {
         if stats.possessions < min_possessions { continue; }
+
+        let players: Vec<String> = key.split(',').map(|s| s.to_string()).collect();
 
         // ON Court Ratings
         let on_ortg = if stats.possessions > 0.0 { stats.points_scored as f64 / stats.possessions * 100.0 } else { 0.0 };
@@ -628,7 +635,7 @@ pub fn calculate_impact_metrics(segments_json: &str, combination_type: &str, min
         results.push(ImpactResult {
             players,
             segments: stats.segments,
-            on: HashMap::from([
+            on: FxHashMap::from_iter([
                 ("ortg".to_string(), (on_ortg * 10.0).round() / 10.0),
                 ("drtg".to_string(), (on_drtg * 10.0).round() / 10.0),
                 ("net".to_string(), (on_net * 10.0).round() / 10.0),
@@ -636,13 +643,13 @@ pub fn calculate_impact_metrics(segments_json: &str, combination_type: &str, min
                 ("minutes".to_string(), (stats.possessions * 0.2).round() / 10.0), // Rough estimate if secs missing
                 ("reb_conceded".to_string(), stats.reb_conceded as f64),
             ]),
-            off: HashMap::from([
+            off: FxHashMap::from_iter([
                 ("ortg".to_string(), (off_ortg * 10.0).round() / 10.0),
                 ("drtg".to_string(), (off_drtg * 10.0).round() / 10.0),
                 ("net".to_string(), (off_net * 10.0).round() / 10.0),
                 ("reb_conceded".to_string(), off_reb_conceded as f64),
             ]),
-            impact: HashMap::from([
+            impact: FxHashMap::from_iter([
                 ("offense_delta".to_string(), (off_delta * 10.0).round() / 10.0),
                 ("defense_delta".to_string(), (def_delta * 10.0).round() / 10.0),
                 ("net_differential".to_string(), (net_delta * 10.0).round() / 10.0),
@@ -667,7 +674,7 @@ pub fn calculate_shot_heatmap(shots_json: &str) -> PyResult<String> {
     let shots: Vec<ShotData> = serde_json::from_str(shots_json)
         .map_err(|e| PyValueError::new_err(format!("Invalid JSON: {}", e)))?;
 
-    let mut zone_stats: HashMap<String, ZoneStats> = HashMap::new();
+    let mut zone_stats: FxHashMap<String, ZoneStats> = FxHashMap::default();
     let mut total_attempts = 0;
 
     for shot in &shots {
