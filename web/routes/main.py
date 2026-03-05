@@ -1053,10 +1053,10 @@ def game_detail(game_id):
         ),
     }
 
-    # Get opponent shots with location data (both made and missed)
+    # Get opponent shots with location data (made only)
     opponent_shots = GameEvent.query.filter(
         GameEvent.game_id == game.id,
-        GameEvent.event_type.in_(["OPP_SCORE", "OPP_MISS"]),
+        GameEvent.event_type == "OPP_SCORE",
         GameEvent.x_loc.isnot(None),
     ).all()
 
@@ -1064,7 +1064,7 @@ def game_detail(game_id):
         {
             "x": s.x_loc,
             "y": s.y_loc,
-            "result": "made" if s.event_type == "OPP_SCORE" else "missed",
+            "result": "made",
             "quarter": s.quarter,
             "zone": s.zone if hasattr(s, "zone") else None,
             "points": json.loads(s.detail).get("points", 0)

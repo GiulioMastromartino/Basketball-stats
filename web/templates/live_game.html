@@ -2,6 +2,187 @@
 
 {% block extra_css %}
 <style>
+/* Fullscreen modals for live game popups */
+#assistModal .modal-dialog,
+#shotLocModal .modal-dialog,
+#orebModal .modal-dialog,
+#subModal .modal-dialog,
+#playSelectorModal .modal-dialog,
+#currentStatsModal .modal-dialog,
+#ftModal .modal-dialog,
+#oppShotModal .modal-dialog,
+#oppShotLocModal .modal-dialog,
+#oppReboundModal .modal-dialog,
+#drebPlayerModal .modal-dialog {
+    max-width: 100vw !important;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+}
+
+#assistModal .modal-content,
+#shotLocModal .modal-content,
+#orebModal .modal-content,
+#subModal .modal-content,
+#playSelectorModal .modal-content,
+#currentStatsModal .modal-content,
+#ftModal .modal-content,
+#oppShotModal .modal-content,
+#oppShotLocModal .modal-content,
+#oppReboundModal .modal-content,
+#drebPlayerModal .modal-content {
+    height: 100vh !important;
+    min-height: 100vh !important;
+    border-radius: 0;
+    border: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#assistModal .modal-header,
+#shotLocModal .modal-header,
+#orebModal .modal-header,
+#subModal .modal-header,
+#playSelectorModal .modal-header,
+#currentStatsModal .modal-header,
+#ftModal .modal-header,
+#oppShotModal .modal-header,
+#oppShotLocModal .modal-header,
+#oppReboundModal .modal-header,
+#drebPlayerModal .modal-header,
+#assistModal .modal-footer,
+#shotLocModal .modal-footer,
+#orebModal .modal-footer,
+#subModal .modal-footer,
+#playSelectorModal .modal-footer,
+#currentStatsModal .modal-footer,
+#ftModal .modal-footer,
+#oppShotModal .modal-footer,
+#oppShotLocModal .modal-footer,
+#oppReboundModal .modal-footer,
+#drebPlayerModal .modal-footer {
+    flex: 0 0 auto;
+}
+
+#assistModal .modal-body,
+#shotLocModal .modal-body,
+#orebModal .modal-body,
+#subModal .modal-body,
+#playSelectorModal .modal-body,
+#currentStatsModal .modal-body,
+#ftModal .modal-body,
+#oppShotModal .modal-body,
+#oppShotLocModal .modal-body,
+#oppReboundModal .modal-body,
+#drebPlayerModal .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* Stretch list/table containers to use the full modal body */
+#assistModal .list-group,
+#orebModal .list-group,
+#subModal .list-group,
+#oppShotModal .list-group,
+#oppReboundModal .list-group,
+#drebPlayerModal .list-group {
+    min-height: 100%;
+}
+
+#currentStatsModal .table-responsive {
+    height: 100%;
+}
+
+/* Stretch shot chart areas */
+#shotLocModal .position-relative.d-inline-block,
+#oppShotLocModal .position-relative.d-inline-block {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+
+#shotLocModal #halfCourtSvg,
+#oppShotLocModal #oppHalfCourtSvg {
+    width: 100%;
+    height: 100%;
+    max-height: none !important;
+}
+
+/* Option UX system */
+.live-modal-hint {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+.live-option-list {
+    padding: 0.75rem;
+    background: #f7f9fc;
+}
+
+.live-option-btn {
+    width: 100%;
+    border: 1px solid #d7deea;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.6rem;
+    text-align: left;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.live-option-btn:last-child {
+    margin-bottom: 0;
+}
+
+.live-option-btn:hover,
+.live-option-btn:focus {
+    border-color: #2f6ce5;
+    box-shadow: 0 0 0 3px rgba(47, 108, 229, 0.12);
+    outline: none;
+}
+
+.live-option-btn.primary {
+    border-color: #28a745;
+    background: #f2fbf5;
+}
+
+.live-option-btn.warning {
+    border-color: #ffca2c;
+    background: #fffdf4;
+}
+
+.live-option-btn.danger {
+    border-color: #dc3545;
+    background: #fff5f6;
+}
+
+.live-option-title {
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1.2;
+}
+
+.live-option-subtitle {
+    font-size: 0.82rem;
+    color: #6b7280;
+    margin-top: 0.15rem;
+}
+
+.live-option-tag {
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 0.2rem 0.6rem;
+    background: #eef2ff;
+    color: #3730a3;
+    white-space: nowrap;
+}
+
 /* Mobile/iPad Optimizations for Live Game */
 @media (max-width: 768px) {
     /* Reduce padding on mobile */
@@ -77,23 +258,9 @@
 
 /* Modal improvements for mobile */
 @media (max-width: 768px) {
-    .modal-dialog {
-        margin: 0.5rem;
-        max-width: calc(100% - 1rem);
-    }
-    
-    #shotLocModal .modal-dialog {
-        max-width: calc(100% - 1rem) !important;
-    }
-    
     /* Make shot chart fill screen better on mobile */
     #halfCourtSvg {
         max-height: 50vh !important;
-    }
-    
-    /* Play selector modal */
-    #playSelectorModal .modal-content {
-        height: 90vh !important;
     }
 }
 </style>
@@ -137,7 +304,7 @@
 
             <div id="roster-selection" class="d-flex flex-wrap mb-3">
                 {% for player in existing_players %}
-                <button class="btn btn-outline-secondary btn-sm m-1" onclick="gameTracker.toggleRosterPlayer('{{ player }}', this)">{{ player }}</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm m-1 player-select-btn" data-player-name="{{ player }}" >{{ player }}</button>
                 {% endfor %}
             </div>
 
@@ -263,7 +430,7 @@
             </div>
             <div class="modal-body p-0">
                 <div class="p-2 text-center bg-light border-bottom font-weight-bold" id="assist-shot-label"></div>
-                <div class="list-group list-group-flush" id="assist-list"></div>
+                <div class="live-option-list" id="assist-list"></div>
             </div>
         </div>
     </div>
@@ -328,7 +495,7 @@
             </div>
             <div class="modal-body p-0">
                 <div class="p-2 text-center bg-light border-bottom font-weight-bold" id="oreb-shot-label"></div>
-                <div class="list-group list-group-flush" id="oreb-list"></div>
+                <div class="live-option-list" id="oreb-list"></div>
             </div>
         </div>
     </div>
@@ -344,7 +511,7 @@
             </div>
             <div class="modal-body p-0">
                 <div class="alert alert-info mb-0 rounded-0 p-2 small">Select exactly 5 players for the lineup.</div>
-                <div class="list-group list-group-flush" id="sub-roster-list"></div>
+                <div class="live-option-list" id="sub-roster-list"></div>
             </div>
             <div class="modal-footer py-2">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
@@ -454,6 +621,7 @@
     </div>
 </div>
 
+
 <!-- Opponent Shot Modal -->
 <div class="modal fade" id="oppShotModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
@@ -462,14 +630,20 @@
                 <h5 class="modal-title h6">Opponent Shot - <span id="opp-shot-type"></span></h5>
             </div>
             <div class="modal-body p-0">
-                <div class="list-group list-group-flush">
-                    <button class="list-group-item list-group-item-action text-success font-weight-bold py-3" 
-                            onclick="gameTracker.confirmOppShot(true)">
-                        <i class="fas fa-check mr-2"></i>MADE
+                <div class="live-option-list">
+                    <button class="live-option-btn primary" onclick="gameTracker.confirmOppShot(true)">
+                        <span>
+                            <div class="live-option-title"><i class="fas fa-check mr-2"></i>Made Shot</div>
+                            <div class="live-option-subtitle">Add points and optionally mark shot location</div>
+                        </span>
+                        <span class="live-option-tag">SCORE</span>
                     </button>
-                    <button class="list-group-item list-group-item-action text-danger font-weight-bold py-3"
-                            onclick="gameTracker.confirmOppShot(false)">
-                        <i class="fas fa-times mr-2"></i>MISSED
+                    <button class="live-option-btn danger" onclick="gameTracker.confirmOppShot(false)">
+                        <span>
+                            <div class="live-option-title"><i class="fas fa-times mr-2"></i>Missed Shot</div>
+                            <div class="live-option-subtitle">Proceed to rebound assignment</div>
+                        </span>
+                        <span class="live-option-tag">MISS</span>
                     </button>
                 </div>
             </div>
@@ -535,14 +709,20 @@
                 <h5 class="modal-title h6">Rebound?</h5>
             </div>
             <div class="modal-body p-0">
-                <div class="list-group list-group-flush">
-                    <button class="list-group-item list-group-item-action text-danger font-weight-bold py-3"
-                            onclick="gameTracker.confirmOppRebound('offensive')">
-                        <i class="fas fa-arrow-down mr-2"></i>OPP Offensive Rebound
+                <div class="live-option-list">
+                    <button class="live-option-btn danger" onclick="gameTracker.confirmOppRebound('offensive')">
+                        <span>
+                            <div class="live-option-title"><i class="fas fa-arrow-down mr-2"></i>Opponent Offensive Rebound</div>
+                            <div class="live-option-subtitle">Continue opponent possession</div>
+                        </span>
+                        <span class="live-option-tag">OPP OREB</span>
                     </button>
-                    <button class="list-group-item list-group-item-action text-success font-weight-bold py-3"
-                            onclick="gameTracker.confirmOppRebound('defensive')">
-                        <i class="fas fa-arrow-up mr-2"></i>OUR Defensive Rebound
+                    <button class="live-option-btn primary" onclick="gameTracker.confirmOppRebound('defensive')">
+                        <span>
+                            <div class="live-option-title"><i class="fas fa-arrow-up mr-2"></i>Our Defensive Rebound</div>
+                            <div class="live-option-subtitle">Choose the rebounder next</div>
+                        </span>
+                        <span class="live-option-tag">DREB</span>
                     </button>
                 </div>
             </div>
@@ -558,7 +738,7 @@
                 <h5 class="modal-title h6">Who got the rebound?</h5>
             </div>
             <div class="modal-body p-0">
-                <div class="list-group list-group-flush" id="dreb-player-list"></div>
+                <div class="live-option-list" id="dreb-player-list"></div>
             </div>
         </div>
     </div>

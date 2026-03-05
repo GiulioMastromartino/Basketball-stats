@@ -97,11 +97,6 @@
     .shot-made { background-color: #28a745; } /* Green */
     .shot-missed { background-color: #dc3545; } /* Red */
     .shot-opponent { background-color: #f59e0b; } /* Orange/Amber for opponent makes */
-    .shot-opponent-miss { 
-        background-color: transparent; 
-        border: 2px solid #6b7280; 
-        box-sizing: border-box;
-    } /* Gray ring for opponent misses */
 
     .shot-tooltip {
         position: absolute;
@@ -1268,7 +1263,7 @@
                     <!-- Opponent Shot Layer -->
                     <div id="opponent-shot-layer">
                         {% for shot in opponent_shots %}
-                        <div class="shot-point {% if shot.result == 'made' %}shot-opponent{% else %}shot-opponent-miss{% endif %}"
+                        <div class="shot-point shot-opponent"
                              style="left: {{ (shot.x / 500 * 100) }}%; top: {{ (shot.y / 470 * 100) }}%;"
                              data-quarter="{{ shot.quarter }}"
                              data-result="{{ shot.result }}"
@@ -1280,25 +1275,18 @@
                 
                 <div class="mt-3">
                     {% set opp_made = opponent_shots|selectattr('result', 'equalto', 'made')|list %}
-                    {% set opp_missed = opponent_shots|selectattr('result', 'equalto', 'missed')|list %}
                     <span class="badge bg-warning text-dark">● Opponent Makes ({{ opp_made|length }})</span>
-                    <span class="badge bg-secondary">○ Opponent Misses ({{ opp_missed|length }})</span>
                 </div>
             </div>
 
             <div class="stat-card mt-4">
                 <h6 class="text-uppercase text-muted mb-3 fw-bold letter-spacing-1">Opponent Shot Summary</h6>
                 {% set opp_made = opponent_shots|selectattr('result', 'equalto', 'made')|list %}
-                {% set opp_missed = opponent_shots|selectattr('result', 'equalto', 'missed')|list %}
                 {% set opp_total_pts = opponent_shots|sum(attribute='points')|default(0) %}
                 <div class="row text-center">
                     <div class="col-md-2">
                         <div class="h3 mb-0 fw-bold text-warning">{{ opp_made|length }}</div>
                         <div class="small text-muted">Makes</div>
-                    </div>
-                    <div class="col-md-2">
-                        <div class="h3 mb-0 fw-bold text-secondary">{{ opp_missed|length }}</div>
-                        <div class="small text-muted">Misses</div>
                     </div>
                     <div class="col-md-2">
                         <div class="h3 mb-0 fw-bold">{{ opponent_shots|length }}</div>

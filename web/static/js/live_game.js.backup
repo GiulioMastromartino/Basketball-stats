@@ -69,7 +69,6 @@ class GameTracker {
 
         // UI Helpers
         this.shotLocListenerAttached = false;
-        this.oppShotLocListenerAttached = false;
 
         // Plays cache
         this.playsCache = [];
@@ -96,11 +95,8 @@ class GameTracker {
         this.init();
     }
 
-
     init() {
         this.loadState();
-        this.initRosterSelection();  // Initialize roster event delegation
-        this.initLineupSelection();  // Initialize lineup event delegation
         this.bindEvents();
         this.renderCachedGamesUI();
         this.loadPlays();
@@ -122,16 +118,13 @@ class GameTracker {
 
             this.startAutoCacheTimer();
         }
-
     }
-
 
     bindEvents() {
         window.onbeforeunload = () => {
             if (this.isClockRunning) return "Game is in progress. Are you sure?";
         };
     }
-
 
     // --- PLAY SELECTOR TOGGLE ---
     togglePlaySelector() {
@@ -150,10 +143,8 @@ class GameTracker {
             status.textContent = 'OFF';
             status.style.color = '#6c757d';
         }
-
         this.saveState();
     }
-
 
     // --- PLAYS LOADING ---
     loadPlays() {
@@ -166,7 +157,6 @@ class GameTracker {
             headers: {
                 'X-CSRFToken': csrfToken
             }
-
         })
         .then(res => res.json())
         .then(plays => {
@@ -182,16 +172,13 @@ class GameTracker {
                 this.playsCache = window.AVAILABLE_PLAYS;
                 this.processPlayTypes();
             }
-
         });
     }
-
 
     processPlayTypes() {
         const types = [...new Set(this.playsCache.map(p => p.type))];
         this.playTypes = types.sort();
     }
-
 
     toggleSpecialPlays() {
         this.showSpecial = !this.showSpecial;
@@ -205,17 +192,14 @@ class GameTracker {
             btn.classList.add('btn-outline-secondary');
             btn.innerHTML = '<i class="fas fa-star"></i> Show Special';
         }
-
         this.renderPlaysList();
     }
-
 
     addToRecentPlays(play) {
         this.recentPlays = this.recentPlays.filter(p => p.id !== play.id);
         this.recentPlays.unshift(play);
         this.recentPlays = this.recentPlays.slice(0, this.CONSTANTS.MAX_RECENT_PLAYS);
     }
-
 
     renderPlaysList() {
         const container = document.getElementById('plays-list');
@@ -225,7 +209,6 @@ class GameTracker {
         if (this.showSpecial) {
             targetType = 'Special';
         }
-
 
         let filteredPlays = this.playsCache.filter(p => p.type === targetType);
         
@@ -239,11 +222,9 @@ class GameTracker {
                 macroName = parts[0].trim();
             }
 
-
             if (!macroMap.has(macroName)) {
                 macroMap.set(macroName, []);
             }
-
             macroMap.get(macroName).push(play);
         });
 
@@ -253,7 +234,6 @@ class GameTracker {
             container.innerHTML = '<div class="text-muted text-center p-4">No ' + targetType + ' plays found</div>';
             return;
         }
-
 
         // Recent plays section (cards)
         if (targetType === 'Offense' && this.recentPlays.length > 0) {
@@ -278,7 +258,6 @@ class GameTracker {
             container.appendChild(divider);
         }
 
-
         // All plays section (cards grid)
         const playsGrid = document.createElement('div');
         playsGrid.className = 'row no-gutters p-2';
@@ -291,12 +270,10 @@ class GameTracker {
             } else {
                 playsGrid.appendChild(this.createPlayCard(variations[0], true, false, name));
             }
-
         });
 
         container.appendChild(playsGrid);
     }
-
 
     createPlayCard(play, isMacro = false, isRecent = false, customLabel = null) {
         const col = document.createElement('div');
@@ -326,7 +303,6 @@ class GameTracker {
         } else if (isMacro) {
             headerClass = 'bg-secondary text-white';
         }
-
         
         card.innerHTML = `
             <div class="card-header ${headerClass} py-2 px-2 text-center">
@@ -345,13 +321,11 @@ class GameTracker {
         return col;
     }
 
-
     openPlaySelector(eventType, shooter = null, shotType = null) {
         if (!this.playSelectMode) {
             this.finalizePlaySelection(null);
             return;
         }
-
 
         this.pendingPlaySelection = {
             eventType,
@@ -366,7 +340,6 @@ class GameTracker {
         $('#playSelectorModal').modal('show');
     }
 
-
     updateSpecialToggleBtn() {
         const btn = document.getElementById('btn-toggle-special');
         if (btn) {
@@ -374,9 +347,7 @@ class GameTracker {
             btn.classList.add('btn-outline-secondary');
             btn.innerHTML = '<i class="fas fa-star"></i> Show Special';
         }
-
     }
-
 
     // **FIX: Retroactively update shot's play_id**
     selectPlay(play) {
@@ -384,7 +355,6 @@ class GameTracker {
             $('#playSelectorModal').modal('hide');
             return;
         }
-
 
         console.log(`Play selected: ID ${play.id} (${play.name})`);
 
@@ -395,12 +365,10 @@ class GameTracker {
             this.lastShotIndex = null; // Clear after use
         }
 
-
         this.addToRecentPlays(play);
         this.finalizePlaySelection(play);
         $('#playSelectorModal').modal('hide');
     }
-
 
     skipPlaySelection() {
         // **FIX: Clear pending shot index if skipped**
@@ -408,7 +376,6 @@ class GameTracker {
         this.finalizePlaySelection(null);
         $('#playSelectorModal').modal('hide');
     }
-
 
     finalizePlaySelection(play) {
         if (this.pendingTurnover) {
@@ -435,13 +402,11 @@ class GameTracker {
             return;
         }
 
-
         if (this.pendingFTTrip) {
             this.confirmFTPlaySelection(play);
             this.pendingPlaySelection = null;
             return;
         }
-
 
         if (this.pendingPlaySelection) {
             const { eventType, shooter } = this.pendingPlaySelection;
@@ -462,13 +427,10 @@ class GameTracker {
                 this.gameEvents.push(event);
             }
 
-
             this.pendingPlaySelection = null;
             this.saveState();
         }
-
     }
-
 
     recordTurnover(player) {
         this.pendingTurnover = { player };
@@ -478,16 +440,13 @@ class GameTracker {
         } else {
             this.finalizePlaySelection(null);
         }
-
     }
-
 
     // --- AUTO-CACHE TIMER ---
     startAutoCacheTimer() {
         if (this.autoCacheInterval) {
             clearInterval(this.autoCacheInterval);
         }
-
 
         this.autoCacheInterval = setInterval(() => {
             const now = Date.now();
@@ -496,19 +455,15 @@ class GameTracker {
             if (timeSinceLastCache >= this.CONSTANTS.AUTO_CACHE_INTERVAL_MS) {
                 this.addToCache(this.getCurrentState(), true);
             }
-
         }, this.CONSTANTS.AUTO_CACHE_INTERVAL_MS);
     }
-
 
     stopAutoCacheTimer() {
         if (this.autoCacheInterval) {
             clearInterval(this.autoCacheInterval);
             this.autoCacheInterval = null;
         }
-
     }
-
 
     // --- CACHE MANAGEMENT ---
     getCachedGames() {
@@ -520,9 +475,7 @@ class GameTracker {
             console.error("Failed to parse cached games", e);
             return [];
         }
-
     }
-
 
     addToCache(state, isAutoCache = false) {
         const cache = this.getCachedGames();
@@ -545,9 +498,7 @@ class GameTracker {
         if (isAutoCache) {
             console.log('[Auto-cache] Game state saved at', new Date(snapshot.timestamp).toLocaleTimeString());
         }
-
     }
-
 
     removeFromCache(id) {
         let cache = this.getCachedGames();
@@ -555,7 +506,6 @@ class GameTracker {
         localStorage.setItem(this.CONSTANTS.CACHE_KEY, JSON.stringify(cache));
         this.renderCachedGamesUI();
     }
-
 
     restoreFromCache(id) {
         const cache = this.getCachedGames();
@@ -565,11 +515,9 @@ class GameTracker {
             return;
         }
 
-
         if (!confirm(`Restore game vs ${snapshot.opponentName || 'Unknown'} from ${this.formatTimestamp(snapshot.timestamp)}? Current progress will be lost.`)) {
             return;
         }
-
 
         this.fullRoster = snapshot.fullRoster || [];
         this.activeLineup = snapshot.activeLineup || [];
@@ -606,9 +554,7 @@ class GameTracker {
 
             this.startAutoCacheTimer();
         }
-
     }
-
 
     renderCachedGamesUI() {
         const container = document.getElementById('cached-games-list');
@@ -621,7 +567,6 @@ class GameTracker {
             return;
         }
 
-
         container.innerHTML = '<h6 class="mb-2">Recent Games (Last 3)</h6>';
 
         cache.forEach(game => {
@@ -629,7 +574,6 @@ class GameTracker {
             if (game.stats) {
                 Object.values(game.stats).forEach(s => totalPoints += (s.points || 0));
             }
-
 
             const div = document.createElement('div');
             div.className = 'card mb-2 shadow-sm';
@@ -656,7 +600,6 @@ class GameTracker {
         });
     }
 
-
     formatTimestamp(timestamp) {
         const date = new Date(timestamp);
         const now = new Date();
@@ -672,7 +615,6 @@ class GameTracker {
 
         return date.toLocaleDateString();
     }
-
 
     // --- PERSISTENCE ---
     saveState() {
@@ -697,7 +639,6 @@ class GameTracker {
         localStorage.setItem(this.CONSTANTS.STORAGE_KEY, JSON.stringify(state));
     }
 
-
     loadState() {
         const stored = localStorage.getItem(this.CONSTANTS.STORAGE_KEY);
         if (stored) {
@@ -713,14 +654,12 @@ class GameTracker {
                     this.lineupHistory = state.lineupHistory || [];
                     this.startingLineup = state.startingLineup || [];
                 }
-
                 
                 if (savedVersion < 3) {
                     this.oppRecentActions = [];
                 } else {
                     this.oppRecentActions = state.oppRecentActions || [];
                 }
-
                 
                 this.fullRoster = state.fullRoster || [];
                 this.activeLineup = state.activeLineup || [];
@@ -739,26 +678,16 @@ class GameTracker {
             } catch (e) {
                 console.error("Failed to load state", e);
             }
-
         }
-
     }
-
 
     clearState() {
         localStorage.removeItem(this.CONSTANTS.STORAGE_KEY);
         this.stopAutoCacheTimer();
     }
 
-
     // --- SETUP ---
     toggleRosterPlayer(name, btn) {
-        console.log('toggleRosterPlayer called for:', name);
-        if (!name || !btn) {
-            console.log('Missing name or btn');
-            return;
-        }
-        
         if (this.fullRoster.includes(name)) {
             this.fullRoster = this.fullRoster.filter(p => p !== name);
             btn.classList.remove('active', 'btn-primary');
@@ -768,49 +697,8 @@ class GameTracker {
             btn.classList.remove('btn-outline-secondary');
             btn.classList.add('active', 'btn-primary');
         }
-
         this.saveState();
     }
-
-    initRosterSelection() {
-        const container = document.getElementById('roster-selection');
-        if (!container) {
-            console.error('roster-selection container not found');
-            return;
-        }
-        console.log('Roster selection initialized, found', container.querySelectorAll('.player-select-btn').length, 'buttons');
-        
-        // Use event delegation for roster buttons
-        container.addEventListener('click', (e) => {
-            // Find the closest button with player-select-btn class
-            let btn = e.target;
-            if (!btn.classList.contains('player-select-btn')) {
-                btn = btn.closest('.player-select-btn');
-            }
-            if (!btn) return;
-            
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const name = btn.getAttribute('data-player-name');
-            if (name) {
-                this.toggleRosterPlayer(name, btn);
-            }
-        });
-        
-        // Also attach direct handlers to any existing buttons for redundancy
-        container.querySelectorAll('.player-select-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const name = btn.getAttribute('data-player-name');
-                if (name) {
-                    this.toggleRosterPlayer(name, btn);
-                }
-            });
-        });
-    }
-
 
     addNewPlayer() {
         const input = document.getElementById('new-player-name');
@@ -819,25 +707,21 @@ class GameTracker {
             this.fullRoster.push(name);
             const container = document.getElementById('roster-selection');
             const btn = document.createElement('button');
-            btn.type = "button";
-            btn.className = "btn btn-primary btn-sm active player-select-btn";;
+            btn.className = 'btn btn-primary btn-sm active player-select-btn';
             btn.style.margin = '2px';
-            btn.textContent = name;  // Use textContent for safety
-            btn.setAttribute('data-player-name', name);
-            // No onclick needed - handled by event delegation
+            btn.innerText = name;
+            btn.onclick = (e) => this.toggleRosterPlayer(name, e.target);
             container.appendChild(btn);
             input.value = '';
             this.saveState();
         }
     }
 
-
     goToLineupSelection() {
         if (this.fullRoster.length < 5) {
             alert("Please select at least 5 players for the roster.");
             return;
         }
-
         document.getElementById('setup-panel').style.display = 'none';
         document.getElementById('lineup-panel').style.display = 'block';
 
@@ -845,10 +729,24 @@ class GameTracker {
         container.innerHTML = '';
         this.fullRoster.forEach(p => {
             const btn = document.createElement('button');
-            btn.className = 'btn btn-outline-secondary m-1 starter-select-btn';
-            btn.textContent = p;
-            btn.setAttribute('data-player-name', p);
-            // onclick handled by event delegation
+            btn.className = 'btn btn-outline-secondary m-1';
+            btn.innerText = p;
+            btn.onclick = (e) => {
+                if (this.activeLineup.includes(p)) {
+                    this.activeLineup = this.activeLineup.filter(x => x !== p);
+                    e.target.classList.remove('btn-primary');
+                    e.target.classList.add('btn-outline-secondary');
+                } else {
+                    if (this.activeLineup.length >= 5) {
+                        alert("You can only select 5 starters.");
+                        return;
+                    }
+                    this.activeLineup.push(p);
+                    e.target.classList.remove('btn-outline-secondary');
+                    e.target.classList.add('btn-primary');
+                }
+                this.saveState();
+            };
             if (this.activeLineup.includes(p)) {
                 btn.classList.remove('btn-outline-secondary');
                 btn.classList.add('btn-primary');
@@ -858,48 +756,16 @@ class GameTracker {
         this.saveState();
     }
 
-    initLineupSelection() {
-        const container = document.getElementById('starter-selection');
-        if (!container) return;
-        
-        // Use event delegation for lineup buttons
-        container.addEventListener('click', (e) => {
-            const btn = e.target.closest('.starter-select-btn');
-            if (!btn) return;
-            
-            const name = btn.getAttribute('data-player-name');
-            if (!name) return;
-            
-            if (this.activeLineup.includes(name)) {
-                this.activeLineup = this.activeLineup.filter(x => x !== name);
-                btn.classList.remove('btn-primary');
-                btn.classList.add('btn-outline-secondary');
-            } else {
-                if (this.activeLineup.length >= 5) {
-                    alert("You can only select 5 starters.");
-                    return;
-                }
-                this.activeLineup.push(name);
-                btn.classList.remove('btn-outline-secondary');
-                btn.classList.add('btn-primary');
-            }
-            this.saveState();
-        });
-    }
-
-
     startGame() {
         if (this.activeLineup.length !== 5) {
             alert("Please select exactly 5 starters.");
             return;
         }
-
         const opponent = document.getElementById('opponent').value;
         if (!opponent) {
             alert("Please enter an opponent name.");
             return;
         }
-
         
         // **NEW: Ensure latest plays are loaded when game starts**
         this.loadPlays();
@@ -931,13 +797,11 @@ class GameTracker {
                 if (!this.stats[p].quarter_minutes) {
                     this.stats[p].quarter_minutes = {1: 0, 2: 0, 3: 0, 4: 0};
                 }
-
             });
 
             if (this.startingLineup.length === 0 && this.activeLineup.length === 5) {
                 this.startingLineup = [...this.activeLineup];
             }
-
             if (this.lineupHistory.length === 0) {
                 this.lineupHistory = [{
                     players: [...this.activeLineup],
@@ -946,9 +810,7 @@ class GameTracker {
                     gameSeconds: (this.quarter - 1) * this.QUARTER_LENGTH_SECONDS + this.quarterSeconds
                 }];
             }
-
         }
-
 
         document.getElementById('lineup-panel').style.display = 'none';
         document.getElementById('tracker-panel').style.display = 'block';
@@ -959,7 +821,6 @@ class GameTracker {
 
         this.startAutoCacheTimer();
     }
-
 
     // --- GAMEPLAY ---
     renderActivePlayers() {
@@ -978,7 +839,6 @@ class GameTracker {
                 displayedSeconds += diffSeconds;
             }
 
-
             // Calculate quarter minutes for display
             let quarterMins = s.quarter_minutes || {1: 0, 2: 0, 3: 0, 4: 0};
             let displayedQuarterSeconds = quarterMins[this.quarter] || 0;
@@ -986,7 +846,6 @@ class GameTracker {
                 const diffSeconds = Math.floor((Date.now() - s.last_sub_in) / 1000);
                 displayedQuarterSeconds += diffSeconds;
             }
-
 
             // Generate quarter breakdown HTML
             let quarterBreakdown = '';
@@ -997,7 +856,6 @@ class GameTracker {
                 const qClass = isCurrentQ ? 'text-primary font-weight-bold' : 'text-muted';
                 quarterBreakdown += `<span class="${qClass} mx-1" style="font-size: 0.75rem;">Q${q}: ${this.formatMinutes(displayQ)}</span>`;
             }
-
 
             grid.innerHTML += `
                 <div class="col-md-6 col-lg-4 mb-3">
@@ -1082,7 +940,6 @@ class GameTracker {
         });
     }
 
-
     renderStatBox(player, label, key, value, textClass = '', isToV = false) {
         const tovHtml = isToV ? `
             <div class="d-flex justify-content-center align-items-center">
@@ -1108,7 +965,6 @@ class GameTracker {
         `;
     }
 
-
     updateUI(player) {
         const s = this.stats[player];
 
@@ -1126,21 +982,17 @@ class GameTracker {
             else pmEl.classList.add('badge-secondary');
         }
 
-
         if (document.getElementById(`disp-2pt-${player}`)) {
             const two_m = s.fgm - s.tpm;
             const two_a = s.fga - s.tpa;
             document.getElementById(`disp-2pt-${player}`).innerText = `${two_m}/${two_a}`;
         }
-
         if (document.getElementById(`disp-3pt-${player}`)) {
             document.getElementById(`disp-3pt-${player}`).innerText = `${s.tpm}/${s.tpa}`;
         }
-
         if (document.getElementById(`disp-ft-${player}`)) {
             document.getElementById(`disp-ft-${player}`).innerText = `${s.ftm}/${s.fta}`;
         }
-
 
         const keys = ['oreb', 'dreb', 'ast', 'stl', 'blk', 'tov', 'pf'];
         keys.forEach(k => {
@@ -1151,13 +1003,11 @@ class GameTracker {
         this.updateScoreboard();
     }
 
-
     updateScoreboard() {
         let total = 0;
         Object.values(this.stats).forEach(s => total += s.points);
         document.getElementById('scoreboard').innerText = `${total} - ${this.opponentScore}`;
     }
-
 
     // --- MODALS ---
 
@@ -1188,14 +1038,12 @@ class GameTracker {
         $('#assistModal').modal('show');
     }
 
-
     pickAssister(assister) {
         if (!this.pendingMadeShot) return;
         this.pendingMadeShot.assister = assister;
         $('#assistModal').modal('hide');
         this.openShotLocModal();
     }
-
 
     openShotLocModal() {
         if (!this.pendingMadeShot) return;
@@ -1211,11 +1059,9 @@ class GameTracker {
             marker.setAttribute('cy', -20);
         }
 
-
         this.attachShotLocListenerOnce();
         $('#shotLocModal').modal('show');
     }
-
 
     openMissShotLocModal(shooter, type, points) {
         this.pendingMissShot = { shooter, type, points, location: null };
@@ -1230,11 +1076,9 @@ class GameTracker {
             marker.setAttribute('cy', -20);
         }
 
-
         this.attachShotLocListenerOnce();
         $('#shotLocModal').modal('show');
     }
-
 
     attachShotLocListenerOnce() {
         if (this.shotLocListenerAttached) return;
@@ -1273,7 +1117,6 @@ class GameTracker {
                 marker.setAttribute('cx', x);
                 marker.setAttribute('cy', y);
             }
-
             document.getElementById('shotloc-coords').innerText = `(${x.toFixed(0)}, ${y.toFixed(0)})`;
             document.getElementById('btn-confirm-shotloc').disabled = false;
         });
@@ -1281,19 +1124,16 @@ class GameTracker {
         this.shotLocListenerAttached = true;
     }
 
-
     skipShotLocation() {
         if (this.pendingMissShot) {
             this.pendingMissShot.location = null;
             this.confirmShotLocationFromMap(true);
             return;
         }
-
         if (!this.pendingMadeShot) return;
         this.pendingMadeShot.location = null;
         this.confirmShotLocationFromMap(true);
     }
-
 
     confirmShotLocationFromMap(skipped = false) {
         if (this.pendingMadeShot) {
@@ -1304,7 +1144,6 @@ class GameTracker {
             if (assister && this.stats[assister]) {
                 this.updateStat(assister, 'ast', 1);
             }
-
 
             if (!skipped && location) {
                 // **FIX: Push shot WITHOUT play_id, store index for later update**
@@ -1325,7 +1164,6 @@ class GameTracker {
                 console.log(`Shot added at index ${this.lastShotIndex}, awaiting play selection`);
             }
 
-
             this.openPlaySelector('SHOT_' + type.toUpperCase(), shooter, type);
 
             this.pendingMadeShot = null;
@@ -1333,7 +1171,6 @@ class GameTracker {
             this.saveState();
             return;
         }
-
 
         if (this.pendingMissShot) {
             const { shooter, type, location } = this.pendingMissShot;
@@ -1361,7 +1198,6 @@ class GameTracker {
                 console.log(`Shot added at index ${this.lastShotIndex}, awaiting play selection`);
             }
 
-
             this.openPlaySelector('SHOT_' + type.toUpperCase(), shooter, type);
 
             this.pendingMissShot = null;
@@ -1369,9 +1205,7 @@ class GameTracker {
             this.openOrebModal(shooter, type);
             this.saveState();
         }
-
     }
-
 
     openOrebModal(shooter, type) {
         this.pendingOreb = { shooter, type };
@@ -1398,7 +1232,6 @@ class GameTracker {
         $('#orebModal').modal('show');
     }
 
-
     confirmOreb(rebounder) {
         if (!this.pendingOreb) return;
         const { shooter, type } = this.pendingOreb;
@@ -1407,12 +1240,10 @@ class GameTracker {
             this.updateStat(rebounder, 'oreb', 1);
         }
 
-
         this.pendingOreb = null;
         $('#orebModal').modal('hide');
         this.saveState();
     }
-
 
     // --- UPDATE LOGIC ---
     updateShooting(player, type, makeDelta, attemptDelta) {
@@ -1447,22 +1278,18 @@ class GameTracker {
             s.points += pointsAdded;
         }
 
-
         if (makeDelta !== 0) {
             this.activeLineup.forEach(pName => {
                 if (this.stats[pName]) {
                     this.stats[pName].plus_minus += pointsAdded;
                 }
-
             });
             this.activeLineup.forEach(pName => this.updateUI(pName));
         } else {
             this.updateUI(player);
         }
-
         this.saveState();
     }
-
 
     updateStat(player, key, delta) {
         if (!this.stats[player]) return;
@@ -1480,15 +1307,12 @@ class GameTracker {
             if (eventType) {
                 this.logEvent(eventType, player);
             }
-
         }
-
 
         this.stats[player][key] += delta;
         this.updateUI(player);
         this.saveState();
     }
-
 
     logEvent(type, player = null, detail = null, playId = null) {
         const remaining = Math.max(0, this.QUARTER_LENGTH_SECONDS - this.quarterSeconds);
@@ -1506,10 +1330,8 @@ class GameTracker {
             if (this.lastPossessionTeam !== (isOpponent ? 'opp' : 'team')) {
                 this.possessionNumber++;
             }
-
             this.lastPossessionTeam = isOpponent ? 'opp' : 'team';
         }
-
         
         this.gameEvents.push({
             type,
@@ -1528,7 +1350,6 @@ class GameTracker {
         });
     }
 
-
     setStartingLineup(players) {
         this.startingLineup = players;
         this.activeLineup = players;
@@ -1542,11 +1363,9 @@ class GameTracker {
         this.saveState();
     }
 
-
     calculateTeamScore() {
         return Object.values(this.stats).reduce((sum, s) => sum + (s.points || 0), 0);
     }
-
 
     updateOppScore(points) {
         this.opponentScore += points;
@@ -1559,14 +1378,12 @@ class GameTracker {
             if (this.stats[pName]) {
                 this.stats[pName].plus_minus -= points;
             }
-
             this.updateUI(pName);
         });
         this.updateScoreboard();
         this.trackOppAction('OPP_SCORE', { points, manual: true });
         this.saveState();
     }
-
     
     // --- FREE THROW TRIP HANDLING ---
     
@@ -1580,7 +1397,6 @@ class GameTracker {
         
         $('#ftModal').modal('show');
     }
-
     
     setFTCount(count) {
         this.pendingFTTrip.totalFt = parseInt(count);
@@ -1589,9 +1405,7 @@ class GameTracker {
         if (parseInt(madeInput.value) > count) {
             madeInput.value = count;
         }
-
     }
-
     
     confirmFTCount() {
         const totalFt = this.pendingFTTrip.totalFt;
@@ -1604,7 +1418,6 @@ class GameTracker {
         // Open play selector for this FT trip
         this.openPlaySelector('FT', this.pendingFTTrip.player, 'ft');
     }
-
     
     confirmFTPlaySelection(play) {
         if (!this.pendingFTTrip) return;
@@ -1621,7 +1434,6 @@ class GameTracker {
             if (this.stats[pName]) {
                 this.stats[pName].plus_minus += ftm;
             }
-
         });
         
         // Log single batch event with play_id
@@ -1633,7 +1445,6 @@ class GameTracker {
         this.pendingFTTrip = null;
         this.saveState();
     }
-
     
     // --- OPPONENT SHOT TRACKING ---
     
@@ -1644,10 +1455,6 @@ class GameTracker {
         document.getElementById('opp-shot-type').innerText = type.toUpperCase();
         $('#oppShotModal').modal('show');
     }
-
-    
-
-    
     
     trackOppAction(type, detail = null) {
         this.oppRecentActions.push({
@@ -1659,10 +1466,8 @@ class GameTracker {
         if (this.oppRecentActions.length > 10) {
             this.oppRecentActions.shift();
         }
-
         this.updateRemoveActionDropdown();
     }
-
 
     updateRemoveActionDropdown() {
         const list = document.getElementById('remove-action-list');
@@ -1676,7 +1481,6 @@ class GameTracker {
             list.innerHTML = '<a class="dropdown-item text-muted" href="#">No recent actions</a>';
             return;
         }
-
         
         recentOpp.forEach((action, idx) => {
             const a = document.createElement('a');
@@ -1693,7 +1497,6 @@ class GameTracker {
             } else {
                 label = action.type;
             }
-
             
             a.innerText = label;
             a.onclick = (e) => {
@@ -1703,7 +1506,6 @@ class GameTracker {
             list.appendChild(a);
         });
     }
-
 
     removeOppAction(action) {
         if (action.eventIndex >= 0 && action.eventIndex < this.gameEvents.length) {
@@ -1719,11 +1521,9 @@ class GameTracker {
                     if (this.stats[pName]) {
                         this.stats[pName].plus_minus += pts;
                     }
-
                     this.updateUI(pName);
                 });
             }
-
             
             this.gameEvents.splice(action.eventIndex, 1);
             
@@ -1733,16 +1533,13 @@ class GameTracker {
                 if (a.eventIndex > action.eventIndex) {
                     a.eventIndex--;
                 }
-
             });
             
             this.updateScoreboard();
             this.updateRemoveActionDropdown();
             this.saveState();
         }
-
     }
-
     
     confirmOppShot(made) {
         if (!this.pendingOppShot) return;
@@ -1750,7 +1547,6 @@ class GameTracker {
         const { type, points } = this.pendingOppShot;
         
         if (made) {
-            // Made shot - log score and show location modal
             this.logEvent('OPP_SCORE', null, { 
                 points, 
                 shot_type: type,
@@ -1766,53 +1562,294 @@ class GameTracker {
                 if (this.stats[pName]) {
                     this.stats[pName].plus_minus -= points;
                 }
-
                 this.updateUI(pName);
             });
             
-            if (type === 'ft') {
-                // Skip location for free throws
-                this.pendingOppShot = null;
-                this.pendingOppShotLocation = null;
-                $('#oppShotModal').modal('hide');
-                this.updateScoreboard();
-                this.saveState();
-            } else {
-                this.pendingOppShotLocation = { type, points };
-                document.getElementById('opp-shotloc-info').innerText = `${type.toUpperCase()} MADE (${points}PT)`;
-                document.getElementById('opp-shotloc-coords').innerText = '';
-                document.getElementById('btn-confirm-opp-shotloc').disabled = true;
-                
-                const marker = document.getElementById('opp-shotloc-marker');
-                marker.setAttribute('cx', -20);
-                marker.setAttribute('cy', -20);
-                
-                this.setupOppShotLocationClick();
-                
-                $('#oppShotModal').modal('hide');
-                $('#oppShotLocModal').modal('show');
-            }
-        } else {
-            // Missed shot - log as missed (no location) and show rebound modal
-            this.logEvent('OPP_SCORE', null, { 
-                points: 0, 
-                shot_type: type,
-                result: 'missed' 
-            });
+            this.pendingOppShotLocation = { type, points };
+            document.getElementById('opp-shotloc-info').innerText = `${type.toUpperCase()} MADE (${points}PT)`;
+            document.getElementById('opp-shotloc-coords').innerText = '';
+            document.getElementById('btn-confirm-opp-shotloc').disabled = true;
+            
+            const marker = document.getElementById('opp-shotloc-marker');
+            marker.setAttribute('cx', -20);
+            marker.setAttribute('cy', -20);
+            
+            this.setupOppShotLocationClick();
             
             $('#oppShotModal').modal('hide');
-            $('#oppReboundModal').modal('show');
+            $('#oppShotLocModal').modal('show');
+        } else {
+            this.showOppMissedShotLocModal();
         }
-
+    }
+    
+    showOppMissedShotLocModal() {
+        let modal = document.getElementById('oppMissedShotLocModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = 'oppMissedShotLocModal';
+            modal.setAttribute('tabindex', '-1');
+            modal.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning py-2">
+                            <h5 class="modal-title h6">Missed Shot Location (Optional)</h5>
+                            <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class="modal-body text-center">
+                            <p class="small text-muted mb-2">Click on the court to mark where the shot was missed</p>
+                            <svg id="oppMissedHalfCourtSvg" viewBox="0 0 500 470" style="width:100%; max-width:300px; background:#f8f9fa; border:1px solid #ddd;">
+                                <!-- Half court background -->
+                                <rect width="500" height="470" fill="#f8f9fa"/>
+                                <!-- Three point arc -->
+                                <path d="M 0 470 Q 250 170 500 470" fill="none" stroke="#333" stroke-width="2"/>
+                                <!-- Paint -->
+                                <rect x="175" y="370" width="150" height="100" fill="none" stroke="#333" stroke-width="2"/>
+                                <!-- Basket -->
+                                <circle cx="250" cy="420" r="15" fill="none" stroke="#e74c3c" stroke-width="3"/>
+                                <!-- Hitbox for clicking -->
+                                <rect id="opp-missed-hitbox" width="500" height="470" fill="transparent" style="cursor:crosshair"/>
+                                <!-- Marker -->
+                                <circle id="opp-missed-marker" cx="-20" cy="-20" r="8" fill="#e74c3c" style="display:none"/>
+                            </svg>
+                            <div id="opp-missed-coords" class="small text-muted mt-1"></div>
+                        </div>
+                        <div class="modal-footer py-2">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="gameTracker.skipOppMissedShotLoc()">
+                                Skip Location
+                            </button>
+                            <button type="button" class="btn btn-warning btn-sm" id="btn-confirm-opp-missed" onclick="gameTracker.confirmOppMissedShotLoc()" disabled>
+                                Confirm & Continue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            const svg = document.getElementById('oppMissedHalfCourtSvg');
+            const hitbox = document.getElementById('opp-missed-hitbox');
+            const marker = document.getElementById('opp-missed-marker');
+            
+            const clickHandler = (e) => {
+                const rect = svg.getBoundingClientRect();
+                const scaleX = 500 / rect.width;
+                const scaleY = 470 / rect.height;
+                
+                let clientX, clientY;
+                if (e.touches) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                } else {
+                    clientX = e.clientX;
+                    clientY = e.clientY;
+                }
+                
+                const x = (clientX - rect.left) * scaleX;
+                const y = (clientY - rect.top) * scaleY;
+                
+                marker.setAttribute('cx', x);
+                marker.setAttribute('cy', y);
+                marker.style.display = 'block';
+                
+                this._pendingMissedX = x;
+                this._pendingMissedY = y;
+                
+                document.getElementById('opp-missed-coords').innerText = `(${Math.round(x)}, ${Math.round(y)})`;
+                document.getElementById('btn-confirm-opp-missed').disabled = false;
+            };
+            
+            hitbox.onclick = clickHandler;
+            hitbox.ontouchstart = (e) => { e.preventDefault(); clickHandler(e); };
+        }
+        
+        const marker = document.getElementById('opp-missed-marker');
+        marker.setAttribute('cx', -20);
+        marker.setAttribute('cy', -20);
+        marker.style.display = 'none';
+        this._pendingMissedX = null;
+        this._pendingMissedY = null;
+        document.getElementById('opp-missed-coords').innerText = '';
+        document.getElementById('btn-confirm-opp-missed').disabled = true;
+        
+        $('#oppShotModal').modal('hide');
+        $('#oppMissedShotLocModal').modal('show');
     }
 
+    skipOppMissedShotLoc() {
+        this._pendingMissedX = null;
+        this._pendingMissedY = null;
+        $('#oppMissedShotLocModal').modal('hide');
+        this.showOppReboundModal();
+    }
+
+    confirmOppMissedShotLoc() {
+        this._confirmedMissedX = this._pendingMissedX;
+        this._confirmedMissedY = this._pendingMissedY;
+        this._pendingMissedX = null;
+        this._pendingMissedY = null;
+        $('#oppMissedShotLocModal').modal('hide');
+        this.showOppReboundModal();
+    }
+    
+    setupOppShotLocationClick() {
+        const svg = document.getElementById('oppHalfCourtSvg');
+        const hitbox = document.getElementById('opp-court-hitbox');
+        const marker = document.getElementById('opp-shotloc-marker');
+        
+        const clickHandler = (e) => {
+            const rect = svg.getBoundingClientRect();
+            const scaleX = 500 / rect.width;
+            const scaleY = 470 / rect.height;
+            
+            let clientX, clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            
+            const x = (clientX - rect.left) * scaleX;
+            const y = (clientY - rect.top) * scaleY;
+            
+            marker.setAttribute('cx', x);
+            marker.setAttribute('cy', y);
+            
+            this._pendingOppShotX = x;
+            this._pendingOppShotY = y;
+            
+            document.getElementById('opp-shotloc-coords').innerText = `(${Math.round(x)}, ${Math.round(y)})`;
+            document.getElementById('btn-confirm-opp-shotloc').disabled = false;
+        };
+        
+        hitbox.onclick = clickHandler;
+        hitbox.ontouchstart = (e) => { e.preventDefault(); clickHandler(e); };
+    }
+
+    confirmOppShotLocation() {
+        if (!this.pendingOppShotLocation) return;
+        
+        // Add location to the last OPP_SCORE event
+        if (this._pendingOppShotX !== null && this._pendingOppShotY !== null) {
+            // Find the last OPP_SCORE event
+            for (let i = this.gameEvents.length - 1; i >= 0; i--) {
+                const ev = this.gameEvents[i];
+                if (ev.type === 'OPP_SCORE') {
+                    // Update detail with location
+                    ev.detail = ev.detail || {};
+                    ev.detail.x_loc = this._pendingOppShotX;
+                    ev.detail.y_loc = this._pendingOppShotY;
+                    // Also add at top level for easier access
+                    ev.x_loc = this._pendingOppShotX;
+                    ev.y_loc = this._pendingOppShotY;
+                    break;
+                }
+            }
+        }
+        
+        this.pendingOppShotLocation = null;
+        this._pendingOppShotX = null;
+        this._pendingOppShotY = null;
+        
+        $('#oppShotLocModal').modal('hide');
+        this.pendingOppShot = null;
+        this.updateScoreboard();
+        this.saveState();
+    }
+
+    skipOppShotLocation() {
+        this.pendingOppShotLocation = null;
+        this._pendingOppShotX = null;
+        this._pendingOppShotY = null;
+        
+        $('#oppShotLocModal').modal('hide');
+        this.pendingOppShot = null;
+        this.updateScoreboard();
+        this.saveState();
+    }
+    
     confirmOppRebound(reboundType) {
+        // DEPRECATED: Use confirmOppReboundNew instead
         if (!this.pendingOppShot) return;
         
         const { type, points } = this.pendingOppShot;
         
+        this.logEvent('OPP_SCORE', null, { 
+            points: 0, 
+            shot_type: type,
+            result: 'missed' 
+        });
+        
         if (reboundType === 'offensive') {
-            // Opponent got the offensive rebound
+            this.logEvent('OPP_OREB', null, { shot_type: type });
+            this.trackOppAction('OPP_OREB');
+            this.pendingOppShot = null;
+            $('#oppReboundModal').modal('hide');
+            this.saveState();
+        } else {
+            $('#oppReboundModal').modal('hide');
+            this.showDrebPlayerSelector();
+        }
+    }
+    
+    showOppReboundModal() {
+        let modal = document.getElementById('oppReboundModalNew');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = 'oppReboundModalNew';
+            modal.setAttribute('tabindex', '-1');
+            modal.innerHTML = `
+                <div class="modal-dialog modal-sm modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning py-2">
+                            <h5 class="modal-title h6">Shot Missed - Rebound?</h5>
+                        </div>
+                        <div class="modal-body p-0">
+                            <div class="list-group list-group-flush">
+                                <button class="list-group-item list-group-item-action text-danger font-weight-bold py-3"
+                                        onclick="gameTracker.confirmOppReboundNew('offensive')">
+                                    <i class="fas fa-arrow-down mr-2"></i>OPP Offensive Rebound
+                                </button>
+                                <button class="list-group-item list-group-item-action text-success font-weight-bold py-3"
+                                        onclick="gameTracker.confirmOppReboundNew('defensive')">
+                                    <i class="fas fa-arrow-up mr-2"></i>OUR Defensive Rebound
+                                </button>
+                                <button class="list-group-item list-group-item-action text-muted font-weight-bold py-3"
+                                        onclick="gameTracker.confirmOppReboundNew('none')">
+                                    <i class="fas fa-minus mr-2"></i>No Rebound (dead ball)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        $('#oppReboundModalNew').modal('show');
+    }
+
+    confirmOppReboundNew(reboundType) {
+        if (!this.pendingOppShot) return;
+        
+        const { type, points } = this.pendingOppShot;
+        
+        this.logEvent('OPP_SCORE', null, { 
+            points: 0, 
+            shot_type: type,
+            result: 'missed',
+            x_loc: this._confirmedMissedX,
+            y_loc: this._confirmedMissedY
+        });
+        
+        this._confirmedMissedX = null;
+        this._confirmedMissedY = null;
+        
+        if (reboundType === 'offensive') {
             this.logEvent('OPP_OREB', null, { shot_type: type });
             this.trackOppAction('OPP_OREB');
             
@@ -1821,20 +1858,20 @@ class GameTracker {
                     this.stats[pName].reb_conceded = (this.stats[pName].reb_conceded || 0) + 1;
                     this.updateUI(pName);
                 }
-
             });
             
             this.pendingOppShot = null;
-            $('#oppReboundModal').modal('hide');
+            $('#oppReboundModalNew').modal('hide');
             this.saveState();
-        } else {
-            // We got the defensive rebound - show player selector
-            $('#oppReboundModal').modal('hide');
+        } else if (reboundType === 'defensive') {
+            $('#oppReboundModalNew').modal('hide');
             this.showDrebPlayerSelector();
+        } else {
+            this.pendingOppShot = null;
+            $('#oppReboundModalNew').modal('hide');
+            this.saveState();
         }
-
     }
-
     
     showDrebPlayerSelector() {
         const list = document.getElementById('dreb-player-list');
@@ -1858,107 +1895,16 @@ class GameTracker {
         
         $('#drebPlayerModal').modal('show');
     }
-
     
     confirmDrebPlayer(player) {
         if (player && this.stats[player]) {
             this.updateStat(player, 'dreb', 1);
         }
-
         
         this.pendingOppShot = null;
         $('#drebPlayerModal').modal('hide');
         this.saveState();
     }
-
-
-    
-
-
-    
-    setupOppShotLocationClick() {
-        if (this.oppShotLocListenerAttached) return;
-
-        const svg = document.getElementById('oppHalfCourtSvg');
-        const hitbox = document.getElementById('opp-court-hitbox');
-        const marker = document.getElementById('opp-shotloc-marker');
-
-        if (!hitbox || !svg) return;
-
-        hitbox.addEventListener('pointerdown', (evt) => {
-            evt.preventDefault();
-
-            const pt = svg.createSVGPoint();
-            pt.x = evt.clientX;
-            pt.y = evt.clientY;
-            const ctm = svg.getScreenCTM();
-            if (!ctm) return;
-            const cursor = pt.matrixTransform(ctm.inverse());
-
-            let x = Math.max(0, Math.min(this.CONSTANTS.SVG_WIDTH, cursor.x));
-            let y = Math.max(0, Math.min(this.CONSTANTS.SVG_HEIGHT, cursor.y));
-
-            marker.setAttribute('cx', x);
-            marker.setAttribute('cy', y);
-
-            this._pendingOppShotX = x;
-            this._pendingOppShotY = y;
-
-            document.getElementById('opp-shotloc-coords').innerText = `(${Math.round(x)}, ${Math.round(y)})`;
-            document.getElementById('btn-confirm-opp-shotloc').disabled = false;
-        });
-
-        this.oppShotLocListenerAttached = true;
-    }
-
-
-    confirmOppShotLocation() {
-        if (!this.pendingOppShotLocation) return;
-        
-        // Add location to the last OPP_SCORE event
-        if (this._pendingOppShotX !== null && this._pendingOppShotY !== null) {
-            // Find the last OPP_SCORE event
-            for (let i = this.gameEvents.length - 1; i >= 0; i--) {
-                const ev = this.gameEvents[i];
-                if (ev.type === 'OPP_SCORE') {
-                    // Update detail with location
-                    ev.detail = ev.detail || {};
-                    ev.detail.x_loc = this._pendingOppShotX;
-                    ev.detail.y_loc = this._pendingOppShotY;
-                    // Also add at top level for easier access
-                    ev.x_loc = this._pendingOppShotX;
-                    ev.y_loc = this._pendingOppShotY;
-                    break;
-                }
-
-            }
-
-        }
-
-        
-        this.pendingOppShotLocation = null;
-        this._pendingOppShotX = null;
-        this._pendingOppShotY = null;
-        
-        $('#oppShotLocModal').modal('hide');
-        this.pendingOppShot = null;
-        this.updateScoreboard();
-        this.saveState();
-    }
-
-
-    skipOppShotLocation() {
-        this.pendingOppShotLocation = null;
-        this._pendingOppShotX = null;
-        this._pendingOppShotY = null;
-        
-        $('#oppShotLocModal').modal('hide');
-        this.pendingOppShot = null;
-        this.updateScoreboard();
-        this.saveState();
-    }
-
-    
 
     // --- CLOCK ---
     toggleClock() {
@@ -1991,10 +1937,8 @@ class GameTracker {
             btn.classList.remove('btn-success');
             btn.classList.add('btn-danger');
         }
-
         this.saveState();
     }
-
 
     getCurrentState() {
         return {
@@ -2014,7 +1958,6 @@ class GameTracker {
             startingLineup: [...this.startingLineup]
         };
     }
-
 
     updatePlayerTimeDisplays() {
         const now = Date.now();
@@ -2040,15 +1983,11 @@ class GameTracker {
                         const qClass = isCurrentQ ? 'text-primary font-weight-bold' : 'text-muted';
                         quarterBreakdown += `<span class="${qClass} mx-1" style="font-size: 0.75rem;">Q${q}: ${this.formatMinutes(displayQ)}</span>`;
                     }
-
                     qEl.innerHTML = quarterBreakdown;
                 }
-
             }
-
         });
     }
-
 
     commitPlayerTimes() {
         const now = Date.now();
@@ -2061,23 +2000,19 @@ class GameTracker {
                 if (!this.stats[p].quarter_minutes) {
                     this.stats[p].quarter_minutes = {1: 0, 2: 0, 3: 0, 4: 0};
                 }
-
                 this.stats[p].quarter_minutes[this.quarter] = (this.stats[p].quarter_minutes[this.quarter] || 0) + diffSeconds;
                 
                 this.stats[p].last_sub_in = null;
             }
-
             // Update UI with finalized time
             const el = document.getElementById(`time-${p}`);
             if (el) el.innerText = 'TOTAL: ' + this.formatMinutes(this.stats[p].minutes_seconds);
         });
     }
 
-
     updatePlayerTimes() {
         this.commitPlayerTimes();
     }
-
 
     resetClock() {
         if (this.isClockRunning) this.toggleClock();
@@ -2086,15 +2021,12 @@ class GameTracker {
         this.saveState();
     }
 
-
     nextQuarter() {
         if (this.quarter === 2) {
             if (confirm('End of Q2 - Generate Half-Time Summary PDF?')) {
                 this.generateHalftimePDF();
             }
-
         }
-
         
         if (this.isClockRunning) this.toggleClock();
         
@@ -2107,12 +2039,10 @@ class GameTracker {
         
         alert(`Started Quarter ${this.quarter}`);
     }
-
     
     updateQuarterDisplay() {
         document.getElementById('quarter-display').innerText = 'Q' + this.quarter;
     }
-
 
     updateClockDisplay() {
         const gm = Math.floor(this.gameSeconds / 60);
@@ -2126,9 +2056,7 @@ class GameTracker {
             const qs = this.quarterSeconds % 60;
             qEl.innerText = `${qm.toString().padStart(2, '0')}:${qs.toString().padStart(2, '0')}`;
         }
-
     }
-
 
     // --- SUBS ---
     showSubstitutionModal() {
@@ -2153,7 +2081,6 @@ class GameTracker {
                 totalDisplayedSeconds += diffSeconds;
             }
 
-
             // Calculate current quarter minutes displayed
             const quarterMins = this.stats[p].quarter_minutes || {1: 0, 2: 0, 3: 0, 4: 0};
             let quarterDisplayedSeconds = quarterMins[this.quarter] || 0;
@@ -2161,7 +2088,6 @@ class GameTracker {
                 const diffSeconds = Math.floor((now - this.stats[p].last_sub_in) / 1000);
                 quarterDisplayedSeconds += diffSeconds;
             }
-
 
             const totalTimeStr = this.formatMinutes(totalDisplayedSeconds);
             const quarterTimeStr = this.formatMinutes(quarterDisplayedSeconds);
@@ -2190,12 +2116,10 @@ class GameTracker {
                         alert("Only 5 players allowed on court.");
                         return;
                     }
-
                     this._tempLineup.push(p);
                     btn.classList.add('active');
                     btn.querySelector('small:last-child').innerText = 'ON COURT';
                 }
-
             };
             container.appendChild(btn);
         });
@@ -2203,13 +2127,11 @@ class GameTracker {
         $('#subModal').modal('show');
     }
 
-
     confirmSubs() {
         if (this._tempLineup.length !== 5) {
             alert("You must select exactly 5 players.");
             return;
         }
-
 
         const prevLineup = new Set(this.activeLineup);
         const newLineup = new Set(this._tempLineup);
@@ -2217,7 +2139,6 @@ class GameTracker {
         if (this.lineupHistory.length > 0) {
             this.lineupHistory[this.lineupHistory.length - 1].endEventIndex = this.gameEvents.length;
         }
-
 
         [...prevLineup].filter(p => !newLineup.has(p)).forEach(p => this.logEvent('SUB_OUT', p));
         [...newLineup].filter(p => !prevLineup.has(p)).forEach(p => this.logEvent('SUB_IN', p));
@@ -2237,7 +2158,6 @@ class GameTracker {
         this.addToCache(this.getCurrentState());
         this.saveState();
     }
-
 
     // --- STATS VIEW ---
     showCurrentStats() {
@@ -2346,14 +2266,12 @@ class GameTracker {
         $('#currentStatsModal').modal('show');
     }
 
-
     // --- FINISH ---
     formatMinutes(totalSeconds) {
         const m = Math.floor(totalSeconds / 60);
         const s = totalSeconds % 60;
         return `${m}:${s.toString().padStart(2, '0')}`;
     }
-
 
     finishGame() {
         if (!confirm("Are you sure you want to finish and save this game?")) return;
@@ -2363,7 +2281,6 @@ class GameTracker {
         if (this.lineupHistory.length > 0) {
             this.lineupHistory[this.lineupHistory.length - 1].endEventIndex = this.gameEvents.length;
         }
-
 
         let total = 0;
         Object.values(this.stats).forEach(s => total += s.points);
@@ -2407,13 +2324,11 @@ class GameTracker {
             } else {
                 alert("Error saving game: " + (data.error || "Unknown error") + (data.details ? ` (${data.details})` : ''));
             }
-
         }).catch(err => {
             alert("Network error occurred.");
             console.error(err);
         });
     }
-
 
     async generateHalftimePDF() {
         const payload = {
@@ -2454,17 +2369,10 @@ class GameTracker {
             } else {
                 console.error('Failed to generate halftime PDF');
             }
-
         } catch (err) {
             console.error('Error generating halftime PDF:', err);
         }
-
     }
-
 }
 
-
-// Instantiate the game tracker when DOM is ready
-document.addEventListener("DOMContentLoaded", () => {
-    window.gameTracker = new GameTracker();
-});
+const gameTracker = new GameTracker();

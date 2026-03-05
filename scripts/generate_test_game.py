@@ -821,7 +821,7 @@ def generate_test_game_payload():
                         boost = min(0.40, remaining_to_score * 0.08)
                         opp_make_prob = min(0.85, opp_make_prob + boost)
                     
-                    opp_is_made = random.random() < opp_make_prob
+                    opp_is_made = True   # Always track opponent makes only (no misses)
                     
                     if opp_is_made:
                         opp_points = 3 if opp_shot_type == "3pt" else 2
