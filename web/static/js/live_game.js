@@ -2358,7 +2358,23 @@ class GameTracker {
 
 
     finishGame() {
-        if (!confirm("Are you sure you want to finish and save this game?")) return;
+        const btn = document.getElementById('btn-finish-game');
+
+        // Validation check
+        const opponent = document.getElementById('opponent').value;
+        const date = document.getElementById('game-date').value;
+        if (!opponent || opponent.trim() === "") {
+            alert("Please provide an opponent name before finishing.");
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to finish and save the game against ${opponent}?`)) return;
+
+        // Visual feedback
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
+        }
 
         if (this.isClockRunning) this.toggleClock();
 
@@ -2366,9 +2382,8 @@ class GameTracker {
             this.lineupHistory[this.lineupHistory.length - 1].endEventIndex = this.gameEvents.length;
         }
 
-
         let total = 0;
-        Object.values(this.stats).forEach(s => total += s.points);
+        Object.values(this.stats).forEach(s => total += (s.points || 0));
 
         const finalStats = {};
         Object.keys(this.stats).forEach(p => {
@@ -2380,9 +2395,8 @@ class GameTracker {
         const payload = {
             schema_version: this.SCHEMA_VERSION,
             features: this.FEATURES,
-            
-            opponent: document.getElementById('opponent').value,
-            date: document.getElementById('game-date').value,
+            opponent: opponent,
+            date: date,
             game_type: document.getElementById('game-type').value,
             team_score: total,
             opponent_score: this.opponentScore,
@@ -2407,15 +2421,61 @@ class GameTracker {
                 this.clearState();
                 window.location.href = `/game/${data.game_id}`;
             } else {
-                alert("Error saving game: " + (data.error || "Unknown error") + (data.details ? ` (${data.details})` : ''));
+                throw new Error(data.error || data.details || "Server error occurred");
+            }
+        }).catch(err => {
+            console.error("Save failed:", err);
+
+            // Re-enable button
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-save mr-1"></i>Retry Save';
             }
 
-        }).catch(err => {
-            alert("Network error occurred.");
-            console.error(err);
+            // Show error modal with rescue options
+            document.getElementById('save-error-msg').innerText = err.message || "Network error or server timeout.";
+            $('#saveErrorModal').modal('show');
         });
     }
 
+
+    downloadRawData() {
+        const opponent = document.getElementById('opponent').value || "Unknown";
+        const date = document.getElementById('game-date').value || new Date().toISOString().split('T')[0];
+
+        let total = 0;
+        Object.values(this.stats).forEach(s => total += (s.points || 0));
+
+        const payload = {
+            schema_version: this.SCHEMA_VERSION,
+            exported_at: new Date().toISOString(),
+            game: {
+                opponent: opponent,
+                date: date,
+                team_score: total,
+                opponent_score: this.opponentScore,
+                game_type: document.getElementById('game-type').value,
+                source: "LIVE_RESCUE"
+            },
+            player_stats: this.stats,
+            shot_locations: this.shotLocations,
+            game_events: this.gameEvents,
+            starting_lineup: this.startingLineup,
+            lineup_history: this.lineupHistory
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rescue_game_${opponent}_${date}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        alert("Game data downloaded. You can import this JSON file if you cannot fix the save issue.");
+    }
 
     async generateHalftimePDF() {
         const payload = {

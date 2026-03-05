@@ -442,8 +442,9 @@
                                     <i class="fas fa-chart-bar"></i> <span class="d-none d-sm-inline">Stats</span>
                                 </button>
 
-                                <button class="btn btn-warning btn-sm" onclick="gameTracker.finishGame()">Finish Game</button>
-                            </div>
+                                <button class="btn btn-warning btn-sm" id="btn-finish-game" onclick="gameTracker.finishGame()">
+                                    <i class="fas fa-save mr-1"></i>Finish Game
+                                </button>                            </div>
                         </div>
 
                     </div>
@@ -795,6 +796,42 @@
                 <div class="live-option-list split" id="remove-opp-action-list">
                     <!-- Populated by JS -->
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Save Error Modal -->
+<div class="modal fade" id="saveErrorModal" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle mr-2"></i>Critical: Save Failed</h5>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <strong>The server could not save the game.</strong>
+                    <p id="save-error-msg" class="mb-0 mt-2"></p>
+                </div>
+                
+                <p>To prevent data loss, please follow these steps:</p>
+                <ol>
+                    <li><strong>Download the raw data</strong> using the button below.</li>
+                    <li>You can later import this file via the "Upload Game" page.</li>
+                    <li>Check your internet connection and try again.</li>
+                </ol>
+
+                <div class="text-center mt-4">
+                    <button type="button" class="btn btn-warning btn-lg" onclick="gameTracker.downloadRawData()">
+                        <i class="fas fa-download mr-2"></i>Download Raw Game Data (JSON)
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close & Fix Issues</button>
+                <button type="button" class="btn btn-primary" onclick="gameTracker.finishGame()">
+                    <i class="fas fa-sync mr-2"></i>Retry Save
+                </button>
             </div>
         </div>
     </div>

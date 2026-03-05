@@ -4,6 +4,7 @@ import psutil
 # Gunicorn Configuration
 bind = "0.0.0.0:8080"
 workers = 1
+timeout = 120
 accesslog = "-"
 errorlog = "-"
 # Use /dev/shm for worker temp files to avoid disk I/O latency in Docker

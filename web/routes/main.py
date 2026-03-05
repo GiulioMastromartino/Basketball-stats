@@ -616,9 +616,7 @@ def upload_game():
                         if not file or file.filename == "":
                             continue
 
-                        if not allowed_file(
-                            file.filename
-                        ) or not file.filename.lower().endswith(".json"):
+                        if not allowed_file(file.filename) or not file.filename.lower().endswith(".json"):
                             errors.append(f"{file.filename}: Invalid file type")
                             continue
 
@@ -628,198 +626,22 @@ def upload_game():
                             errors.append(f"{file.filename}: Invalid JSON format")
                             continue
 
-                        game_data = data.get("game")
-
-                        # Handle legacy JSON formats - support flat structure or nested 'game' object
-                        if not game_data:
-                            # Try to extract game info from top-level keys (legacy format)
-                            game_data = {
-                                "opponent": data.get(
-                                    "opponent", data.get("Opponent", "")
-                                ),
-                                "date": data.get(
-                                    "date", data.get("Date", data.get("game_date", ""))
-                                ),
-                                "sort_date": data.get(
-                                    "sort_date",
-                                    data.get("SortDate", data.get("sortdate", "")),
-                                ),
-                                "team_score": data.get(
-                                    "team_score",
-                                    data.get("TeamScore", data.get("our_score", 0)),
-                                ),
-                                "opponent_score": data.get(
-                                    "opponent_score",
-                                    data.get(
-                                        "OpponentScore", data.get("their_score", 0)
-                                    ),
-                                ),
-                                "result": data.get("result", data.get("Result", "W")),
-                                "game_type": data.get(
-                                    "game_type",
-                                    data.get("GameType", data.get("type", "Season")),
-                                ),
-                            }
-                            # If still no opponent, check for 'vs' or 'versus' keys
-                            if not game_data["opponent"]:
-                                game_data["opponent"] = data.get(
-                                    "vs", data.get("versus", data.get("VS", ""))
-                                )
-
-                        if not game_data or not game_data.get("opponent"):
-                            errors.append(
-                                f"{file.filename}: Missing required game data (opponent)"
-                            )
-                            continue
-
+                        # Extract basic info for duplicate check
+                        game_data = data.get("game", data)
                         date_display, sort_date = coerce_json_game_dates(game_data)
-                        opponent = (game_data.get("opponent") or "").strip()
+                        opponent = (game_data.get("opponent") or game_data.get("Opponent") or game_data.get("vs") or "").strip()
 
                         if not sort_date or not opponent:
-                            errors.append(
-                                f"{file.filename}: Missing sort_date or opponent"
-                            )
+                            errors.append(f"{file.filename}: Missing date or opponent")
                             continue
 
-                        existing = Game.query.filter_by(
-                            sort_date=sort_date, opponent=opponent
-                        ).first()
+                        existing = Game.query.filter_by(sort_date=sort_date, opponent=opponent).first()
                         if existing:
-                            errors.append(
-                                f"{file.filename}: Game already exists ({existing.opponent})"
-                            )
+                            errors.append(f"{file.filename}: Game already exists ({existing.opponent})")
                             continue
 
-                        # Calculate result if not provided
-                        team_score = (
-                            game_data.get("team_score", game_data.get("TeamScore", 0))
-                            or 0
-                        )
-                        opp_score = (
-                            game_data.get(
-                                "opponent_score", game_data.get("OpponentScore", 0)
-                            )
-                            or 0
-                        )
-                        result = game_data.get("result", game_data.get("Result", "W"))
-                        if not result or result not in ["W", "L"]:
-                            result = "W" if team_score > opp_score else "L"
-
-                        game = Game(
-                            date=date_display,
-                            opponent=opponent,
-                            team_score=team_score,
-                            opponent_score=opp_score,
-                            result=result,
-                            game_type=game_data.get(
-                                "game_type", game_data.get("GameType", "Season")
-                            ),
-                            sort_date=sort_date,
-                            source="IMPORT_JSON",
-                        )
-                        db.session.add(game)
-                        db.session.flush()
-
-                        # Handle player stats - support multiple key names
-                        player_stats = data.get(
-                            "player_stats",
-                            data.get(
-                                "PlayerStats",
-                                data.get("players", data.get("Players", [])),
-                            ),
-                        )
-                        for p_data in player_stats:
-                            # Normalize player data keys
-                            normalized_p = {}
-                            p_mapping = {
-                                "player_name": "player_name",
-                                "PlayerName": "player_name",
-                                "name": "player_name",
-                                "Name": "player_name",
-                                "player": "player_name",
-                            }
-                            # Apply key mappings for player name
-                            for old_key, new_key in p_mapping.items():
-                                if old_key in p_data and new_key not in p_data:
-                                    normalized_p[new_key] = p_data[old_key]
-
-                            # Merge with original data
-                            p_data = {**p_data, **normalized_p}
-
-                            valid_keys = {
-                                c.name
-                                for c in PlayerStat.__table__.columns
-                                if c.name not in ("id", "game_id")
-                            }
-                            stat_kwargs = {
-                                k: v for k, v in p_data.items() if k in valid_keys
-                            }
-                            db.session.add(PlayerStat(game_id=game.id, **stat_kwargs))
-
-                        # Handle shot events - support multiple key names
-                        shot_events = data.get(
-                            "shot_events",
-                            data.get(
-                                "ShotEvents", data.get("shots", data.get("Shots", []))
-                            ),
-                        )
-                        for s_data in shot_events:
-                            valid_keys = {
-                                c.name
-                                for c in ShotEvent.__table__.columns
-                                if c.name not in ("id", "game_id", "play_id")
-                            }
-                            shot_kwargs = {
-                                k: v for k, v in s_data.items() if k in valid_keys
-                            }
-
-                            play_id = None
-                            detail = s_data.get("detail")
-                            play_name = extract_play_name_from_detail(detail)
-                            if play_name:
-                                play = find_or_create_play(play_name)
-                                if play:
-                                    play_id = play.id
-
-                            db.session.add(
-                                ShotEvent(
-                                    game_id=game.id, play_id=play_id, **shot_kwargs
-                                )
-                            )
-
-                        # Handle game events - support multiple key names
-                        game_events = data.get(
-                            "game_events",
-                            data.get(
-                                "GameEvents", data.get("events", data.get("Events", []))
-                            ),
-                        )
-                        for e_data in game_events:
-                            valid_keys = {
-                                c.name
-                                for c in GameEvent.__table__.columns
-                                if c.name not in ("id", "game_id", "play_id")
-                            }
-                            event_kwargs = {
-                                k: v for k, v in e_data.items() if k in valid_keys
-                            }
-
-                            play_id = None
-                            detail = e_data.get("detail")
-                            play_name = extract_play_name_from_detail(detail)
-                            if play_name:
-                                play = find_or_create_play(play_name)
-                                if play:
-                                    play_id = play.id
-
-                            db.session.add(
-                                GameEvent(
-                                    game_id=game.id, play_id=play_id, **event_kwargs
-                                )
-                            )
-
-                        db.session.commit()
-                        _notify_users_game_saved(game)
+                        # Use service to handle the heavy lifting (supports Schema 4, lineups, plays, etc.)
+                        create_game_from_live_data(data)
                         success_count += 1
 
                     except Exception as e:
@@ -827,18 +649,10 @@ def upload_game():
                         errors.append(f"{file.filename}: {str(e)}")
 
                 if success_count > 0:
-                    flash(
-                        f"Successfully imported {success_count} JSON game(s).",
-                        "success",
-                    )
+                    flash(f"Successfully imported {success_count} JSON game(s).", "success")
 
                 if errors:
-                    flash(
-                        f"Errors occurred with {len(errors)} file(s): "
-                        + "; ".join(errors[:5])
-                        + ("..." if len(errors) > 5 else ""),
-                        "danger",
-                    )
+                    flash(f"Errors occurred with {len(errors)} file(s): " + "; ".join(errors[:5]) + ("..." if len(errors) > 5 else ""), "danger")
 
                 return redirect(url_for("main.index"))
 
@@ -882,7 +696,7 @@ def export_game_raw(game_id):
         game_events = []
 
     payload = {
-        "schema_version": "1.0",
+        "schema_version": str(game.schema_version or "1.0"),
         "exported_at": datetime.utcnow().isoformat(),
         "source": {"app": "HoopsStats", "branch": "Dev"},
         "game": serialize_model_instance(game),
