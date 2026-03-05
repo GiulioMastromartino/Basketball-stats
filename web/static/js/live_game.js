@@ -1167,11 +1167,12 @@ class GameTracker {
 
         const list = document.getElementById('assist-list');
         list.innerHTML = '';
+        list.classList.add('split');
 
         const noneBtn = document.createElement('button');
         noneBtn.type = 'button';
-        noneBtn.className = 'list-group-item list-group-item-action font-weight-bold';
-        noneBtn.innerText = 'No assist';
+        noneBtn.className = 'live-option-btn secondary';
+        noneBtn.innerHTML = `<span><div class="live-option-title">No Assist</div></span><span class="live-option-tag">SKIP</span>`;
         noneBtn.onclick = () => this.pickAssister(null);
         list.appendChild(noneBtn);
 
@@ -1179,8 +1180,8 @@ class GameTracker {
             if (p === shooter) return;
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'list-group-item list-group-item-action';
-            btn.innerText = p;
+            btn.className = 'live-option-btn primary';
+            btn.innerHTML = `<span><div class="live-option-title">${p}</div></span><span class="live-option-tag">AST</span>`;
             btn.onclick = () => this.pickAssister(p);
             list.appendChild(btn);
         });
@@ -1378,19 +1379,20 @@ class GameTracker {
         document.getElementById('oreb-shot-label').innerText = `${shooter} ${type.toUpperCase()} MISS`;
         const list = document.getElementById('oreb-list');
         list.innerHTML = '';
+        list.classList.add('split');
 
         const noneBtn = document.createElement('button');
         noneBtn.type = 'button';
-        noneBtn.className = 'list-group-item list-group-item-action font-weight-bold';
-        noneBtn.innerText = 'No offensive rebound';
+        noneBtn.className = 'live-option-btn danger';
+        noneBtn.innerHTML = `<span><div class="live-option-title">No O-Reb</div><div class="live-option-subtitle">Defensive possession change</div></span><span class="live-option-tag">DEF</span>`;
         noneBtn.onclick = () => this.confirmOreb(null);
         list.appendChild(noneBtn);
 
         this.activeLineup.forEach(p => {
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'list-group-item list-group-item-action';
-            btn.innerText = p;
+            btn.className = 'live-option-btn primary';
+            btn.innerHTML = `<span><div class="live-option-title">${p}</div><div class="live-option-subtitle">Offensive rebound</div></span><span class="live-option-tag">OREB</span>`;
             btn.onclick = () => this.confirmOreb(p);
             list.appendChild(btn);
         });
@@ -1659,49 +1661,51 @@ class GameTracker {
         if (this.oppRecentActions.length > 10) {
             this.oppRecentActions.shift();
         }
-
-        this.updateRemoveActionDropdown();
     }
 
 
-    updateRemoveActionDropdown() {
-        const list = document.getElementById('remove-action-list');
+    showRemoveOppActionModal() {
+        const list = document.getElementById('remove-opp-action-list');
         if (!list) return;
         
         list.innerHTML = '';
         
-        const recentOpp = this.oppRecentActions.slice(-5).reverse();
+        const recentOpp = this.oppRecentActions.slice(-3).reverse();
         
         if (recentOpp.length === 0) {
-            list.innerHTML = '<a class="dropdown-item text-muted" href="#">No recent actions</a>';
+            alert('No recent opponent actions to remove.');
             return;
         }
 
-        
         recentOpp.forEach((action, idx) => {
-            const a = document.createElement('a');
-            a.className = 'dropdown-item';
-            a.href = '#';
+            const btn = document.createElement('button');
+            btn.className = 'live-option-btn danger';
             
             let label = '';
+            let sub = '';
             if (action.type === 'OPP_SCORE') {
                 const pts = action.detail?.points || 0;
                 const result = action.detail?.result || 'made';
                 label = `OPP ${pts}PT ${result.toUpperCase()}`;
+                sub = result === 'made' ? `Subtract ${pts} points` : 'Remove miss event';
             } else if (action.type === 'OPP_OREB') {
                 label = 'OPP OREB';
+                sub = 'Remove offensive rebound';
             } else {
                 label = action.type;
+                sub = 'Remove event';
             }
 
+            btn.innerHTML = `<span><div class="live-option-title">${label}</div><div class="live-option-subtitle">${sub}</div></span><span class="live-option-tag">REMOVE</span>`;
             
-            a.innerText = label;
-            a.onclick = (e) => {
+            btn.onclick = (e) => {
                 e.preventDefault();
                 this.removeOppAction(action);
             };
-            list.appendChild(a);
+            list.appendChild(btn);
         });
+
+        $('#removeOppActionModal').modal('show');
     }
 
 
@@ -1733,14 +1737,12 @@ class GameTracker {
                 if (a.eventIndex > action.eventIndex) {
                     a.eventIndex--;
                 }
-
             });
             
             this.updateScoreboard();
-            this.updateRemoveActionDropdown();
+            $('#removeOppActionModal').modal('hide');
             this.saveState();
         }
-
     }
 
     
@@ -1839,26 +1841,26 @@ class GameTracker {
     showDrebPlayerSelector() {
         const list = document.getElementById('dreb-player-list');
         list.innerHTML = '';
-        
+        list.classList.add('split');
+
         // Add "Team" option for unknown player
         const teamBtn = document.createElement('button');
-        teamBtn.className = 'list-group-item list-group-item-action text-muted';
-        teamBtn.innerText = 'Team (unknown)';
+        teamBtn.className = 'live-option-btn secondary';
+        teamBtn.innerHTML = `<span><div class="live-option-title">Team</div><div class="live-option-subtitle">Unknown rebounder</div></span><span class="live-option-tag">TEAM</span>`;
         teamBtn.onclick = () => this.confirmDrebPlayer(null);
         list.appendChild(teamBtn);
-        
+
         // Add active players
         this.activeLineup.forEach(p => {
             const btn = document.createElement('button');
-            btn.className = 'list-group-item list-group-item-action';
-            btn.innerText = p;
+            btn.className = 'live-option-btn primary';
+            btn.innerHTML = `<span><div class="live-option-title">${p}</div><div class="live-option-subtitle">Defensive rebound</div></span><span class="live-option-tag">DREB</span>`;
             btn.onclick = () => this.confirmDrebPlayer(p);
             list.appendChild(btn);
         });
-        
+
         $('#drebPlayerModal').modal('show');
     }
-
     
     confirmDrebPlayer(player) {
         if (player && this.stats[player]) {

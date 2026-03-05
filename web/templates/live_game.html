@@ -120,6 +120,50 @@
     background: #f7f9fc;
 }
 
+/* Split layout for two main options side-by-side */
+.live-option-list.split {
+    display: flex;
+    flex-direction: row;
+    padding: 0;
+    gap: 0;
+    height: 100%;
+}
+
+.live-option-list.split .live-option-btn {
+    flex: 1;
+    height: 100%;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 2rem;
+    border-right: 1px solid rgba(0,0,0,0.1);
+}
+
+.live-option-list.split .live-option-btn:last-child {
+    border-right: none;
+}
+
+.live-option-list.split .live-option-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.live-option-list.split .live-option-subtitle {
+    font-size: 1rem;
+    opacity: 0.8;
+}
+
+.live-option-list.split .live-option-tag {
+    margin-top: 1rem;
+    font-size: 1rem;
+    padding: 0.4rem 1rem;
+}
+
 .live-option-btn {
     width: 100%;
     border: 1px solid #d7deea;
@@ -381,14 +425,9 @@
                             
                             <!-- Remove Last Action -->
                             <div class="d-flex align-items-center">
-                                <div class="dropdown">
-                                    <button class="btn btn-outline-warning btn-sm dropdown-toggle" type="button" id="removeActionDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                        <i class="fas fa-undo"></i> <span class="d-none d-md-inline">Remove</span>
-                                    </button>
-                                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="removeActionDropdown" id="remove-action-list">
-                                        <a class="dropdown-item text-muted" href="#">No recent actions</a>
-                                    </div>
-                                </div>
+                                <button class="btn btn-outline-warning btn-sm" type="button" onclick="gameTracker.showRemoveOppActionModal()">
+                                    <i class="fas fa-undo"></i> <span class="d-none d-md-inline">Remove Last</span>
+                                </button>
                                 <span class="ml-2 font-weight-bold text-danger" id="opp-score-display">0</span>
                             </div>
 
@@ -430,7 +469,7 @@
             </div>
             <div class="modal-body p-0">
                 <div class="p-2 text-center bg-light border-bottom font-weight-bold" id="assist-shot-label"></div>
-                <div class="live-option-list" id="assist-list"></div>
+                <div class="live-option-list split" id="assist-list"></div>
             </div>
         </div>
     </div>
@@ -495,7 +534,7 @@
             </div>
             <div class="modal-body p-0">
                 <div class="p-2 text-center bg-light border-bottom font-weight-bold" id="oreb-shot-label"></div>
-                <div class="live-option-list" id="oreb-list"></div>
+                <div class="live-option-list split" id="oreb-list"></div>
             </div>
         </div>
     </div>
@@ -630,18 +669,18 @@
                 <h5 class="modal-title h6">Opponent Shot - <span id="opp-shot-type"></span></h5>
             </div>
             <div class="modal-body p-0">
-                <div class="live-option-list">
+                <div class="live-option-list split">
                     <button class="live-option-btn primary" onclick="gameTracker.confirmOppShot(true)">
                         <span>
                             <div class="live-option-title"><i class="fas fa-check mr-2"></i>Made Shot</div>
-                            <div class="live-option-subtitle">Add points and optionally mark shot location</div>
+                            <div class="live-option-subtitle">Add points and mark location</div>
                         </span>
                         <span class="live-option-tag">SCORE</span>
                     </button>
                     <button class="live-option-btn danger" onclick="gameTracker.confirmOppShot(false)">
                         <span>
                             <div class="live-option-title"><i class="fas fa-times mr-2"></i>Missed Shot</div>
-                            <div class="live-option-subtitle">Proceed to rebound assignment</div>
+                            <div class="live-option-subtitle">Proceed to rebound</div>
                         </span>
                         <span class="live-option-tag">MISS</span>
                     </button>
@@ -709,20 +748,20 @@
                 <h5 class="modal-title h6">Rebound?</h5>
             </div>
             <div class="modal-body p-0">
-                <div class="live-option-list">
-                    <button class="live-option-btn danger" onclick="gameTracker.confirmOppRebound('offensive')">
-                        <span>
-                            <div class="live-option-title"><i class="fas fa-arrow-down mr-2"></i>Opponent Offensive Rebound</div>
-                            <div class="live-option-subtitle">Continue opponent possession</div>
-                        </span>
-                        <span class="live-option-tag">OPP OREB</span>
-                    </button>
+                <div class="live-option-list split">
                     <button class="live-option-btn primary" onclick="gameTracker.confirmOppRebound('defensive')">
                         <span>
                             <div class="live-option-title"><i class="fas fa-arrow-up mr-2"></i>Our Defensive Rebound</div>
                             <div class="live-option-subtitle">Choose the rebounder next</div>
                         </span>
                         <span class="live-option-tag">DREB</span>
+                    </button>
+                    <button class="live-option-btn danger" onclick="gameTracker.confirmOppRebound('offensive')">
+                        <span>
+                            <div class="live-option-title"><i class="fas fa-arrow-down mr-2"></i>Opponent Offensive Rebound</div>
+                            <div class="live-option-subtitle">Continue opponent possession</div>
+                        </span>
+                        <span class="live-option-tag">OPP OREB</span>
                     </button>
                 </div>
             </div>
@@ -738,7 +777,24 @@
                 <h5 class="modal-title h6">Who got the rebound?</h5>
             </div>
             <div class="modal-body p-0">
-                <div class="live-option-list" id="dreb-player-list"></div>
+                <div class="live-option-list split" id="dreb-player-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Remove Opponent Action Modal -->
+<div class="modal fade" id="removeOppActionModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark py-2">
+                <h5 class="modal-title h6">Remove Opponent Action</h5>
+                <button type="button" class="btn btn-sm btn-outline-dark" data-dismiss="modal">Cancel</button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="live-option-list split" id="remove-opp-action-list">
+                    <!-- Populated by JS -->
+                </div>
             </div>
         </div>
     </div>
