@@ -618,15 +618,18 @@
                             {% set p2 = (team_stats.fgm - team_stats.tpm) * 2 %}
                             {% set p3 = team_stats.tpm * 3 %}
                             {% set ft = team_stats.ftm %}
+                            {% set pct_p2 = (p2 / total_pts * 100) if total_pts > 0 else 0 %}
+                            {% set pct_p3 = (p3 / total_pts * 100) if total_pts > 0 else 0 %}
+                            {% set pct_ft = (ft / total_pts * 100) if total_pts > 0 else 0 %}
 
-                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ (p2/total_pts*100)|round }}%">
-                                2PT ({{ (p2/total_pts*100)|round }}%)
+                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ pct_p2|round }}%">
+                                2PT ({{ pct_p2|round }}%)
                             </div>
-                            <div class="progress-bar bg-info" role="progressbar" style="width: {{ (p3/total_pts*100)|round }}%">
-                                3PT ({{ (p3/total_pts*100)|round }}%)
+                            <div class="progress-bar bg-info" role="progressbar" style="width: {{ pct_p3|round }}%">
+                                3PT ({{ pct_p3|round }}%)
                             </div>
-                            <div class="progress-bar bg-warning text-dark" role="progressbar" style="width: {{ (ft/total_pts*100)|round }}%">
-                                FT ({{ (ft/total_pts*100)|round }}%)
+                            <div class="progress-bar bg-warning text-dark" role="progressbar" style="width: {{ pct_ft|round }}%">
+                                FT ({{ pct_ft|round }}%)
                             </div>
                         </div>
                     </div>
