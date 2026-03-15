@@ -77,7 +77,12 @@ def add_missing_columns(app):
                 "game_seconds": "INTEGER",
                 "x_loc": "FLOAT",
                 "y_loc": "FLOAT",
+                "zone": "VARCHAR(50)",
                 "lineup_segment_id": "INTEGER",
+            },
+            # Shot events table
+            "shot_events": {
+                "zone": "VARCHAR(50)",
             },
             # Lineups table - these columns were added in later migrations
             "lineups": {
