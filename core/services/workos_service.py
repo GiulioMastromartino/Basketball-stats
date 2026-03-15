@@ -6,17 +6,22 @@ Provides functions for integrating with WorkOS AuthKit and Magic Link authentica
 
 import os
 from typing import Optional
-from workos import WorkOSClient
 
 
 # Initialize WorkOS client (lazy initialization to allow testing)
-_workos_client: Optional[WorkOSClient] = None
+_workos_client = None
 
 
-def get_workos_client() -> WorkOSClient:
+def get_workos_client():
     """Get or create the WorkOS client instance."""
     global _workos_client
     if _workos_client is None:
+        try:
+            from workos import WorkOSClient
+        except Exception as e:
+            raise RuntimeError(
+                "WorkOS SDK is not installed. Add 'workos' to requirements."
+            ) from e
         _workos_client = WorkOSClient(
             api_key=os.getenv("WORKOS_API_KEY"), client_id=os.getenv("WORKOS_CLIENT_ID")
         )
