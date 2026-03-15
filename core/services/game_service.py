@@ -1,6 +1,7 @@
 import copy
 import json
 import re
+from typing import Any, Dict, List, Optional
 
 from core.models import Game, PlayerStat, ShotEvent, GameEvent, Play, db
 from core.services.lineup_service import process_game_lineups
@@ -166,6 +167,269 @@ def get_nested_value(data, *keys, default=None):
     return default
 
 
+def _safe_int(value):
+    """Best-effort integer coercion for imported timeline fields."""
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return None
+
+
+def _clock_seconds_to_time_remaining(clock_seconds: Optional[int]) -> Optional[str]:
+    """Convert elapsed quarter seconds to MM:SS remaining."""
+    if clock_seconds is None:
+        return None
+
+    remaining = max(0, 600 - clock_seconds)
+    minutes = remaining // 60
+    seconds = remaining % 60
+    return f"{minutes}:{seconds:02d}"
+
+
+def _derive_timeline_from_quarter_clock(
+    quarter: Optional[int], clock_seconds: Optional[int]
+) -> Dict[str, Optional[int]]:
+    """Derive absolute timeline fields from quarter-local clock seconds."""
+    if quarter is None or clock_seconds is None:
+        return {"game_seconds": None, "time_remaining": None}
+
+    return {
+        "game_seconds": ((quarter - 1) * 600) + clock_seconds,
+        "time_remaining": _clock_seconds_to_time_remaining(clock_seconds),
+    }
+
+
+def _parse_detail_dict(detail: Any) -> Dict[str, Any]:
+    """Parse detail payloads stored as dict/JSON/stringified dict."""
+    if detail is None:
+        return {}
+    if isinstance(detail, dict):
+        return detail
+    if isinstance(detail, str):
+        try:
+            parsed = json.loads(detail)
+            return parsed if isinstance(parsed, dict) else {}
+        except (json.JSONDecodeError, ValueError):
+            pass
+        try:
+            import ast
+
+            parsed = ast.literal_eval(detail)
+            return parsed if isinstance(parsed, dict) else {}
+        except (ValueError, SyntaxError):
+            return {}
+    return {}
+
+
+def _normalize_shot_family(event_type: Optional[str]) -> Optional[str]:
+    """Map game event shot types to shot_events schema values."""
+    if event_type == "SHOT_2PT":
+        return "2pt"
+    if event_type == "SHOT_3PT":
+        return "3pt"
+    if event_type in ("FT", "FT_MADE", "FT_MISS"):
+        return "ft"
+    return None
+
+
+def _build_shot_import_records(
+    shot_events_source: List[Dict[str, Any]], is_nested_import: bool
+) -> List[Dict[str, Any]]:
+    """Keep raw shot metadata for schema 4 event reconciliation."""
+    records: List[Dict[str, Any]] = []
+
+    for index, s_data in enumerate(shot_events_source):
+        shooter = get_nested_value(
+            s_data, "player_name", "player", "shooter", default=""
+        )
+        quarter = _safe_int(get_nested_value(s_data, "quarter", "q", "period"))
+        clock_seconds = _safe_int(
+            get_nested_value(s_data, "clockSeconds", "clock_seconds", "clock")
+        )
+        timestamp = _safe_int(get_nested_value(s_data, "timestamp", "time", default=0))
+        shot_type = get_nested_value(s_data, "shot_type", "type", "ShotType", default="")
+        result = get_nested_value(s_data, "result", "Result", "made")
+        x = get_nested_value(s_data, "x_loc", "x", "xLoc")
+        y = get_nested_value(s_data, "y_loc", "y", "yLoc")
+        points = _safe_int(get_nested_value(s_data, "points", "Points", "pts", default=0))
+
+        records.append(
+            {
+                "index": index,
+                "shooter": shooter.strip().lower() if shooter else "",
+                "quarter": quarter,
+                "clock_seconds": clock_seconds,
+                "timestamp": timestamp,
+                "shot_type": shot_type.strip().lower() if shot_type else "",
+                "result": result,
+                "x_loc": float(x) if x is not None else None,
+                "y_loc": float(y) if y is not None else None,
+                "points": points or 0,
+                "used": False,
+            }
+        )
+
+    return records
+
+
+def _build_raw_event_contexts(game_events_source: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalize raw event timeline metadata for schema 4 gap filling."""
+    contexts: List[Dict[str, Any]] = []
+
+    for index, e_data in enumerate(game_events_source):
+        quarter = _safe_int(get_nested_value(e_data, "quarter", "q", "period"))
+        clock_seconds = _safe_int(
+            get_nested_value(e_data, "clockSeconds", "clock_seconds", "clock")
+        )
+        game_seconds = _safe_int(get_nested_value(e_data, "game_seconds", "gameSeconds"))
+        time_remaining = get_nested_value(
+            e_data, "time_remaining", "timeRemaining", "TimeRemaining"
+        )
+        timestamp = _safe_int(get_nested_value(e_data, "timestamp", "time", default=0)) or 0
+        score_margin = _safe_int(get_nested_value(e_data, "score_margin", "scoreMargin"))
+        possession_number = _safe_int(
+            get_nested_value(e_data, "possession_number", "possessionNumber")
+        )
+
+        if game_seconds is None or not time_remaining:
+            derived = _derive_timeline_from_quarter_clock(quarter, clock_seconds)
+            game_seconds = game_seconds if game_seconds is not None else derived["game_seconds"]
+            time_remaining = time_remaining or derived["time_remaining"]
+
+        contexts.append(
+            {
+                "index": index,
+                "quarter": quarter,
+                "clock_seconds": clock_seconds,
+                "game_seconds": game_seconds,
+                "time_remaining": time_remaining,
+                "timestamp": timestamp,
+                "score_margin": score_margin,
+                "possession_number": possession_number,
+            }
+        )
+
+    return contexts
+
+
+def _match_schema4_shot_record(
+    shot_records: List[Dict[str, Any]],
+    player_name: Optional[str],
+    quarter: Optional[int],
+    event_type: Optional[str],
+    timestamp: Optional[int],
+    clock_seconds: Optional[int],
+) -> Optional[Dict[str, Any]]:
+    """Match a team shot event to the best raw shot record deterministically."""
+    normalized_player = player_name.strip().lower() if player_name else ""
+    shot_family = _normalize_shot_family(event_type)
+
+    candidates = [
+        shot
+        for shot in shot_records
+        if not shot["used"]
+        and shot["shooter"] == normalized_player
+        and shot["quarter"] == quarter
+        and shot["shot_type"] == shot_family
+    ]
+    if not candidates:
+        return None
+
+    def _rank(candidate: Dict[str, Any]) -> tuple:
+        ts_diff = (
+            abs(candidate["timestamp"] - timestamp)
+            if candidate["timestamp"] and timestamp
+            else 10**12
+        )
+        clock_diff = (
+            abs(candidate["clock_seconds"] - clock_seconds)
+            if candidate["clock_seconds"] is not None and clock_seconds is not None
+            else 10**6
+        )
+        return (ts_diff, clock_diff, candidate["index"])
+
+    match = min(candidates, key=_rank)
+    match["used"] = True
+    return match
+
+
+def _nearest_raw_context(
+    contexts: List[Dict[str, Any]],
+    quarter: Optional[int],
+    timestamp: Optional[int],
+    clock_seconds: Optional[int],
+    event_index: int,
+) -> Optional[Dict[str, Any]]:
+    """Pick the closest raw event with usable timeline metadata."""
+    candidates = [
+        ctx
+        for ctx in contexts
+        if ctx["index"] != event_index
+        and ctx["quarter"] == quarter
+        and (
+            ctx["score_margin"] is not None
+            or ctx["possession_number"] is not None
+            or ctx["game_seconds"] is not None
+            or ctx["time_remaining"] is not None
+        )
+    ]
+    if not candidates:
+        return None
+
+    def _rank(candidate: Dict[str, Any]) -> tuple:
+        ts_diff = abs(candidate["timestamp"] - timestamp) if candidate["timestamp"] and timestamp else 10**12
+        clock_diff = (
+            abs(candidate["clock_seconds"] - clock_seconds)
+            if candidate["clock_seconds"] is not None and clock_seconds is not None
+            else 10**6
+        )
+        return (ts_diff, clock_diff, abs(candidate["index"] - event_index))
+
+    return min(candidates, key=_rank)
+
+
+def _score_delta_for_event(event: GameEvent) -> int:
+    """Return score-margin delta introduced by a single event."""
+    if event.event_type == "SHOT_2PT" and event.shot_attempt == "made":
+        return 2
+    if event.event_type == "SHOT_3PT" and event.shot_attempt == "made":
+        return 3
+    if event.event_type == "FT_MADE":
+        return 1
+    if event.event_type == "FT":
+        return _parse_detail_dict(event.detail).get("ftm", 0) or 0
+    if event.event_type == "OPP_SCORE":
+        detail = _parse_detail_dict(event.detail)
+        points = detail.get("points", 0)
+        points = _safe_int(points)
+        return -(points or 0)
+    return 0
+
+
+def _backfill_missing_score_margin(events: List[GameEvent]) -> None:
+    """Fill missing score margins from the imported event sequence."""
+    ordered = sorted(
+        events,
+        key=lambda event: (
+            event.timestamp or 0,
+            event.game_seconds if event.game_seconds is not None else 10**9,
+        ),
+    )
+
+    current_margin = 0
+    for event in ordered:
+        if event.score_margin is None:
+            current_margin += _score_delta_for_event(event)
+            event.score_margin = current_margin
+        else:
+            current_margin = event.score_margin
+
+
 def assign_possession_numbers(game_id: int) -> None:
     """
     Assign possession numbers to GameEvents after import.
@@ -294,8 +558,9 @@ def create_game_from_live_data(data):
         player_stats_source = get_nested_value(
             data, "player_stats", "PlayerStats", "players", "Players", default=[]
         )
+        # Support 'shot_locations' in nested format too (often found in rescue files)
         shot_events_source = get_nested_value(
-            data, "shot_events", "ShotEvents", "shots", "Shots", default=[]
+            data, "shot_events", "shot_locations", "ShotEvents", "shots", "Shots", default=[]
         )
         game_events_source = get_nested_value(
             data, "game_events", "GameEvents", "events", "Events", default=[]
@@ -400,15 +665,9 @@ def create_game_from_live_data(data):
     all_game_events = []
 
     # --- Process Player Stats ---
-    if is_nested_import:
-        for p_data in player_stats_source:
-            player_name = get_nested_value(p_data, "player_name", "PlayerName", "name", "Name", "player")
-            if not player_name: continue
-            valid_keys = {c.name for c in PlayerStat.__table__.columns if c.name not in ("id", "game_id")}
-            stat_kwargs = {k: v for k, v in p_data.items() if k in valid_keys}
-            if "player_name" not in stat_kwargs: stat_kwargs["player_name"] = player_name
-            all_player_stats.append(PlayerStat(game_id=game.id, **stat_kwargs))
-    else:
+    # Robustly handle both dict-based (Live/Rescue) and list-based (Export) player stats
+    if isinstance(player_stats_source, dict):
+        # LIVE or RESCUE format: {"Player Name": {stats...}}
         for p_name, stats in player_stats_source.items():
             if not p_name: continue
             fgm = get_nested_value(stats, "fgm", "FGM", "fg", default=0)
@@ -438,6 +697,15 @@ def create_game_from_live_data(data):
                 ftm=ftm, fta=fta, ft_percent=ft_pct, oreb=oreb, dreb=dreb, reb=oreb + dreb,
                 ast=ast, tov=tov, stl=stl, blk=blk, pf=pf, plus_minus=int(plus_minus or 0),
             ))
+    else:
+        # EXPORT format: [{"name": "Player Name", ...}]
+        for p_data in player_stats_source:
+            player_name = get_nested_value(p_data, "player_name", "PlayerName", "name", "Name", "player")
+            if not player_name: continue
+            valid_keys = {c.name for c in PlayerStat.__table__.columns if c.name not in ("id", "game_id")}
+            stat_kwargs = {k: v for k, v in p_data.items() if k in valid_keys}
+            if "player_name" not in stat_kwargs: stat_kwargs["player_name"] = player_name
+            all_player_stats.append(PlayerStat(game_id=game.id, **stat_kwargs))
 
     db.session.add_all(all_player_stats)
 
@@ -482,44 +750,32 @@ def create_game_from_live_data(data):
     
     db.session.add_all(all_shot_events)
 
-    # Build a lookup for shot results: (player_name, quarter) -> result
-    # This is used to populate game_events with shot_attempt
+    # Keep raw source metadata for schema 4 reconciliation before persisting game events.
+    shot_import_records = _build_shot_import_records(shot_events_source, is_nested_import)
     shot_results_lookup = {}
-    for s in all_shot_events:
-        if s.player_name and s.quarter:
-            key = (s.player_name.strip().lower(), s.quarter)
-            shot_results_lookup[key] = s.result  # 'made' or 'missed'
-    
-    # Also build a lookup by player + game_seconds for more precise matching
-    shot_by_time_lookup = {}
+    for shot in shot_import_records:
+        key = (shot["shooter"], shot["quarter"], shot["shot_type"])
+        shot_results_lookup.setdefault(key, []).append(shot["result"])
+
+    raw_event_contexts = _build_raw_event_contexts(game_events_source)
+    is_schema4 = schema_version >= 4
+    unmatched_schema4_shots = 0
+
     # We need to store original shot event data, will do this after game_events created
     
     # --- Process Game Events ---
-    for e_data in game_events_source:
+    for event_index, e_data in enumerate(game_events_source):
         if is_nested_import:
             event_type = get_nested_value(e_data, "event_type", "type", "EventType")
             player_name = get_nested_value(e_data, "player_name", "player", "PlayerName")
             detail = get_nested_value(e_data, "detail", "Detail", "description")
             timestamp = get_nested_value(e_data, "timestamp", "time", "Timestamp", default=0)
-            shot_attempt = get_nested_value(e_data, "shot_attempt", "ShotAttempt")
-            
-            # If shot_attempt is not set, try to get from shot_events lookup or detail
-            if shot_attempt is None and event_type in ("SHOT_2PT", "SHOT_3PT", "FT"):
-                # Try shot_events lookup first
-                if player_name:
-                    key = (player_name.strip().lower(), quarter)
-                    if key in shot_results_lookup:
-                        shot_attempt = shot_results_lookup[key]
-                    # For FT events, also check detail for ftm
-                    elif event_type == "FT" and detail:
-                        try:
-                            if isinstance(detail, str) and detail.startswith("{"):
-                                detail_parsed = json.loads(detail)
-                                ftm = detail_parsed.get("ftm", 0)
-                                shot_attempt = "made" if ftm > 0 else "missed"
-                        except:
-                            pass
             quarter = get_nested_value(e_data, "quarter", "q", "period")
+            quarter = _safe_int(quarter)
+            clock_seconds = _safe_int(
+                get_nested_value(e_data, "clockSeconds", "clock_seconds", "clock")
+            )
+            shot_attempt = get_nested_value(e_data, "shot_attempt", "ShotAttempt")
             time_remaining = get_nested_value(e_data, "time_remaining", "timeRemaining", "time_remaining")
             score_margin = get_nested_value(e_data, "score_margin", "scoreMargin")
             possession_number = get_nested_value(e_data, "possession_number", "possessionNumber")
@@ -530,12 +786,7 @@ def create_game_from_live_data(data):
             
             # Extract zone/location from detail field if not at top level
             # (e.g., OPP_SCORE events store this in detail JSON)
-            detail_parsed = None
-            if detail and isinstance(detail, str) and detail.startswith("{"):
-                try:
-                    detail_parsed = json.loads(detail)
-                except:
-                    pass
+            detail_parsed = _parse_detail_dict(detail)
             
             # Override with detail values if top-level values are missing
             if detail_parsed:
@@ -567,7 +818,73 @@ def create_game_from_live_data(data):
             else:
                 p_id = get_cached_play_id(extract_play_name_from_detail(detail))
             
-            if isinstance(detail, dict): detail = json.dumps(detail)
+            matched_shot = None
+            if is_schema4 and event_type in ("SHOT_2PT", "SHOT_3PT"):
+                matched_shot = _match_schema4_shot_record(
+                    shot_import_records,
+                    player_name,
+                    quarter,
+                    event_type,
+                    _safe_int(timestamp),
+                    clock_seconds,
+                )
+                if matched_shot is None:
+                    unmatched_schema4_shots += 1
+
+            if matched_shot is not None:
+                if shot_attempt is None:
+                    shot_attempt = matched_shot["result"]
+                if x is None:
+                    x = matched_shot["x_loc"]
+                if y is None:
+                    y = matched_shot["y_loc"]
+                if zone is None:
+                    zone = infer_zone_from_coords(x, y)
+                if timestamp in (None, 0) and matched_shot["timestamp"]:
+                    timestamp = matched_shot["timestamp"]
+                if clock_seconds is None:
+                    clock_seconds = matched_shot["clock_seconds"]
+
+            if shot_attempt is None and event_type == "FT":
+                ftm = detail_parsed.get("ftm", 0)
+                shot_attempt = "made" if ftm > 0 else "missed"
+            elif shot_attempt is None and event_type in ("SHOT_2PT", "SHOT_3PT") and player_name:
+                key = (
+                    player_name.strip().lower(),
+                    quarter,
+                    _normalize_shot_family(event_type),
+                )
+                if shot_results_lookup.get(key):
+                    shot_attempt = shot_results_lookup[key][0]
+
+            game_seconds = _safe_int(game_seconds)
+            score_margin = _safe_int(score_margin)
+            possession_number = _safe_int(possession_number)
+
+            if game_seconds is None or not time_remaining:
+                derived = _derive_timeline_from_quarter_clock(quarter, clock_seconds)
+                game_seconds = game_seconds if game_seconds is not None else derived["game_seconds"]
+                time_remaining = time_remaining or derived["time_remaining"]
+
+            nearby_context = _nearest_raw_context(
+                raw_event_contexts,
+                quarter,
+                _safe_int(timestamp),
+                clock_seconds,
+                event_index,
+            )
+            if nearby_context:
+                if game_seconds is None:
+                    game_seconds = nearby_context["game_seconds"]
+                if not time_remaining:
+                    time_remaining = nearby_context["time_remaining"]
+                if score_margin is None:
+                    score_margin = nearby_context["score_margin"]
+                if possession_number is None:
+                    possession_number = nearby_context["possession_number"]
+
+            if isinstance(detail, dict):
+                detail = json.dumps(detail)
 
             all_game_events.append(GameEvent(
                 game_id=game.id, event_type=event_type,
@@ -575,11 +892,11 @@ def create_game_from_live_data(data):
                 detail=str(detail) if detail is not None else None,
                 timestamp=int(timestamp) if timestamp else 0,
                 shot_attempt=shot_attempt, play_id=p_id,
-                quarter=int(quarter) if quarter is not None else None,
+                quarter=quarter,
                 time_remaining=time_remaining,
-                score_margin=int(score_margin) if score_margin is not None else None,
-                possession_number=int(possession_number) if possession_number is not None else None,
-                game_seconds=int(game_seconds) if game_seconds is not None else None,
+                score_margin=score_margin,
+                possession_number=possession_number,
+                game_seconds=game_seconds,
                 x_loc=float(x) if x is not None else None,
                 y_loc=float(y) if y is not None else None,
                 zone=zone,
@@ -589,34 +906,89 @@ def create_game_from_live_data(data):
             player_name = get_nested_value(e_data, "player", "player_name", "PlayerName")
             detail = get_nested_value(e_data, "detail", "Detail", "description")
             timestamp = get_nested_value(e_data, "timestamp", "time", "Timestamp", default=0)
-            shot_attempt = get_nested_value(e_data, "shot_attempt", "ShotAttempt")
-            
-            # If shot_attempt is not set, try to get from shot_events lookup or detail
-            if shot_attempt is None and event_type in ("SHOT_2PT", "SHOT_3PT", "FT"):
-                # Try shot_events lookup first
-                if player_name:
-                    key = (player_name.strip().lower(), quarter)
-                    if key in shot_results_lookup:
-                        shot_attempt = shot_results_lookup[key]
-                    # For FT events, also check detail for ftm
-                    elif event_type == "FT" and detail:
-                        try:
-                            if isinstance(detail, str) and detail.startswith("{"):
-                                detail_parsed = json.loads(detail)
-                                ftm = detail_parsed.get("ftm", 0)
-                                shot_attempt = "made" if ftm > 0 else "missed"
-                        except:
-                            pass
             quarter = get_nested_value(e_data, "quarter", "q", "period")
+            quarter = _safe_int(quarter)
+            clock_seconds = _safe_int(
+                get_nested_value(e_data, "clockSeconds", "clock_seconds", "clock")
+            )
+            shot_attempt = get_nested_value(e_data, "shot_attempt", "ShotAttempt")
             time_remaining = get_nested_value(e_data, "time_remaining", "timeRemaining", "time_remaining")
             score_margin = get_nested_value(e_data, "score_margin", "scoreMargin")
             possession_number = get_nested_value(e_data, "possession_number", "possessionNumber")
             game_seconds = get_nested_value(e_data, "game_seconds", "gameSeconds")
             x = get_nested_value(e_data, "x_loc", "x", "xLoc")
             y = get_nested_value(e_data, "y_loc", "y", "yLoc")
+            zone = get_nested_value(e_data, "zone", "Zone")
+            detail_parsed = _parse_detail_dict(detail)
+
+            matched_shot = None
+            if is_schema4 and event_type in ("SHOT_2PT", "SHOT_3PT"):
+                matched_shot = _match_schema4_shot_record(
+                    shot_import_records,
+                    player_name,
+                    quarter,
+                    event_type,
+                    _safe_int(timestamp),
+                    clock_seconds,
+                )
+                if matched_shot is None:
+                    unmatched_schema4_shots += 1
+
+            if matched_shot is not None:
+                if shot_attempt is None:
+                    shot_attempt = matched_shot["result"]
+                if x is None:
+                    x = matched_shot["x_loc"]
+                if y is None:
+                    y = matched_shot["y_loc"]
+                if zone is None:
+                    zone = infer_zone_from_coords(x, y)
+                if timestamp in (None, 0) and matched_shot["timestamp"]:
+                    timestamp = matched_shot["timestamp"]
+                if clock_seconds is None:
+                    clock_seconds = matched_shot["clock_seconds"]
+
+            if shot_attempt is None and event_type == "FT":
+                ftm = detail_parsed.get("ftm", 0)
+                shot_attempt = "made" if ftm > 0 else "missed"
+            elif shot_attempt is None and event_type in ("SHOT_2PT", "SHOT_3PT") and player_name:
+                key = (
+                    player_name.strip().lower(),
+                    quarter,
+                    _normalize_shot_family(event_type),
+                )
+                if shot_results_lookup.get(key):
+                    shot_attempt = shot_results_lookup[key][0]
+
+            game_seconds = _safe_int(game_seconds)
+            score_margin = _safe_int(score_margin)
+            possession_number = _safe_int(possession_number)
+
+            if game_seconds is None or not time_remaining:
+                derived = _derive_timeline_from_quarter_clock(quarter, clock_seconds)
+                game_seconds = game_seconds if game_seconds is not None else derived["game_seconds"]
+                time_remaining = time_remaining or derived["time_remaining"]
+
+            nearby_context = _nearest_raw_context(
+                raw_event_contexts,
+                quarter,
+                _safe_int(timestamp),
+                clock_seconds,
+                event_index,
+            )
+            if nearby_context:
+                if game_seconds is None:
+                    game_seconds = nearby_context["game_seconds"]
+                if not time_remaining:
+                    time_remaining = nearby_context["time_remaining"]
+                if score_margin is None:
+                    score_margin = nearby_context["score_margin"]
+                if possession_number is None:
+                    possession_number = nearby_context["possession_number"]
 
             v_p_id = get_cached_play_id(extract_play_name_from_detail(detail))
-            if isinstance(detail, dict): detail = json.dumps(detail)
+            if isinstance(detail, dict):
+                detail = json.dumps(detail)
 
             all_game_events.append(GameEvent(
                 game_id=game.id, event_type=event_type,
@@ -624,16 +996,26 @@ def create_game_from_live_data(data):
                 detail=str(detail) if detail is not None else None,
                 timestamp=int(timestamp) if timestamp else 0,
                 shot_attempt=shot_attempt, play_id=v_p_id,
-                quarter=int(quarter) if quarter is not None else None,
+                quarter=quarter,
                 time_remaining=time_remaining,
-                score_margin=int(score_margin) if score_margin is not None else None,
-                possession_number=int(possession_number) if possession_number is not None else None,
-                game_seconds=int(game_seconds) if game_seconds is not None else None,
+                score_margin=score_margin,
+                possession_number=possession_number,
+                game_seconds=game_seconds,
                 x_loc=float(x) if x is not None else None,
                 y_loc=float(y) if y is not None else None,
+                zone=zone,
             ))
+
+    _backfill_missing_score_margin(all_game_events)
     
     db.session.add_all(all_game_events)
+
+    if unmatched_schema4_shots:
+        current_app.logger.warning(
+            "Schema 4 import for game %s left %s shot events unmatched",
+            game.id,
+            unmatched_schema4_shots,
+        )
     
     # Copy play_id from game_events to shot_events for analytics
     # Match by player_name, quarter

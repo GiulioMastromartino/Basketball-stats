@@ -669,6 +669,22 @@ def _parse_time_remaining(time_str):
         return 600
 
 
+def _event_team_points(event):
+    """Return team points contributed by a single event, if any."""
+    if event.event_type == "SHOT_2PT" and event.shot_attempt == "made":
+        return 2
+    if event.event_type == "SHOT_3PT" and event.shot_attempt == "made":
+        return 3
+    if event.event_type == "FT_MADE":
+        return 1
+    if event.event_type == "FT":
+        detail = _parse_detail(event.detail)
+        if "ftm" in detail:
+            return int(detail.get("ftm", 0) or 0)
+        return 1 if event.shot_attempt == "made" else 0
+    return 0
+
+
 def _get_starting_lineup_from_events(events):
     """Extract starting lineup from first 5 SUB_IN events in Q1 (by lowest timestamp)."""
     quarter_map = _build_quarter_map(events)
@@ -731,6 +747,7 @@ def _build_time_progression(events, game):
         "team": None,
         "points": 0,
         "start_q": None,
+        "end_q": None,
         "start_time": None,
         "start_lineup": [],
     }
@@ -785,16 +802,8 @@ def _build_time_progression(events, game):
                 on_court.discard(event.player_name)
 
         if event.event_type == "OPP_SCORE":
-            import json
-
-            try:
-                detail = json.loads(event.detail) if event.detail else {}
-            except (json.JSONDecodeError, TypeError):
-                detail = {}
-
+            detail = _parse_detail(event.detail)
             points_scored = detail.get("points", _parse_detail_points(event.detail))
-            shot_type = detail.get("shot_type", "2pt")
-            result = detail.get("result", "made")
 
             opp_score += points_scored
             scoring_team = "opp"
@@ -805,23 +814,15 @@ def _build_time_progression(events, game):
             else:
                 margin = team_score - opp_score
 
-        if event.event_type == "FT":
-            import json
-
-            try:
-                detail = json.loads(event.detail) if event.detail else {}
-            except (json.JSONDecodeError, TypeError):
-                detail = {}
-
-            ft_made = detail.get("made", 1 if event.shot_attempt == "made" else 0)
-            if ft_made > 0:
-                team_score += ft_made
-                points_scored = ft_made
-                scoring_team = "team"
+        team_points = _event_team_points(event)
+        if team_points > 0:
+            team_score += team_points
+            points_scored = team_points
+            scoring_team = "team"
 
         if event.event_type == "TURNOVER":
             quarterly_stats[quarter]["tov"] += 1
-        if event.event_type == "FOUL":
+        if event.event_type in ("FOUL", "FOUL_PERSONAL"):
             quarterly_stats[quarter]["pf"] += 1
 
         if scoring_team:
@@ -862,6 +863,7 @@ def _build_time_progression(events, game):
 
             if current_run["team"] == scoring_team:
                 current_run["points"] += points_scored
+                current_run["end_q"] = quarter
             else:
                 if current_run["points"] >= 5:
                     runs.append(
@@ -869,7 +871,7 @@ def _build_time_progression(events, game):
                             "type": current_run["team"],
                             "points": current_run["points"],
                             "start_q": current_run["start_q"],
-                            "end_q": quarter,
+                            "end_q": current_run["end_q"] or current_run["start_q"],
                             "start_time": current_run["start_time"],
                             "lineup": current_run["start_lineup"],
                         }
@@ -884,6 +886,7 @@ def _build_time_progression(events, game):
                     "team": scoring_team,
                     "points": points_scored,
                     "start_q": quarter,
+                    "end_q": quarter,
                     "start_time": time_str,
                     "start_lineup": list(on_court),
                 }
@@ -896,7 +899,7 @@ def _build_time_progression(events, game):
                 "type": current_run["team"],
                 "points": current_run["points"],
                 "start_q": current_run["start_q"],
-                "end_q": current_run["start_q"],
+                "end_q": current_run["end_q"] or current_run["start_q"],
                 "start_time": current_run["start_time"],
                 "lineup": current_run["start_lineup"],
             }

@@ -136,6 +136,106 @@ class TestValidatePlayId:
 class TestCreateGameFromLiveData:
     """Tests for create_game_from_live_data function."""
 
+    def _schema4_payload(self):
+        return {
+            "schema_version": 4,
+            "game": {
+                "date": "2026-03-01",
+                "opponent": "Schema Four Opponent",
+                "team_score": 7,
+                "opponent_score": 2,
+                "game_type": "Season",
+            },
+            "player_stats": [],
+            "shot_locations": [
+                {
+                    "shooter": "Alice",
+                    "type": "2pt",
+                    "result": "made",
+                    "points": 2,
+                    "quarter": 1,
+                    "clockSeconds": 10,
+                    "timestamp": 1010,
+                    "x": 240,
+                    "y": 90,
+                },
+                {
+                    "shooter": "Bob",
+                    "type": "3pt",
+                    "result": "missed",
+                    "points": 0,
+                    "quarter": 1,
+                    "clockSeconds": 40,
+                    "timestamp": 1040,
+                    "x": 80,
+                    "y": 320,
+                },
+                {
+                    "shooter": "Alice",
+                    "type": "3pt",
+                    "result": "made",
+                    "points": 3,
+                    "quarter": 1,
+                    "clockSeconds": 50,
+                    "timestamp": 1050,
+                    "x": 120,
+                    "y": 340,
+                },
+            ],
+            "game_events": [
+                {
+                    "type": "TURNOVER",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 0,
+                    "timestamp": 1000,
+                },
+                {
+                    "type": "SHOT_2PT",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 10,
+                    "timestamp": 1010,
+                    "detail": {"play_name": "Horns"},
+                },
+                {
+                    "type": "OPP_SCORE",
+                    "quarter": 1,
+                    "clockSeconds": 20,
+                    "timestamp": 1020,
+                    "time_remaining": "9:40",
+                    "game_seconds": 20,
+                    "score_margin": 0,
+                    "detail": {"points": 2},
+                },
+                {
+                    "type": "SHOT_3PT",
+                    "player": "Bob",
+                    "quarter": 1,
+                    "clockSeconds": 40,
+                    "timestamp": 1040,
+                    "detail": {"play_name": "Delay"},
+                },
+                {
+                    "type": "FT",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 45,
+                    "timestamp": 1045,
+                    "detail": {"ftm": 2, "fta": 2},
+                },
+                {
+                    "type": "SHOT_3PT",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 50,
+                    "timestamp": 1050,
+                    "detail": {"play_name": "Delay"},
+                },
+            ],
+            "starting_lineup": ["Alice", "Bob", "Carol", "Diana", "Eve"],
+        }
+
     @pytest.mark.integration
     def test_basic_game_creation(self, db_session, live_game_payload):
         """Test basic game creation from live data."""
@@ -237,6 +337,54 @@ class TestCreateGameFromLiveData:
         assert game is not None
         assert game.source == "IMPORT_JSON"
         assert game.opponent == "Import Team"
+
+    @pytest.mark.integration
+    def test_schema4_reconciles_shot_attempt_and_timeline_fields(self, db_session):
+        """Schema 4 imports should hydrate shot outcomes and derived timeline fields."""
+        game = create_game_from_live_data(self._schema4_payload())
+
+        events = (
+            GameEvent.query.filter_by(game_id=game.id)
+            .order_by(GameEvent.timestamp.asc())
+            .all()
+        )
+
+        assert events[1].event_type == "SHOT_2PT"
+        assert events[1].shot_attempt == "made"
+        assert events[1].game_seconds == 10
+        assert events[1].time_remaining == "9:50"
+        assert events[1].score_margin == 2
+
+        assert events[3].event_type == "SHOT_3PT"
+        assert events[3].shot_attempt == "missed"
+        assert events[3].game_seconds == 40
+        assert events[3].time_remaining == "9:20"
+
+        assert events[5].event_type == "SHOT_3PT"
+        assert events[5].shot_attempt == "made"
+        assert events[5].score_margin == 5
+
+    @pytest.mark.integration
+    def test_schema4_imported_events_reconstruct_team_score(self, db_session):
+        """Schema 4 imports should preserve event-based team scoring totals."""
+        game = create_game_from_live_data(self._schema4_payload())
+
+        events = (
+            GameEvent.query.filter_by(game_id=game.id)
+            .order_by(GameEvent.timestamp.asc())
+            .all()
+        )
+
+        reconstructed = 0
+        for event in events:
+            if event.event_type == "SHOT_2PT" and event.shot_attempt == "made":
+                reconstructed += 2
+            elif event.event_type == "SHOT_3PT" and event.shot_attempt == "made":
+                reconstructed += 3
+            elif event.event_type == "FT":
+                reconstructed += json.loads(event.detail)["ftm"]
+
+        assert reconstructed == game.team_score
 
     @pytest.mark.integration
     def test_empty_data_raises_error(self, db_session):

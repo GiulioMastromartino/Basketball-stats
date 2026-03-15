@@ -140,6 +140,9 @@ class EvolutionReportService:
         team_snapshots: List[TeamSnapshot] = []
         player_snapshots: Dict[str, List[PlayerSnapshot]] = {}
 
+        if not events:
+            return team_snapshots, player_snapshots
+
         team_totals = {
             "fgm": 0,
             "fga": 0,
@@ -273,6 +276,25 @@ class EvolutionReportService:
                     player_snapshots[pname] = []
                 player_snapshots[pname].append(psnap)
 
+        def _snapshot_matches_current(snapshot: TeamSnapshot) -> bool:
+            return (
+                snapshot.team_score == team_score
+                and snapshot.opp_score == opp_score
+                and snapshot.fgm == team_totals["fgm"]
+                and snapshot.fga == team_totals["fga"]
+                and snapshot.tpm == team_totals["tpm"]
+                and snapshot.tpa == team_totals["tpa"]
+                and snapshot.ftm == team_totals["ftm"]
+                and snapshot.fta == team_totals["fta"]
+                and snapshot.orb == team_totals["orb"]
+                and snapshot.drb == team_totals["drb"]
+                and snapshot.ast == team_totals["ast"]
+                and snapshot.stl == team_totals["stl"]
+                and snapshot.blk == team_totals["blk"]
+                and snapshot.tov == team_totals["tov"]
+                and snapshot.lineup == current_lineup
+            )
+
         prev_quarter = None
 
         for event in events:
@@ -358,31 +380,31 @@ class EvolutionReportService:
                     _init_player(player_name)
                     player_totals[player_name]["ast"] += 1
 
-            elif event_type == "STL":
+            elif event_type in ("STL", "STEAL"):
                 team_totals["stl"] += 1
                 if player_name:
                     _init_player(player_name)
                     player_totals[player_name]["stl"] += 1
 
-            elif event_type == "BLK":
+            elif event_type in ("BLK", "BLOCK"):
                 team_totals["blk"] += 1
                 if player_name:
                     _init_player(player_name)
                     player_totals[player_name]["blk"] += 1
 
-            elif event_type == "OREB":
+            elif event_type in ("OREB", "REBOUND_OFFENSIVE"):
                 team_totals["orb"] += 1
                 if player_name:
                     _init_player(player_name)
                     player_totals[player_name]["oreb"] += 1
 
-            elif event_type == "DREB":
+            elif event_type in ("DREB", "REBOUND_DEFENSIVE"):
                 team_totals["drb"] += 1
                 if player_name:
                     _init_player(player_name)
                     player_totals[player_name]["dreb"] += 1
 
-            elif event_type == "FOUL":
+            elif event_type in ("FOUL", "FOUL_PERSONAL"):
                 if player_name:
                     _init_player(player_name)
                     player_totals[player_name]["pf"] += 1
@@ -418,10 +440,7 @@ class EvolutionReportService:
 
             prev_quarter = quarter
 
-        if not team_snapshots or (
-            team_snapshots[-1].team_score != team_score
-            or team_snapshots[-1].opp_score != opp_score
-        ):
+        if not team_snapshots or not _snapshot_matches_current(team_snapshots[-1]):
             final_seconds = events[-1].game_seconds if events else 2400
             if final_seconds is None:
                 final_seconds = 2400
@@ -540,10 +559,25 @@ class EvolutionReportService:
 
         current_run_team: Optional[str] = None
         current_run_points = 0
-        current_run_start_idx = 0
         current_run_start_seconds = 0
         current_run_quarter = 1
         current_run_lineup: List[str] = []
+
+        def _finalize_run(end_snapshot: TeamSnapshot) -> None:
+            if current_run_team is None or current_run_points < min_run:
+                return
+
+            runs.append(
+                ScoringRun(
+                    team=current_run_team,
+                    points=current_run_points,
+                    start_seconds=current_run_start_seconds,
+                    end_seconds=end_snapshot.game_seconds,
+                    start_quarter=current_run_quarter,
+                    end_quarter=end_snapshot.quarter,
+                    lineup=current_run_lineup,
+                )
+            )
 
         for i, snap in enumerate(team_snapshots):
             if i == 0:
@@ -556,54 +590,31 @@ class EvolutionReportService:
                 if current_run_team == "team":
                     current_run_points += margin_change
                 else:
+                    _finalize_run(prev_snap)
                     current_run_team = "team"
                     current_run_points = margin_change
-                    current_run_start_idx = i
                     current_run_start_seconds = prev_snap.game_seconds
                     current_run_quarter = prev_snap.quarter
                     current_run_lineup = prev_snap.lineup
-
-                if current_run_points >= min_run:
-                    runs.append(
-                        ScoringRun(
-                            team="team",
-                            points=current_run_points,
-                            start_seconds=current_run_start_seconds,
-                            end_seconds=snap.game_seconds,
-                            start_quarter=current_run_quarter,
-                            end_quarter=snap.quarter,
-                            lineup=current_run_lineup,
-                        )
-                    )
 
             elif margin_change < 0:
                 if current_run_team == "opp":
                     current_run_points += abs(margin_change)
                 else:
+                    _finalize_run(prev_snap)
                     current_run_team = "opp"
                     current_run_points = abs(margin_change)
-                    current_run_start_idx = i
                     current_run_start_seconds = prev_snap.game_seconds
                     current_run_quarter = prev_snap.quarter
                     current_run_lineup = prev_snap.lineup
 
-                if current_run_points >= min_run:
-                    runs.append(
-                        ScoringRun(
-                            team="opp",
-                            points=current_run_points,
-                            start_seconds=current_run_start_seconds,
-                            end_seconds=snap.game_seconds,
-                            start_quarter=current_run_quarter,
-                            end_quarter=snap.quarter,
-                            lineup=current_run_lineup,
-                        )
-                    )
-
             else:
+                _finalize_run(prev_snap)
                 current_run_team = None
                 current_run_points = 0
                 current_run_lineup = []
+
+        _finalize_run(team_snapshots[-1])
 
         return runs
 
@@ -627,28 +638,19 @@ class EvolutionReportService:
         if not team_snapshots:
             return 0, 0, 0
 
-        max_lead = 0
-        max_deficit = 0
+        margins = [snap.margin for snap in team_snapshots]
+        max_lead = max([0] + margins)
+        final_margin = margins[-1]
+        max_deficit = abs(final_margin) if final_margin < 0 else abs(min([0] + margins))
         lead_changes = 0
-        prev_margin = 0
+        prev_margin = margins[0]
 
-        for i, snap in enumerate(team_snapshots):
-            margin = snap.margin
-
-            if margin > max_lead:
-                max_lead = margin
-            if margin < max_deficit:
-                max_deficit = margin
-
-            if i > 0:
-                if prev_margin > 0 and margin < 0:
-                    lead_changes += 1
-                elif prev_margin < 0 and margin > 0:
-                    lead_changes += 1
-
+        for margin in margins[1:]:
+            if prev_margin >= 0 and margin < 0:
+                lead_changes += 1
             prev_margin = margin
 
-        return max_lead, abs(max_deficit), lead_changes
+        return max_lead, max_deficit, lead_changes
 
     @classmethod
     def _calculate_clutch_time(

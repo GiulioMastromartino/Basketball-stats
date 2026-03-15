@@ -91,18 +91,26 @@ def coerce_json_game_dates(game_data: dict) -> tuple[str, str]:
     """Return (date_display, sort_date) for JSON import.
 
     Prefers sort_date (YYYY-MM-DD) if present; derives date display as DD/MM/YYYY.
+    Supports YYYY-MM-DD in the date field.
     """
     raw_sort = (game_data.get("sort_date") or game_data.get("sortdate") or "").strip()
     raw_date = (game_data.get("date") or "").strip()
 
     sort_date = raw_sort
     if not sort_date and raw_date:
-        # Try to derive sort_date from raw_date (DD/MM/YYYY or DD-MM-YYYY)
-        sort_date = normalize_date_to_sort(raw_date)
+        # Check if raw_date is already YYYY-MM-DD
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", raw_date):
+            sort_date = raw_date
+        else:
+            # Try to derive sort_date from raw_date (DD/MM/YYYY or DD-MM-YYYY)
+            sort_date = normalize_date_to_sort(raw_date)
 
     date_display = ""
     if sort_date and re.match(r"^\d{4}-\d{2}-\d{2}$", sort_date):
-        date_display = datetime.strptime(sort_date, "%Y-%m-%d").strftime("%d/%m/%Y")
+        try:
+            date_display = datetime.strptime(sort_date, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except ValueError:
+            date_display = raw_date
     else:
         date_display = normalize_date_to_display(raw_date) or raw_date
 

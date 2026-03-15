@@ -21,6 +21,7 @@ from core.evolution_report import (
     parse_time_to_seconds,
     seconds_to_time,
 )
+from core.services.game_service import create_game_from_live_data
 from core.services.evolution_report_service import EvolutionReportService
 from core.models import Game, GameEvent, PlayerStat
 
@@ -1267,6 +1268,23 @@ class TestDetectScoringRuns:
         assert len(runs) >= 1
         assert any(r.points >= 10 for r in runs if r.team == "team")
 
+    def test_detect_scoring_runs_emits_one_entry_per_streak(self, team_snapshot_factory):
+        snapshots = [
+            team_snapshot_factory(game_seconds=0, quarter=1, team_score=0, opp_score=0),
+            team_snapshot_factory(game_seconds=60, quarter=1, team_score=5, opp_score=0),
+            team_snapshot_factory(game_seconds=120, quarter=1, team_score=10, opp_score=0),
+            team_snapshot_factory(game_seconds=180, quarter=1, team_score=12, opp_score=0),
+            team_snapshot_factory(game_seconds=240, quarter=1, team_score=12, opp_score=2),
+        ]
+
+        runs = EvolutionReportService._detect_scoring_runs(snapshots)
+
+        assert len(runs) == 1
+        assert runs[0].team == "team"
+        assert runs[0].points == 12
+        assert runs[0].start_seconds == 0
+        assert runs[0].end_seconds == 180
+
     def test_detect_scoring_runs_min_run_threshold(self, team_snapshot_factory):
         snapshots = [
             team_snapshot_factory(game_seconds=0, quarter=1, team_score=0, opp_score=0),
@@ -1502,6 +1520,67 @@ class TestCalculateClutchTime:
 class TestBuildReport:
     """Integration tests for EvolutionReportService.build_report method."""
 
+    def _schema4_payload(self):
+        return {
+            "schema_version": 4,
+            "game": {
+                "date": "2026-03-01",
+                "opponent": "Schema Four Opponent",
+                "team_score": 5,
+                "opponent_score": 0,
+                "game_type": "Season",
+            },
+            "player_stats": [],
+            "shot_locations": [
+                {
+                    "shooter": "Alice",
+                    "type": "2pt",
+                    "result": "made",
+                    "points": 2,
+                    "quarter": 1,
+                    "clockSeconds": 10,
+                    "timestamp": 1010,
+                    "x": 240,
+                    "y": 90,
+                },
+                {
+                    "shooter": "Bob",
+                    "type": "3pt",
+                    "result": "made",
+                    "points": 3,
+                    "quarter": 1,
+                    "clockSeconds": 20,
+                    "timestamp": 1020,
+                    "x": 120,
+                    "y": 340,
+                },
+            ],
+            "game_events": [
+                {
+                    "type": "TURNOVER",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 0,
+                    "timestamp": 1000,
+                },
+                {
+                    "type": "SHOT_2PT",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 10,
+                    "timestamp": 1010,
+                },
+                {
+                    "type": "SHOT_3PT",
+                    "player": "Bob",
+                    "quarter": 1,
+                    "clockSeconds": 20,
+                    "timestamp": 1020,
+                },
+            ],
+            "starting_lineup": ["Alice", "Bob", "Carol", "Diana", "Eve"],
+        }
+
     @patch.object(EvolutionReportService, "_fetch_game_data")
     def test_build_report_game_not_found_raises_error(self, mock_fetch):
         mock_fetch.return_value = (None, [], [])
@@ -1677,6 +1756,16 @@ class TestBuildReport:
         report = EvolutionReportService.build_report(1)
 
         assert isinstance(report.scoring_runs, list)
+
+    @pytest.mark.integration
+    def test_build_report_detects_schema4_scoring_runs_after_import(self, db_session):
+        game = create_game_from_live_data(self._schema4_payload())
+
+        report = EvolutionReportService.build_report(game.id, snapshot_interval=1)
+
+        assert len(report.scoring_runs) == 1
+        assert report.scoring_runs[0].team == "team"
+        assert report.scoring_runs[0].points == 5
 
     @patch.object(EvolutionReportService, "_fetch_game_data")
     def test_build_report_custom_snapshot_interval(

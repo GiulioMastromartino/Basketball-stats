@@ -141,7 +141,7 @@ def calculate_pace(possessions, minutes, standard_game_minutes=40.0):
 
 
 def normalize_date_to_display(date_str: str) -> str:
-    """Return DD/MM/YYYY."""
+    """Return DD/MM/YYYY. Supports both DD-MM-YYYY and YYYY-MM-DD."""
     if not date_str:
         return ""
     date_str = date_str.strip()
@@ -149,7 +149,15 @@ def normalize_date_to_display(date_str: str) -> str:
     parts = date_str.split("/")
     if len(parts) != 3:
         return ""
-    day, month, year = parts
+    
+    # Detect if it's YYYY-MM-DD or DD-MM-YYYY
+    if len(parts[0]) == 4:
+        # YYYY/MM/DD
+        year, month, day = parts
+    else:
+        # DD/MM/YYYY
+        day, month, year = parts
+        
     if len(year) == 2:
         year = f"20{year}"
     return f"{int(day):02d}/{int(month):02d}/{int(year):04d}"
