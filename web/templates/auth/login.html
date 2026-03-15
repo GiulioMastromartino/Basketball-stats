@@ -18,6 +18,29 @@
                 </div>
                 
                 <hr class="my-4">
+
+                <!-- Local Username/Password Option -->
+                <h6 class="text-center text-muted mb-3">Or sign in with username</h6>
+                <form method="POST" class="mb-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" 
+                               placeholder="Enter your username">
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" 
+                               placeholder="Enter your password">
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="fas fa-user-check me-2"></i>Sign In
+                        </button>
+                    </div>
+                </form>
+
+                <hr class="my-4">
                 
                 <!-- Magic Link Option -->
                 <h6 class="text-center text-muted mb-3">Or sign in with Magic Link</h6>

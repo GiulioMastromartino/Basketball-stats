@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import os
+import secrets
 from flask import (
     Blueprint,
     flash,
@@ -16,6 +17,7 @@ from wtforms import BooleanField, PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired, Email
 
 from core.models import User, SystemSetting, db, bcrypt
+from core.services.email_service import send_otp_email
 from core.services.workos_service import (
     get_auth_url,
     get_magic_link_url,
@@ -43,15 +45,45 @@ def login():
     redirect_uri = current_app.config.get(
         "WORKOS_REDIRECT_URI", "http://localhost:5000/auth/callback"
     )
+    auth_url = "#"
+    try:
+        auth_url = get_auth_url(redirect_uri)
+    except Exception as e:
+        current_app.logger.warning(f"WorkOS auth URL unavailable: {e}")
 
     if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        if username and password:
+            user = User.query.filter_by(username=username).first()
+            if user and user.password_hash and user.check_password(password):
+                if user.is_manager:
+                    otp_code = f"{secrets.randbelow(1000000):06d}"
+                    user.otp_code = otp_code
+                    user.otp_expiry = datetime.utcnow() + timedelta(minutes=5)
+                    db.session.commit()
+                    session["otp_user_id"] = user.id
+                    send_otp_email(user.email, otp_code)
+                    flash("Verification code sent. Please check your email.", "info")
+                    return redirect(url_for("auth.verify_otp"))
+
+                login_user(user, remember=True)
+                flash(f"Welcome back, {user.username}!", "success")
+                return redirect(url_for("main.index"))
+
+            flash("Invalid username or password", "danger")
+            return render_template("auth/login.html", auth_url=auth_url)
+
         email = request.form.get("email")
         if email:
-            auth_url = get_magic_link_url(email, redirect_uri)
-            flash(f"Magic link sent to {email}. Check your inbox!", "info")
-            return redirect(auth_url)
+            try:
+                magic_url = get_magic_link_url(email, redirect_uri)
+                flash(f"Magic link sent to {email}. Check your inbox!", "info")
+                return redirect(magic_url)
+            except Exception as e:
+                current_app.logger.warning(f"Magic link unavailable: {e}")
+                flash("Magic link service unavailable. Try again later.", "danger")
 
-    auth_url = get_auth_url(redirect_uri)
     return render_template("auth/login.html", auth_url=auth_url)
 
 
@@ -118,6 +150,45 @@ def logout():
     logout_user()
     flash("You have been logged out.", "info")
     return redirect(url_for("auth.login"))
+
+
+@auth_bp.route("/verify-otp", methods=["GET", "POST"])
+def verify_otp():
+    """Verify OTP for admin users."""
+    user_id = session.get("otp_user_id")
+    if not user_id:
+        flash("Verification session expired. Please log in again.", "danger")
+        return redirect(url_for("auth.login"))
+
+    user = User.query.get(user_id)
+    if not user:
+        session.pop("otp_user_id", None)
+        flash("User not found. Please log in again.", "danger")
+        return redirect(url_for("auth.login"))
+
+    if request.method == "POST":
+        code = (request.form.get("otp_code") or "").strip()
+        if not user.otp_code or not user.otp_expiry:
+            flash("Verification code expired. Please log in again.", "danger")
+            return redirect(url_for("auth.login"))
+
+        if datetime.utcnow() > user.otp_expiry:
+            flash("Verification code expired. Please log in again.", "danger")
+            return redirect(url_for("auth.login"))
+
+        if code != user.otp_code:
+            flash("Invalid verification code.", "danger")
+            return render_template("auth/verify_otp.html")
+
+        user.otp_code = None
+        user.otp_expiry = None
+        db.session.commit()
+        session.pop("otp_user_id", None)
+        login_user(user, remember=True)
+        flash(f"Welcome back, {user.username}!", "success")
+        return redirect(url_for("main.index"))
+
+    return render_template("auth/verify_otp.html")
 
 
 @auth_bp.route("/users")

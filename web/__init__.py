@@ -12,12 +12,13 @@ from flask import Flask
 from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_login import LoginManager
+from flask_login import LoginManager, AnonymousUserMixin
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from sqlalchemy import inspect, text
 from config import get_config
 from core.models import User, bcrypt, db, PlayType
+from core.db_migrations import add_missing_columns as auto_add_missing_columns
 from core import mail
 
 
@@ -32,6 +33,22 @@ cache = Cache()
 migrate = Migrate()
 
 
+class NoAuthUser(AnonymousUserMixin):
+    id = 0
+    username = "local"
+    email = "local@localhost"
+    role = "admin"
+    is_admin = True
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_manager(self):
+        return True
+
+
 def create_app(config_name: str = None) -> Flask:
     """
     Application factory with full security stack.
@@ -41,6 +58,16 @@ def create_app(config_name: str = None) -> Flask:
     # Load configuration
     config = get_config(config_name)
     app.config.from_object(config)
+    disable_auth = os.getenv("DISABLE_AUTH", "").lower() in ("1", "true", "yes", "on")
+    if disable_auth:
+        # Allow all requests through login_required for isolated/personal deployments
+        app.config["LOGIN_DISABLED"] = True
+        app.config["WTF_CSRF_ENABLED"] = False
+        app.config["RATELIMIT_ENABLED"] = False
+
+        @app.context_processor
+        def _noop_csrf_token():
+            return {"csrf_token": lambda: ""}
 
     # Setup logging
     setup_logging(app, config)
@@ -50,15 +77,23 @@ def create_app(config_name: str = None) -> Flask:
     migrate.init_app(app, db)
     bcrypt.init_app(app)
     mail.init_app(app)  # <--- Initialize Mail
-    csrf.init_app(app)
+    if not disable_auth:
+        csrf.init_app(app)
     cache.init_app(app)
-    limiter.init_app(app)
+    if not disable_auth:
+        limiter.init_app(app)
 
     # Configure login manager
     login_manager.init_app(app)
-    login_manager.login_view = "auth.login"
-    login_manager.login_message = "Please log in to access this page."
-    login_manager.login_message_category = "info"
+    if disable_auth:
+        login_manager.login_view = None
+        login_manager.login_message = None
+        login_manager.login_message_category = None
+        login_manager.anonymous_user = NoAuthUser
+    else:
+        login_manager.login_view = "auth.login"
+        login_manager.login_message = "Please log in to access this page."
+        login_manager.login_message_category = "info"
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -89,6 +124,8 @@ def create_app(config_name: str = None) -> Flask:
                         missing_game_event_columns.append("time_remaining")
                     if "score_margin" not in columns:
                         missing_game_event_columns.append("score_margin")
+                    if "zone" not in columns:
+                        missing_game_event_columns.append("zone")
 
                     if missing_game_event_columns:
                         app.logger.warning(
@@ -115,8 +152,45 @@ def create_app(config_name: str = None) -> Flask:
                                             "ALTER TABLE game_events ADD COLUMN score_margin INTEGER"
                                         )
                                     )
+                                elif col == "zone":
+                                    db.session.execute(
+                                        text(
+                                            "ALTER TABLE game_events ADD COLUMN zone VARCHAR(50)"
+                                        )
+                                    )
                                 app.logger.info(
                                     f"Added column {col} to game_events table."
+                                )
+                            except Exception as col_err:
+                                app.logger.warning(
+                                    f"Could not add column {col}: {col_err}"
+                                )
+
+                        db.session.commit()
+
+                # Check for shot_events table and add missing columns
+                if inspector.has_table("shot_events"):
+                    columns = [c["name"] for c in inspector.get_columns("shot_events")]
+
+                    missing_shot_event_columns = []
+                    if "zone" not in columns:
+                        missing_shot_event_columns.append("zone")
+
+                    if missing_shot_event_columns:
+                        app.logger.warning(
+                            f"Detected outdated shot_events schema (missing: {missing_shot_event_columns}). Adding columns..."
+                        )
+
+                        for col in missing_shot_event_columns:
+                            try:
+                                if col == "zone":
+                                    db.session.execute(
+                                        text(
+                                            "ALTER TABLE shot_events ADD COLUMN zone VARCHAR(50)"
+                                        )
+                                    )
+                                app.logger.info(
+                                    f"Added column {col} to shot_events table."
                                 )
                             except Exception as col_err:
                                 app.logger.warning(
@@ -320,6 +394,13 @@ def create_app(config_name: str = None) -> Flask:
                     db.session.commit()
                     app.logger.info("Advanced analytics tables created successfully")
 
+                # Generic auto-migrate: add any missing columns from models
+                added_columns = auto_add_missing_columns(db, logger=app.logger)
+                if added_columns:
+                    app.logger.info(
+                        f"Schema auto-migrate: added {added_columns} missing columns"
+                    )
+
             except Exception as e:
                 app.logger.error(f"Schema auto-fix failed: {e}")
 
@@ -348,9 +429,9 @@ def setup_logging(app: Flask, config):
 def register_blueprints(app: Flask):
     """Register all blueprints"""
     # Import blueprints here to avoid circular imports
+    from web.routes.auth import auth_bp
     from web.routes.analytics import analytics_bp
     from web.routes.api import api_bp
-    from web.routes.auth import auth_bp
     from web.routes.main import main_bp
     from web.routes.plays import plays_bp
     from web.routes.play_builder_api import builder_api_bp

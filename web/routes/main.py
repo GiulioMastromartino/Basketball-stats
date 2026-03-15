@@ -285,21 +285,12 @@ def save_live_game():
         error_msg = str(e)
         current_app.logger.error(f"Live game save error: {error_msg}", exc_info=True)
 
-        user_msg = "An unexpected error occurred while saving the game."
-        if "foreign key" in error_msg.lower():
-            user_msg = (
-                "Database integrity error: Invalid reference to play or other data."
-            )
-        elif "constraint" in error_msg.lower():
-            user_msg = (
-                "Data constraint violation: Check that all required fields are valid."
-            )
-
+        # Always return the root cause so the UI can display it to all users.
         return (
             jsonify(
                 {
-                    "error": user_msg,
-                    "details": error_msg if current_app.debug else None,
+                    "error": error_msg,
+                    "details": error_msg,
                 }
             ),
             500,

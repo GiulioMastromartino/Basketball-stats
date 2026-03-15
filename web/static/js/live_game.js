@@ -98,14 +98,14 @@ class GameTracker {
 
 
     init() {
-        this.loadState();
+        const restored = this.loadState();
         this.initRosterSelection();  // Initialize roster event delegation
         this.initLineupSelection();  // Initialize lineup event delegation
         this.bindEvents();
         this.renderCachedGamesUI();
         this.loadPlays();
 
-        if (Object.keys(this.stats).length > 0) {
+        if (restored && Object.keys(this.stats).length > 0) {
             document.getElementById('setup-panel').style.display = 'none';
             document.getElementById('lineup-panel').style.display = 'none';
             document.getElementById('tracker-panel').style.display = 'block';
@@ -700,46 +700,54 @@ class GameTracker {
 
     loadState() {
         const stored = localStorage.getItem(this.CONSTANTS.STORAGE_KEY);
-        if (stored) {
-            try {
-                const state = JSON.parse(stored);
-                
-                const savedVersion = state.schema_version || 1;
-                
-                if (savedVersion < 2) {
-                    this.lineupHistory = [];
-                    this.startingLineup = [];
-                } else {
-                    this.lineupHistory = state.lineupHistory || [];
-                    this.startingLineup = state.startingLineup || [];
+        if (!stored) return false;
+        try {
+            const state = JSON.parse(stored);
+            const hasProgress = state && state.stats && Object.keys(state.stats).length > 0;
+            if (hasProgress) {
+                const oppName = state.opponentName || 'Unknown';
+                const when = state.gameDate ? ` on ${state.gameDate}` : '';
+                const resume = confirm(`Resume saved live game vs ${oppName}${when}? Click Cancel to start a new game.`);
+                if (!resume) {
+                    localStorage.removeItem(this.CONSTANTS.STORAGE_KEY);
+                    return false;
                 }
-
-                
-                if (savedVersion < 3) {
-                    this.oppRecentActions = [];
-                } else {
-                    this.oppRecentActions = state.oppRecentActions || [];
-                }
-
-                
-                this.fullRoster = state.fullRoster || [];
-                this.activeLineup = state.activeLineup || [];
-                this.stats = state.stats || {};
-                this.opponentScore = state.opponentScore || 0;
-                this.shotLocations = state.shotLocations || [];
-                this.gameEvents = state.gameEvents || [];
-                this.quarter = state.quarter || 1;
-                this.quarterSeconds = state.quarterSeconds || 0;
-                this.gameSeconds = state.gameSeconds || 0;
-
-                if (state.gameDate) document.getElementById('game-date').value = state.gameDate;
-                if (state.opponentName) document.getElementById('opponent').value = state.opponentName;
-                if (state.gameType) document.getElementById('game-type').value = state.gameType;
-
-            } catch (e) {
-                console.error("Failed to load state", e);
             }
 
+            const savedVersion = state.schema_version || 1;
+
+            if (savedVersion < 2) {
+                this.lineupHistory = [];
+                this.startingLineup = [];
+            } else {
+                this.lineupHistory = state.lineupHistory || [];
+                this.startingLineup = state.startingLineup || [];
+            }
+
+            if (savedVersion < 3) {
+                this.oppRecentActions = [];
+            } else {
+                this.oppRecentActions = state.oppRecentActions || [];
+            }
+
+            this.fullRoster = state.fullRoster || [];
+            this.activeLineup = state.activeLineup || [];
+            this.stats = state.stats || {};
+            this.opponentScore = state.opponentScore || 0;
+            this.shotLocations = state.shotLocations || [];
+            this.gameEvents = state.gameEvents || [];
+            this.quarter = state.quarter || 1;
+            this.quarterSeconds = state.quarterSeconds || 0;
+            this.gameSeconds = state.gameSeconds || 0;
+
+            if (state.gameDate) document.getElementById('game-date').value = state.gameDate;
+            if (state.opponentName) document.getElementById('opponent').value = state.opponentName;
+            if (state.gameType) document.getElementById('game-type').value = state.gameType;
+
+            return true;
+        } catch (e) {
+            console.error("Failed to load state", e);
+            return false;
         }
 
     }

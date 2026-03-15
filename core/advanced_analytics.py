@@ -51,6 +51,10 @@ def classify_shot_zone(x_loc: Optional[float], y_loc: Optional[float],
     Classify a shot into a zone based on court coordinates.
     Uses high-performance Rust implementation.
     """
+    if x_loc is None or y_loc is None:
+        return "Midrange"
+    if not shot_type:
+        return "Midrange"
     return rust_analytics.classify_shot_zone(x_loc, y_loc, shot_type)
 
 
@@ -716,10 +720,9 @@ class LineupAnalytics:
         
         Impact is calculated relative to the team's overall performance in that game.
         """
-        # Filter out segments with 0 possessions (can't calculate meaningful ratings)
+        # Include all segments; handle zero possessions safely downstream
         segments = LineupSegment.query.filter(
-            LineupSegment.game_id == game_id,
-            LineupSegment.possessions > 0
+            LineupSegment.game_id == game_id
         ).all()
         
         # Calculate game-wide averages for delta comparison
@@ -759,11 +762,15 @@ class LineupAnalytics:
         results = []
         for lineup_hash, stats in lineup_stats.items():
             possessions = stats['possessions']
-            if stats['total_seconds'] <= 0 or possessions < min_possessions:
+            if stats['total_seconds'] <= 0:
+                continue
+
+            effective_possessions = max(possessions, 1)
+            if possessions > 0 and possessions < min_possessions:
                 continue
                 
-            ortg = round(stats['points_scored'] / possessions * 100, 1)
-            drtg = round(stats['points_allowed'] / possessions * 100, 1)
+            ortg = round(stats['points_scored'] / effective_possessions * 100, 1)
+            drtg = round(stats['points_allowed'] / effective_possessions * 100, 1)
             net = round(ortg - drtg, 1)
             
             # Calculate impact deltas

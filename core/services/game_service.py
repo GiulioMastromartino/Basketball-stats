@@ -79,7 +79,7 @@ def extract_play_name_from_detail(detail):
 
     # If it's already a dict
     if isinstance(detail, dict):
-        return detail.get("play_name")
+        return detail.get("play_name") or detail.get("playName") or detail.get("play")
 
     # If it's a string, try to parse it
     if isinstance(detail, str):
@@ -87,7 +87,7 @@ def extract_play_name_from_detail(detail):
         try:
             parsed = json.loads(detail)
             if isinstance(parsed, dict):
-                return parsed.get("play_name")
+                return parsed.get("play_name") or parsed.get("playName") or parsed.get("play")
         except (json.JSONDecodeError, ValueError):
             pass
 
@@ -97,7 +97,7 @@ def extract_play_name_from_detail(detail):
 
             parsed = ast.literal_eval(detail)
             if isinstance(parsed, dict):
-                return parsed.get("play_name")
+                return parsed.get("play_name") or parsed.get("playName") or parsed.get("play")
         except (ValueError, SyntaxError):
             pass
 
@@ -644,7 +644,9 @@ def create_game_from_live_data(data):
     # --- Performance Optimization: Play Cache ---
     # Pre-fetch all plays to minimize O(N) lookups
     from core.models import Play
-    play_cache = {p.name: p.id for p in Play.query.all()}
+    existing_plays = Play.query.all()
+    play_cache = {p.name: p.id for p in existing_plays}
+    play_id_cache = {p.id: p.id for p in existing_plays}
 
     def get_cached_play_id(name):
         if not name: return None
@@ -657,6 +659,32 @@ def create_game_from_live_data(data):
         db.session.add(new_p)
         db.session.flush()
         play_cache[name] = new_p.id
+        play_id_cache[new_p.id] = new_p.id
+        return new_p.id
+
+    def get_cached_play_id_by_id(play_id, play_name=None):
+        if not play_id:
+            return None
+        try:
+            play_id_int = int(play_id)
+        except (ValueError, TypeError):
+            return None
+        if play_id_int in play_id_cache:
+            return play_id_cache[play_id_int]
+
+        existing = Play.query.get(play_id_int)
+        if existing:
+            play_id_cache[play_id_int] = existing.id
+            play_cache.setdefault(existing.name, existing.id)
+            return existing.id
+        name = (play_name or "").strip()
+        if not name:
+            return None
+        new_p = Play(name=name, play_type="Offense", source="imported")
+        db.session.add(new_p)
+        db.session.flush()
+        play_id_cache[new_p.id] = new_p.id
+        play_cache.setdefault(new_p.name, new_p.id)
         return new_p.id
 
     # Objects to batch insert
@@ -720,8 +748,15 @@ def create_game_from_live_data(data):
             x = get_nested_value(s_data, "x_loc", "x", "xLoc")
             y = get_nested_value(s_data, "y_loc", "y", "yLoc")
             q = get_nested_value(s_data, "quarter", "q", "period")
-            play_name = extract_play_name_from_detail(get_nested_value(s_data, "detail", "Detail"))
-            play_id_nested = get_cached_play_id(play_name)
+            play_id_val = get_nested_value(s_data, "play_id", "playId")
+            play_name = get_nested_value(s_data, "play_name", "playName")
+            if not play_name:
+                play_name = extract_play_name_from_detail(get_nested_value(s_data, "detail", "Detail"))
+            play_id_nested = (
+                get_cached_play_id_by_id(play_id_val, play_name)
+                if play_id_val
+                else get_cached_play_id(play_name)
+            )
             
             all_shot_events.append(ShotEvent(
                 game_id=game.id, player_name=shooter.strip() if shooter else "",
@@ -737,9 +772,15 @@ def create_game_from_live_data(data):
             x = get_nested_value(s_data, "x", "x_loc", "xLoc")
             y = get_nested_value(s_data, "y", "y_loc", "yLoc")
             q = get_nested_value(s_data, "quarter", "q", "period")
-            
-            p_name = extract_play_name_from_detail(get_nested_value(s_data, "detail", "Detail"))
-            v_play_id = get_cached_play_id(p_name)
+            play_id_val = get_nested_value(s_data, "play_id", "playId")
+            p_name = get_nested_value(s_data, "play_name", "playName")
+            if not p_name:
+                p_name = extract_play_name_from_detail(get_nested_value(s_data, "detail", "Detail"))
+            v_play_id = (
+                get_cached_play_id_by_id(play_id_val, p_name)
+                if play_id_val
+                else get_cached_play_id(p_name)
+            )
 
             all_shot_events.append(ShotEvent(
                 game_id=game.id, player_name=shooter.strip() if shooter else "",
@@ -812,7 +853,7 @@ def create_game_from_live_data(data):
 
             # Use play_id directly if provided, otherwise use play_name, otherwise extract from detail
             if play_id_val:
-                p_id = int(play_id_val) if play_id_val else None
+                p_id = get_cached_play_id_by_id(play_id_val, play_name_val)
             elif play_name_val:
                 p_id = get_cached_play_id(play_name_val)
             else:
@@ -986,7 +1027,14 @@ def create_game_from_live_data(data):
                 if possession_number is None:
                     possession_number = nearby_context["possession_number"]
 
-            v_p_id = get_cached_play_id(extract_play_name_from_detail(detail))
+            play_id_val = get_nested_value(e_data, "play_id", "playId")
+            play_name_val = get_nested_value(e_data, "play_name", "playName")
+            if play_id_val:
+                v_p_id = get_cached_play_id_by_id(play_id_val, play_name_val)
+            elif play_name_val:
+                v_p_id = get_cached_play_id(play_name_val)
+            else:
+                v_p_id = get_cached_play_id(extract_play_name_from_detail(detail))
             if isinstance(detail, dict):
                 detail = json.dumps(detail)
 

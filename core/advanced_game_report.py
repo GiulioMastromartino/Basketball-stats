@@ -9,8 +9,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+from types import SimpleNamespace
 
 from core.advanced_analytics import classify_shot_zone, DEFAULT_ZONE_VALUES
+from core.evolution_report import EvolutionReport
+from core.services.evolution_report_service import EvolutionReportService
 
 
 def _safe_div(n: float, d: float) -> float:
@@ -960,4 +963,91 @@ def build_full_game_report(
         clutch=clutch,
         top_performers=top_performers,
         score_worm=score_worm,
+    )
+
+
+def _coerce_event(event: Any) -> SimpleNamespace:
+    """Normalize dict/dataclass events into an object with GameEvent-like fields."""
+    if isinstance(event, dict):
+        return SimpleNamespace(
+            event_type=event.get("event_type") or event.get("type"),
+            player_name=event.get("player_name") or event.get("player"),
+            quarter=event.get("quarter"),
+            game_seconds=event.get("game_seconds"),
+            time_remaining=event.get("time_remaining"),
+            shot_attempt=event.get("shot_attempt"),
+            detail=event.get("detail"),
+            score_margin=event.get("score_margin"),
+            timestamp=event.get("timestamp"),
+        )
+
+    return SimpleNamespace(
+        event_type=getattr(event, "event_type", None) or getattr(event, "type", None),
+        player_name=getattr(event, "player_name", None) or getattr(event, "player", None),
+        quarter=getattr(event, "quarter", None),
+        game_seconds=getattr(event, "game_seconds", None),
+        time_remaining=getattr(event, "time_remaining", None),
+        shot_attempt=getattr(event, "shot_attempt", None),
+        detail=getattr(event, "detail", None),
+        score_margin=getattr(event, "score_margin", None),
+        timestamp=getattr(event, "timestamp", None),
+    )
+
+
+def calculate_time_series(
+    events: List[Any], snapshot_interval: int = 60
+) -> Tuple[List[Any], Dict[str, List[Any]]]:
+    """
+    Convert a list of event dicts/objects into team/player time-series snapshots.
+    """
+    if not events:
+        return [], {}
+
+    coerced = [_coerce_event(e) for e in events]
+    coerced.sort(key=lambda e: e.game_seconds or 0)
+    return EvolutionReportService._process_events(coerced, snapshot_interval)
+
+
+def build_evolution_report(
+    game_id: int,
+    events: List[Any],
+    opponent: str,
+    date: str,
+    snapshot_interval: int = 60,
+) -> EvolutionReport:
+    """
+    Build a lightweight evolution report from event data (no DB required).
+    """
+    team_snapshots, player_snapshots = calculate_time_series(
+        events, snapshot_interval=snapshot_interval
+    )
+
+    final_team_score = team_snapshots[-1].team_score if team_snapshots else 0
+    final_opp_score = team_snapshots[-1].opp_score if team_snapshots else 0
+    result = "W" if final_team_score > final_opp_score else "L"
+
+    quarter_summaries = EvolutionReportService._calculate_quarter_summaries(
+        team_snapshots
+    )
+    scoring_runs = EvolutionReportService._detect_scoring_runs(team_snapshots)
+    max_lead, max_deficit, lead_changes = EvolutionReportService._calculate_key_moments(
+        team_snapshots
+    )
+    clutch_time = EvolutionReportService._calculate_clutch_time(team_snapshots)
+
+    return EvolutionReport(
+        game_id=game_id,
+        opponent=opponent,
+        date=date,
+        final_team_score=final_team_score,
+        final_opp_score=final_opp_score,
+        result=result,
+        team_snapshots=team_snapshots,
+        player_snapshots=player_snapshots,
+        quarter_summaries=quarter_summaries,
+        max_lead=max_lead,
+        max_deficit=max_deficit,
+        lead_changes=lead_changes,
+        scoring_runs=scoring_runs,
+        clutch_time=clutch_time,
     )
