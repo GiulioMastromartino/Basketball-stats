@@ -348,6 +348,8 @@
             <thead>
                 <tr>
                     <th class="text-left" style="width: 18%;">Player</th>
+                    <th>Q1</th>
+                    <th>Q2</th>
                     <th>MIN</th>
                     <th>PTS</th>
                     <th>REB</th>
@@ -366,6 +368,8 @@
                 {% for p in stats %}
                 <tr>
                     <td class="text-left">{{ p.player_name }}</td>
+                    <td>{{ p.q1_minutes }}</td>
+                    <td>{{ p.q2_minutes }}</td>
                     <td>{{ p.minutes }}</td>
                     <td style="font-weight: bold;">{{ p.points }}</td>
                     <td>{{ p.reb }}</td>
@@ -380,6 +384,23 @@
                     <td style="background: #edf2f7; font-weight: bold;">{{ p.eff }}</td>
                 </tr>
                 {% endfor %}
+                <tr style="background: #edf2f7; font-weight: bold;">
+                    <td class="text-left">Team Total</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>{{ team_score }}</td>
+                    <td>{{ stats|map(attribute='reb')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='ast')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='stl')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='blk')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='tov')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='pf')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='fgm')|sum|default(0) }}/{{ stats|map(attribute='fga')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='tpm')|sum|default(0) }}/{{ stats|map(attribute='tpa')|sum|default(0) }}</td>
+                    <td>{{ stats|map(attribute='ftm')|sum|default(0) }}/{{ stats|map(attribute='fta')|sum|default(0) }}</td>
+                    <td style="background: #dbe4f0;">{{ stats|map(attribute='eff')|sum|default(0) }}</td>
+                </tr>
             </tbody>
         </table>
 

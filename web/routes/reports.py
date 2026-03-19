@@ -1284,6 +1284,12 @@ def live_halftime_pdf():
     game_events = data.get("game_events", [])
     schema_version = data.get("schema_version", 1)
 
+    def format_seconds_to_minutes(total_seconds):
+        total_seconds = int(total_seconds or 0)
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        return f"{minutes}:{seconds:02d}"
+
     stats = []
     for player_name, p_data in player_stats_raw.items():
         fgm = p_data.get("fgm", 0)
@@ -1302,6 +1308,9 @@ def live_halftime_pdf():
         pf = p_data.get("pf", 0)
         minutes = p_data.get("minutes", "00:00")
         plus_minus = p_data.get("plus_minus", 0)
+        quarter_minutes = p_data.get("quarter_minutes", {}) or {}
+        q1_minutes_seconds = quarter_minutes.get("1", quarter_minutes.get(1, 0))
+        q2_minutes_seconds = quarter_minutes.get("2", quarter_minutes.get(2, 0))
 
         two_pt_made = max(0, fgm - tpm)
         two_pt_att = max(0, fga - tpa)
@@ -1320,6 +1329,8 @@ def live_halftime_pdf():
             {
                 "player_name": player_name,
                 "minutes": minutes,
+                "q1_minutes": format_seconds_to_minutes(q1_minutes_seconds),
+                "q2_minutes": format_seconds_to_minutes(q2_minutes_seconds),
                 "points": points,
                 "reb": oreb + dreb,
                 "oreb": oreb,

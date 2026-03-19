@@ -79,6 +79,7 @@ class GameTracker {
 
         // Play selector toggle state
         this.playSelectMode = true;
+        this.shotPositionMode = true;
 
         // Constants
         this.CONSTANTS = {
@@ -104,6 +105,7 @@ class GameTracker {
         this.bindEvents();
         this.renderCachedGamesUI();
         this.loadPlays();
+        this.updateShotPositionToggleUI();
 
         if (restored && Object.keys(this.stats).length > 0) {
             document.getElementById('setup-panel').style.display = 'none';
@@ -152,6 +154,32 @@ class GameTracker {
         }
 
         this.saveState();
+    }
+
+
+    toggleShotPosition() {
+        this.shotPositionMode = !this.shotPositionMode;
+        this.updateShotPositionToggleUI();
+        this.saveState();
+    }
+
+
+    updateShotPositionToggleUI() {
+        const btn = document.getElementById('btn-shot-position');
+        const status = document.getElementById('shot-position-status');
+        if (!btn || !status) return;
+
+        if (this.shotPositionMode) {
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-info');
+            status.textContent = 'ON';
+            status.style.color = '#28a745';
+        } else {
+            btn.classList.remove('btn-info');
+            btn.classList.add('btn-secondary');
+            status.textContent = 'OFF';
+            status.style.color = '#6c757d';
+        }
     }
 
 
@@ -582,10 +610,13 @@ class GameTracker {
         this.gameSeconds = snapshot.gameSeconds || 0;
         this.lineupHistory = snapshot.lineupHistory || [];
         this.startingLineup = snapshot.startingLineup || [];
+        this.playSelectMode = snapshot.playSelectMode !== false;
+        this.shotPositionMode = snapshot.shotPositionMode !== false;
 
         if (snapshot.gameDate) document.getElementById('game-date').value = snapshot.gameDate;
         if (snapshot.opponentName) document.getElementById('opponent').value = snapshot.opponentName;
         if (snapshot.gameType) document.getElementById('game-type').value = snapshot.gameType;
+        this.updateShotPositionToggleUI();
 
         this.saveState();
 
@@ -692,7 +723,9 @@ class GameTracker {
             gameType: document.getElementById('game-type').value,
             lineupHistory: this.lineupHistory,
             startingLineup: this.startingLineup,
-            oppRecentActions: this.oppRecentActions
+            oppRecentActions: this.oppRecentActions,
+            playSelectMode: this.playSelectMode,
+            shotPositionMode: this.shotPositionMode
         };
         localStorage.setItem(this.CONSTANTS.STORAGE_KEY, JSON.stringify(state));
     }
@@ -739,10 +772,13 @@ class GameTracker {
             this.quarter = state.quarter || 1;
             this.quarterSeconds = state.quarterSeconds || 0;
             this.gameSeconds = state.gameSeconds || 0;
+            this.playSelectMode = state.playSelectMode !== false;
+            this.shotPositionMode = state.shotPositionMode !== false;
 
             if (state.gameDate) document.getElementById('game-date').value = state.gameDate;
             if (state.opponentName) document.getElementById('opponent').value = state.opponentName;
             if (state.gameType) document.getElementById('game-type').value = state.gameType;
+            this.updateShotPositionToggleUI();
 
             return true;
         } catch (e) {
@@ -1208,6 +1244,10 @@ class GameTracker {
 
     openShotLocModal() {
         if (!this.pendingMadeShot) return;
+        if (!this.shotPositionMode) {
+            this.skipShotLocation();
+            return;
+        }
         const { shooter, points } = this.pendingMadeShot;
         document.getElementById('shotloc-player').innerText = `${shooter} (${points}PT)`;
 
@@ -1228,6 +1268,10 @@ class GameTracker {
 
     openMissShotLocModal(shooter, type, points) {
         this.pendingMissShot = { shooter, type, points, location: null };
+        if (!this.shotPositionMode) {
+            this.skipShotLocation();
+            return;
+        }
         document.getElementById('shotloc-player').innerText = `${shooter} (${type.toUpperCase()} MISS)`;
 
         this.pendingMissShot.location = null;
@@ -2021,7 +2065,9 @@ class GameTracker {
             opponentName: document.getElementById('opponent').value,
             gameType: document.getElementById('game-type').value,
             lineupHistory: JSON.parse(JSON.stringify(this.lineupHistory)),
-            startingLineup: [...this.startingLineup]
+            startingLineup: [...this.startingLineup],
+            playSelectMode: this.playSelectMode,
+            shotPositionMode: this.shotPositionMode
         };
     }
 
@@ -2152,49 +2198,60 @@ class GameTracker {
 
         this.fullRoster.forEach(p => {
             const isActive = this._tempLineup.includes(p);
-            const pmVal = this.stats[p] ? this.stats[p].plus_minus : 0;
+            const playerStats = this.stats[p] || {
+                plus_minus: 0,
+                minutes_seconds: 0,
+                quarter_minutes: {1: 0, 2: 0, 3: 0, 4: 0},
+                last_sub_in: null
+            };
+            const pmVal = playerStats.plus_minus || 0;
             const pmSign = pmVal > 0 ? '+' : '';
             const pmClass = pmVal > 0 ? 'text-success' : (pmVal < 0 ? 'text-danger' : 'text-muted');
 
             // Calculate total minutes displayed
-            let totalDisplayedSeconds = this.stats[p].minutes_seconds || 0;
-            if (isActive && this.stats[p].last_sub_in) {
-                const diffSeconds = Math.floor((now - this.stats[p].last_sub_in) / 1000);
+            let totalDisplayedSeconds = playerStats.minutes_seconds || 0;
+            if (isActive && playerStats.last_sub_in) {
+                const diffSeconds = Math.floor((now - playerStats.last_sub_in) / 1000);
                 totalDisplayedSeconds += diffSeconds;
             }
 
 
-            // Calculate current quarter minutes displayed
-            const quarterMins = this.stats[p].quarter_minutes || {1: 0, 2: 0, 3: 0, 4: 0};
-            let quarterDisplayedSeconds = quarterMins[this.quarter] || 0;
-            if (isActive && this.stats[p].last_sub_in) {
-                const diffSeconds = Math.floor((now - this.stats[p].last_sub_in) / 1000);
-                quarterDisplayedSeconds += diffSeconds;
+            const totalTimeStr = this.formatMinutes(totalDisplayedSeconds);
+            const quarterMins = playerStats.quarter_minutes || {1: 0, 2: 0, 3: 0, 4: 0};
+            let quarterBreakdown = '';
+            for (let q = 1; q <= 4; q++) {
+                let displayQ = quarterMins[q] || 0;
+                const isCurrentQ = q === this.quarter;
+                if (isActive && isCurrentQ && playerStats.last_sub_in) {
+                    const diffSeconds = Math.floor((now - playerStats.last_sub_in) / 1000);
+                    displayQ += diffSeconds;
+                }
+
+                const qClass = isCurrentQ ? 'text-primary font-weight-bold' : 'text-muted';
+                quarterBreakdown += `<span class="${qClass} mx-1" style="font-size: 0.75rem;">Q${q}: ${this.formatMinutes(displayQ)}</span>`;
             }
 
-
-            const totalTimeStr = this.formatMinutes(totalDisplayedSeconds);
-            const quarterTimeStr = this.formatMinutes(quarterDisplayedSeconds);
-
             const btn = document.createElement('button');
-            btn.className = `list-group-item list-group-item-action ${isActive ? 'active' : ''}`;
+            btn.className = `list-group-item list-group-item-action ${isActive ? 'active bg-primary text-white border-primary' : ''}`;
             btn.style.cursor = 'pointer';
             btn.innerHTML = `<div class="d-flex justify-content-between align-items-center">
                                 <div class="flex-grow-1">
                                     <span>${p} <small class="${pmClass} font-weight-bold">(${pmSign}${pmVal})</small></span>
                                     <div style="font-size: 0.85rem; margin-top: 4px;">
                                         <span class="text-muted">Total: ${totalTimeStr}</span>
-                                        <span class="text-primary font-weight-bold mx-2">Q${this.quarter}: ${quarterTimeStr}</span>
+                                    </div>
+                                    <div class="d-flex flex-wrap mt-1">
+                                        ${quarterBreakdown}
                                     </div>
                                 </div>
-                                <small>${isActive ? 'ON COURT' : 'BENCH'}</small>
+                                <small data-role="lineup-status" class="font-weight-bold">${isActive ? 'ON COURT' : 'BENCH'}</small>
                              </div>`;
 
             btn.onclick = () => {
                 if (this._tempLineup.includes(p)) {
                     this._tempLineup = this._tempLineup.filter(x => x !== p);
-                    btn.classList.remove('active');
-                    btn.querySelector('small:last-child').innerText = 'BENCH';
+                    btn.classList.remove('active', 'bg-primary', 'text-white', 'border-primary');
+                    btn.querySelector('[data-role="lineup-status"]').innerText = 'BENCH';
                 } else {
                     if (this._tempLineup.length >= 5) {
                         alert("Only 5 players allowed on court.");
@@ -2202,8 +2259,8 @@ class GameTracker {
                     }
 
                     this._tempLineup.push(p);
-                    btn.classList.add('active');
-                    btn.querySelector('small:last-child').innerText = 'ON COURT';
+                    btn.classList.add('active', 'bg-primary', 'text-white', 'border-primary');
+                    btn.querySelector('[data-role="lineup-status"]').innerText = 'ON COURT';
                 }
 
             };
@@ -2262,7 +2319,18 @@ class GameTracker {
         // Filter out players with no minutes/stats if desired, or show all roster
         const players = Object.keys(this.stats).map(name => {
             const s = this.stats[name];
-            return { name, ...s, total_reb: s.oreb + s.dreb };
+            let displayedSeconds = s.minutes_seconds || 0;
+            if (this.isClockRunning && s.last_sub_in) {
+                const diffSeconds = Math.floor((Date.now() - s.last_sub_in) / 1000);
+                displayedSeconds += diffSeconds;
+            }
+
+            return {
+                name,
+                ...s,
+                total_reb: s.oreb + s.dreb,
+                display_minutes: this.formatMinutes(displayedSeconds)
+            };
         });
 
         // Sort: Active players first, then by Points descending
@@ -2316,6 +2384,7 @@ class GameTracker {
                     ${p.name} 
                     ${isActive ? '<span class="badge badge-success ml-1" style="font-size:0.6em">ON</span>' : ''}
                 </td>
+                <td>${p.display_minutes}</td>
                 <td class="font-weight-bold border-left">${p.points}</td>
                 <td>${p.total_reb} <small class="text-muted">(${p.oreb}/${p.dreb})</small></td>
                 <td>${p.ast}</td>
@@ -2339,6 +2408,7 @@ class GameTracker {
         tfoot.innerHTML = `
             <tr>
                 <td class="text-left text-uppercase">Team Total</td>
+                <td>-</td>
                 <td class="border-left">${team.points}</td>
                 <td>${team.reb} <small class="text-muted">(${team.oreb}/${team.dreb})</small></td>
                 <td>${team.ast}</td>

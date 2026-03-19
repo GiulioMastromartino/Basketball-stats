@@ -14,10 +14,10 @@
 #oppShotLocModal .modal-dialog,
 #oppReboundModal .modal-dialog,
 #drebPlayerModal .modal-dialog {
-    max-width: 100vw !important;
-    width: 100vw;
-    height: 100vh;
-    margin: 0;
+    max-width: 90vw !important;
+    width: 90vw;
+    height: 90vh;
+    margin: auto;
 }
 
 #assistModal .modal-content,
@@ -31,8 +31,8 @@
 #oppShotLocModal .modal-content,
 #oppReboundModal .modal-content,
 #drebPlayerModal .modal-content {
-    height: 100vh !important;
-    min-height: 100vh !important;
+    height: 90vh !important;
+    min-height: 90vh !important;
     border-radius: 0;
     border: 0;
     display: flex;
@@ -436,6 +436,11 @@
                                 <button class="btn btn-info btn-sm" id="btn-play-selector" onclick="gameTracker.togglePlaySelector()">
                                     <span class="d-none d-md-inline">Play Selector: </span><span id="play-selector-status" style="color: #28a745;">ON</span>
                                 </button>
+
+                                <!-- Shot Position Toggle -->
+                                <button class="btn btn-info btn-sm" id="btn-shot-position" onclick="gameTracker.toggleShotPosition()">
+                                    <span class="d-none d-md-inline">Shot Position: </span><span id="shot-position-status" style="color: #28a745;">ON</span>
+                                </button>
                                 
                                 <!-- Current Stats Button -->
                                 <button class="btn btn-primary btn-sm" onclick="gameTracker.showCurrentStats()">
@@ -594,7 +599,7 @@
         <div class="modal-content">
             <div class="modal-header bg-dark text-white py-2">
                 <h5 class="modal-title h6">Current Game Stats</h5>
-                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                <button type="button" class="close text-white" data-dismiss="modal" onclick="$('#currentStatsModal').modal('hide')">&times;</button>
             </div>
             <div class="modal-body p-0">
                 <div class="table-responsive">
@@ -602,6 +607,7 @@
                         <thead class="thead-dark sticky-top">
                             <tr>
                                 <th class="text-left" style="min-width: 100px;">Player</th>
+                                <th title="Minutes">MIN</th>
                                 <th title="Points">PTS</th>
                                 <th title="Rebounds (Off/Def)">REB</th>
                                 <th title="Assists">AST</th>
@@ -625,7 +631,7 @@
                 </div>
             </div>
             <div class="modal-footer py-1">
-                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal" onclick="$('#currentStatsModal').modal('hide')">Close</button>
             </div>
         </div>
     </div>
