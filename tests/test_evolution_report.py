@@ -23,6 +23,9 @@ from core.evolution_report import (
 )
 from core.services.game_service import create_game_from_live_data
 from core.services.evolution_report_service import EvolutionReportService
+from core.services.schema4_evolution_report_service import (
+    Schema4EvolutionReportService,
+)
 from core.models import Game, GameEvent, PlayerStat
 
 
@@ -1819,6 +1822,277 @@ class TestBuildReport:
         report = EvolutionReportService.build_report(1)
 
         assert report.generated_at is not None
+
+
+class TestSchema4EvolutionReportService:
+    """Integration tests for Schema4EvolutionReportService.build_report."""
+
+    def _schema4_payload(self):
+        return {
+            "schema_version": 4,
+            "game": {
+                "date": "2026-03-01",
+                "opponent": "Schema Four Opponent",
+                "team_score": 7,
+                "opponent_score": 2,
+                "game_type": "Season",
+            },
+            "player_stats": [],
+            "shot_locations": [
+                {
+                    "shooter": "Alice",
+                    "type": "2pt",
+                    "result": "made",
+                    "points": 2,
+                    "quarter": 1,
+                    "clockSeconds": 10,
+                    "timestamp": 1010,
+                    "x": 240,
+                    "y": 90,
+                },
+                {
+                    "shooter": "Bob",
+                    "type": "3pt",
+                    "result": "made",
+                    "points": 3,
+                    "quarter": 1,
+                    "clockSeconds": 20,
+                    "timestamp": 1020,
+                    "x": 120,
+                    "y": 340,
+                },
+            ],
+            "game_events": [
+                {
+                    "type": "TURNOVER",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 0,
+                    "timestamp": 1000,
+                },
+                {
+                    "type": "SHOT_2PT",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 10,
+                    "timestamp": 1010,
+                },
+                {
+                    "type": "OPP_SCORE",
+                    "quarter": 1,
+                    "clockSeconds": 15,
+                    "timestamp": 1015,
+                    "detail": {"points": 2},
+                    "score_margin": 0,
+                },
+                {
+                    "type": "FT",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 18,
+                    "timestamp": 1018,
+                    "detail": {"ftm": 2, "fta": 2},
+                    "score_margin": 2,
+                },
+                {
+                    "type": "SHOT_3PT",
+                    "player": "Bob",
+                    "quarter": 1,
+                    "clockSeconds": 20,
+                    "timestamp": 1020,
+                    "score_margin": 5,
+                },
+            ],
+            "starting_lineup": ["Alice", "Bob", "Carol", "Diana", "Eve"],
+        }
+
+    @pytest.mark.integration
+    def test_build_report_uses_score_margin_as_timeline_truth(self, db_session):
+        game = create_game_from_live_data(self._schema4_payload())
+
+        mismatch = GameEvent.query.filter_by(game_id=game.id, event_type="SHOT_2PT").first()
+        mismatch.score_margin = 0
+        db_session.commit()
+
+        report = Schema4EvolutionReportService.build_report(game.id)
+
+        snapshot = next(
+            snap
+            for snap in report.team_snapshots
+            if snap.game_seconds == 10 and snap.quarter == 1 and snap.team_score == 2
+        )
+
+        assert snapshot.opp_score == 2
+        assert snapshot.margin == 0
+
+    @pytest.mark.integration
+    def test_build_report_reconstructs_opponent_score_from_margin(self, db_session):
+        game = create_game_from_live_data(self._schema4_payload())
+
+        report = Schema4EvolutionReportService.build_report(game.id)
+
+        snapshot = next(
+            snap
+            for snap in report.team_snapshots
+            if snap.game_seconds == 20 and snap.quarter == 1 and snap.team_score == 7
+        )
+        assert snapshot.opp_score == 2
+        assert snapshot.margin == 5
+
+    @pytest.mark.integration
+    def test_build_report_stably_orders_events_with_same_game_seconds(self, db_session):
+        game = Game(
+            date="02-03-2026",
+            opponent="Stable Sort Opponent",
+            team_score=2,
+            opponent_score=0,
+            result="W",
+            game_type="Season",
+            sort_date="2026-03-02",
+            source="IMPORT_JSON",
+            schema_version=4,
+        )
+        db_session.add(game)
+        db_session.flush()
+
+        turnover = GameEvent(
+            game_id=game.id,
+            event_type="TURNOVER",
+            player_name="Alice",
+            quarter=1,
+            game_seconds=10,
+            time_remaining="9:50",
+            timestamp=1000,
+        )
+        shot = GameEvent(
+            game_id=game.id,
+            event_type="SHOT_2PT",
+            player_name="Alice",
+            quarter=1,
+            game_seconds=10,
+            time_remaining="9:50",
+            timestamp=1001,
+            shot_attempt="made",
+            score_margin=2,
+        )
+        db_session.add_all([turnover, shot])
+        db_session.commit()
+
+        report = Schema4EvolutionReportService.build_report(game.id)
+
+        same_second_snaps = [
+            snap for snap in report.team_snapshots if snap.game_seconds == 10
+        ]
+        assert same_second_snaps[0].team_score == 0
+        assert same_second_snaps[1].team_score == 2
+
+    @pytest.mark.integration
+    def test_build_report_backfills_missing_game_seconds(self, db_session):
+        game = Game(
+            date="03-03-2026",
+            opponent="Derived Timeline Opponent",
+            team_score=2,
+            opponent_score=0,
+            result="W",
+            game_type="Season",
+            sort_date="2026-03-03",
+            source="IMPORT_JSON",
+            schema_version=4,
+        )
+        db_session.add(game)
+        db_session.flush()
+
+        db_session.add(
+            GameEvent(
+                game_id=game.id,
+                event_type="SHOT_2PT",
+                player_name="Alice",
+                quarter=1,
+                timestamp=1000,
+                shot_attempt="made",
+                score_margin=2,
+                time_remaining="9:50",
+            )
+        )
+        db_session.commit()
+
+        report = Schema4EvolutionReportService.build_report(game.id)
+
+        derived_snapshot = next(
+            snap for snap in report.team_snapshots if snap.game_seconds == 10
+        )
+        assert derived_snapshot.time_remaining == "9:50"
+
+    @pytest.mark.integration
+    def test_build_report_includes_quarter_boundary_diffs(self, db_session):
+        game = Game(
+            date="04-03-2026",
+            opponent="Quarter Split Opponent",
+            team_score=4,
+            opponent_score=2,
+            result="W",
+            game_type="Season",
+            sort_date="2026-03-04",
+            source="IMPORT_JSON",
+            schema_version=4,
+        )
+        db_session.add(game)
+        db_session.flush()
+
+        db_session.add_all(
+            [
+                GameEvent(
+                    game_id=game.id,
+                    event_type="SHOT_2PT",
+                    player_name="Alice",
+                    quarter=1,
+                    game_seconds=590,
+                    time_remaining="0:10",
+                    timestamp=1000,
+                    shot_attempt="made",
+                    score_margin=2,
+                ),
+                GameEvent(
+                    game_id=game.id,
+                    event_type="OPP_SCORE",
+                    quarter=2,
+                    game_seconds=610,
+                    time_remaining="9:50",
+                    timestamp=1010,
+                    detail=json.dumps({"points": 2}),
+                    score_margin=0,
+                ),
+                GameEvent(
+                    game_id=game.id,
+                    event_type="SHOT_2PT",
+                    player_name="Bob",
+                    quarter=2,
+                    game_seconds=620,
+                    time_remaining="9:40",
+                    timestamp=1020,
+                    shot_attempt="made",
+                    score_margin=2,
+                ),
+            ]
+        )
+        db_session.commit()
+
+        report = Schema4EvolutionReportService.build_report(game.id)
+
+        assert report.quarter_summaries[1].team_pts == 2
+        assert report.quarter_summaries[1].opp_pts == 0
+        assert report.quarter_summaries[2].team_pts == 2
+        assert report.quarter_summaries[2].opp_pts == 2
+
+    @pytest.mark.integration
+    def test_build_report_detects_schema4_scoring_runs(self, db_session):
+        game = create_game_from_live_data(self._schema4_payload())
+
+        report = Schema4EvolutionReportService.build_report(game.id)
+
+        assert len(report.scoring_runs) == 1
+        assert report.scoring_runs[0].team == "team"
+        assert report.scoring_runs[0].points == 5
 
 
 # =============================================================================

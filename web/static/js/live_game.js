@@ -1124,6 +1124,324 @@ class GameTracker {
                 </div>
             `;
         });
+
+        grid.insertAdjacentHTML('beforeend', this.buildLiveTipsCardHtml());
+    }
+
+
+    renderLiveTipsCard() {
+        const grid = document.getElementById('player-grid');
+        if (!grid) return;
+
+        const existingCard = document.getElementById('live-tips-card-col');
+        const html = this.buildLiveTipsCardHtml();
+
+        if (existingCard) {
+            existingCard.outerHTML = html;
+        } else if (this.activeLineup.length > 0) {
+            grid.insertAdjacentHTML('beforeend', html);
+        }
+    }
+
+
+    buildLiveTipsCardHtml() {
+        const insights = this.computeLiveTipsData();
+        const foulRow = insights.foulAlerts.length > 0
+            ? `<div class="live-tips-foul-row">${insights.foulAlerts.map(alert => `
+                <span class="live-tips-foul-chip">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>${alert.player} ${alert.pf} PF
+                </span>
+            `).join('')}</div>`
+            : '';
+
+        const tipsList = insights.alerts.length > 0
+            ? insights.alerts.map(alert => `
+                <div class="live-tip-row ${alert.tone}">
+                    <div class="live-tip-topline">
+                        <span class="live-tip-badge ${alert.tone}">${alert.label}</span>
+                        <span class="live-tip-title">${alert.title}</span>
+                    </div>
+                    <div class="live-tip-body">${alert.body}</div>
+                </div>
+            `).join('')
+            : `<div class="live-tip-empty">No major current-stint alerts. Keep current rhythm.</div>`;
+
+        return `
+            <div class="col-md-6 col-lg-4 mb-3" id="live-tips-card-col">
+                <div class="card h-100 shadow-sm border-0 live-tips-card">
+                    <div class="card-header live-tips-header d-flex justify-content-between align-items-center py-2">
+                        <h5 class="mb-0 font-weight-bold">Live Tips</h5>
+                        <span class="live-tips-context">Current Stint</span>
+                    </div>
+                    <div class="card-body p-2 d-flex flex-column">
+                        ${foulRow}
+                        <div class="live-tips-list">${tipsList}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+
+    computeLiveTipsData() {
+        const currentGameSeconds = (this.quarter - 1) * this.QUARTER_LENGTH_SECONDS + this.quarterSeconds;
+        const lineupStartSeconds = this.getCurrentLineupStartGameSeconds();
+        const shotEventsInLineup = this.shotLocations.filter(shot =>
+            this.getShotGameSeconds(shot) >= lineupStartSeconds && shot.play_id
+        );
+        const teamEventsInLineup = this.gameEvents.filter(event =>
+            (event.game_seconds || 0) >= lineupStartSeconds
+        );
+
+        const foulThreshold = this.quarter <= 1 ? 2 : (this.quarter === 2 ? 3 : 4);
+        const foulAlerts = this.activeLineup
+            .filter(player => (this.stats[player]?.pf || 0) >= foulThreshold)
+            .map(player => ({ player, pf: this.stats[player].pf }));
+
+        const alerts = [];
+        const playerMetrics = this.activeLineup.map(player => this.getCurrentStintMetrics(player, currentGameSeconds));
+        const longestStint = playerMetrics.reduce((max, metrics) => Math.max(max, metrics.stintSeconds), 0);
+        const averageStint = playerMetrics.length > 0
+            ? playerMetrics.reduce((sum, metrics) => sum + metrics.stintSeconds, 0) / playerMetrics.length
+            : 0;
+
+        playerMetrics.forEach(metrics => {
+            if (metrics.shotAttempts >= 2 && metrics.shotMade >= 2 && metrics.shotPct >= 0.6 && metrics.points >= 4) {
+                alerts.push({
+                    score: 84 + metrics.points,
+                    tone: 'success',
+                    label: 'Hot Hand',
+                    title: metrics.player,
+                    body: `${metrics.player} has ${metrics.points} pts this stint on ${metrics.shotMade}/${metrics.shotAttempts} FG.`
+                });
+            }
+
+            if (metrics.shotAttempts >= 3 && metrics.shotPct <= 0.34) {
+                alerts.push({
+                    score: 88 + metrics.shotAttempts,
+                    tone: 'warning',
+                    label: 'Cold Stint',
+                    title: metrics.player,
+                    body: `${metrics.player} is ${metrics.shotMade}/${metrics.shotAttempts} FG this stint. Consider easier looks.`
+                });
+            }
+
+            if (metrics.turnovers >= 2 || (metrics.turnovers >= 1 && metrics.lastActionType === 'TURNOVER')) {
+                alerts.push({
+                    score: 92 + (metrics.turnovers * 4),
+                    tone: 'danger',
+                    label: 'Ball Security',
+                    title: metrics.player,
+                    body: `${metrics.player} has ${metrics.turnovers} turnover${metrics.turnovers === 1 ? '' : 's'} this stint. Simplify the next action.`
+                });
+            }
+
+            if (metrics.assists >= 2) {
+                alerts.push({
+                    score: 68 + (metrics.assists * 3),
+                    tone: 'info',
+                    label: 'Playmaking',
+                    title: metrics.player,
+                    body: `${metrics.player} already created ${metrics.assists} assist${metrics.assists === 1 ? '' : 's'} this stint.`
+                });
+            }
+
+            if (metrics.rebounds >= 3) {
+                alerts.push({
+                    score: 64 + (metrics.rebounds * 2),
+                    tone: 'info',
+                    label: 'Boards',
+                    title: metrics.player,
+                    body: `${metrics.player} has ${metrics.rebounds} rebounds this stint. Keep using that activity.`
+                });
+            }
+
+            const involvement = metrics.shotAttempts + metrics.fta + metrics.turnovers + metrics.assists + metrics.rebounds;
+            if (metrics.stintSeconds >= 240 && involvement <= 1) {
+                alerts.push({
+                    score: 54 + Math.floor(metrics.stintSeconds / 60),
+                    tone: 'neutral',
+                    label: 'Quiet Stint',
+                    title: metrics.player,
+                    body: `${metrics.player} has been on for ${this.formatMinutes(metrics.stintSeconds)} with little involvement.`
+                });
+            }
+
+            if (
+                metrics.stintSeconds >= 360 &&
+                metrics.stintSeconds >= averageStint + 120 &&
+                metrics.stintSeconds >= longestStint - 30
+            ) {
+                alerts.push({
+                    score: 76 + Math.floor(metrics.stintSeconds / 60),
+                    tone: 'warning',
+                    label: 'Long Stint',
+                    title: metrics.player,
+                    body: `${metrics.player} is at ${this.formatMinutes(metrics.stintSeconds)} this stint. Watch legs and execution.`
+                });
+            }
+        });
+
+        const playAlerts = this.computePlayPppAlerts(shotEventsInLineup, teamEventsInLineup);
+        alerts.push(...playAlerts);
+
+        alerts.sort((a, b) => b.score - a.score);
+
+        const dedupedAlerts = [];
+        const seenKeys = new Set();
+        alerts.forEach(alert => {
+            const key = `${alert.label}:${alert.title}`;
+            if (!seenKeys.has(key) && dedupedAlerts.length < 5) {
+                seenKeys.add(key);
+                dedupedAlerts.push(alert);
+            }
+        });
+
+        return { foulAlerts, alerts: dedupedAlerts };
+    }
+
+
+    computePlayPppAlerts(shotEventsInLineup, teamEventsInLineup) {
+        const playsById = new Map();
+        this.playsCache.forEach(play => playsById.set(play.id, play.name));
+
+        const playStats = new Map();
+        const ensurePlay = (playId, playName = null) => {
+            if (!playId) return null;
+            if (!playStats.has(playId)) {
+                playStats.set(playId, {
+                    playId,
+                    playName: playsById.get(playId) || playName || `Play ${playId}`,
+                    possessions: 0,
+                    points: 0,
+                    turnovers: 0
+                });
+            }
+            return playStats.get(playId);
+        };
+
+        shotEventsInLineup.forEach(shot => {
+            const play = ensurePlay(shot.play_id);
+            if (!play) return;
+            play.possessions += 1;
+            play.points += shot.result === 'made' ? (shot.points || 0) : 0;
+        });
+
+        teamEventsInLineup.forEach(event => {
+            if (!event.play_id) return;
+            if (event.type === 'TURNOVER') {
+                const play = ensurePlay(event.play_id, event.detail?.play_name);
+                if (!play) return;
+                play.possessions += 1;
+                play.turnovers += 1;
+            }
+            if (event.type === 'FT') {
+                const play = ensurePlay(event.play_id, event.detail?.play_name);
+                if (!play) return;
+                play.possessions += 1;
+                play.points += event.detail?.ftm || 0;
+            }
+        });
+
+        const candidates = Array.from(playStats.values())
+            .filter(play => play.possessions >= 2)
+            .map(play => ({ ...play, ppp: play.points / play.possessions }));
+
+        if (candidates.length === 0) return [];
+
+        candidates.sort((a, b) => b.ppp - a.ppp);
+        const positive = candidates.find(play => play.ppp >= 1.3 && play.points >= 3);
+        const negative = [...candidates].reverse().find(play => play.ppp <= 0.7);
+
+        const alerts = [];
+        if (positive) {
+            alerts.push({
+                score: 83 + positive.ppp,
+                tone: 'success',
+                label: 'Play PPP',
+                title: positive.playName,
+                body: `${positive.playName} has ${positive.points} pts on ${positive.possessions} possessions this lineup (${positive.ppp.toFixed(2)} PPP).`
+            });
+        }
+        if (negative && (!positive || negative.playId !== positive.playId)) {
+            alerts.push({
+                score: 82 + ((1 - negative.ppp) * 10),
+                tone: 'warning',
+                label: 'Play PPP',
+                title: negative.playName,
+                body: `${negative.playName} has ${negative.points} pts on ${negative.possessions} possessions${negative.turnovers ? ` with ${negative.turnovers} TOV` : ''} (${negative.ppp.toFixed(2)} PPP).`
+            });
+        }
+
+        return alerts;
+    }
+
+
+    getCurrentStintMetrics(player, currentGameSeconds) {
+        const stintStartSeconds = this.getPlayerStintStartGameSeconds(player);
+        const shots = this.shotLocations.filter(shot =>
+            shot.shooter === player && this.getShotGameSeconds(shot) >= stintStartSeconds
+        );
+        const events = this.gameEvents.filter(event =>
+            (event.game_seconds || 0) >= stintStartSeconds &&
+            (
+                event.player === player ||
+                ((event.type === 'FT' || event.type === 'TURNOVER') && event.player === player) ||
+                (event.type && event.type.startsWith('REBOUND_') && event.player === player)
+            )
+        );
+        const ftEvents = events.filter(event => event.type === 'FT');
+        const turnovers = events.filter(event => event.type === 'TURNOVER').length;
+        const rebounds = events.filter(event => event.type === 'REBOUND_OFFENSIVE' || event.type === 'REBOUND_DEFENSIVE').length;
+        const assists = shots.filter(shot => shot.assister === player && shot.result === 'made').length;
+        const points = shots.reduce((sum, shot) => sum + (shot.result === 'made' ? (shot.points || 0) : 0), 0) +
+            ftEvents.reduce((sum, event) => sum + (event.detail?.ftm || 0), 0);
+        const shotAttempts = shots.length;
+        const shotMade = shots.filter(shot => shot.result === 'made').length;
+        const fta = ftEvents.reduce((sum, event) => sum + (event.detail?.fta || 0), 0);
+        const lastRelevant = [...events]
+            .sort((a, b) => (b.game_seconds || 0) - (a.game_seconds || 0))[0];
+
+        return {
+            player,
+            stintStartSeconds,
+            stintSeconds: Math.max(0, currentGameSeconds - stintStartSeconds),
+            points,
+            shotAttempts,
+            shotMade,
+            shotPct: shotAttempts > 0 ? shotMade / shotAttempts : 0,
+            turnovers,
+            rebounds,
+            assists,
+            fta,
+            lastActionType: lastRelevant?.type || null
+        };
+    }
+
+
+    getCurrentLineupStartGameSeconds() {
+        if (this.lineupHistory.length === 0) return 0;
+        const latestSegment = this.lineupHistory[this.lineupHistory.length - 1];
+        return latestSegment?.gameSeconds || 0;
+    }
+
+
+    getPlayerStintStartGameSeconds(player) {
+        for (let i = this.gameEvents.length - 1; i >= 0; i--) {
+            const event = this.gameEvents[i];
+            if (event.type === 'SUB_IN' && event.player === player) {
+                return event.game_seconds || 0;
+            }
+        }
+
+        return this.startingLineup.includes(player) ? 0 : this.getCurrentLineupStartGameSeconds();
+    }
+
+
+    getShotGameSeconds(shot) {
+        const quarter = Number(shot.quarter || 1);
+        const clockSeconds = Number(shot.clockSeconds || 0);
+        return ((quarter - 1) * this.QUARTER_LENGTH_SECONDS) + clockSeconds;
     }
 
 
@@ -1193,6 +1511,7 @@ class GameTracker {
         });
 
         this.updateScoreboard();
+        this.renderLiveTipsCard();
     }
 
 
@@ -1629,27 +1948,43 @@ class GameTracker {
         
         document.getElementById('ft-player-name').innerText = player;
         document.getElementById('ft-count-select').value = 2;
-        document.getElementById('ft-made-input').value = 0;
-        document.getElementById('ft-made-input').max = 2;
+        this.renderFTMadeOptions(2, 0);
         
         $('#ftModal').modal('show');
     }
 
     
     setFTCount(count) {
-        this.pendingFTTrip.totalFt = parseInt(count);
-        const madeInput = document.getElementById('ft-made-input');
-        madeInput.max = count;
-        if (parseInt(madeInput.value) > count) {
-            madeInput.value = count;
-        }
+        const parsedCount = parseInt(count);
+        this.pendingFTTrip.totalFt = parsedCount;
+        const nextMade = Math.min(this.pendingFTTrip.ftm || 0, parsedCount);
+        this.pendingFTTrip.ftm = nextMade;
+        this.renderFTMadeOptions(parsedCount, nextMade);
+    }
 
+    renderFTMadeOptions(totalFt, selectedFtm = 0) {
+        const container = document.getElementById('ft-made-options');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        for (let made = 0; made <= totalFt; made++) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `btn btn-lg m-1 ${made === selectedFtm ? 'btn-success' : 'btn-outline-secondary'}`;
+            btn.textContent = `${made}`;
+            btn.onclick = () => {
+                this.pendingFTTrip.ftm = made;
+                this.renderFTMadeOptions(totalFt, made);
+            };
+            container.appendChild(btn);
+        }
     }
 
     
     confirmFTCount() {
         const totalFt = this.pendingFTTrip.totalFt;
-        const ftm = Math.min(parseInt(document.getElementById('ft-made-input').value) || 0, totalFt);
+        const ftm = Math.min(this.pendingFTTrip.ftm || 0, totalFt);
         
         this.pendingFTTrip.ftm = ftm;
         
@@ -2103,6 +2438,8 @@ class GameTracker {
             }
 
         });
+
+        this.renderLiveTipsCard();
     }
 
 
@@ -2227,30 +2564,30 @@ class GameTracker {
                     displayQ += diffSeconds;
                 }
 
-                const qClass = isCurrentQ ? 'text-primary font-weight-bold' : 'text-muted';
-                quarterBreakdown += `<span class="${qClass} mx-1" style="font-size: 0.75rem;">Q${q}: ${this.formatMinutes(displayQ)}</span>`;
+                const qClass = isCurrentQ ? 'sub-quarter-chip current' : 'sub-quarter-chip';
+                quarterBreakdown += `<span class="${qClass}">Q${q}: ${this.formatMinutes(displayQ)}</span>`;
             }
 
             const btn = document.createElement('button');
-            btn.className = `list-group-item list-group-item-action ${isActive ? 'active bg-primary text-white border-primary' : ''}`;
+            btn.className = `list-group-item list-group-item-action sub-player-card ${isActive ? 'active' : ''}`;
             btn.style.cursor = 'pointer';
-            btn.innerHTML = `<div class="d-flex justify-content-between align-items-center">
+            btn.innerHTML = `<div class="sub-player-main">
                                 <div class="flex-grow-1">
-                                    <span>${p} <small class="${pmClass} font-weight-bold">(${pmSign}${pmVal})</small></span>
-                                    <div style="font-size: 0.85rem; margin-top: 4px;">
-                                        <span class="text-muted">Total: ${totalTimeStr}</span>
+                                    <div class="sub-player-name">${p} <small class="sub-player-pm ${pmClass} font-weight-bold">(${pmSign}${pmVal})</small></div>
+                                    <div class="sub-player-meta">
+                                        <span class="sub-total-time">Total: ${totalTimeStr}</span>
                                     </div>
-                                    <div class="d-flex flex-wrap mt-1">
+                                    <div class="sub-quarter-grid">
                                         ${quarterBreakdown}
                                     </div>
                                 </div>
-                                <small data-role="lineup-status" class="font-weight-bold">${isActive ? 'ON COURT' : 'BENCH'}</small>
+                                <small data-role="lineup-status" class="sub-status font-weight-bold">${isActive ? 'ON COURT' : 'BENCH'}</small>
                              </div>`;
 
             btn.onclick = () => {
                 if (this._tempLineup.includes(p)) {
                     this._tempLineup = this._tempLineup.filter(x => x !== p);
-                    btn.classList.remove('active', 'bg-primary', 'text-white', 'border-primary');
+                    btn.classList.remove('active');
                     btn.querySelector('[data-role="lineup-status"]').innerText = 'BENCH';
                 } else {
                     if (this._tempLineup.length >= 5) {
@@ -2259,7 +2596,7 @@ class GameTracker {
                     }
 
                     this._tempLineup.push(p);
-                    btn.classList.add('active', 'bg-primary', 'text-white', 'border-primary');
+                    btn.classList.add('active');
                     btn.querySelector('[data-role="lineup-status"]').innerText = 'ON COURT';
                 }
 
@@ -2378,24 +2715,29 @@ class GameTracker {
             // PM Color
             const pmClass = p.plus_minus > 0 ? 'text-success' : (p.plus_minus < 0 ? 'text-danger' : 'text-muted');
             const pmSign = p.plus_minus > 0 ? '+' : '';
+            const pmChipClass = p.plus_minus > 0
+                ? 'stats-chip stats-chip-pm-positive'
+                : (p.plus_minus < 0 ? 'stats-chip stats-chip-pm-negative' : 'stats-chip stats-chip-pm-neutral');
 
             row.innerHTML = `
-                <td class="text-left text-nowrap font-weight-bold">
-                    ${p.name} 
+                <td class="text-left text-nowrap font-weight-bold stats-player-cell">
+                    <div class="stats-player-name">
+                        ${p.name}
+                    </div>
                     ${isActive ? '<span class="badge badge-success ml-1" style="font-size:0.6em">ON</span>' : ''}
                 </td>
-                <td>${p.display_minutes}</td>
-                <td class="font-weight-bold border-left">${p.points}</td>
-                <td>${p.total_reb} <small class="text-muted">(${p.oreb}/${p.dreb})</small></td>
+                <td><span class="stats-chip stats-chip-min">${p.display_minutes}</span></td>
+                <td class="border-left"><span class="stats-chip stats-chip-points">${p.points}</span></td>
+                <td>${p.total_reb}<span class="stats-subtext">${p.oreb}/${p.dreb}</span></td>
                 <td>${p.ast}</td>
                 <td>${p.stl}</td>
                 <td>${p.blk}</td>
                 <td>${p.tov}</td>
                 <td class="${p.pf >= 3 ? 'text-danger font-weight-bold' : ''}">${p.pf}</td>
-                <td class="border-left text-nowrap">${p.fgm}/${p.fga} <small class="text-muted">${fgPct}%</small></td>
-                <td class="text-nowrap">${p.tpm}/${p.tpa} <small class="text-muted">${tpPct}%</small></td>
-                <td class="text-nowrap">${p.ftm}/${p.fta} <small class="text-muted">${ftPct}%</small></td>
-                <td class="${pmClass} font-weight-bold border-left">${pmSign}${p.plus_minus}</td>
+                <td class="border-left text-nowrap">${p.fgm}/${p.fga}<span class="stats-subtext">${fgPct}%</span></td>
+                <td class="text-nowrap">${p.tpm}/${p.tpa}<span class="stats-subtext">${tpPct}%</span></td>
+                <td class="text-nowrap">${p.ftm}/${p.fta}<span class="stats-subtext">${ftPct}%</span></td>
+                <td class="${pmClass} font-weight-bold border-left"><span class="${pmChipClass}">${pmSign}${p.plus_minus}</span></td>
             `;
             tbody.appendChild(row);
         });
@@ -2408,18 +2750,18 @@ class GameTracker {
         tfoot.innerHTML = `
             <tr>
                 <td class="text-left text-uppercase">Team Total</td>
-                <td>-</td>
-                <td class="border-left">${team.points}</td>
-                <td>${team.reb} <small class="text-muted">(${team.oreb}/${team.dreb})</small></td>
+                <td><span class="stats-chip stats-chip-min">-</span></td>
+                <td class="border-left"><span class="stats-chip stats-chip-points">${team.points}</span></td>
+                <td>${team.reb}<span class="stats-subtext">${team.oreb}/${team.dreb}</span></td>
                 <td>${team.ast}</td>
                 <td>${team.stl}</td>
                 <td>${team.blk}</td>
                 <td>${team.tov}</td>
                 <td>${team.pf}</td>
-                <td class="border-left">${team.fgm}/${team.fga} <small class="text-muted">${teamFgPct}%</small></td>
-                <td>${team.tpm}/${team.tpa} <small class="text-muted">${teamTpPct}%</small></td>
-                <td>${team.ftm}/${team.fta} <small class="text-muted">${teamFtPct}%</small></td>
-                <td class="border-left">-</td>
+                <td class="border-left">${team.fgm}/${team.fga}<span class="stats-subtext">${teamFgPct}%</span></td>
+                <td>${team.tpm}/${team.tpa}<span class="stats-subtext">${teamTpPct}%</span></td>
+                <td>${team.ftm}/${team.fta}<span class="stats-subtext">${teamFtPct}%</span></td>
+                <td class="border-left"><span class="stats-chip stats-chip-pm-neutral">-</span></td>
             </tr>
         `;
 

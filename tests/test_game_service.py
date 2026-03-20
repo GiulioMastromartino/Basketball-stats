@@ -236,6 +236,96 @@ class TestCreateGameFromLiveData:
             "starting_lineup": ["Alice", "Bob", "Carol", "Diana", "Eve"],
         }
 
+    def _payload_with_top_level_plays(self):
+        return {
+            "schema_version": 3,
+            "game": {
+                "date": "2026-03-02",
+                "opponent": "Play Sync Opponent",
+                "team_score": 4,
+                "opponent_score": 0,
+                "game_type": "Season",
+            },
+            "plays": [
+                {"id": 101, "name": "Horns Twist", "play_type": "Offense"},
+                {"id": 202, "name": "Zone Matchup", "play_type": "Defense"},
+            ],
+            "player_stats": [],
+            "shot_locations": [
+                {
+                    "shooter": "Alice",
+                    "type": "2pt",
+                    "result": "made",
+                    "points": 2,
+                    "quarter": 1,
+                    "clockSeconds": 10,
+                    "timestamp": 1010,
+                    "x": 240,
+                    "y": 90,
+                    "play_id": 101,
+                }
+            ],
+            "game_events": [
+                {
+                    "type": "SHOT_2PT",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 10,
+                    "timestamp": 1010,
+                    "play_id": 101,
+                },
+                {
+                    "type": "TURNOVER",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 20,
+                    "timestamp": 1020,
+                    "play_id": 101,
+                },
+            ],
+            "starting_lineup": ["Alice", "Bob", "Carol", "Diana", "Eve"],
+        }
+
+    def _rescue_like_payload(self):
+        return {
+            "schema_version": 3,
+            "exported_at": "2026-03-20T10:00:00",
+            "game": {
+                "date": "2026-03-03",
+                "opponent": "Rescue Opponent",
+                "team_score": 2,
+                "opponent_score": 0,
+                "game_type": "Season",
+                "source": "RESCUE",
+            },
+            "player_stats": {},
+            "shot_locations": [
+                {
+                    "shooter": "Alice",
+                    "type": "2pt",
+                    "result": "made",
+                    "points": 2,
+                    "quarter": 1,
+                    "clockSeconds": 10,
+                    "timestamp": 1010,
+                    "play_id": 77,
+                }
+            ],
+            "game_events": [
+                {
+                    "type": "SHOT_2PT",
+                    "player": "Alice",
+                    "detail": {"play_id": 77, "play_name": "Flash"},
+                    "quarter": 1,
+                    "clockSeconds": 10,
+                    "timestamp": 1010,
+                    "play_id": 77,
+                }
+            ],
+            "starting_lineup": ["Alice", "Bob", "Carol", "Diana", "Eve"],
+            "lineup_history": [],
+        }
+
     @pytest.mark.integration
     def test_basic_game_creation(self, db_session, live_game_payload):
         """Test basic game creation from live data."""
@@ -385,6 +475,164 @@ class TestCreateGameFromLiveData:
                 reconstructed += json.loads(event.detail)["ftm"]
 
         assert reconstructed == game.team_score
+
+    @pytest.mark.integration
+    def test_schema4_backfills_play_ids_using_unique_timeline_match(self, db_session):
+        """Play backfill should match the correct shot when a player takes multiple shots in a quarter."""
+        payload = self._schema4_payload()
+        payload["shot_locations"] = [
+            {
+                "shooter": "Alice",
+                "type": "2pt",
+                "result": "missed",
+                "points": 0,
+                "quarter": 1,
+                "clockSeconds": 12,
+                "timestamp": 1012,
+                "x": 240,
+                "y": 90,
+            },
+            {
+                "shooter": "Alice",
+                "type": "2pt",
+                "result": "made",
+                "points": 2,
+                "quarter": 1,
+                "clockSeconds": 18,
+                "timestamp": 1018,
+                "x": 242,
+                "y": 92,
+            },
+        ]
+        payload["game_events"] = [
+            {
+                "type": "SHOT_2PT",
+                "player": "Alice",
+                "quarter": 1,
+                "clockSeconds": 18,
+                "timestamp": 1018,
+                "detail": {"play_name": "Horns"},
+            }
+        ]
+        payload["team_score"] = 2
+        payload["opponent_score"] = 0
+
+        game = create_game_from_live_data(payload)
+        horns = Play.query.filter_by(name="Horns").first()
+        shots = ShotEvent.query.filter_by(game_id=game.id).order_by(ShotEvent.id.asc()).all()
+
+        assert shots[0].play_id is None
+        assert shots[1].play_id == horns.id
+
+    @pytest.mark.integration
+    def test_schema4_backfill_leaves_ambiguous_shots_untagged(self, db_session):
+        """Backfill should not guess when multiple raw shots match the same event key."""
+        payload = self._schema4_payload()
+        payload["shot_locations"] = [
+            {
+                "shooter": "Alice",
+                "type": "2pt",
+                "result": "made",
+                "points": 2,
+                "quarter": 1,
+                "clockSeconds": 10,
+                "timestamp": 1010,
+                "x": 240,
+                "y": 90,
+            },
+            {
+                "shooter": "Alice",
+                "type": "2pt",
+                "result": "made",
+                "points": 2,
+                "quarter": 1,
+                "clockSeconds": 10,
+                "timestamp": 1010,
+                "x": 241,
+                "y": 91,
+            },
+        ]
+        payload["game_events"] = [
+            {
+                "type": "SHOT_2PT",
+                "player": "Alice",
+                "quarter": 1,
+                "clockSeconds": 10,
+                "timestamp": 1010,
+                "detail": {"play_name": "Horns"},
+            }
+        ]
+        payload["team_score"] = 2
+        payload["opponent_score"] = 0
+
+        game = create_game_from_live_data(payload)
+        shots = ShotEvent.query.filter_by(game_id=game.id).all()
+
+        assert all(shot.play_id is None for shot in shots)
+
+    @pytest.mark.integration
+    def test_import_syncs_top_level_plays_before_event_processing(self, db_session):
+        """Importer should create payload plays even before events reference them."""
+        payload = self._payload_with_top_level_plays()
+
+        game = create_game_from_live_data(payload)
+        synced_play = Play.query.filter_by(name="Horns Twist").first()
+        defense_play = Play.query.filter_by(name="Zone Matchup").first()
+        shot = ShotEvent.query.filter_by(game_id=game.id).first()
+        events = GameEvent.query.filter_by(game_id=game.id).order_by(GameEvent.timestamp.asc()).all()
+
+        assert synced_play is not None
+        assert synced_play.play_type == "Offense"
+        assert defense_play is not None
+        assert defense_play.play_type == "Defense"
+        assert shot.play_id == synced_play.id
+        assert all(event.play_id == synced_play.id for event in events)
+
+    @pytest.mark.integration
+    def test_import_sync_reuses_existing_play_name_and_remaps_payload_id(self, db_session):
+        """Payload play ids should map to an existing DB play when the name already exists."""
+        existing = Play(name="Horns Twist", play_type="Offense", description="Existing")
+        db_session.add(existing)
+        db_session.commit()
+
+        payload = self._payload_with_top_level_plays()
+        game = create_game_from_live_data(payload)
+
+        plays = Play.query.filter_by(name="Horns Twist").all()
+        shot = ShotEvent.query.filter_by(game_id=game.id).first()
+        events = GameEvent.query.filter_by(game_id=game.id).all()
+
+        assert len(plays) == 1
+        assert shot.play_id == existing.id
+        assert all(event.play_id == existing.id for event in events)
+
+    @pytest.mark.integration
+    def test_import_without_top_level_plays_still_creates_referenced_play(self, db_session):
+        """Legacy fallback creation should still work when payload omits the plays list."""
+        payload = self._schema4_payload()
+
+        game = create_game_from_live_data(payload)
+        horns = Play.query.filter_by(name="Horns").first()
+        delay = Play.query.filter_by(name="Delay").first()
+        shots = ShotEvent.query.filter_by(game_id=game.id).all()
+
+        assert horns is not None
+        assert delay is not None
+        assert any(shot.play_id == horns.id for shot in shots)
+
+    @pytest.mark.integration
+    def test_import_syncs_rescue_embedded_play_refs_without_top_level_list(self, db_session):
+        """Rescue payloads should synthesize plays from embedded shot/event play refs."""
+        payload = self._rescue_like_payload()
+
+        game = create_game_from_live_data(payload)
+        flash_play = Play.query.filter_by(name="Flash").first()
+        shot = ShotEvent.query.filter_by(game_id=game.id).first()
+        event = GameEvent.query.filter_by(game_id=game.id).first()
+
+        assert flash_play is not None
+        assert shot.play_id == flash_play.id
+        assert event.play_id == flash_play.id
 
     @pytest.mark.integration
     def test_empty_data_raises_error(self, db_session):

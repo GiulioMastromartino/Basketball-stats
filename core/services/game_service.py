@@ -158,6 +158,72 @@ def infer_zone_from_coords(x, y):
     return "Midrange"
 
 
+def _normalize_payload_plays(data, is_nested_import):
+    """Extract payload-defined plays from explicit lists and embedded rescue refs."""
+    play_entries = get_nested_value(data, "plays", "Plays", default=None)
+    if play_entries is None and is_nested_import:
+        play_entries = get_nested_value(data.get("game", {}), "plays", "Plays", default=[])
+
+    normalized = []
+    seen = set()
+
+    def add_entry(play_id=None, play_name=None, play_type="Offense"):
+        normalized_name = play_name.strip() if isinstance(play_name, str) else ""
+        normalized_id = _safe_int(play_id)
+        key = (normalized_id, normalized_name, play_type or "Offense")
+        if normalized_id is None and not normalized_name:
+            return
+        if key in seen:
+            return
+        seen.add(key)
+        payload = {"play_type": play_type or "Offense"}
+        if normalized_id is not None:
+            payload["id"] = normalized_id
+        if normalized_name:
+            payload["name"] = normalized_name
+        normalized.append(payload)
+
+    for entry in play_entries or []:
+        if not isinstance(entry, dict):
+            continue
+        add_entry(
+            get_nested_value(entry, "id", "play_id", "playId"),
+            get_nested_value(entry, "name", "play_name", "playName"),
+            get_nested_value(entry, "play_type", "playType", default="Offense"),
+        )
+
+    shot_events_source = get_nested_value(
+        data, "shot_events", "shot_locations", "ShotEvents", "shots", "Shots", default=[]
+    )
+    game_events_source = get_nested_value(
+        data, "game_events", "GameEvents", "events", "Events", default=[]
+    )
+
+    for shot in shot_events_source or []:
+        if not isinstance(shot, dict):
+            continue
+        add_entry(
+            get_nested_value(shot, "play_id", "playId"),
+            get_nested_value(shot, "play_name", "playName")
+            or extract_play_name_from_detail(get_nested_value(shot, "detail", "Detail")),
+        )
+
+    for event in game_events_source or []:
+        if not isinstance(event, dict):
+            continue
+        detail = get_nested_value(event, "detail", "Detail")
+        detail_name = extract_play_name_from_detail(detail)
+        detail_id = None
+        if isinstance(detail, dict):
+            detail_id = get_nested_value(detail, "play_id", "playId")
+        add_entry(
+            get_nested_value(event, "play_id", "playId", default=detail_id),
+            get_nested_value(event, "play_name", "playName", default=detail_name) or detail_name,
+        )
+
+    return normalized
+
+
 
 def get_nested_value(data, *keys, default=None):
     """Get a value from a dict trying multiple possible key names."""
@@ -189,6 +255,18 @@ def _clock_seconds_to_time_remaining(clock_seconds: Optional[int]) -> Optional[s
     minutes = remaining // 60
     seconds = remaining % 60
     return f"{minutes}:{seconds:02d}"
+
+
+def _time_remaining_to_clock_seconds(time_remaining: Optional[str]) -> Optional[int]:
+    """Convert MM:SS remaining to elapsed quarter seconds."""
+    if not time_remaining or ":" not in str(time_remaining):
+        return None
+    try:
+        minutes_str, seconds_str = str(time_remaining).split(":", 1)
+        remaining = (int(minutes_str) * 60) + int(seconds_str)
+    except (TypeError, ValueError):
+        return None
+    return max(0, 600 - remaining)
 
 
 def _derive_timeline_from_quarter_clock(
@@ -340,22 +418,113 @@ def _match_schema4_shot_record(
     if not candidates:
         return None
 
-    def _rank(candidate: Dict[str, Any]) -> tuple:
-        ts_diff = (
-            abs(candidate["timestamp"] - timestamp)
-            if candidate["timestamp"] and timestamp
-            else 10**12
-        )
-        clock_diff = (
-            abs(candidate["clock_seconds"] - clock_seconds)
-            if candidate["clock_seconds"] is not None and clock_seconds is not None
-            else 10**6
-        )
-        return (ts_diff, clock_diff, candidate["index"])
+    exact_timestamp = [
+        shot
+        for shot in candidates
+        if timestamp not in (None, 0)
+        and shot["timestamp"] is not None
+        and shot["timestamp"] == timestamp
+    ]
+    if len(exact_timestamp) > 1:
+        return None
+    if len(exact_timestamp) == 1:
+        match = exact_timestamp[0]
+        match["used"] = True
+        return match
 
-    match = min(candidates, key=_rank)
+    exact_clock = [
+        shot
+        for shot in candidates
+        if clock_seconds is not None
+        and shot["clock_seconds"] is not None
+        and shot["clock_seconds"] == clock_seconds
+    ]
+    if len(exact_clock) > 1:
+        return None
+    if len(exact_clock) == 1:
+        match = exact_clock[0]
+        match["used"] = True
+        return match
+
+    if len(candidates) != 1:
+        return None
+
+    match = candidates[0]
     match["used"] = True
     return match
+
+
+def _build_safe_shot_backfill_matches(
+    shot_records: List[Dict[str, Any]],
+    game_events: List[GameEvent],
+) -> Dict[GameEvent, int]:
+    """Build a deterministic event->shot mapping for safe play_id backfill.
+
+    Matching priority:
+    1. exact quarter + shot family + player + timestamp
+    2. exact quarter + shot family + player + clock_seconds
+
+    Ambiguous matches are ignored instead of guessed.
+    """
+    event_to_shot = {}
+    matched_shots = set()
+
+    for event in game_events:
+        if event.event_type not in ("SHOT_2PT", "SHOT_3PT"):
+            continue
+        if not event.play_id or not event.player_name:
+            continue
+
+        player_key = event.player_name.strip().lower()
+        shot_family = _normalize_shot_family(event.event_type)
+        if not shot_family:
+            continue
+
+        matched_index = getattr(event, "_matched_shot_index", None)
+        if matched_index is not None:
+            event_to_shot[event] = matched_index
+            matched_shots.add(matched_index)
+            continue
+
+        candidates = [
+            shot
+            for shot in shot_records
+            if shot["index"] not in matched_shots
+            and shot["quarter"] == event.quarter
+            and shot["shot_type"] == shot_family
+            and shot["shooter"] == player_key
+        ]
+        if not candidates:
+            continue
+
+        exact_timestamp = [
+            shot
+            for shot in candidates
+            if event.timestamp not in (None, 0)
+            and shot["timestamp"] is not None
+            and shot["timestamp"] == event.timestamp
+        ]
+        if len(exact_timestamp) == 1:
+            chosen = exact_timestamp[0]
+        elif len(exact_timestamp) > 1:
+            continue
+        else:
+            event_clock_seconds = _time_remaining_to_clock_seconds(event.time_remaining)
+            exact_clock = [
+                shot
+                for shot in candidates
+                if event_clock_seconds is not None
+                and shot["clock_seconds"] is not None
+                and shot["clock_seconds"] == event_clock_seconds
+            ]
+            if len(exact_clock) != 1:
+                continue
+            chosen = exact_clock[0]
+
+        matched_shots.add(chosen["index"])
+        event_to_shot[event] = chosen["index"]
+
+    return event_to_shot
 
 
 def _nearest_raw_context(
@@ -642,11 +811,39 @@ def create_game_from_live_data(data):
     db.session.flush()
 
     # --- Performance Optimization: Play Cache ---
-    # Pre-fetch all plays to minimize O(N) lookups
+    # Pre-fetch all plays and sync payload-provided plays before ingesting events.
     from core.models import Play
     existing_plays = Play.query.all()
     play_cache = {p.name: p.id for p in existing_plays}
     play_id_cache = {p.id: p.id for p in existing_plays}
+
+    payload_plays = _normalize_payload_plays(data, is_nested_import)
+    for payload_play in payload_plays:
+        if not isinstance(payload_play, dict):
+            continue
+        payload_play_id = _safe_int(get_nested_value(payload_play, "id", "play_id", "playId"))
+        payload_play_name = get_nested_value(payload_play, "name", "play_name", "playName")
+        payload_play_name = payload_play_name.strip() if isinstance(payload_play_name, str) else ""
+        payload_play_type = get_nested_value(payload_play, "play_type", "playType", default="Offense") or "Offense"
+
+        existing_by_name = Play.query.filter_by(name=payload_play_name).first() if payload_play_name else None
+        existing_by_id = Play.query.get(payload_play_id) if payload_play_id else None
+
+        if existing_by_id:
+            synced_play = existing_by_id
+        elif existing_by_name:
+            synced_play = existing_by_name
+        elif payload_play_name:
+            synced_play = Play(name=payload_play_name, play_type=payload_play_type, source="imported")
+            db.session.add(synced_play)
+            db.session.flush()
+        else:
+            continue
+
+        play_cache[synced_play.name] = synced_play.id
+        play_id_cache[synced_play.id] = synced_play.id
+        if payload_play_id:
+            play_id_cache[payload_play_id] = synced_play.id
 
     def get_cached_play_id(name):
         if not name: return None
@@ -927,7 +1124,7 @@ def create_game_from_live_data(data):
             if isinstance(detail, dict):
                 detail = json.dumps(detail)
 
-            all_game_events.append(GameEvent(
+            game_event = GameEvent(
                 game_id=game.id, event_type=event_type,
                 player_name=player_name.strip() if player_name else None,
                 detail=str(detail) if detail is not None else None,
@@ -941,7 +1138,10 @@ def create_game_from_live_data(data):
                 x_loc=float(x) if x is not None else None,
                 y_loc=float(y) if y is not None else None,
                 zone=zone,
-            ))
+            )
+            if matched_shot is not None:
+                game_event._matched_shot_index = matched_shot["index"]
+            all_game_events.append(game_event)
         else:
             event_type = get_nested_value(e_data, "type", "event_type", "EventType")
             player_name = get_nested_value(e_data, "player", "player_name", "PlayerName")
@@ -1038,7 +1238,7 @@ def create_game_from_live_data(data):
             if isinstance(detail, dict):
                 detail = json.dumps(detail)
 
-            all_game_events.append(GameEvent(
+            game_event = GameEvent(
                 game_id=game.id, event_type=event_type,
                 player_name=player_name.strip() if player_name else None,
                 detail=str(detail) if detail is not None else None,
@@ -1052,7 +1252,10 @@ def create_game_from_live_data(data):
                 x_loc=float(x) if x is not None else None,
                 y_loc=float(y) if y is not None else None,
                 zone=zone,
-            ))
+            )
+            if matched_shot is not None:
+                game_event._matched_shot_index = matched_shot["index"]
+            all_game_events.append(game_event)
 
     _backfill_missing_score_margin(all_game_events)
     
@@ -1065,16 +1268,15 @@ def create_game_from_live_data(data):
             unmatched_schema4_shots,
         )
     
-    # Copy play_id from game_events to shot_events for analytics
-    # Match by player_name, quarter
-    for ge in all_game_events:
-        if ge.event_type in ("SHOT_2PT", "SHOT_3PT") and ge.play_id and ge.player_name and ge.quarter:
-            for se in all_shot_events:
-                if (se.player_name and se.player_name.lower() == ge.player_name.lower() 
-                    and se.quarter == ge.quarter 
-                    and not se.play_id):
-                    se.play_id = ge.play_id
-                    break
+    safe_backfill_matches = _build_safe_shot_backfill_matches(
+        shot_import_records,
+        all_game_events,
+    )
+    for game_event, shot_index in safe_backfill_matches.items():
+        if 0 <= shot_index < len(all_shot_events):
+            shot_event = all_shot_events[shot_index]
+            if not shot_event.play_id:
+                shot_event.play_id = game_event.play_id
     
     db.session.commit()
 

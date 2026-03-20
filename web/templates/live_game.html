@@ -94,6 +94,289 @@
     height: 100%;
 }
 
+#sub-roster-list {
+    padding: 1rem;
+    background: linear-gradient(180deg, #f7f9fc 0%, #eef3f8 100%);
+}
+
+#sub-roster-list .sub-player-card {
+    width: 100%;
+    border: 1px solid #d6dfeb;
+    border-radius: 16px;
+    background: #ffffff;
+    padding: 0.95rem 1rem;
+    margin-bottom: 0.85rem;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+#sub-roster-list .sub-player-card:last-child {
+    margin-bottom: 0;
+}
+
+#sub-roster-list .sub-player-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+    border-color: #b8c7db;
+}
+
+#sub-roster-list .sub-player-card.active {
+    background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+    border-color: #1d4ed8;
+    color: #ffffff;
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
+}
+
+#sub-roster-list .sub-player-card.active .text-muted,
+#sub-roster-list .sub-player-card.active .sub-quarter-chip,
+#sub-roster-list .sub-player-card.active .sub-total-time,
+#sub-roster-list .sub-player-card.active .sub-player-pm {
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+
+#sub-roster-list .sub-player-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+#sub-roster-list .sub-player-name {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #10233f;
+}
+
+#sub-roster-list .sub-status {
+    flex-shrink: 0;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    background: #eef2f7;
+    color: #4b5563;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+}
+
+#sub-roster-list .sub-player-card.active .sub-status {
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+}
+
+#sub-roster-list .sub-player-meta {
+    margin-top: 0.5rem;
+}
+
+#sub-roster-list .sub-total-time {
+    font-size: 0.83rem;
+    color: #5f6b7a;
+}
+
+#sub-roster-list .sub-quarter-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.55rem;
+}
+
+#sub-roster-list .sub-quarter-chip {
+    padding: 0.3rem 0.55rem;
+    border-radius: 10px;
+    background: #f3f6fb;
+    border: 1px solid #dde6f0;
+    color: #617083;
+    font-size: 0.74rem;
+    line-height: 1.2;
+}
+
+#sub-roster-list .sub-quarter-chip.current {
+    background: #dbeafe;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+    font-weight: 700;
+}
+
+#sub-roster-list .sub-player-card.active .sub-quarter-chip {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+#sub-roster-list .sub-player-card.active .sub-quarter-chip.current {
+    background: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+}
+
+#currentStatsModal .modal-content {
+    border-radius: 20px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #f8fbfc 0%, #eef5f7 100%);
+}
+
+#currentStatsModal .modal-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #1f2d3a 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0.9rem 1.1rem;
+}
+
+#currentStatsModal .modal-title {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+#currentStatsModal .modal-body {
+    padding: 1rem !important;
+}
+
+#currentStatsModal .table-responsive {
+    background: #ffffff;
+    border: 1px solid #dbe5ea;
+    border-radius: 16px;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+}
+
+#currentStatsModal .table {
+    margin-bottom: 0;
+    background: transparent;
+    border-collapse: separate;
+    border-spacing: 0 8px;
+    margin-top: -8px;
+    padding: 0 0.45rem 0.45rem;
+}
+
+#currentStatsModal thead.thead-dark th {
+    background: #e9f4f4;
+    color: #24424e;
+    border-bottom: 1px solid #cfe3e3;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 0.75rem 0.45rem;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+#currentStatsModal tbody td,
+#currentStatsModal tfoot td {
+    vertical-align: middle;
+    padding: 0.68rem 0.45rem;
+    background: #ffffff;
+    border-top: 2px solid #c7d5dd;
+    border-bottom: 2px solid #c7d5dd;
+}
+
+#currentStatsModal tbody tr {
+    transition: transform 0.16s ease, box-shadow 0.16s ease;
+    filter: drop-shadow(0 3px 0 rgba(199, 213, 221, 0.95));
+}
+
+#currentStatsModal tbody tr:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+}
+
+#currentStatsModal tbody tr.table-primary {
+    box-shadow: 0 12px 24px rgba(23, 162, 162, 0.16);
+}
+
+#currentStatsModal tbody tr.table-primary td {
+    background: linear-gradient(90deg, rgba(23, 162, 162, 0.12) 0%, rgba(23, 162, 184, 0.05) 100%);
+    border-color: rgba(23, 162, 162, 0.30);
+}
+
+#currentStatsModal tbody tr.table-primary td:first-child {
+    box-shadow: inset 4px 0 0 #17a2a2;
+}
+
+#currentStatsModal tbody tr td:first-child,
+#currentStatsModal tfoot tr td:first-child {
+    border-top-left-radius: 12px;
+    border-bottom-left-radius: 12px;
+    border-left: 2px solid #c7d5dd;
+}
+
+#currentStatsModal tbody tr td:last-child,
+#currentStatsModal tfoot tr td:last-child {
+    border-top-right-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border-right: 2px solid #c7d5dd;
+}
+
+#currentStatsModal .stats-player-cell {
+    min-width: 170px;
+}
+
+#currentStatsModal .stats-player-name {
+    font-weight: 700;
+    color: #243746;
+}
+
+#currentStatsModal .stats-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 54px;
+    padding: 0.35rem 0.5rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.78rem;
+    line-height: 1;
+}
+
+#currentStatsModal .stats-chip.stats-chip-min {
+    background: #eef7fb;
+    color: #1d5f84;
+}
+
+#currentStatsModal .stats-chip.stats-chip-points {
+    background: #fff3df;
+    color: #b96500;
+}
+
+#currentStatsModal .stats-chip.stats-chip-pm-positive {
+    background: #e9f8ef;
+    color: #1f7a42;
+}
+
+#currentStatsModal .stats-chip.stats-chip-pm-negative {
+    background: #fdecec;
+    color: #b53a3a;
+}
+
+#currentStatsModal .stats-chip.stats-chip-pm-neutral {
+    background: #eef2f6;
+    color: #586575;
+}
+
+#currentStatsModal .stats-subtext {
+    display: block;
+    margin-top: 0.12rem;
+    font-size: 0.68rem;
+    color: #7a8794;
+}
+
+#currentStatsModal tfoot tr {
+    box-shadow: 0 12px 22px rgba(15, 23, 42, 0.08);
+}
+
+#currentStatsModal tfoot td:first-child {
+    font-weight: 800;
+    color: #1f3442;
+}
+
+#currentStatsModal tfoot td {
+    background: #f3f7f9;
+    border-color: #ccd9e0;
+}
+
+#currentStatsModal .modal-footer {
+    background: rgba(255, 255, 255, 0.72);
+    border-top: 1px solid #dde7ec;
+    padding: 0.8rem 1rem;
+}
+
 /* Stretch shot chart areas */
 #shotLocModal .position-relative.d-inline-block,
 #oppShotLocModal .position-relative.d-inline-block {
@@ -225,6 +508,147 @@
     background: #eef2ff;
     color: #3730a3;
     white-space: nowrap;
+}
+
+.live-tips-card {
+    background: linear-gradient(180deg, #ffffff 0%, #f6fafb 100%);
+    border: 1px solid #d9e6ea;
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.live-tips-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #17a2a2 100%);
+    color: #ffffff;
+}
+
+.live-tips-context {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.14);
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+}
+
+.live-tips-foul-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+}
+
+.live-tips-foul-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.28rem 0.55rem;
+    border-radius: 999px;
+    background: #fff6df;
+    border: 1px solid #ffd983;
+    color: #a76400;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.live-tips-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.live-tip-row {
+    border-radius: 12px;
+    border: 1px solid #dbe6eb;
+    background: #ffffff;
+    padding: 0.65rem 0.75rem;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.live-tip-row.success {
+    border-left: 4px solid #28a745;
+}
+
+.live-tip-row.info {
+    border-left: 4px solid #17a2b8;
+}
+
+.live-tip-row.warning {
+    border-left: 4px solid #ff9800;
+}
+
+.live-tip-row.danger {
+    border-left: 4px solid #dc3545;
+}
+
+.live-tip-row.neutral {
+    border-left: 4px solid #7b8794;
+}
+
+.live-tip-topline {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.25rem;
+}
+
+.live-tip-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.18rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.live-tip-badge.success {
+    background: #eaf8ee;
+    color: #1f7a42;
+}
+
+.live-tip-badge.info {
+    background: #e8f7fb;
+    color: #1b6f83;
+}
+
+.live-tip-badge.warning {
+    background: #fff5e8;
+    color: #b46a00;
+}
+
+.live-tip-badge.danger {
+    background: #fdecec;
+    color: #b53a3a;
+}
+
+.live-tip-badge.neutral {
+    background: #eef2f6;
+    color: #5d6877;
+}
+
+.live-tip-title {
+    font-weight: 700;
+    color: #233241;
+    font-size: 0.86rem;
+}
+
+.live-tip-body {
+    color: #5d6b78;
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.live-tip-empty {
+    border: 1px dashed #cfdde3;
+    border-radius: 12px;
+    background: #f9fbfc;
+    color: #62717d;
+    font-size: 0.82rem;
+    text-align: center;
+    padding: 1rem 0.75rem;
 }
 
 /* Mobile/iPad Optimizations for Live Game */
@@ -655,8 +1079,7 @@
                 </div>
                 <div class="form-group">
                     <label class="font-weight-bold">Made:</label>
-                    <input type="number" id="ft-made-input" class="form-control form-control-lg text-center" 
-                           min="0" max="2" value="0">
+                    <div id="ft-made-options" class="d-flex flex-wrap justify-content-center"></div>
                 </div>
             </div>
             <div class="modal-footer py-2">

@@ -11,6 +11,9 @@ from weasyprint import HTML
 from core.models import Game, PlayerStat, ShotEvent, GameEvent, SystemSetting, db
 from core.services.analytics_service import AnalyticsService
 from core.services.evolution_report_service import EvolutionReportService
+from core.services.schema4_evolution_report_service import (
+    Schema4EvolutionReportService,
+)
 from core.charts import (
     generate_shot_chart,
     generate_team_shot_chart,
@@ -18,11 +21,11 @@ from core.charts import (
     generate_team_scoring_trend,
 )
 from core.play_analytics import (
-    get_play_stats,
-    get_play_player_stats,
-    get_player_play_stats,
+    get_summary_play_stats,
+    get_summary_play_player_stats,
+    get_summary_player_play_stats,
     get_untracked_percentages,
-    get_player_top_plays_by_points,
+    get_summary_player_top_plays_by_points,
 )
 from core.utils import calculate_efg_percent, calculate_ortg, calculate_possessions, safe_percentage
 from core.advanced_game_report import TeamBox, PlayerBox, build_advanced_game_report
@@ -390,12 +393,12 @@ def generate_game_pdf_bytes(game_id):
     shot_events = ShotEvent.query.filter_by(game_id=game_id).first()
     shot_chart = generate_team_shot_chart([game_id], db.session) if shot_events else ""
 
-    plays_data = get_play_stats(game_id, play_type="Offense")
-    plays_players_data = get_play_player_stats(game_id, play_type="Offense")
-    players_plays_data = get_player_play_stats(game_id, play_type="Offense")
+    plays_data = get_summary_play_stats(game_id, play_type="Offense")
+    plays_players_data = get_summary_play_player_stats(game_id, play_type="Offense")
+    players_plays_data = get_summary_player_play_stats(game_id, play_type="Offense")
     untracked = get_untracked_percentages(game_id) or {}
 
-    player_top_plays = get_player_top_plays_by_points(game_id, limit=3)
+    player_top_plays = get_summary_player_top_plays_by_points(game_id, limit=3)
 
     for player in stats_with_metrics:
         top_plays = player_top_plays.get(player.player_name, [])
@@ -1491,7 +1494,14 @@ def game_evolution_pdf(game_id: int):
         PDF file download
     """
     try:
-        report = EvolutionReportService.build_report(game_id)
+        game = Game.query.get(game_id)
+        if game is None:
+            raise ValueError(f"Game with id {game_id} not found")
+
+        if (game.schema_version or 0) >= 4:
+            report = Schema4EvolutionReportService.build_report(game_id)
+        else:
+            report = EvolutionReportService.build_report(game_id)
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
 
