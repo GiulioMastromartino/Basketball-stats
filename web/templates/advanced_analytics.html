@@ -5,15 +5,15 @@
 {% block extra_css %}
 <style>
 .analytics-header { margin-bottom: 2rem; }
-.analytics-header h1 { font-size: 1.75rem; font-weight: 800; color: #000000; }
-.stat-card { background: #ffffff; border-radius: 0; padding: 1.5rem; border: 3px solid #000000; box-shadow: 4px 4px 0 #000000; margin-bottom: 1.5rem; color: #000000; }
-.loading-state { text-align: center; padding: 3rem; color: #000000; font-weight: 700; }
-.error-state { text-align: center; padding: 2rem; color: #000000; background: #ffd0d8; border: 3px solid #000000; border-radius: 0; font-weight: 700; }
-.success-state { text-align: center; padding: 2rem; color: #000000; background: #c8f0d0; border: 3px solid #000000; border-radius: 0; font-weight: 700; }
-.empty-state { text-align: center; padding: 2rem; color: #000000; font-weight: 700; }
-.shot-chart-container { background: #e6e6e6; border-radius: 0; min-height: 400px; position: relative; border: 3px solid #000000; }
+.analytics-header h1 { font-size: 1.75rem; font-weight: 700; }
+.stat-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.07); margin-bottom: 1.5rem; }
+.loading-state { text-align: center; padding: 3rem; color: #6c757d; }
+.error-state { text-align: center; padding: 2rem; color: #dc3545; background: #f8d7da; border-radius: 8px; }
+.success-state { text-align: center; padding: 2rem; color: #28a745; background: #d4edda; border-radius: 8px; }
+.empty-state { text-align: center; padding: 2rem; color: #6c757d; }
+.shot-chart-container { background: #f8f9fa; border-radius: 8px; min-height: 400px; position: relative; }
 .zone-stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
-.zone-stat-item { background: #ffffff; border-radius: 0; padding: 1rem; text-align: center; border: 2px solid #000000; color: #000000; font-weight: 600; }
+.zone-stat-item { background: #f8f9fa; border-radius: 8px; padding: 1rem; text-align: center; }
 .debug-log { background: #1e1e1e; color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; border-radius: 8px; max-height: 200px; overflow-y: auto; margin-top: 1rem; }
 .debug-log .log-entry { margin: 2px 0; }
 .debug-log .log-info { color: #58a6ff; }
@@ -22,12 +22,12 @@
 .progress-container { margin: 1rem 0; }
 .progress { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
 .progress-bar { height: 100%; background: #1e3c72; transition: width 0.3s; }
-.nav-tabs-analytics { border-bottom: 3px solid #000000; margin-bottom: 1.5rem; }
-.nav-tabs-analytics .nav-link { border: 2px solid transparent; color: #000000; font-weight: 800; padding: 0.75rem 1.25rem; border-radius: 0; }
-.nav-tabs-analytics .nav-link.active { color: #ffffff; background: #000000; border-color: #000000; }
+.nav-tabs-analytics { border-bottom: 2px solid #dee2e6; margin-bottom: 1.5rem; }
+.nav-tabs-analytics .nav-link { border: none; color: #6c757d; font-weight: 500; padding: 0.75rem 1.25rem; border-bottom: 3px solid transparent; }
+.nav-tabs-analytics .nav-link.active { color: #1e3c72; border-bottom-color: #1e3c72; background: transparent; }
 .factor-item { text-align: center; padding: 1rem; }
-.factor-item .factor-value { font-size: 2rem; font-weight: 800; color: #000000; }
-.factor-item .factor-label { font-size: 0.75rem; color: #000000; text-transform: uppercase; font-weight: 700; }
+.factor-item .factor-value { font-size: 2rem; font-weight: 700; color: #1e3c72; }
+.factor-item .factor-label { font-size: 0.75rem; color: #6c757d; text-transform: uppercase; }
 .shot-chart-wrapper {
     position: relative;
     width: 100%;

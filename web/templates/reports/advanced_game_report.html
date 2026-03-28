@@ -5,276 +5,244 @@
 {% block extra_css %}
 <style>
 .report-header {
-    background: #ffffff;
-    color: #000000;
-    border: 3px solid #000000;
-    box-shadow: 6px 6px 0 #000000;
-    border-radius: 0;
-    padding: 1.75rem;
-    margin-bottom: 1.5rem;
-    font-weight: 700;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
 }
 .report-header .game-date {
-    font-size: 0.85rem;
-    color: #1c1c1c;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-weight: 800;
+    font-size: 0.875rem;
+    opacity: 0.8;
 }
 .report-header .game-title {
-    font-size: 1.35rem;
-    font-weight: 900;
+    font-size: 1.5rem;
+    font-weight: 700;
     margin: 0.5rem 0;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
 }
 .report-header .score-display {
-    font-size: 2.75rem;
-    font-weight: 900;
-    font-family: "Staatliches", sans-serif;
-    letter-spacing: 0.04em;
+    font-size: 3rem;
+    font-weight: 700;
 }
-.report-header .score-display .winner { color: #005c1f; }
-.report-header .score-display .loser { color: #9a0020; }
+.report-header .score-display.winner { color: #90EE90; }
+.report-header .score-display.loser { color: #FFB6C1; }
 
 .stat-card {
-    background: #ffffff;
-    border-radius: 0;
-    padding: 1.35rem;
-    border: 3px solid #000000;
-    box-shadow: 4px 4px 0 #000000;
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--card-shadow);
     margin-bottom: 1.5rem;
-    color: #000000;
 }
 .stat-card h5 {
-    font-size: 0.72rem;
+    font-size: 0.875rem;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: #000000;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
     margin-bottom: 1rem;
-    border-bottom: 3px solid #000000;
+    border-bottom: 2px solid var(--primary);
     padding-bottom: 0.5rem;
-    font-weight: 900;
 }
 
+/* Four Factors */
 .four-factors-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 0.65rem;
+    gap: 1rem;
 }
 .factor-item {
     text-align: center;
-    padding: 0.85rem;
-    background: #e6e6e6;
-    border-radius: 0;
-    border: 2px solid #000000;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
 }
 .factor-item .factor-name {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
-    color: #000000;
-    margin-bottom: 0.35rem;
-    font-weight: 800;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
 }
 .factor-item .factor-value {
-    font-size: 1.5rem;
-    font-weight: 900;
-    color: #000000;
-    font-family: "Staatliches", sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--primary);
 }
 .factor-item .factor-bar {
-    height: 8px;
-    background: #ffffff;
-    border: 2px solid #000000;
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 3px;
     margin-top: 0.5rem;
     overflow: hidden;
-    border-radius: 0;
 }
 .factor-item .factor-bar-fill {
     height: 100%;
-    background: #000000;
-    border-radius: 0;
+    background: var(--primary);
+    border-radius: 3px;
 }
 .factor-item.opponent .factor-value {
-    color: #9a0020;
+    color: #dc3545;
 }
 .factor-item.opponent .factor-bar-fill {
-    background: #9a0020;
+    background: #dc3545;
 }
 
+/* Shot Chart Container */
 .shot-chart-container {
-    background: #e6e6e6;
-    border-radius: 0;
+    background: #f8f9fa;
+    border-radius: 8px;
     min-height: 400px;
     position: relative;
-    border: 3px solid #000000;
 }
 
+/* Zone Stats Grid */
 .zone-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 0.5rem;
 }
 .zone-item {
-    background: #ffffff;
-    border-radius: 0;
-    padding: 0.65rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 0.75rem;
     text-align: center;
-    border: 2px solid #000000;
 }
 .zone-item .zone-name {
-    font-size: 0.65rem;
-    color: #000000;
+    font-size: 0.7rem;
+    color: var(--text-muted);
     text-transform: uppercase;
-    font-weight: 800;
 }
 .zone-item .zone-value {
-    font-size: 1.15rem;
-    font-weight: 900;
-    color: #000000;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--primary);
 }
 .zone-item .zone-detail {
-    font-size: 0.65rem;
-    color: #1c1c1c;
-    font-weight: 600;
+    font-size: 0.7rem;
+    color: var(--text-muted);
 }
 
+/* Player Table */
 .player-table {
     width: 100%;
     border-collapse: collapse;
-    border: 3px solid #000000;
 }
 .player-table th {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
-    color: #ffffff;
-    background: #000000;
-    font-weight: 800;
-    padding: 0.65rem 0.4rem;
-    border: 1px solid #ffffff;
+    color: var(--text-muted);
+    font-weight: 500;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 2px solid var(--border-color);
     text-align: center;
 }
 .player-table td {
-    padding: 0.6rem 0.4rem;
-    border-bottom: 1px solid #000000;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid var(--border-color);
     text-align: center;
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: 0.875rem;
 }
 .player-table .player-name {
     text-align: left;
-    font-weight: 800;
-    color: #000000;
+    font-weight: 500;
 }
-.player-table tbody tr:hover {
-    background: #fff100;
+.player-table tr:hover {
+    background: var(--primary-light);
 }
 
+/* Quarter Breakdown */
 .quarter-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 0.65rem;
+    gap: 1rem;
 }
 .quarter-box {
-    background: #ffffff;
-    border-radius: 0;
+    background: #f8f9fa;
+    border-radius: 8px;
     padding: 1rem;
     text-align: center;
-    border: 2px solid #000000;
-    box-shadow: 3px 3px 0 #000000;
 }
 .quarter-box .quarter-label {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
-    color: #000000;
-    font-weight: 800;
+    color: var(--text-muted);
 }
 .quarter-box .team-score {
-    font-size: 1.35rem;
-    font-weight: 900;
-    color: #000000;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary);
 }
 .quarter-box .opp-score {
     font-size: 1rem;
-    color: #9a0020;
-    font-weight: 800;
+    color: #dc3545;
 }
 
+/* Score Progression */
 .score-worm {
-    background: #e6e6e6;
-    border-radius: 0;
+    background: #f8f9fa;
+    border-radius: 8px;
     height: 200px;
     position: relative;
-    border: 3px solid #000000;
 }
 
+/* Clutch Stats */
 .clutch-card {
-    background: #000000;
-    color: #ffffff;
-    border-radius: 0;
-    padding: 1.35rem;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 1.5rem;
     text-align: center;
-    border: 3px solid #000000;
-    box-shadow: 6px 6px 0 #000000;
 }
 .clutch-card .clutch-value {
-    font-size: 2.25rem;
-    font-weight: 900;
-    font-family: "Staatliches", sans-serif;
+    font-size: 2.5rem;
+    font-weight: 700;
 }
 .clutch-card .clutch-label {
     font-size: 0.75rem;
-    opacity: 0.95;
+    opacity: 0.8;
     text-transform: uppercase;
-    font-weight: 800;
-    letter-spacing: 0.06em;
 }
 
+/* Top Performer Card */
 .performer-card {
-    background: #ffffff;
-    border-radius: 0;
-    padding: 1.25rem;
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 1.5rem;
     text-align: center;
-    border: 3px solid #000000;
-    box-shadow: 4px 4px 0 #000000;
+    border-left: 4px solid var(--primary);
 }
 .performer-card .performer-name {
-    font-weight: 900;
-    font-size: 0.95rem;
-    margin-bottom: 0.35rem;
-    text-transform: uppercase;
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
 }
 .performer-card .performer-points {
-    font-size: 2.25rem;
-    font-weight: 900;
-    color: #000000;
-    font-family: "Staatliches", sans-serif;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--primary);
 }
 .performer-card .performer-stats {
-    font-size: 0.72rem;
-    color: #1c1c1c;
-    font-weight: 700;
+    font-size: 0.75rem;
+    color: var(--text-muted);
 }
 
+/* Loading and Error States */
 .loading-state {
     text-align: center;
-    padding: 2rem;
-    color: #000000;
-    font-weight: 800;
+    padding: 3rem;
+    color: var(--text-muted);
 }
 .error-state {
     text-align: center;
-    padding: 1.5rem;
-    color: #000000;
-    background: #ffd0d8;
-    border: 3px solid #000000;
-    border-radius: 0;
-    font-weight: 800;
+    padding: 2rem;
+    color: #dc3545;
+    background: #f8d7da;
+    border-radius: 8px;
 }
 
+/* Progress Bar */
 .progress-container { margin: 1rem 0; }
-.progress { height: 10px; background: #ffffff; border: 2px solid #000000; border-radius: 0; overflow: hidden; }
-.progress-bar { height: 100%; background: #000000; transition: width 0.3s; }
+.progress { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+.progress-bar { height: 100%; background: var(--primary); transition: width 0.3s; }
 
 .shot-chart-wrapper {
     position: relative;
@@ -304,28 +272,26 @@
     pointer-events: auto;
     cursor: pointer;
     transition: transform 0.1s;
-    border: 2px solid #000000;
 }
 .shot-point:hover {
     transform: translate(-50%, -50%) scale(1.5);
     z-index: 20;
 }
-.shot-make {
-    background-color: #005c1f;
+.shot-make { 
+    background-color: #28a745; 
+    border: 1px solid #fff;
 }
-.shot-miss {
-    background-color: transparent;
-    border: 2px solid #9a0020;
+.shot-miss { 
+    background-color: transparent; 
+    border: 2px solid #dc3545; 
     box-sizing: border-box;
 }
 .chart-legend {
     display: flex;
     justify-content: center;
-    gap: 1.25rem;
-    margin-top: 12px;
-    font-size: 0.82rem;
-    font-weight: 800;
-    color: #000000;
+    gap: 20px;
+    margin-top: 15px;
+    font-size: 13px;
 }
 .legend-item {
     display: flex;
@@ -336,9 +302,9 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    border: 2px solid #000000;
 }
 
+/* Responsive */
 @media (max-width: 768px) {
     .four-factors-grid { grid-template-columns: repeat(2, 1fr); }
     .quarter-grid { grid-template-columns: repeat(2, 1fr); }

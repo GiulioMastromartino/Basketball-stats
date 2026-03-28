@@ -3,71 +3,57 @@
 {% block content %}
 <style>
     .game-header {
-<<<<<<< Updated upstream
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         padding: 40px 0;
         margin-bottom: 30px;
         border-radius: 0 0 20px 20px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-=======
-        padding: 40px 0;
-        margin-bottom: 30px;
->>>>>>> Stashed changes
     }
     .score-board {
         font-size: 3.5rem;
         font-weight: 800;
         line-height: 1;
-        color: var(--hs-ink);
+        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
     .game-meta {
         font-size: 1.1rem;
-        color: var(--hs-ink-muted);
-        font-weight: 600;
+        opacity: 0.9;
     }
     .nav-pills .nav-link {
-        color: var(--hs-ink);
-        font-weight: 800;
-        padding: 10px 18px;
-        border-radius: 0;
-        border: 2px solid var(--hs-ink);
-        margin: 0 6px 6px 0;
-        transition: background 80ms linear, color 80ms linear;
+        color: #4a5568;
+        font-weight: 600;
+        padding: 10px 20px;
+        border-radius: 8px;
+        transition: all 0.2s;
     }
     .nav-pills .nav-link.active {
-<<<<<<< Updated upstream
         background-color: #667eea;
         color: white;
         box-shadow: 0 4px 6px rgba(102, 126, 234, 0.25);
-=======
-        background: var(--hs-ink);
-        color: #ffffff;
->>>>>>> Stashed changes
     }
     .stat-card {
-        background: var(--hs-surface);
+        background: white;
         padding: 20px;
-        border-radius: 0;
-        box-shadow: var(--hs-shadow-sm);
+        border-radius: 12px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
         height: 100%;
-        border: var(--hs-border);
+        border: 1px solid #e2e8f0;
     }
     .table-container {
-        background: var(--hs-surface);
-        border-radius: 0;
-        box-shadow: var(--hs-shadow-sm);
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         overflow: hidden;
-        border: var(--hs-border);
     }
     .table thead th {
-        background-color: var(--hs-surface-2);
-        border-bottom: var(--hs-border);
-        font-weight: 800;
-        color: var(--hs-ink);
+        background-color: #f7fafc;
+        border-bottom: 2px solid #e2e8f0;
+        font-weight: 600;
+        color: #4a5568;
         text-transform: uppercase;
-        font-size: 0.8rem;
-        letter-spacing: 0.08em;
+        font-size: 0.85rem;
+        letter-spacing: 0.05em;
     }
     /* Shot Chart Styles */
     .shot-chart-wrapper {
@@ -75,11 +61,10 @@
         width: 100%;
         max-width: 500px; /* Fixed max-width to match SVG coordinate system visual */
         margin: 0 auto;
-        background: var(--hs-surface);
-        border-radius: 0;
+        background: white;
+        border-radius: 12px;
         overflow: hidden;
-        border: var(--hs-border);
-        box-shadow: var(--hs-shadow-sm);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
 
     /* Overlay container that sits exactly on top of the SVG */

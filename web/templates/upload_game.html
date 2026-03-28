@@ -7,7 +7,7 @@
 <div id="progressModal" class="progress-modal">
     <div class="progress-content">
         <div class="progress-icon">
-            <i class="fas fa-magic" aria-hidden="true"></i>
+            <i class="fas fa-magic" style="color: #667eea;"></i>
         </div>
         <div class="progress-title">Generating Test Game</div>
         <div class="progress-description">
@@ -21,22 +21,9 @@
     </div>
 </div>
 
-<<<<<<< Updated upstream
 <div class="card" style="max-width: 900px; margin: 0 auto;">
     <div class="panel-header">
         <h3><i class="fas fa-upload" style="color: var(--primary)"></i> Upload Game (CSV / PDF / JSON)</h3>
-=======
-<div class="page-hero" style="max-width: 900px; margin: 0 auto 1.25rem;">
-    <div>
-        <h1 class="page-hero__title"><i class="fas fa-cloud-arrow-up" aria-hidden="true"></i> Upload</h1>
-        <p class="page-hero__lead">CSV, PDF, or JSON — same pipeline</p>
-    </div>
-</div>
-
-<div class="card border-0 shadow-sm" style="max-width: 900px; margin: 0 auto;">
-    <div class="card-header bg-transparent">
-        <h3 class="mb-0 fs-5"><i class="fas fa-upload me-2" aria-hidden="true"></i> Game file</h3>
->>>>>>> Stashed changes
     </div>
 
     <!-- Flash Messages -->
@@ -62,9 +49,9 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
         <!-- Import type toggle -->
-        <div class="hs-form-segment">
-            <div class="hs-form-segment__title">
-                <i class="fas fa-sliders-h" aria-hidden="true"></i> Import Type
+        <div style="margin-bottom: 18px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="font-weight: 700; margin-bottom: 8px; color: var(--secondary);">
+                <i class="fas fa-sliders-h"></i> Import Type
             </div>
             <label style="margin-right: 16px; cursor: pointer;">
                 <input type="radio" name="import_type" value="csv" checked onchange="toggleImportType()" />
@@ -85,12 +72,22 @@
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--secondary);">
                 <i class="fas fa-file-csv"></i> Select CSV File(s)
             </label>
-            <input
-                type="file"
-                name="csv_file"
-                accept=".csv"
+            <input 
+                type="file" 
+                name="csv_file" 
+                accept=".csv" 
                 multiple
-                class="hs-file-drop"
+                style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px dashed var(--border-color);
+                    border-radius: 8px;
+                    background: #f8f9fa;
+                    cursor: pointer;
+                    transition: 0.2s;
+                "
+                onmouseover="this.style.borderColor='var(--primary)'"
+                onmouseout="this.style.borderColor='var(--border-color)'"
             />
             <p style="margin-top: 10px; color: var(--text-muted); font-size: 0.9rem;">
                 You can select multiple CSV files to upload at once.
@@ -102,17 +99,27 @@
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--secondary);">
                 <i class="fas fa-file-pdf"></i> Select PDF File
             </label>
-            <input
-                type="file"
-                name="pdf_file"
-                accept=".pdf"
-                class="hs-file-drop"
+            <input 
+                type="file" 
+                name="pdf_file" 
+                accept=".pdf" 
+                style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px dashed var(--border-color);
+                    border-radius: 8px;
+                    background: #f8f9fa;
+                    cursor: pointer;
+                    transition: 0.2s;
+                "
+                onmouseover="this.style.borderColor='var(--primary)'"
+                onmouseout="this.style.borderColor='var(--border-color)'"
             />
 
             <!-- Overrides -->
-            <div class="hs-form-segment mt-3 mb-0">
-                <div class="hs-form-segment__title">
-                    <i class="fas fa-edit" aria-hidden="true"></i> Overrides (optional)
+            <div style="margin-top: 14px; padding: 14px; background: #ffffff; border-radius: 8px; border: 1px solid var(--border-color);">
+                <div style="font-weight: 700; color: var(--secondary); margin-bottom: 10px;">
+                    <i class="fas fa-edit"></i> Overrides (optional)
                 </div>
                 <p style="margin: 0 0 12px 0; color: var(--text-muted); font-size: 0.9rem;">
                     Use these if the PDF header is not parsed correctly (date/opponent/score).
@@ -154,12 +161,22 @@
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--secondary);">
                 <i class="fas fa-file-code"></i> Select JSON File(s)
             </label>
-            <input
-                type="file"
-                name="json_file"
-                accept=".json"
+            <input 
+                type="file" 
+                name="json_file" 
+                accept=".json" 
                 multiple
-                class="hs-file-drop"
+                style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px dashed var(--border-color);
+                    border-radius: 8px;
+                    background: #f8f9fa;
+                    cursor: pointer;
+                    transition: 0.2s;
+                "
+                onmouseover="this.style.borderColor='var(--primary)'"
+                onmouseout="this.style.borderColor='var(--border-color)'"
             />
             <p style="margin-top: 10px; color: var(--text-muted); font-size: 0.9rem;">
                 Upload raw JSON files previously exported from this application. This is useful for backups or transferring data.
@@ -173,17 +190,17 @@
 
     <!-- Admin: Create Test Game -->
     {% if current_user.is_authenticated and current_user.is_manager %}
-    <div class="hs-upload-dev-panel">
-        <h4 class="mb-2">
-            <i class="fas fa-flask" aria-hidden="true"></i> Developer Tools
+    <div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+        <h4 style="margin-bottom: 10px;">
+            <i class="fas fa-flask"></i> Developer Tools
         </h4>
-        <p class="mb-3 small opacity-90">
+        <p style="margin-bottom: 15px; opacity: 0.9; font-size: 0.9rem;">
             Create a comprehensive test game with all features enabled (lineups, shot locations, opponent events, etc.)
         </p>
-        <form id="createTestGameForm" action="{{ url_for('main.create_test_game') }}" method="POST" class="d-inline" onsubmit="return handleCreateTestGame(event)">
+        <form id="createTestGameForm" action="{{ url_for('main.create_test_game') }}" method="POST" style="display: inline;" onsubmit="return handleCreateTestGame(event)">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <button type="submit" class="btn btn-warning fw-bold border border-dark border-2 rounded-0" id="create-test-btn">
-                <i class="fas fa-magic" aria-hidden="true"></i> Create Test Game
+            <button type="submit" class="btn btn-light" id="create-test-btn" style="font-weight: 600;">
+                <i class="fas fa-magic"></i> Create Test Game
             </button>
         </form>
     </div>

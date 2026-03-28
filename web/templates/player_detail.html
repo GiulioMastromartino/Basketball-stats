@@ -1,7 +1,328 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="player-detail-page">
+<style>
+    /* Prevent layout jump while charts initialize */
+    .page-loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(6px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 200ms ease;
+    }
+
+    .page-loading-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .page-loading-card {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 14px;
+        padding: 18px 22px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #333;
+        font-weight: 600;
+    }
+
+    .spinner {
+        width: 18px;
+        height: 18px;
+        border: 3px solid #e9ecef;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .page-hidden {
+        visibility: hidden;
+    }
+
+    .player-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .player-avatar-lg {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 48px;
+        font-weight: 700;
+        border: 4px solid white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 18px;
+        margin-top: 20px;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 20px 16px;
+        border-radius: 10px;
+        text-align: center;
+        border: 1px solid #e0e0e0;
+        transition: all 0.3s ease;
+        position: relative;
+        min-height: 85px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-card-value {
+        font-size: 26px;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 4px;
+        line-height: 1.2;
+    }
+
+    .stat-card-subvalue {
+        font-size: 11px;
+        color: #999;
+        margin-bottom: 6px;
+        line-height: 1.3;
+    }
+
+    .stat-card-label {
+        font-size: 11px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+
+    .section-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin: 35px 0 15px;
+        color: #2d3748;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 10px;
+    }
+
+    .chart-container {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    .chart-box {
+        position: relative;
+        width: 100%;
+        height: 280px;
+    }
+
+    .chart-box.chart-box--md {
+        height: 240px;
+    }
+
+    .chart-box.chart-box--sm {
+        height: 220px;
+    }
+
+    .chart-box canvas {
+        width: 100% !important;
+        height: 100% !important;
+        display: block;
+    }
+
+    .game-log-table {
+        width: 100%;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .game-log-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .game-log-table th {
+        padding: 12px 8px;
+        font-weight: 600;
+        font-size: 12px;
+        text-align: center;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .game-log-table td {
+        padding: 10px 8px;
+        text-align: center;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 13px;
+    }
+
+    .game-log-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+
+    .result-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 11px;
+    }
+
+    .result-w { background: #d4edda; color: #155724; }
+    .result-l { background: #f8d7da; color: #721c24; }
+
+    /* Tooltip styling */
+    .stat-tooltip-icon {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        font-size: 10px;
+        color: #cbd5e0;
+        cursor: help;
+    }
+    .stat-card:hover .stat-tooltip-icon {
+        color: #a0aec0;
+    }
+
+    /* Per 40 section styling */
+    .per40-section {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .per40-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: #718096;
+        margin-bottom: 10px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+
+    .per40-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        text-align: center;
+    }
+
+    .per40-item {
+        background: #f7fafc;
+        padding: 10px 8px;
+        border-radius: 6px;
+    }
+
+    .per40-value {
+        font-weight: 700;
+        font-size: 18px;
+        color: #2d3748;
+        line-height: 1.2;
+    }
+
+    .per40-label {
+        font-size: 10px;
+        color: #718096;
+        margin-top: 2px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    /* Shot Chart Styles */
+    .shot-chart-container {
+        position: relative;
+        width: 100%;
+        max-width: 500px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .shot-point {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        border: 1px solid rgba(0,0,0,0.2);
+        cursor: pointer;
+        transition: transform 0.2s;
+        z-index: 10;
+        opacity: 0.8;
+    }
+    .shot-point:hover {
+        transform: translate(-50%, -50%) scale(1.5);
+        z-index: 20;
+        opacity: 1;
+    }
+    .shot-made {
+        background-color: #28a745; /* Green */
+    }
+    .shot-missed {
+        background-color: #dc3545; /* Red */
+    }
+    .shot-tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        pointer-events: none;
+        display: none;
+        z-index: 100;
+        white-space: nowrap;
+    }
+
+    .pm-badge {
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+    }
+    .pm-pos { color: #15803d; background: #dcfce7; }
+    .pm-neg { color: #b91c1c; background: #fee2e2; }
+    .pm-neu { color: #6b7280; background: #f3f4f6; }
+</style>
 
 <!-- Loading overlay -->
 <div id="pageLoader" class="page-loading-overlay">
@@ -16,19 +337,19 @@
     <div class="player-header">
         <div class="d-flex align-items-center gap-4">
             <div class="player-avatar-lg">{{ player_name[:2]|upper }}</div>
-            <div class="flex-grow-1">
-                <h1>{{ player_name }}</h1>
-                <div class="d-flex flex-wrap align-items-center gap-3 mt-2 player-meta-line">
-                    <span><i class="fas fa-basketball-ball" aria-hidden="true"></i> {{ games_played }} Games</span>
-                    <span><i class="fas fa-clock" aria-hidden="true"></i> {{ averages.mpg|round(1) }} MIN</span>
+            <div style="flex: 1;">
+                <h1 style="font-size: 36px; margin: 0;">{{ player_name }}</h1>
+                <div class="d-flex align-items-center gap-3 mt-2" style="opacity: 0.9;">
+                    <span style="font-size: 18px;"><i class="fas fa-basketball-ball"></i> {{ games_played }} Games</span>
+                    <span style="font-size: 18px;"><i class="fas fa-clock"></i> {{ averages.mpg|round(1) }} MIN</span>
                 </div>
             </div>
-            <div class="d-flex flex-wrap gap-2">
-                <a href="{{ url_for('analytics.player_report_pdf', player_name=player_name, game_type=game_type) }}" class="btn btn-outline-primary">
-                    <i class="fas fa-file-download" aria-hidden="true"></i> Download Report
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('analytics.player_report_pdf', player_name=player_name, game_type=game_type) }}" class="btn btn-outline-light">
+                    <i class="fas fa-file-download"></i> Download Report
                 </a>
-                <a href="{{ url_for('main.players', game_type=game_type) }}" class="btn btn-outline-primary">
-                    <i class="fas fa-arrow-left" aria-hidden="true"></i> Back to Players
+                <a href="{{ url_for('main.players', game_type=game_type) }}" class="btn btn-light">
+                    <i class="fas fa-arrow-left"></i> Back to Players
                 </a>
             </div>
         </div>
@@ -184,7 +505,7 @@
                          <h6 style="color: #4a5568; font-weight: 700; text-transform: uppercase; font-size: 12px; margin-bottom: 15px;">Field Goal Locations (Made Only)</h6>
                          <div class="shot-chart-container" id="shotChartContainer">
                             <!-- Half Court SVG -->
-                             <svg class="hs-shot-surface" viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; display: block;">
+                             <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; background-color: #d2b48c; display: block;">
                         <!-- Court Floor -->
                         <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
                         
@@ -300,7 +621,7 @@
             <tbody>
                 {% for log in game_logs %}
                 <tr>
-                    <td><a href="{{ url_for('main.game_detail', game_id=log.game.id) }}" class="hs-data-link">{{ log.game.date }}</a></td>
+                    <td><a href="{{ url_for('main.game_detail', game_id=log.game.id) }}" style="text-decoration: none; color: #667eea; font-weight: 600;">{{ log.game.date }}</a></td>
                     <td><strong>{{ log.game.opponent }}</strong></td>
                     <td>
                         <span class="result-badge result-{{ log.game.result|lower }}">
@@ -470,5 +791,4 @@
         requestAnimationFrame(() => requestAnimationFrame(buildCharts));
     });
 </script>
-</div>
 {% endblock %}

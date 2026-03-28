@@ -735,39 +735,35 @@
 
 .tabs-container {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     margin-bottom: 24px;
-    border-bottom: 3px solid #000000;
+    border-bottom: 2px solid #e9ecef;
     overflow-x: auto;
-    background: #ffffff;
-    border-radius: 0;
+    background: var(--bg-card);
+    border-radius: 8px 8px 0 0;
     padding: 8px 8px 0 8px;
-    border: 3px solid #000000;
-    border-bottom-width: 3px;
 }
 
 .tab {
-    padding: 12px 20px;
+    padding: 14px 28px;
     cursor: pointer;
-    font-weight: 800;
-    color: #000000;
-    border: 2px solid #000000;
-    border-bottom: none;
-    transition: background 80ms linear, color 80ms linear;
+    font-weight: 600;
+    color: #6c757d;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
     white-space: nowrap;
-    border-radius: 0;
-    margin-bottom: -3px;
+    border-radius: 8px 8px 0 0;
 }
 
 .tab:hover {
-    color: #000000;
-    background: #fff100;
+    color: #495057;
+    background: #f8f9fa;
 }
 
 .tab.active {
-    color: #ffffff;
-    background: #000000;
-    border-color: #000000;
+    color: #007bff;
+    border-bottom-color: #007bff;
+    background: white;
 }
 
 .tab i {
@@ -796,33 +792,34 @@
 }
 
 .metric-card {
-    background: #ffffff;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     padding: 24px;
-    border-radius: 0;
+    border-radius: 12px;
     text-align: center;
-    border: 3px solid #000000;
-    box-shadow: 4px 4px 0 #000000;
-    transition: transform 80ms linear, box-shadow 80ms linear;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+    border: 1px solid #dee2e6;
 }
 
 .metric-card:hover {
-    transform: translate(3px, 3px);
-    box-shadow: 1px 1px 0 #000000;
+    transform: translateY(-6px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    border-color: #007bff;
 }
 
 .metric-card .label {
     font-size: 0.85rem;
-    color: #000000;
+    color: #6c757d;
     text-transform: uppercase;
     letter-spacing: 1.2px;
     margin-bottom: 10px;
-    font-weight: 800;
+    font-weight: 600;
 }
 
 .metric-card .value {
     font-size: 2.8rem;
     font-weight: 800;
-    color: #000000;
+    color: #212529;
     line-height: 1;
 }
 
