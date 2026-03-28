@@ -3,12 +3,13 @@
 {% block content %}
 <style>
     .game-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+        background: linear-gradient(120deg, #1a2029 0%, #2a2420 45%, #3d1810 100%);
+        color: #fff8eb;
         padding: 40px 0;
         margin-bottom: 30px;
-        border-radius: 0 0 20px 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        border-radius: var(--hs-radius);
+        box-shadow: var(--hs-shadow);
+        border: 1px solid var(--hs-line-strong);
     }
     .score-board {
         font-size: 3.5rem;
@@ -28,9 +29,9 @@
         transition: all 0.2s;
     }
     .nav-pills .nav-link.active {
-        background-color: #667eea;
-        color: white;
-        box-shadow: 0 4px 6px rgba(102, 126, 234, 0.25);
+        background: linear-gradient(135deg, #ff4d00 0%, #cc3d00 100%);
+        color: #fff8eb;
+        box-shadow: 0 4px 16px rgba(255, 77, 0, 0.3);
     }
     .stat-card {
         background: white;

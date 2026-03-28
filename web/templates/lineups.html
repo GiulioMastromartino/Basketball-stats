@@ -109,16 +109,17 @@
     }
 
     .nav-pills .nav-link.active {
-        background-color: #1e293b;
+        background: linear-gradient(135deg, #ff4d00 0%, #cc3d00 100%);
+        color: #fff8eb;
     }
 </style>
 
 
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="page-hero">
         <div>
-            <h1>Lineup Analytics</h1>
-            <p class="text-muted" id="lineupCount">Loading performance data...</p>
+            <h1 class="page-hero__title"><i class="fas fa-people-group" aria-hidden="true"></i> Lineup Analytics</h1>
+            <p class="page-hero__lead" id="lineupCount">Loading performance data...</p>
         </div>
     </div>
 

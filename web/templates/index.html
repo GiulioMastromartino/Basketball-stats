@@ -1,35 +1,20 @@
 {% extends "base.html" %}
 
 {% block content %}
-<style>
-    .game-card {
-        transition: transform 0.2s, box-shadow 0.2s;
-        background-color: white;
-    }
-    .game-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    }
-    .game-card:active {
-        transform: translateY(0);
-    }
-</style>
-
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="page-hero">
         <div>
-            <h1><i class="fas fa-th-large"></i> Dashboard</h1>
-            <p class="text-muted">Welcome back, Coach</p>
+            <h1 class="page-hero__title"><i class="fas fa-th-large" aria-hidden="true"></i> Dashboard</h1>
+            <p class="page-hero__lead">Welcome back, Coach</p>
         </div>
         <div>
             <a href="{{ url_for('main.upload_game') }}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> New Game
+                <i class="fas fa-plus" aria-hidden="true"></i> New Game
             </a>
         </div>
     </div>
 
-    <!-- Quick Stats Overview (Matches 'Filter Card' aesthetic in visual weight) -->
-    <div class="card mb-4">
+    <div class="card mb-4 border-0 shadow-sm">
         <div class="card-body p-4">
             <div class="metrics-row" style="margin-bottom: 0;">
                 <div class="metric-card" style="border: none; box-shadow: none; background: transparent; text-align: left; padding: 0;">
@@ -43,7 +28,7 @@
                 <div class="metric-card" style="border: none; box-shadow: none; background: transparent; text-align: left; padding: 0; border-left: 1px solid var(--border-color); padding-left: 20px;">
                     <div class="label">Record</div>
                     <div class="value">
-                        <span class="text-success">{{ stats.wins }}W</span> - 
+                        <span class="text-success">{{ stats.wins }}W</span> -
                         <span class="text-danger">{{ stats.losses }}L</span>
                     </div>
                 </div>
@@ -61,37 +46,34 @@
         </div>
     </div>
 
-    <!-- Recent Activity -->
-    <div class="card">
-        <div class="card-header">
-            <h3>Recent Games</h3>
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-transparent">
+            <h3 class="mb-0">Recent Games</h3>
         </div>
         <div class="card-body">
             <div class="game-card-list">
                 {% for game in games %}
-                <!-- Converted to div for better interactivity with nested delete button -->
-                <div onclick="window.location.href='{{ url_for('main.game_detail', game_id=game.id) }}'" 
-                     class="game-card {% if game.result == 'W' %}win{% else %}loss{% endif %}" 
-                     style="border: 1px solid var(--border-color); border-left-width: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 15px; margin-bottom: 10px; border-radius: 8px;">
-                    
-                    <div style="display: flex; align-items: center;">
+                <div onclick="window.location.href='{{ url_for('main.game_detail', game_id=game.id) }}'"
+                     class="game-card {% if game.result == 'W' %}win{% else %}loss{% endif %}">
+
+                    <div class="d-flex align-items-center">
                         <div class="game-result-badge {% if game.result == 'W' %}win{% else %}loss{% endif %}">
                             {{ game.result }}
                         </div>
-                        <div class="game-info" style="margin-left: 15px;">
-                            <h4 style="margin-bottom: 4px; margin-top: 0; color: #2d3748;">{{ game.opponent }}</h4>
-                            <span class="game-date" style="color: #718096; font-size: 0.9rem;"><i class="far fa-calendar-alt"></i> {{ game.date }}</span>
+                        <div class="game-info ms-3">
+                            <h4 class="mb-1">{{ game.opponent }}</h4>
+                            <span class="game-date"><i class="far fa-calendar-alt" aria-hidden="true"></i> {{ game.date }}</span>
                             {% if game.game_type %}
-                            <span class="badge" style="background: #f8f9fa; color: #666; margin-left: 10px; border: 1px solid #eee;">{{ game.game_type }}</span>
+                            <span class="badge bg-light text-dark border ms-2">{{ game.game_type }}</span>
                             {% endif %}
                         </div>
                     </div>
 
-                    <div style="display: flex; align-items: center; gap: 15px;">
+                    <div class="d-flex align-items-center gap-3">
                         <div class="game-score">
-                            <span class="{% if game.team_score > game.opponent_score %}text-success{% else %}text-danger{% endif %}" style="font-weight: bold; font-size: 1.2rem;">{{ game.team_score }}</span>
-                            <span style="color: #ccc; margin: 0 8px;">-</span>
-                            <span class="{% if game.opponent_score > game.team_score %}text-success{% else %}text-danger{% endif %}" style="font-weight: bold; font-size: 1.2rem;">{{ game.opponent_score }}</span>
+                            <span class="{% if game.team_score > game.opponent_score %}text-success{% else %}text-danger{% endif %}">{{ game.team_score }}</span>
+                            <span class="text-muted mx-2">-</span>
+                            <span class="{% if game.opponent_score > game.team_score %}text-success{% else %}text-danger{% endif %}">{{ game.opponent_score }}</span>
                         </div>
 
                         <form method="POST" action="{{ url_for('main.delete_game', game_id=game.id) }}"
@@ -99,19 +81,19 @@
                               onclick="event.stopPropagation();"
                               class="d-inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-outline-danger btn-sm shadow-sm" style="border-radius: 6px; padding: 0.4rem 0.6rem;" title="Delete Game">
-                                <i class="fas fa-trash"></i>
+                            <button type="submit" class="btn btn-outline-danger btn-sm rounded-3" title="Delete Game" aria-label="Delete game">
+                                <i class="fas fa-trash" aria-hidden="true"></i>
                             </button>
                         </form>
                     </div>
                 </div>
                 {% endfor %}
-                
+
                 {% if not games %}
-                <div style="text-align: center; padding: 60px 20px; color: #999;">
-                    <i class="fas fa-basketball-ball" style="font-size: 3rem; margin-bottom: 20px; opacity: 0.2;"></i>
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-basketball-ball fa-3x mb-3 opacity-25" aria-hidden="true"></i>
                     <p class="mb-3">No games recorded yet.</p>
-                    <a href="{{ url_for('main.upload_game') }}" class="btn btn-outline btn-sm">Upload Game CSV</a>
+                    <a href="{{ url_for('main.upload_game') }}" class="btn btn-outline-primary btn-sm">Upload Game CSV</a>
                 </div>
                 {% endif %}
             </div>

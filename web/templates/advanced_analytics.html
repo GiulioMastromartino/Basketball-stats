@@ -92,8 +92,11 @@
 
 {% block content %}
 <div class="container-fluid py-4">
-    <div class="analytics-header">
-        <h1><i class="fas fa-chart-line mr-2"></i>Advanced Analytics</h1>
+    <div class="page-hero px-0">
+        <div>
+            <h1 class="page-hero__title"><i class="fas fa-chart-line me-2" aria-hidden="true"></i>Advanced Analytics</h1>
+            <p class="page-hero__lead">Shot charts, four factors, and player splits</p>
+        </div>
     </div>
 
     <!-- Status Display -->
@@ -110,18 +113,18 @@
     <!-- Navigation Tabs -->
     <ul class="nav nav-tabs-analytics" id="analyticsTabs" role="tablist">
         <li class="nav-item">
-            <a class="nav-link active" id="shot-charts-tab" data-toggle="tab" href="#shot-charts" role="tab">
-                <i class="fas fa-basketball-ball mr-1"></i> Shot Charts
+            <a class="nav-link active" id="shot-charts-tab" data-bs-toggle="tab" href="#shot-charts" role="tab">
+                <i class="fas fa-basketball-ball me-1"></i> Shot Charts
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" id="four-factors-tab" data-toggle="tab" href="#four-factors" role="tab">
-                <i class="fas fa-chart-bar mr-1"></i> Four Factors
+            <a class="nav-link" id="four-factors-tab" data-bs-toggle="tab" href="#four-factors" role="tab">
+                <i class="fas fa-chart-bar me-1"></i> Four Factors
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" id="player-stats-tab" data-toggle="tab" href="#player-stats" role="tab">
-                <i class="fas fa-user mr-1"></i> Player Stats
+            <a class="nav-link" id="player-stats-tab" data-bs-toggle="tab" href="#player-stats" role="tab">
+                <i class="fas fa-user me-1"></i> Player Stats
             </a>
         </li>
     </ul>
@@ -506,7 +509,7 @@ document.addEventListener('DOMContentLoaded', function() {
     log('Event listeners attached', 'success');
     
     // Tab change handlers
-    $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
+    $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
         var target = $(e.target).attr('href');
         log('Tab changed to: ' + target, 'info');
         if (target === '#four-factors') loadFourFactors();

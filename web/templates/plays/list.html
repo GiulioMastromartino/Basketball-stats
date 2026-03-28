@@ -3,66 +3,57 @@
 {% block title %}Plays - HoopsStats{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-md-8">
-        <h2><i class="fas fa-chalkboard-teacher"></i> Plays Library</h2>
+<div class="page-hero">
+    <div>
+        <h1 class="page-hero__title"><i class="fas fa-clipboard-list" aria-hidden="true"></i> Plays Library</h1>
+        <p class="page-hero__lead">Draw, animate, and file sets</p>
     </div>
-    <div class="col-md-4 text-right">
+    <div class="d-flex flex-wrap gap-2">
         <a href="{{ url_for('plays.create_play') }}" class="btn btn-primary">
-            <i class="fas fa-plus"></i> New Play
+            <i class="fas fa-plus" aria-hidden="true"></i> New Play
         </a>
         {% if plays and current_user.is_manager %}
-        <form action="{{ url_for('plays.clear_all_plays') }}" method="POST" class="d-inline ml-2" onsubmit="return confirm('Are you sure you want to delete ALL plays? This cannot be undone!');">
+        <form action="{{ url_for('plays.clear_all_plays') }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete ALL plays? This cannot be undone!');">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-danger">
-                <i class="fas fa-trash-alt"></i> Clear All
+                <i class="fas fa-trash-alt" aria-hidden="true"></i> Clear All
             </button>
         </form>
         {% endif %}
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="accordion" id="accordionTypes">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white" id="headingTypes">
-                    <h5 class="mb-0">
-                        <button class="btn btn-link text-decoration-none text-muted" type="button" data-toggle="collapse" data-target="#collapseTypes" aria-expanded="false" aria-controls="collapseTypes">
-                            <i class="fas fa-cog"></i> Manage Play Types
-                        </button>
-                    </h5>
-                </div>
-                <div id="collapseTypes" class="collapse" aria-labelledby="headingTypes" data-parent="#accordionTypes">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-md-6 mb-3 mb-md-0">
-                                <ul class="list-inline mb-0">
-                                    {% for pt in play_types %}
-                                    <li class="list-inline-item mb-2">
-                                        <span class="badge badge-light border p-2">
-                                            {{ pt.name }}
-                                            <form action="{{ url_for('plays.delete_play_type', type_id=pt.id) }}" method="POST" class="d-inline ml-2" onsubmit="return confirm('Delete this type?');">
-                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                <button type="submit" class="close text-danger" style="float:none; font-size:1rem;">&times;</button>
-                                            </form>
-                                        </span>
-                                    </li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                            <div class="col-md-6">
-                                <form action="{{ url_for('plays.add_play_type') }}" method="POST" class="form-inline justify-content-md-end">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <div class="input-group">
-                                        <input type="text" name="name" class="form-control form-control-sm" placeholder="New Type (e.g. BLOB)" required>
-                                        <div class="input-group-append">
-                                            <button type="submit" class="btn btn-sm btn-success"><i class="fas fa-plus"></i> Add</button>
-                                        </div>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
+<div class="accordion mb-4" id="accordionTypes">
+    <div class="accordion-item border-0 shadow-sm" style="border-radius: var(--hs-radius); overflow: hidden;">
+        <h2 class="accordion-header" id="headingTypes">
+            <button class="accordion-button collapsed py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTypes" aria-expanded="false" aria-controls="collapseTypes">
+                <i class="fas fa-cog me-2" aria-hidden="true"></i> Manage Play Types
+            </button>
+        </h2>
+        <div id="collapseTypes" class="accordion-collapse collapse" aria-labelledby="headingTypes" data-bs-parent="#accordionTypes">
+            <div class="accordion-body bg-white">
+                <div class="row align-items-center">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <ul class="list-inline mb-0">
+                            {% for pt in play_types %}
+                            <li class="list-inline-item mb-2">
+                                <span class="badge rounded-pill bg-light text-dark border px-3 py-2">
+                                    {{ pt.name }}
+                                    <form action="{{ url_for('plays.delete_play_type', type_id=pt.id) }}" method="POST" class="d-inline ms-2" onsubmit="return confirm('Delete this type?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn-close btn-close-sm p-0 ms-1" style="font-size: 0.65rem;" aria-label="Delete type"></button>
+                                    </form>
+                                </span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <form action="{{ url_for('plays.add_play_type') }}" method="POST" class="d-flex flex-wrap justify-content-md-end gap-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="text" name="name" class="form-control form-control-sm" style="max-width: 220px;" placeholder="New Type (e.g. BLOB)" required>
+                            <button type="submit" class="btn btn-sm btn-success"><i class="fas fa-plus" aria-hidden="true"></i> Add</button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -74,34 +65,34 @@
     {% if plays %}
         {% for play in plays %}
         <div class="col-md-4 mb-4">
-            <div class="card h-100 shadow-sm play-card">
+            <div class="card h-100 shadow-sm play-card border-0">
                 <div class="card-body" onclick="window.location.href='{{ url_for('plays.view_play', play_id=play.id) }}'" style="cursor: pointer;">
                     <h5 class="card-title text-primary">{{ play.name }}</h5>
                     <h6 class="card-subtitle mb-2 text-muted">{{ play.play_type }}</h6>
-                    
+
                     {% if play.difficulty %}
-                    <span class="badge badge-light border mb-2">{{ play.difficulty }}</span>
+                    <span class="badge bg-light text-dark border mb-2">{{ play.difficulty }}</span>
                     {% endif %}
 
                     {% if play.tags %}
                     <p class="card-text mt-2">
-                        <small class="text-muted"><i class="fas fa-tags"></i> {{ play.tags }}</small>
+                        <small class="text-muted"><i class="fas fa-tags" aria-hidden="true"></i> {{ play.tags }}</small>
                     </p>
                     {% endif %}
-                    
+
                     <p class="card-text text-muted small mt-auto">
                         Updated: {{ play.updated_at.strftime('%Y-%m-%d') }}
                     </p>
                 </div>
                 <div class="card-footer bg-white border-top-0 d-flex justify-content-between align-items-center">
                     <a href="{{ url_for('plays.edit_play_builder', play_id=play.id) }}" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-edit"></i> Edit
+                        <i class="fas fa-edit" aria-hidden="true"></i> Edit
                     </a>
-                    
+
                     <form action="{{ url_for('plays.delete_play', play_id=play.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this play?');">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-sm btn-outline-danger">
-                            <i class="fas fa-trash"></i> Delete
+                            <i class="fas fa-trash" aria-hidden="true"></i> Delete
                         </button>
                     </form>
                 </div>
@@ -109,12 +100,12 @@
         </div>
         {% endfor %}
     {% else %}
-        <div class="col-12 text-center py-5">
+        <div class="col-12 text-center py-5 panel-surface">
             <div class="text-muted mb-3">
-                <i class="fas fa-clipboard-list fa-3x"></i>
+                <i class="fas fa-clipboard-list fa-3x" aria-hidden="true"></i>
             </div>
-            <h4>No plays found</h4>
-            <p class="text-muted">Create your first play to get started!</p>
+            <h4 style="color: var(--hs-ink);">No plays found</h4>
+            <p class="text-muted">Create your first play to get started.</p>
             <a href="{{ url_for('plays.create_play') }}" class="btn btn-primary mt-2">Create Play</a>
         </div>
     {% endif %}
@@ -123,14 +114,14 @@
 <style>
     .play-card {
         transition: transform 0.2s, box-shadow 0.2s;
+        border-radius: var(--hs-radius);
     }
     .play-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-lg) !important;
     }
-    /* Ensure hover on body indicates clickability */
     .play-card .card-body:hover {
-        background-color: #f8f9fa;
+        background-color: rgba(232, 226, 214, 0.35);
     }
 </style>
 {% endblock %}

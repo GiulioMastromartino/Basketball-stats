@@ -1,28 +1,14 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Analytics Suite - Basketball Stats</title>
-        <link
-            rel="stylesheet"
-            href="{{ url_for('static', filename='css/style.css') }}"
-        />
-        <link
-            rel="stylesheet"
-            href="{{ url_for('static', filename='css/analytics.css') }}"
-        />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
-            rel="stylesheet"
-        />
-        <link
-            rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-        />
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <style>
-            /* Progress Modal Styles */
+{% extends "base.html" %}
+
+{% block title %}Analytics Suite - Basketball Stats{% endblock %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/analytics.css') }}"
+/>
+<style>
+/* Progress Modal Styles */
             .progress-modal {
                 display: none;
                 position: fixed;
@@ -182,10 +168,12 @@
                 color: #e83e8c;
                 border: 1px solid #e9ecef;
             }
-        </style>
-    </head>
-    <body>
-        <!-- Progress Modal -->
+        
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Progress Modal -->
         <div id="progressModal" class="progress-modal">
             <div class="progress-content">
                 <div class="progress-icon">
@@ -832,7 +820,11 @@
             </div>
         </div>
 
-        <script>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
             // Download All Reports with Progress Bar
             async function downloadAllReports() {
                 const modal = document.getElementById('progressModal');
@@ -1220,5 +1212,4 @@
                 updateTeamCharts();
             });
         </script>
-    </body>
-</html>
+{% endblock %}
