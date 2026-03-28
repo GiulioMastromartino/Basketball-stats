@@ -102,6 +102,12 @@ def create_app(config_name: str = None) -> Flask:
     # Register blueprints
     register_blueprints(app)
 
+    @app.context_processor
+    def inject_hs_data_ui():
+        from web import ui_data
+
+        return {"hs_ui": ui_data}
+
     # Register CLI commands
     register_commands(app)
 

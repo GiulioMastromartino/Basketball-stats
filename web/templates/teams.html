@@ -38,7 +38,7 @@
             <div class="player-card-header w-100">
                 <div class="d-flex align-items-center gap-3 w-100">
                     <!-- Avatar Placeholder for Team -->
-                    <div class="player-card-avatar" style="background: linear-gradient(135deg, var(--secondary), #4a69bd);">
+                    <div class="player-card-avatar">
                         {{ t.name[:2]|upper }}
                     </div>
                     
@@ -46,7 +46,7 @@
                     <div style="flex: 1;">
                         <h3 class="player-card-name">{{ t.name }}</h3>
                         <div class="d-flex align-items-center gap-2 mt-1">
-                            <span class="badge" style="background: #f1f3f5; color: var(--text-muted); font-family: monospace;">{{ t.record }}</span>
+                            <span class="badge bg-light text-dark border font-monospace">{{ t.record }}</span>
                         </div>
                     </div>
 

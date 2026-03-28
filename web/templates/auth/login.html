@@ -1,68 +1,63 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-6 col-lg-4">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white text-center py-4">
-                <h2 class="mb-0">🏀 Basketball Stats</h2>
+<div class="app-guest-panel mt-2">
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white text-center py-4">
+            <h2 class="mb-0 text-break">🏀 Basketball Stats</h2>
+        </div>
+        <div class="card-body p-4">
+            <h4 class="card-title text-center mb-4">Sign In</h4>
+
+            <div class="d-grid gap-3 mb-4">
+                <a href="{{ auth_url }}" class="btn btn-primary btn-lg text-wrap">
+                    <i class="fas fa-sign-in-alt me-2" aria-hidden="true"></i>Sign in with WorkOS
+                </a>
             </div>
-            <div class="card-body p-4">
-                <h4 class="card-title text-center mb-4">Sign In</h4>
-                
-                <!-- WorkOS AuthKit Sign In Button -->
-                <div class="d-grid gap-3 mb-4">
-                    <a href="{{ auth_url }}" class="btn btn-primary btn-lg">
-                        <i class="fas fa-sign-in-alt me-2"></i>Sign in with WorkOS
-                    </a>
+
+            <hr class="my-4">
+
+            <h6 class="text-center text-muted mb-3">Or sign in with username</h6>
+            <form method="POST" class="mb-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username"
+                           placeholder="Enter your username" autocomplete="username">
                 </div>
-                
-                <hr class="my-4">
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password"
+                           placeholder="Enter your password" autocomplete="current-password">
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-outline-primary text-wrap">
+                        <i class="fas fa-user-check me-2" aria-hidden="true"></i>Sign In
+                    </button>
+                </div>
+            </form>
 
-                <!-- Local Username/Password Option -->
-                <h6 class="text-center text-muted mb-3">Or sign in with username</h6>
-                <form method="POST" class="mb-4">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" 
-                               placeholder="Enter your username">
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" 
-                               placeholder="Enter your password">
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-outline-primary">
-                            <i class="fas fa-user-check me-2"></i>Sign In
-                        </button>
-                    </div>
-                </form>
+            <hr class="my-4">
 
-                <hr class="my-4">
-                
-                <!-- Magic Link Option -->
-                <h6 class="text-center text-muted mb-3">Or sign in with Magic Link</h6>
-                <form method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email Address</label>
-                        <input type="email" class="form-control" id="email" name="email" 
-                               placeholder="Enter your email" required>
-                    </div>
-                    
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-outline-primary">
-                            <i class="fas fa-magic me-2"></i>Send Magic Link
-                        </button>
-                    </div>
-                </form>
-            </div>
-            <div class="card-footer text-muted text-center py-3">
-                <small>Restricted Access - Authorized Personnel Only</small>
-            </div>
+            <h6 class="text-center text-muted mb-3">Or sign in with Magic Link</h6>
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email Address</label>
+                    <input type="email" class="form-control" id="email" name="email"
+                           placeholder="Enter your email" required autocomplete="email">
+                </div>
+
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-outline-primary text-wrap">
+                        <i class="fas fa-magic me-2" aria-hidden="true"></i>Send Magic Link
+                    </button>
+                </div>
+            </form>
+        </div>
+        <div class="card-footer text-muted text-center py-3">
+            <small class="d-inline-block text-wrap" style="max-width: 100%;">Restricted Access - Authorized Personnel Only</small>
         </div>
     </div>
 </div>

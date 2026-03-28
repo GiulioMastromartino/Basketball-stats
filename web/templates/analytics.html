@@ -1165,10 +1165,10 @@
 
                     document.getElementById("consistentList").innerHTML =
                         consistentHtml ||
-                        '<p style="text-align: center; color: #999;">No data</p>';
+                        '<p class="hs-data-empty">No data</p>';
                     document.getElementById("volatileList").innerHTML =
                         volatileHtml ||
-                        '<p style="text-align: center; color: #999;">No data</p>';
+                        '<p class="hs-data-empty">No data</p>';
                 } catch (error) {
                     console.error("Error loading consistency:", error);
                 }
@@ -1195,7 +1195,7 @@
                                 roleClass = "role-volume";
 
                             return `
-                            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                            <div class="hs-brutal-card">
                                 <h4 style="margin: 0 0 12px;">${p.player}</h4>
                                 <span class="role-badge ${roleClass}">${p.role}</span>
                                 <div style="margin-top: 16px; font-size: 0.95rem; line-height: 1.8;">
@@ -1210,7 +1210,7 @@
 
                     document.getElementById("rolesGrid").innerHTML =
                         rolesHtml ||
-                        '<p style="text-align: center; color: #999;">No data</p>';
+                        '<p class="hs-data-empty">No data</p>';
                 } catch (error) {
                     console.error("Error loading roles:", error);
                 }
