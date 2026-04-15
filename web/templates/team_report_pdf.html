@@ -579,14 +579,14 @@
       <tr><td>Offensive Rebounds</td><td>{{ team_box_detail.totals.oreb }}</td><td>{{ "%.1f"|format(team_box_detail.per_game.oreb) }}</td><td>Extra possessions created</td></tr>
       <tr><td>Defensive Rebounds</td><td>{{ team_box_detail.totals.dreb }}</td><td>{{ "%.1f"|format(team_box_detail.per_game.dreb) }}</td><td>Stops completed</td></tr>
       <tr><td>Personal Fouls</td><td>{{ team_box_detail.totals.pf }}</td><td>{{ "%.1f"|format(team_box_detail.per_game.pf) }}</td><td>Discipline load</td></tr>
-      <tr><td>Rebounds Conceded</td><td>{{ team_box_detail.totals.reb_conceded }}</td><td>{{ "%.1f"|format(team_box_detail.per_game.reb_conceded) }}</td><td>Opponent second chances</td></tr>
+      <tr><td>Rebounds Conceded</td><td>{{ team_box_detail.totals.reb_conceded }}</td><td>{{ "%.1f"|format(team_box_detail.per_game.reb_conceded) }}</td><td>{% if team_box_detail.tracked_reb_conceded_games %}Tracked in {{ team_box_detail.tracked_reb_conceded_games }} games{% else %}Tracking unavailable{% endif %}</td></tr>
       <tr>
-        <td>Live +/- Total</td>
+        <td>Tracked +/- Total</td>
         <td colspan="3">
           {% if team_box_detail.live_plus_minus_total is not none %}
             <span class="{% if team_box_detail.live_plus_minus_total > 0 %}pm-pos{% elif team_box_detail.live_plus_minus_total < 0 %}pm-neg{% endif %}">{{ "%+d"|format(team_box_detail.live_plus_minus_total) }}</span>
           {% else %}
-            No live plus/minus data
+            No plus/minus data{% if team_box_detail.tracked_plus_minus_games %} ({{ team_box_detail.tracked_plus_minus_games }} tracked games){% endif %}
           {% endif %}
         </td>
       </tr>

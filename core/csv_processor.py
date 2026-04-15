@@ -55,6 +55,10 @@ class CSVProcessor:
         'reb': 'REB',
         'trb': 'REB',
         'total_reb': 'REB',
+        'reb_conceded': 'REB_CONCEDED',
+        'rebounds_conceded': 'REB_CONCEDED',
+        'opp_oreb': 'REB_CONCEDED',
+        'opponent_oreb': 'REB_CONCEDED',
         
         # Assist variations
         'ast': 'AST',
@@ -201,7 +205,7 @@ class CSVProcessor:
                 new_columns[col] = CSVProcessor.COLUMN_MAPPINGS[col_lower]
             # Check if column is already in standard format
             elif col in ['Name', 'MIN', 'PTS', 'FGM', 'FGA', 'FG%', '3PM', '3PA', '3P%', 
-                        'FTM', 'FTA', 'FT%', 'OREB', 'DREB', 'REB', 'AST', 'TOV', 'STL', 'BLK', 'PF']:
+                        'FTM', 'FTA', 'FT%', 'OREB', 'DREB', 'REB', 'AST', 'TOV', 'STL', 'BLK', 'PF', 'REB_CONCEDED']:
                 continue  # Already standard
             else:
                 # Keep original if no mapping found
@@ -283,7 +287,8 @@ class CSVProcessor:
                     'stl': safe_int(row, 'STL'),
                     'blk': safe_int(row, 'BLK'), 
                     'pf': safe_int(row, 'PF'),
-                    'plus_minus': pm_val
+                    'plus_minus': pm_val,
+                    'reb_conceded': safe_int(row, 'REB_CONCEDED'),
                 })
             return {**info, 'players': players}
         except Exception as e:

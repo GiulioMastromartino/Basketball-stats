@@ -373,7 +373,7 @@
         <td>{{ "%.0f"|format(avg_stats.tov * games_played) }}</td>
         <td>{{ "%.0f"|format(avg_stats.pf * games_played) }}</td>
         {% if advanced.avg_plus_minus is not none %}
-          <td class="{% if advanced.avg_plus_minus * games_played > 0 %}positive{% elif advanced.avg_plus_minus * games_played < 0 %}negative{% endif %}">{{ "%+.0f"|format(advanced.avg_plus_minus * games_played) }}</td>
+          <td class="{% if advanced.avg_plus_minus * box_detail.tracked_plus_minus_games > 0 %}positive{% elif advanced.avg_plus_minus * box_detail.tracked_plus_minus_games < 0 %}negative{% endif %}">{{ "%+.0f"|format(advanced.avg_plus_minus * box_detail.tracked_plus_minus_games) }}</td>
         {% else %}
           <td style="color: #666;">N/A</td>
         {% endif %}
@@ -780,7 +780,7 @@
         <td>Rebounds Conceded</td>
         <td>{{ box_detail.totals.reb_conceded }}</td>
         <td>{{ "%.1f"|format(box_detail.per_game.reb_conceded) }}</td>
-        <td>Opponent second chances while involved</td>
+        <td>{% if box_detail.has_reb_conceded %}Tracked in {{ box_detail.tracked_reb_conceded_games }} games{% else %}Tracking unavailable{% endif %}</td>
       </tr>
       <tr>
         <td>Plus/Minus</td>
@@ -798,7 +798,7 @@
             N/A
           {% endif %}
         </td>
-        <td>{% if box_detail.has_live_plus_minus %}Tracked in {{ box_detail.live_games_count }} live games{% else %}Live tracking unavailable{% endif %}</td>
+        <td>{% if box_detail.has_live_plus_minus %}Tracked in {{ box_detail.tracked_plus_minus_games }} supported games{% else %}Plus/minus unavailable{% endif %}</td>
       </tr>
     </table>
   </div>

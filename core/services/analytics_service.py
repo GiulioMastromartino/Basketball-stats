@@ -19,6 +19,11 @@ from core.utils import (
 
 class AnalyticsService:
     @staticmethod
+    def supports_plus_minus(game):
+        """Return True when a game source is expected to persist +/- values."""
+        return bool(game and getattr(game, "source", None) in {"LIVE", "IMPORT", "IMPORT_JSON"})
+
+    @staticmethod
     def calculate_game_stats(stats):
         """Enrich player stats with calculated metrics"""
         for s in stats:
@@ -295,18 +300,15 @@ class AnalyticsService:
         """Calculate comprehensive player metrics"""
         avg_stats = get_player_stats_averages(stats)
 
-        # Filter live games for +/-
-        live_game_stats = [
-            s
-            for s in stats
-            if game_map.get(s.game_id) and game_map[s.game_id].source == "LIVE"
+        pm_game_stats = [
+            s for s in stats if AnalyticsService.supports_plus_minus(game_map.get(s.game_id))
         ]
-        if live_game_stats:
-            avg_plus_minus = sum(s.plus_minus for s in live_game_stats) / len(
-                live_game_stats
+        if pm_game_stats:
+            avg_plus_minus = sum((s.plus_minus or 0) for s in pm_game_stats) / len(
+                pm_game_stats
             )
         else:
-            avg_plus_minus = 0
+            avg_plus_minus = None
 
         # Per 100
         total_poss = 0
@@ -382,8 +384,10 @@ class AnalyticsService:
             "ast_tov": avg_stats["ast"] / avg_stats["tov"]
             if avg_stats["tov"] > 0
             else avg_stats["ast"],
-            "avg_plus_minus": round(avg_plus_minus, 1),
-            "has_live_plus_minus": len(live_game_stats) > 0,
+            "avg_plus_minus": round(avg_plus_minus, 1)
+            if avg_plus_minus is not None
+            else None,
+            "has_live_plus_minus": len(pm_game_stats) > 0,
             "oreb_pct": safe_percentage(avg_stats["oreb"], avg_stats["reb"])
             if avg_stats["reb"]
             else 0,
@@ -430,7 +434,9 @@ class AnalyticsService:
                     "blk": s.blk,
                     "tov": s.tov,
                     "pf": s.pf,
-                    "plus_minus": s.plus_minus if game.source == "LIVE" else None,
+                    "plus_minus": s.plus_minus
+                    if AnalyticsService.supports_plus_minus(game)
+                    else None,
                     "is_live": game.source == "LIVE",
                     "fgm": s.fgm,
                     "fga": s.fga,
@@ -453,7 +459,7 @@ class AnalyticsService:
             "advanced": advanced_stats,
             "games_played": games_played,
             "game_logs": game_logs,
-            "live_games_count": len(live_game_stats),
+            "live_games_count": len(pm_game_stats),
         }
 
     @staticmethod
@@ -607,9 +613,9 @@ class AnalyticsService:
 
     @staticmethod
     def calculate_plus_minus_leaders(games, db_session=None):
-        """Calculate plus/minus leaders (LIVE games only)"""
+        """Calculate plus/minus leaders for sources that persist +/- values."""
         session = db_session or db.session
-        live_ids = [g.id for g in games if g.source == "LIVE"]
+        live_ids = [g.id for g in games if AnalyticsService.supports_plus_minus(g)]
         if not live_ids:
             return []
 

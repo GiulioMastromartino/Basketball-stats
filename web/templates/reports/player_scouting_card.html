@@ -247,7 +247,7 @@
     <div class="page">
         <!-- Header -->
         <div class="header-card">
-            <div class="avatar"> Basketball</div>
+            <div class="avatar">B</div>
             <div class="player-info">
                 <h1>{{ player_name }}</h1>
                 <div class="meta">
@@ -358,7 +358,14 @@
         <div class="section">
             <div class="section-title">Shot Chart</div>
             <div class="shot-chart">
-                {{ shot_chart|safe }}
+                <img src="data:image/png;base64,{{ shot_chart }}" alt="Shot chart for {{ player_name }}">
+            </div>
+        </div>
+        {% elif not has_shot_data %}
+        <div class="section">
+            <div class="section-title">Shot Chart</div>
+            <div class="shot-chart">
+                <p>No tracked shot locations available for this filter.</p>
             </div>
         </div>
         {% endif %}

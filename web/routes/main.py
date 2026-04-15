@@ -397,6 +397,7 @@ def upload_game():
                                 blk=player["blk"],
                                 pf=player["pf"],
                                 plus_minus=int(player.get("plus_minus", 0) or 0),
+                                reb_conceded=int(player.get("reb_conceded", 0) or 0),
                             )
                             db.session.add(stat)
 
@@ -576,6 +577,7 @@ def upload_game():
                             blk=int(player.get("blk", 0) or 0),
                             pf=int(player.get("pf", 0) or 0),
                             plus_minus=int(player.get("plus_minus", 0) or 0),
+                            reb_conceded=int(player.get("reb_conceded", 0) or 0),
                         )
                         db.session.add(stat)
 

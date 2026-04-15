@@ -203,7 +203,10 @@
         <!-- Header -->
         <div class="header">
             <h1>Season Trend Report</h1>
-            <div class="subtitle">{{ game_type }} Season Performance Trends</div>
+            <div class="subtitle">
+                {{ game_type }} Performance Trends
+                | {{ total_games }} games in filter
+            </div>
         </div>
         
         <!-- Legend -->
@@ -225,6 +228,7 @@
         <!-- Player Trends -->
         <div class="section">
             <div class="section-title">Player Performance Trends</div>
+            {% if player_trends %}
             {% for player, data in player_trends.items() %}
             <div class="trend-card">
                 <div class="trend-header">
@@ -246,7 +250,11 @@
                             stroke-width="1.5"
                             points="
                                 {% for i in range(data.points|length) %}
-                                {{ 20 + (i / (data.points|length - 1 if data.points|length > 1 else 1) * 360) }},{{ 70 - (data.points[i] / (data.mean * 2 if data.mean > 0 else 20) * 50)|min(60)|max(5) }}
+                                {% set point_x = 20 + (i / (data.points|length - 1 if data.points|length > 1 else 1) * 360) %}
+                                {% set point_height = (data.points[i] / (data.mean * 2 if data.mean > 0 else 20) * 50) %}
+                                {% set point_height = 60 if point_height > 60 else point_height %}
+                                {% set point_height = 5 if point_height < 5 else point_height %}
+                                {{ point_x }},{{ 70 - point_height }}
                                 {% if not loop.last %} {% endif %}
                                 {% endfor %}
                             "
@@ -262,7 +270,11 @@
                             points="
                                 {% for i in range(data.rolling_5|length) %}
                                 {% if data.rolling_5[i] is not none %}
-                                {{ 20 + (i / (data.rolling_5|length - 1 if data.rolling_5|length > 1 else 1) * 360) }},{{ 70 - (data.rolling_5[i] / (data.mean * 2 if data.mean > 0 else 20) * 50)|min(60)|max(5) }}
+                                {% set point_x = 20 + (i / (data.rolling_5|length - 1 if data.rolling_5|length > 1 else 1) * 360) %}
+                                {% set point_height = (data.rolling_5[i] / (data.mean * 2 if data.mean > 0 else 20) * 50) %}
+                                {% set point_height = 60 if point_height > 60 else point_height %}
+                                {% set point_height = 5 if point_height < 5 else point_height %}
+                                {{ point_x }},{{ 70 - point_height }}
                                 {% endif %}
                                 {% if not loop.last %} {% endif %}
                                 {% endfor %}
@@ -293,13 +305,28 @@
                 </div>
             </div>
             {% endfor %}
+            {% else %}
+            <div class="trend-card">
+                <div class="trend-header">
+                    <div class="player-name">No trend data</div>
+                    <div class="games">0 games</div>
+                </div>
+                <div class="trend-stats">
+                    <div class="trend-stat">
+                        <div class="value">--</div>
+                        <div class="label">Add more tracked games</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
         
         <!-- Consistency Rankings -->
         <div class="section">
             <div class="section-title">Consistency Index (Lower CV = More Consistent)</div>
+            {% if consistency_leaders %}
             <div class="consistency-grid">
-                {% for player, data in (player_trends.items()|list|sort(attribute='1.cv'))[:8] %}
+                {% for player, data in consistency_leaders %}
                 <div class="consistency-card">
                     <div class="player">{{ player }}</div>
                     <div class="cv {% if data.cv < 30 %}consistent{% elif data.cv > 50 %}volatile{% endif %}">
@@ -311,6 +338,11 @@
                 </div>
                 {% endfor %}
             </div>
+            {% else %}
+            <div class="trend-card">
+                No consistency ranking available for the selected filter.
+            </div>
+            {% endif %}
         </div>
         
         <!-- Footer -->

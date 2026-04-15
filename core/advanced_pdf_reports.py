@@ -33,6 +33,14 @@ from core.charts import generate_shot_chart, generate_team_shot_chart
 
 class AdvancedPDFReports:
     """Advanced PDF report generation with visualizations."""
+
+    @staticmethod
+    def _filter_games_by_type(query, game_type: str):
+        if game_type == "Season":
+            return query.filter(Game.game_type == "Season")
+        if game_type == "Friendly":
+            return query.filter(Game.game_type == "Friendly")
+        return query
     
     @staticmethod
     def generate_visual_game_report(game_id: int) -> tuple:
@@ -257,16 +265,25 @@ class AdvancedPDFReports:
         
         if not stats:
             return None, None
+
+        game_query = AdvancedPDFReports._filter_games_by_type(
+            Game.query.order_by(Game.sort_date.asc()), game_type
+        )
+        games = game_query.all()
+        game_ids = [g.id for g in games]
         
         # Get shot data
-        shots = ShotEvent.query.filter(ShotEvent.player_name == player_name).all()
+        shots_query = ShotEvent.query.filter(ShotEvent.player_name == player_name)
+        if game_ids:
+            shots_query = shots_query.filter(ShotEvent.game_id.in_(game_ids))
+        shots = shots_query.all()
         shot_data = [
             {
                 'points': s.points or 0,
                 'x_loc': s.x_loc,
                 'y_loc': s.y_loc,
                 'shot_type': s.shot_type,
-                'result': s.result
+                'result': s.result,
             }
             for s in shots
         ]
@@ -275,20 +292,21 @@ class AdvancedPDFReports:
         shot_quality = AdvancedPlayerStats.calculate_shot_quality_score(shot_data)
         
         # Get zone heatmap
-        heatmap = ShotChartAnalytics.get_heatmap_data(player_name=player_name)
+        heatmap = ShotChartAnalytics.get_heatmap_data(
+            game_ids=game_ids if game_ids else None, player_name=player_name
+        )
         
         # Generate shot chart image
-        shot_chart = generate_shot_chart(player_name, None, db.session)
+        shot_chart = generate_shot_chart(
+            player_name, game_ids if game_ids else None, db.session
+        )
         
         # Get games played
         query = PlayerStat.query.filter(PlayerStat.player_name == player_name)
-        if game_type == 'Season':
-            query = query.join(Game).filter(Game.game_type == 'Season')
-        elif game_type == 'Friendly':
-            query = query.join(Game).filter(Game.game_type == 'Friendly')
+        query = AdvancedPDFReports._filter_games_by_type(query.join(Game), game_type)
         
         player_stats = query.all()
-        games_played = len(player_stats)
+        games_played = len({s.game_id for s in player_stats})
         
         # Calculate consistency
         points_values = [s.points for s in player_stats]
@@ -305,6 +323,7 @@ class AdvancedPDFReports:
             shot_quality=shot_quality,
             heatmap=heatmap,
             shot_chart=shot_chart,
+            has_shot_data=bool(shots),
             games_played=games_played,
             consistency=consistency,
             game_type=game_type,
@@ -329,18 +348,21 @@ class AdvancedPDFReports:
             Tuple of (filename, pdf_bytes)
         """
         # Get games
-        query = Game.query.order_by(Game.sort_date.asc())
-        if game_type == 'Season':
-            query = query.filter(Game.game_type == 'Season')
+        query = AdvancedPDFReports._filter_games_by_type(
+            Game.query.order_by(Game.sort_date.asc()), game_type
+        )
         
         games = query.all()
         game_ids = [g.id for g in games]
         
-        # Get player stats over time
-        if player_name:
-            players = [player_name]
-        else:
-            players = [p[0] for p in db.session.query(PlayerStat.player_name).distinct().all()]
+        # Always include all players in the filtered report.
+        players = [
+            p[0]
+            for p in db.session.query(PlayerStat.player_name)
+            .filter(PlayerStat.game_id.in_(game_ids))
+            .distinct()
+            .all()
+        ]
         
         player_trends = {}
         for player in players:
@@ -352,7 +374,7 @@ class AdvancedPDFReports:
                 .all()
             )
             
-            if len(stats) < 3:
+            if not stats:
                 continue
             
             # Calculate rolling averages
@@ -388,12 +410,30 @@ class AdvancedPDFReports:
                 'rolling_10': rolling_10,
                 'mean': round(mean(points_values), 1),
                 'std_dev': round(stdev(points_values), 1) if len(points_values) > 1 else 0,
+                'cv': round(stdev(points_values) / mean(points_values) * 100, 1)
+                if len(points_values) > 1 and mean(points_values) > 0
+                else 0,
                 'games': len(stats)
             }
+
+        player_trends = dict(
+            sorted(
+                player_trends.items(),
+                key=lambda item: (item[1]['games'], item[1]['mean']),
+                reverse=True,
+            )
+        )
+
+        consistency_leaders = sorted(
+            player_trends.items(),
+            key=lambda item: item[1]['cv'],
+        )[:8]
         
         html = render_template(
             "reports/season_trend_report.html",
             player_trends=player_trends,
+            consistency_leaders=consistency_leaders,
+            total_games=len(games),
             game_type=game_type,
             generated_date=datetime.now().strftime("%B %d, %Y")
         )

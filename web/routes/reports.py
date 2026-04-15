@@ -45,6 +45,7 @@ from core.utils import (
     calculate_efg_percent,
     calculate_ortg,
     calculate_possessions,
+    parse_minutes,
     safe_percentage,
 )
 from core.advanced_game_report import TeamBox, PlayerBox, build_advanced_game_report
@@ -79,6 +80,38 @@ def _safe_ppp(points, possessions):
 
 def _seconds_to_minutes(seconds):
     return round((seconds or 0) / 60, 1)
+
+
+def _get_player_reb_conceded_summary(player_name, game_ids, session):
+    lineup_total, tracked_games = (
+        session.query(
+            func.sum(PlayerLineupStats.reb_conceded),
+            func.count(func.distinct(LineupSegment.game_id)),
+        )
+        .join(LineupSegment, PlayerLineupStats.lineup_segment_id == LineupSegment.id)
+        .filter(PlayerLineupStats.player_name == player_name)
+        .filter(LineupSegment.game_id.in_(game_ids))
+        .one()
+    )
+    return {
+        "total": int(lineup_total or 0),
+        "tracked_games": int(tracked_games or 0),
+    }
+
+
+def _get_team_reb_conceded_summary(game_ids, session):
+    lineup_total, tracked_games = (
+        session.query(
+            func.sum(LineupSegment.reb_conceded),
+            func.count(func.distinct(LineupSegment.game_id)),
+        )
+        .filter(LineupSegment.game_id.in_(game_ids))
+        .one()
+    )
+    return {
+        "total": int(lineup_total or 0),
+        "tracked_games": int(tracked_games or 0),
+    }
 
 
 def _normalize_zone(zone, x_loc=None, y_loc=None, shot_type=None):
@@ -325,8 +358,25 @@ def _build_play_summary(game_ids, player_name=None):
 
 
 def _build_player_box_detail(stats, games_played):
-    live_stats = [s for s in stats if getattr(s.game, "source", None) == "LIVE"]
-    total_plus_minus = sum((s.plus_minus or 0) for s in live_stats)
+    session = db.session
+    game_ids = [s.game_id for s in stats]
+    player_name = stats[0].player_name if stats else None
+    stat_reb_conceded = sum(s.reb_conceded or 0 for s in stats)
+    lineup_reb_conceded = (
+        _get_player_reb_conceded_summary(player_name, game_ids, session)
+        if player_name and game_ids
+        else {"total": 0, "tracked_games": 0}
+    )
+    reb_conceded_total = lineup_reb_conceded["total"] or stat_reb_conceded
+    reb_conceded_games = lineup_reb_conceded["tracked_games"]
+    if reb_conceded_games == 0 and stat_reb_conceded:
+        reb_conceded_games = games_played
+
+    pm_stats = [
+        s for s in stats if AnalyticsService.supports_plus_minus(getattr(s, "game", None))
+    ]
+    total_plus_minus = sum((s.plus_minus or 0) for s in pm_stats)
+    pm_games = len(pm_stats)
     return {
         "available": bool(stats),
         "totals": {
@@ -334,8 +384,8 @@ def _build_player_box_detail(stats, games_played):
             "dreb": sum(s.dreb or 0 for s in stats),
             "reb": sum(s.reb or 0 for s in stats),
             "pf": sum(s.pf or 0 for s in stats),
-            "plus_minus": total_plus_minus if live_stats else None,
-            "reb_conceded": sum(s.reb_conceded or 0 for s in stats),
+            "plus_minus": total_plus_minus if pm_stats else None,
+            "reb_conceded": reb_conceded_total,
         },
         "per_game": {
             "oreb": round(sum(s.oreb or 0 for s in stats) / games_played, 1)
@@ -350,17 +400,17 @@ def _build_player_box_detail(stats, games_played):
             "pf": round(sum(s.pf or 0 for s in stats) / games_played, 1)
             if games_played
             else 0.0,
-            "plus_minus": round(total_plus_minus / len(live_stats), 1)
-            if live_stats
+            "plus_minus": round(total_plus_minus / len(pm_stats), 1)
+            if pm_stats
             else None,
-            "reb_conceded": round(
-                sum(s.reb_conceded or 0 for s in stats) / games_played, 1
-            )
-            if games_played
+            "reb_conceded": round(reb_conceded_total / reb_conceded_games, 1)
+            if reb_conceded_games
             else 0.0,
         },
-        "live_games_count": len(live_stats),
-        "has_live_plus_minus": bool(live_stats),
+        "tracked_plus_minus_games": pm_games,
+        "has_live_plus_minus": bool(pm_stats),
+        "tracked_reb_conceded_games": reb_conceded_games,
+        "has_reb_conceded": bool(reb_conceded_games),
     }
 
 
@@ -600,18 +650,29 @@ def _build_player_shot_play_context(player_name, game_ids):
 def _build_team_box_detail(game_ids, games):
     stats = PlayerStat.query.filter(PlayerStat.game_id.in_(game_ids)).all()
     total_games = len(games)
+    stat_reb_conceded = sum(s.reb_conceded or 0 for s in stats)
+    lineup_reb_conceded = _get_team_reb_conceded_summary(game_ids, db.session)
+    reb_conceded_total = lineup_reb_conceded["total"] or stat_reb_conceded
+    reb_conceded_games = lineup_reb_conceded["tracked_games"]
+    if reb_conceded_games == 0 and stat_reb_conceded:
+        reb_conceded_games = total_games
     totals = {
         "oreb": sum(s.oreb or 0 for s in stats),
         "dreb": sum(s.dreb or 0 for s in stats),
         "reb": sum(s.reb or 0 for s in stats),
         "pf": sum(s.pf or 0 for s in stats),
-        "reb_conceded": sum(s.reb_conceded or 0 for s in stats),
+        "reb_conceded": reb_conceded_total,
     }
     per_game = {
-        key: round(value / total_games, 1) if total_games else 0.0
-        for key, value in totals.items()
+        "oreb": round(totals["oreb"] / total_games, 1) if total_games else 0.0,
+        "dreb": round(totals["dreb"] / total_games, 1) if total_games else 0.0,
+        "reb": round(totals["reb"] / total_games, 1) if total_games else 0.0,
+        "pf": round(totals["pf"] / total_games, 1) if total_games else 0.0,
+        "reb_conceded": round(reb_conceded_total / reb_conceded_games, 1)
+        if reb_conceded_games
+        else 0.0,
     }
-    live_games = [game for game in games if game.source == "LIVE"]
+    live_games = [game for game in games if AnalyticsService.supports_plus_minus(game)]
     live_ids = [game.id for game in live_games]
     total_plus_minus = 0
     if live_ids:
@@ -626,6 +687,8 @@ def _build_team_box_detail(game_ids, games):
         "totals": totals,
         "per_game": per_game,
         "live_plus_minus_total": total_plus_minus if live_ids else None,
+        "tracked_plus_minus_games": len(live_ids),
+        "tracked_reb_conceded_games": reb_conceded_games,
         "plus_minus_leaders": AnalyticsService.calculate_plus_minus_leaders(
             games, db.session
         ),
@@ -1254,9 +1317,7 @@ def advanced_game_summary_pdf(game_id):
     players = [
         PlayerBox(
             name=s.player_name,
-            minutes=float(s.minutes.split(":")[0])
-            if isinstance(s.minutes, str) and ":" in s.minutes
-            else float(s.minutes or 0),
+            minutes=parse_minutes(s.minutes),
             pts=s.points,
             fgm=s.fgm,
             fga=s.fga,
@@ -1685,6 +1746,8 @@ def download_all_reports():
 
     players = (
         db.session.query(PlayerStat.player_name)
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes.notin_(("00:00", "0")))
         .distinct()
         .order_by(PlayerStat.player_name)
         .limit(MAX_PLAYERS_IN_ZIP)
@@ -1789,8 +1852,10 @@ def download_all_reports():
         return jsonify({"error": str(e)}), 500
 
 
-def _get_game_type():
-    game_type = request.args.get("game_type", "ALL")
+def _get_game_type(default="ALL"):
+    if default not in VALID_GAME_TYPES:
+        default = "ALL"
+    game_type = request.args.get("game_type", default)
     return game_type if game_type in VALID_GAME_TYPES else "ALL"
 
 
@@ -1917,7 +1982,7 @@ def lineup_report_pdf():
 @login_required
 def player_scouting_card_pdf(player_name):
     """Generate player scouting card with shot chart and hot zones."""
-    game_type = request.args.get("game_type", "ALL")
+    game_type = _get_game_type()
 
     filename, pdf_bytes = generate_player_scouting_card_bytes(player_name, game_type)
 
@@ -1939,7 +2004,7 @@ def player_scouting_card_pdf(player_name):
 @login_required
 def season_trend_report_pdf():
     """Generate season trend report with rolling averages."""
-    game_type = request.args.get("game_type", "Season")
+    game_type = _get_game_type(default="Season")
     player_name = request.args.get("player", None)
 
     filename, pdf_bytes = generate_season_trend_report_bytes(player_name, game_type)
@@ -1959,7 +2024,7 @@ def season_trend_report_pdf():
 @login_required
 def clutch_report_pdf():
     """Generate clutch time performance report."""
-    game_type = request.args.get("game_type", "Season")
+    game_type = _get_game_type(default="Season")
 
     filename, pdf_bytes = generate_clutch_report_bytes(game_type)
 
