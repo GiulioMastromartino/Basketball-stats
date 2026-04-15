@@ -1,4 +1,5 @@
 import ast
+import json
 import zipfile
 from collections import defaultdict
 from io import BytesIO
@@ -791,6 +792,9 @@ def _parse_detail(detail):
         result["points"] = int(detail_str)
         return result
 
+    if len(detail_str) >= 500:
+        return result
+
     try:
         parsed = ast.literal_eval(detail_str)
         if isinstance(parsed, dict):
@@ -904,10 +908,6 @@ def _get_opponent_box_score_from_events(game_id):
     Returns a TeamBox object with real opponent stats if events are tracked,
     otherwise returns None to signal that estimation should be used.
     """
-    import json
-    from core.models import GameEvent
-    from core.advanced_game_report import TeamBox
-
     events = GameEvent.query.filter_by(game_id=game_id).all()
 
     opp_score_events = [e for e in events if e.event_type == "OPP_SCORE"]
@@ -983,7 +983,7 @@ def generate_game_pdf_bytes(game_id):
     Generates the PDF bytes for a game summary.
     Returns (filename, pdf_bytes).
     """
-    game = Game.query.get(game_id)
+    game = db.session.get(Game, game_id)
     if not game:
         return None, None
 
@@ -1043,8 +1043,7 @@ def generate_game_pdf_bytes(game_id):
     )
     if segment_poss > 0:
         team_poss = float(segment_poss)
-    elif team_poss <= 0:
-        team_poss = 1.0  # Avoid division by zero
+    team_poss = max(team_poss, 1.0)
 
     team_aggregates["ortg"] = calculate_ortg(game.team_score, team_poss)
     team_aggregates["drtg"] = calculate_ortg(game.opponent_score, team_poss)
@@ -1229,61 +1228,25 @@ def advanced_game_summary_pdf(game_id):
     opp_box = _get_opponent_box_score_from_events(game_id)
 
     if opp_box is None:
-        opp_score_events = GameEvent.query.filter_by(
-            game_id=game_id, event_type="OPP_SCORE"
-        ).all()
+        opp_fga_est = int(team_poss * 0.6)
+        opp_fta_est = int(opp_fga_est * 0.25)
 
-        if opp_score_events:
-            opp_fga = 0
-            opp_fgm = 0
-            opp_tpm = 0
-            opp_tpa = 0
-            opp_ftm = 0
-            opp_fta = 0
-            opp_orb = 0
-            opp_drb = team_box.orb
-            opp_trb = opp_orb + opp_drb
-            opp_ast = 0
-            opp_stl = team_box.tov
-            opp_blk = 0
-            opp_tov = 0
-
-            opp_box = TeamBox(
-                pts=opp_pts,
-                fgm=opp_fgm,
-                fga=opp_fga,
-                tpm=opp_tpm,
-                tpa=opp_tpa,
-                ftm=opp_ftm,
-                fta=opp_fta,
-                orb=opp_orb,
-                drb=opp_drb,
-                trb=opp_trb,
-                ast=opp_ast,
-                stl=opp_stl,
-                blk=opp_blk,
-                tov=opp_tov,
-            )
-        else:
-            opp_fga_est = int(team_poss * 0.6)
-            opp_fta_est = int(opp_fga_est * 0.25)
-
-            opp_box = TeamBox(
-                pts=opp_pts,
-                fgm=0,
-                fga=opp_fga_est,
-                tpm=0,
-                tpa=0,
-                ftm=0,
-                fta=opp_fta_est,
-                orb=0,
-                drb=team_box.orb,
-                trb=team_box.orb,
-                ast=0,
-                stl=0,
-                blk=0,
-                tov=int(team_poss * 0.15),
-            )
+        opp_box = TeamBox(
+            pts=opp_pts,
+            fgm=0,
+            fga=opp_fga_est,
+            tpm=0,
+            tpa=0,
+            ftm=0,
+            fta=opp_fta_est,
+            orb=0,
+            drb=team_box.orb,
+            trb=team_box.orb,
+            ast=0,
+            stl=0,
+            blk=0,
+            tov=int(team_poss * 0.15),
+        )
 
     opp_poss = calculate_possessions(opp_box.fga, opp_box.fta, opp_box.orb, opp_box.tov)
     pace = (team_poss + opp_poss) / 2 if (team_poss + opp_poss) > 0 else team_poss
@@ -1384,9 +1347,10 @@ def _build_quarterly_stats(events, game):
         if quarter_key in quarterly["team"]:
             quarterly["team"][quarter_key] = points
 
+    quarter_map = _build_quarter_map(events)
     for event in events:
         if event.event_type == "OPP_SCORE":
-            quarter = _build_quarter_map(events).get(event.id, event.quarter or 1)
+            quarter = quarter_map.get(event.id, event.quarter or 1)
             quarter_key = f"q{quarter}" if quarter <= 4 else "ot"
             points = _parse_detail_points(event.detail)
             if quarter_key in quarterly["opponent"]:
@@ -1703,7 +1667,7 @@ def player_report_pdf(player_name):
 
 
 @reports_bp.route("/download-all", strict_slashes=False)
-# @login_required
+@login_required
 def download_all_reports():
     """Generate ZIP with all player reports sequentially to stay under 500MB RAM"""
     import time
@@ -2259,7 +2223,7 @@ def game_evolution_pdf(game_id: int):
         PDF file download
     """
     try:
-        game = Game.query.get(game_id)
+game = db.session.get(Game, game_id)
         if game is None:
             raise ValueError(f"Game with id {game_id} not found")
 

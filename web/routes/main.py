@@ -615,7 +615,9 @@ def upload_game():
                         if not file or file.filename == "":
                             continue
 
-                        if not allowed_file(file.filename) or not file.filename.lower().endswith(".json"):
+                        if not allowed_file(
+                            file.filename
+                        ) or not file.filename.lower().endswith(".json"):
                             errors.append(f"{file.filename}: Invalid file type")
                             continue
 
@@ -628,15 +630,24 @@ def upload_game():
                         # Extract basic info for duplicate check
                         game_data = data.get("game", data)
                         date_display, sort_date = coerce_json_game_dates(game_data)
-                        opponent = (game_data.get("opponent") or game_data.get("Opponent") or game_data.get("vs") or "").strip()
+                        opponent = (
+                            game_data.get("opponent")
+                            or game_data.get("Opponent")
+                            or game_data.get("vs")
+                            or ""
+                        ).strip()
 
                         if not sort_date or not opponent:
                             errors.append(f"{file.filename}: Missing date or opponent")
                             continue
 
-                        existing = Game.query.filter_by(sort_date=sort_date, opponent=opponent).first()
+                        existing = Game.query.filter_by(
+                            sort_date=sort_date, opponent=opponent
+                        ).first()
                         if existing:
-                            errors.append(f"{file.filename}: Game already exists ({existing.opponent})")
+                            errors.append(
+                                f"{file.filename}: Game already exists ({existing.opponent})"
+                            )
                             continue
 
                         # Use service to handle the heavy lifting (supports Schema 4, lineups, plays, etc.)
@@ -648,10 +659,18 @@ def upload_game():
                         errors.append(f"{file.filename}: {str(e)}")
 
                 if success_count > 0:
-                    flash(f"Successfully imported {success_count} JSON game(s).", "success")
+                    flash(
+                        f"Successfully imported {success_count} JSON game(s).",
+                        "success",
+                    )
 
                 if errors:
-                    flash(f"Errors occurred with {len(errors)} file(s): " + "; ".join(errors[:5]) + ("..." if len(errors) > 5 else ""), "danger")
+                    flash(
+                        f"Errors occurred with {len(errors)} file(s): "
+                        + "; ".join(errors[:5])
+                        + ("..." if len(errors) > 5 else ""),
+                        "danger",
+                    )
 
                 return redirect(url_for("main.index"))
 
@@ -720,6 +739,7 @@ def game_detail(game_id):
     """Detailed stats for a specific game with Advanced Metrics"""
     game = Game.query.get_or_404(game_id)
     from core.advanced_analytics import LineupAnalytics
+
     stats = (
         PlayerStat.query.filter_by(game_id=game.id)
         .order_by(PlayerStat.points.desc())
@@ -809,14 +829,19 @@ def game_detail(game_id):
     team_poss = calculate_possessions(
         team_stats["fga"], team_stats["fta"], team_stats["oreb"], team_stats["tov"]
     )
-    
+
     # Try to get more accurate possessions from lineup segments if available
     from core.models import LineupSegment
-    segment_poss = db.session.query(func.sum(LineupSegment.possessions)).filter_by(game_id=game.id).scalar() or 0
+
+    segment_poss = (
+        db.session.query(func.sum(LineupSegment.possessions))
+        .filter_by(game_id=game.id)
+        .scalar()
+        or 0
+    )
     if segment_poss > 0:
         team_poss = float(segment_poss)
-    elif team_poss <= 0:
-        team_poss = team_possessions
+    team_poss = max(team_poss, 1.0)
 
     total_game_min = sum(p.min_decimal for p in stats) / 5.0
     pace = calculate_pace(team_poss, total_game_min)
@@ -890,16 +915,22 @@ def game_detail(game_id):
 
     try:
         top_game_lineups_off = LineupAnalytics.get_game_lineup_rankings(
-            game.id, top_n=3, rank_by="offensive", min_possessions=10,
+            game.id,
+            top_n=3,
+            rank_by="offensive",
+            min_possessions=10,
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss
+            total_possessions_override=team_poss,
         )
         top_game_lineups_def = LineupAnalytics.get_game_lineup_rankings(
-            game.id, top_n=3, rank_by="defensive", min_possessions=10,
+            game.id,
+            top_n=3,
+            rank_by="defensive",
+            min_possessions=10,
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss
+            total_possessions_override=team_poss,
         )
     except Exception as e:
         print(f"[GameDetail] Error fetching lineups: {e}")
@@ -916,7 +947,7 @@ def game_detail(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="offensive"
+            rank_by="offensive",
         )
         top_game_duos_def = LineupAnalytics.get_combination_net_differentials(
             combination_type="duo",
@@ -927,7 +958,7 @@ def game_detail(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="defensive"
+            rank_by="defensive",
         )
     except Exception as e:
         print(f"[GameDetail] Error fetching duos: {e}")
@@ -944,7 +975,7 @@ def game_detail(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="offensive"
+            rank_by="offensive",
         )
         top_game_trios_def = LineupAnalytics.get_combination_net_differentials(
             combination_type="trio",
@@ -955,7 +986,7 @@ def game_detail(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="defensive"
+            rank_by="defensive",
         )
     except Exception as e:
         print(f"[GameDetail] Error fetching trios: {e}")
@@ -1626,14 +1657,14 @@ def create_test_game():
     try:
         # Clear any existing memory before starting heavy operation
         gc.collect()
-        
+
         payload = generate_test_game_payload()
-        
+
         # After payload is ready, try to free any generation-time overhead
         gc.collect()
-        
+
         game = create_game_from_live_data(payload)
-        
+
         # Clear payload from memory after import
         del payload
         gc.collect()

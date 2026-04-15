@@ -282,7 +282,7 @@
                             ('plus_minus_avg', '+/-', 'Average plus/minus per game (LIVE games).', ''),
                             ('ortg', 'ORtg', 'Points produced per 100 possessions.', 'Formula: ORtg = (Points / Possessions) × 100'),
                             ('ppp', 'PPP', 'Scoring efficiency per possession.', 'Formula: PPP = Points / Possessions'),
-                            ('usg_pct', 'USG', 'How many possessions a player finishes.', 'Formula: USG% ≈ (FGA + 0.44×FTA + TOV) / Poss × 100'),
+                            ('poss_per_40', 'Poss/40', 'Possessions per 40 minutes.', 'Formula: Possessions / (Minutes / 40)'),
                             ('rpg', 'REB', 'Total rebounds per game.', ''),
                             ('orebpg', 'OREB', 'Offensive rebounds per game.', ''),
                             ('drebpg', 'DREB', 'Defensive rebounds per game.', ''),
@@ -405,7 +405,7 @@
                         <td class="text-center fw-bold {% if p.plus_minus_avg > 0 %}flag-excellent{% elif p.plus_minus_avg < 0 %}flag-poor{% endif %}">{% if p.plus_minus_avg > 0 %}+{% endif %}{{ p.plus_minus_avg|round(1) }}</td>
                         <td class="text-center fw-bold" style="color: var(--success);">{{ p.ortg|round(0) }}</td>
                         <td class="text-center fw-bold {% if p.ppp > 1.1 %}flag-excellent{% elif p.ppp < 0.8 %}flag-poor{% endif %}">{{ p.ppp|round(2) }}</td>
-                        <td class="text-center">{{ p.usg_pct|round(1) }}</td>
+                        <td class="text-center">{{ p.poss_per_40|round(1) }}</td>
                         <td class="text-center">{{ p.rpg|round(1) }}</td>
                         <td class="text-center">{{ p.orebpg|round(1) }}</td>
                         <td class="text-center">{{ p.drebpg|round(1) }}</td>
