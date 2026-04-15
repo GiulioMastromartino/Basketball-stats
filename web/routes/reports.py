@@ -2223,7 +2223,7 @@ def game_evolution_pdf(game_id: int):
         PDF file download
     """
     try:
-game = db.session.get(Game, game_id)
+        game = db.session.get(Game, game_id)
         if game is None:
             raise ValueError(f"Game with id {game_id} not found")
 
