@@ -3,12 +3,25 @@ import zipfile
 from collections import defaultdict
 from io import BytesIO
 from datetime import datetime
-from sqlalchemy import func
-from flask import Blueprint, jsonify, render_template, request, send_file
+from sqlalchemy import desc, func
+from flask import Blueprint, current_app, jsonify, render_template, request, send_file
 from flask_login import login_required
 from weasyprint import HTML
 
-from core.models import Game, PlayerStat, ShotEvent, GameEvent, SystemSetting, db
+from core.models import (
+    Game,
+    GameEvent,
+    Lineup,
+    LineupSegment,
+    Play,
+    PlayerLineupStats,
+    PlayerStat,
+    Possession,
+    ShotEvent,
+    ShotZone,
+    SystemSetting,
+    db,
+)
 from core.services.analytics_service import AnalyticsService
 from core.services.evolution_report_service import EvolutionReportService
 from core.services.schema4_evolution_report_service import (
@@ -27,7 +40,12 @@ from core.play_analytics import (
     get_untracked_percentages,
     get_summary_player_top_plays_by_points,
 )
-from core.utils import calculate_efg_percent, calculate_ortg, calculate_possessions, safe_percentage
+from core.utils import (
+    calculate_efg_percent,
+    calculate_ortg,
+    calculate_possessions,
+    safe_percentage,
+)
 from core.advanced_game_report import TeamBox, PlayerBox, build_advanced_game_report
 from core.advanced_pdf_reports import (
     AdvancedPDFReports,
@@ -41,12 +59,722 @@ from core.advanced_analytics import (
     classify_shot_zone,
     ClutchPerformance,
     LineupAnalytics,
+    parse_time_to_seconds,
 )
 
 reports_bp = Blueprint("reports", __name__)
 
 VALID_GAME_TYPES = {"ALL", "Season", "Friendly"}
 MAX_PLAYERS_IN_ZIP = 50
+
+
+def _safe_pct(made, attempts):
+    return round((made / attempts) * 100, 1) if attempts else 0.0
+
+
+def _safe_ppp(points, possessions):
+    return round(points / possessions, 3) if possessions else 0.0
+
+
+def _seconds_to_minutes(seconds):
+    return round((seconds or 0) / 60, 1)
+
+
+def _normalize_zone(zone, x_loc=None, y_loc=None, shot_type=None):
+    if zone:
+        return zone
+    if x_loc is None or y_loc is None:
+        return "Unknown"
+    return classify_shot_zone(x_loc, y_loc, shot_type or "2pt") or "Unknown"
+
+
+def _team_event_points(event):
+    if event.event_type in {"SHOT_2PT", "SHOT_3PT"} and event.shot_attempt == "made":
+        return 3 if event.event_type == "SHOT_3PT" else 2
+    if event.event_type == "FT_MADE":
+        return 1
+    return 0
+
+
+def _player_event_points(event):
+    if event.event_type in {"SHOT_2PT", "SHOT_3PT"} and event.shot_attempt == "made":
+        return 3 if event.event_type == "SHOT_3PT" else 2
+    if event.event_type == "FT_MADE":
+        return 1
+    return _parse_detail_points(event.detail)
+
+
+def _opponent_event_points(event):
+    if event.event_type == "OPP_SCORE":
+        return _parse_detail_points(event.detail) or 2
+    return 0
+
+
+def _serialize_lineup_summary(item):
+    fga = item["fga"]
+    tpa = item["tpa"]
+    fta = item["fta"]
+    possessions = item["possessions"]
+    games_played = len(item["games"])
+    return {
+        "name": item["name"],
+        "players": item["players"],
+        "teammates": item.get("teammates", []),
+        "minutes": _seconds_to_minutes(item["total_seconds"]),
+        "possessions": possessions,
+        "points_scored": item["points_scored"],
+        "points_allowed": item["points_allowed"],
+        "ortg": round((item["points_scored"] / possessions) * 100, 1)
+        if possessions
+        else 0.0,
+        "drtg": round((item["points_allowed"] / possessions) * 100, 1)
+        if possessions
+        else 0.0,
+        "net_rating": round(
+            ((item["points_scored"] - item["points_allowed"]) / possessions) * 100, 1
+        )
+        if possessions
+        else 0.0,
+        "segment_count": item["segment_count"],
+        "games_played": games_played,
+        "is_starting": item["is_starting"],
+        "fgm": item["fgm"],
+        "fga": fga,
+        "fg_pct": _safe_pct(item["fgm"], fga),
+        "tpm": item["tpm"],
+        "tpa": tpa,
+        "tp_pct": _safe_pct(item["tpm"], tpa),
+        "ftm": item["ftm"],
+        "fta": fta,
+        "ft_pct": _safe_pct(item["ftm"], fta),
+        "oreb": item["oreb"],
+        "dreb": item["dreb"],
+        "reb": item["oreb"] + item["dreb"],
+        "ast": item["ast"],
+        "stl": item["stl"],
+        "blk": item["blk"],
+        "tov": item["tov"],
+        "reb_conceded": item["reb_conceded"],
+    }
+
+
+def _build_zone_summary(shots):
+    if not shots:
+        return {"available": False, "rows": [], "expected_available": False}
+
+    expected_values = {z.zone_name: z.expected_value for z in ShotZone.query.all()}
+    zone_map = defaultdict(lambda: {"attempts": 0, "makes": 0, "points": 0})
+
+    for shot in shots:
+        zone = _normalize_zone(shot.zone, shot.x_loc, shot.y_loc, shot.shot_type)
+        zone_row = zone_map[zone]
+        zone_row["attempts"] += 1
+        zone_row["points"] += shot.points or 0
+        if shot.result == "made":
+            zone_row["makes"] += 1
+
+    rows = []
+    for zone, values in sorted(
+        zone_map.items(), key=lambda item: item[1]["attempts"], reverse=True
+    ):
+        attempts = values["attempts"]
+        makes = values["makes"]
+        actual_pps = round(values["points"] / attempts, 2) if attempts else 0.0
+        expected_value = expected_values.get(zone)
+        rows.append(
+            {
+                "zone": zone,
+                "attempts": attempts,
+                "makes": makes,
+                "fg_pct": _safe_pct(makes, attempts),
+                "points": values["points"],
+                "actual_pps": actual_pps,
+                "expected_value": round(expected_value, 2)
+                if expected_value is not None
+                else None,
+                "value_delta": round(actual_pps - expected_value, 2)
+                if expected_value is not None
+                else None,
+            }
+        )
+
+    return {
+        "available": True,
+        "rows": rows,
+        "expected_available": any(row["expected_value"] is not None for row in rows),
+    }
+
+
+def _build_play_summary(game_ids, player_name=None):
+    shot_query = ShotEvent.query.join(Play, ShotEvent.play_id == Play.id).filter(
+        ShotEvent.game_id.in_(game_ids),
+        ShotEvent.play_id.isnot(None),
+    )
+    event_query = GameEvent.query.join(Play, GameEvent.play_id == Play.id).filter(
+        GameEvent.game_id.in_(game_ids),
+        GameEvent.play_id.isnot(None),
+    )
+    possession_query = Possession.query.join(
+        Play, Possession.play_id == Play.id
+    ).filter(
+        Possession.game_id.in_(game_ids),
+        Possession.play_id.isnot(None),
+    )
+
+    if player_name:
+        shot_query = shot_query.filter(ShotEvent.player_name == player_name)
+        event_query = event_query.filter(GameEvent.player_name == player_name)
+        possession_rows = []
+    else:
+        possession_rows = possession_query.all()
+
+    shot_rows = shot_query.all()
+    event_rows = event_query.all()
+
+    play_map = {}
+    for shot in shot_rows:
+        play = shot.play
+        record = play_map.setdefault(
+            play.id,
+            {
+                "play_name": play.name,
+                "play_type": play.play_type,
+                "attempts": 0,
+                "makes": 0,
+                "points": 0,
+                "actions": 0,
+                "possessions": 0,
+                "turnovers": 0,
+            },
+        )
+        record["attempts"] += 1
+        record["actions"] += 1
+        record["points"] += shot.points or 0
+        if shot.result == "made":
+            record["makes"] += 1
+
+    for event in event_rows:
+        play = event.play
+        if play is None:
+            continue
+        record = play_map.setdefault(
+            play.id,
+            {
+                "play_name": play.name,
+                "play_type": play.play_type,
+                "attempts": 0,
+                "makes": 0,
+                "points": 0,
+                "actions": 0,
+                "possessions": 0,
+                "turnovers": 0,
+            },
+        )
+        record["actions"] += 1
+        if event.event_type == "TURNOVER":
+            record["turnovers"] += 1
+
+    for possession in possession_rows:
+        play = possession.play
+        if play is None:
+            continue
+        record = play_map.setdefault(
+            play.id,
+            {
+                "play_name": play.name,
+                "play_type": play.play_type,
+                "attempts": 0,
+                "makes": 0,
+                "points": 0,
+                "actions": 0,
+                "possessions": 0,
+                "turnovers": 0,
+            },
+        )
+        record["possessions"] += 1
+        if not player_name:
+            record["points"] += possession.points or 0
+
+    rows = []
+    for record in play_map.values():
+        denominator = record["possessions"] or record["actions"] or record["attempts"]
+        rows.append(
+            {
+                **record,
+                "fg_pct": _safe_pct(record["makes"], record["attempts"]),
+                "ppp": _safe_ppp(record["points"], denominator),
+            }
+        )
+
+    rows.sort(
+        key=lambda row: (row["points"], row["attempts"], row["actions"]), reverse=True
+    )
+    efficient = [
+        row
+        for row in rows
+        if (row["possessions"] or row["actions"] or row["attempts"]) >= 2
+    ]
+    efficient.sort(key=lambda row: row["ppp"], reverse=True)
+
+    return {
+        "available": bool(rows),
+        "top_volume": rows[:5],
+        "top_efficiency": efficient[:5],
+    }
+
+
+def _build_player_box_detail(stats, games_played):
+    live_stats = [s for s in stats if getattr(s.game, "source", None) == "LIVE"]
+    total_plus_minus = sum((s.plus_minus or 0) for s in live_stats)
+    return {
+        "available": bool(stats),
+        "totals": {
+            "oreb": sum(s.oreb or 0 for s in stats),
+            "dreb": sum(s.dreb or 0 for s in stats),
+            "reb": sum(s.reb or 0 for s in stats),
+            "pf": sum(s.pf or 0 for s in stats),
+            "plus_minus": total_plus_minus if live_stats else None,
+            "reb_conceded": sum(s.reb_conceded or 0 for s in stats),
+        },
+        "per_game": {
+            "oreb": round(sum(s.oreb or 0 for s in stats) / games_played, 1)
+            if games_played
+            else 0.0,
+            "dreb": round(sum(s.dreb or 0 for s in stats) / games_played, 1)
+            if games_played
+            else 0.0,
+            "reb": round(sum(s.reb or 0 for s in stats) / games_played, 1)
+            if games_played
+            else 0.0,
+            "pf": round(sum(s.pf or 0 for s in stats) / games_played, 1)
+            if games_played
+            else 0.0,
+            "plus_minus": round(total_plus_minus / len(live_stats), 1)
+            if live_stats
+            else None,
+            "reb_conceded": round(
+                sum(s.reb_conceded or 0 for s in stats) / games_played, 1
+            )
+            if games_played
+            else 0.0,
+        },
+        "live_games_count": len(live_stats),
+        "has_live_plus_minus": bool(live_stats),
+    }
+
+
+def _build_player_lineup_context(player_name, game_ids, session):
+    rows = (
+        session.query(PlayerLineupStats, LineupSegment, Lineup)
+        .join(LineupSegment, PlayerLineupStats.lineup_segment_id == LineupSegment.id)
+        .outerjoin(Lineup, LineupSegment.lineup_id == Lineup.id)
+        .filter(PlayerLineupStats.player_name == player_name)
+        .filter(LineupSegment.game_id.in_(game_ids))
+        .all()
+    )
+
+    if not rows:
+        return {
+            "available": False,
+            "best_lineup": None,
+            "worst_lineup": None,
+            "most_used_lineups": [],
+            "starting_units": [],
+        }
+
+    lineup_map = {}
+    for player_stats, segment, lineup in rows:
+        players = (
+            list(lineup.players)
+            if lineup and lineup.players
+            else list(segment.players or [])
+        )
+        key = lineup.id if lineup else f"segment:{'|'.join(sorted(players))}"
+        record = lineup_map.setdefault(
+            key,
+            {
+                "name": lineup.display_name
+                if lineup and lineup.display_name
+                else " · ".join(players),
+                "players": players,
+                "teammates": [p for p in players if p != player_name],
+                "total_seconds": 0,
+                "possessions": 0,
+                "points_scored": 0,
+                "points_allowed": 0,
+                "segment_count": 0,
+                "games": set(),
+                "is_starting": bool(lineup.is_starting) if lineup else False,
+                "fgm": 0,
+                "fga": 0,
+                "tpm": 0,
+                "tpa": 0,
+                "ftm": 0,
+                "fta": 0,
+                "oreb": 0,
+                "dreb": 0,
+                "ast": 0,
+                "stl": 0,
+                "blk": 0,
+                "tov": 0,
+                "reb_conceded": 0,
+            },
+        )
+        record["total_seconds"] += segment.duration_seconds or 0
+        record["possessions"] += segment.possessions or 0
+        record["points_scored"] += segment.points_scored or 0
+        record["points_allowed"] += segment.points_allowed or 0
+        record["segment_count"] += 1
+        record["games"].add(segment.game_id)
+        record["is_starting"] = (
+            record["is_starting"] or bool(lineup.is_starting)
+            if lineup
+            else record["is_starting"]
+        )
+        for field in (
+            "fgm",
+            "fga",
+            "tpm",
+            "tpa",
+            "ftm",
+            "fta",
+            "oreb",
+            "dreb",
+            "ast",
+            "stl",
+            "blk",
+            "tov",
+            "reb_conceded",
+        ):
+            record[field] += getattr(player_stats, field) or 0
+
+    summaries = [_serialize_lineup_summary(item) for item in lineup_map.values()]
+    best = max(summaries, key=lambda item: (item["net_rating"], item["possessions"]))
+    worst = min(summaries, key=lambda item: (item["net_rating"], -item["possessions"]))
+    most_used = sorted(summaries, key=lambda item: item["minutes"], reverse=True)[:3]
+    starting = [item for item in most_used + summaries if item["is_starting"]]
+
+    return {
+        "available": True,
+        "best_lineup": best,
+        "worst_lineup": worst,
+        "most_used_lineups": most_used,
+        "starting_units": starting[:3],
+    }
+
+
+def _build_possession_summary(game_ids, events, team_stats):
+    possessions = Possession.query.filter(Possession.game_id.in_(game_ids)).all()
+    quarter_rows = []
+    if possessions:
+        quarter_map = defaultdict(
+            lambda: {
+                "team_possessions": 0,
+                "opp_possessions": 0,
+                "team_points": 0,
+                "opp_points": 0,
+            }
+        )
+        for possession in possessions:
+            quarter = possession.quarter or 1
+            bucket = quarter_map[quarter]
+            if possession.team_possession:
+                bucket["team_possessions"] += 1
+                bucket["team_points"] += possession.points or 0
+            else:
+                bucket["opp_possessions"] += 1
+                bucket["opp_points"] += possession.points or 0
+
+        for quarter in sorted(quarter_map):
+            bucket = quarter_map[quarter]
+            quarter_rows.append(
+                {
+                    "quarter": quarter,
+                    "team_possessions": bucket["team_possessions"],
+                    "opp_possessions": bucket["opp_possessions"],
+                    "team_points": bucket["team_points"],
+                    "opp_points": bucket["opp_points"],
+                    "team_ppp": _safe_ppp(
+                        bucket["team_points"], bucket["team_possessions"]
+                    ),
+                    "opp_ppp": _safe_ppp(
+                        bucket["opp_points"], bucket["opp_possessions"]
+                    ),
+                }
+            )
+
+        total_team_possessions = sum(row["team_possessions"] for row in quarter_rows)
+        total_opp_possessions = sum(row["opp_possessions"] for row in quarter_rows)
+        total_team_points = sum(row["team_points"] for row in quarter_rows)
+        total_opp_points = sum(row["opp_points"] for row in quarter_rows)
+        source = "tracked"
+    else:
+        total_team_possessions = int(
+            round(
+                sum(
+                    calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
+                    for s in team_stats
+                )
+            )
+        )
+        total_opp_possessions = total_team_possessions
+        total_team_points = sum(s.points or 0 for s in team_stats)
+        total_opp_points = sum(_opponent_event_points(event) for event in events)
+        source = "estimated"
+
+    clutch = {"plays": 0, "points": 0, "fgm": 0, "fga": 0, "tov": 0}
+    for event in events:
+        score_margin = event.score_margin if event.score_margin is not None else None
+        if score_margin is None:
+            continue
+        if not ClutchPerformance.is_clutch_situation(
+            score_margin, parse_time_to_seconds(event.time_remaining or "5:00")
+        ):
+            continue
+        clutch["plays"] += 1
+        clutch["points"] += _team_event_points(event)
+        if event.event_type in {"SHOT_2PT", "SHOT_3PT"}:
+            clutch["fga"] += 1
+            if event.shot_attempt == "made":
+                clutch["fgm"] += 1
+        if event.event_type == "TURNOVER":
+            clutch["tov"] += 1
+
+    clutch["fg_pct"] = _safe_pct(clutch["fgm"], clutch["fga"])
+
+    return {
+        "available": True,
+        "source": source,
+        "quarter_rows": quarter_rows,
+        "total_team_possessions": total_team_possessions,
+        "total_opp_possessions": total_opp_possessions,
+        "team_ppp": _safe_ppp(total_team_points, total_team_possessions),
+        "opp_ppp": _safe_ppp(total_opp_points, total_opp_possessions),
+        "clutch": clutch,
+    }
+
+
+def _build_player_possession_context(player_name, game_ids, stats):
+    events = (
+        GameEvent.query.filter(GameEvent.game_id.in_(game_ids))
+        .order_by(GameEvent.game_id.asc(), GameEvent.timestamp.asc())
+        .all()
+    )
+    summary = _build_possession_summary(game_ids, events, stats)
+    player_events = [event for event in events if event.player_name == player_name]
+    clutch = {"plays": 0, "points": 0, "fgm": 0, "fga": 0, "tov": 0}
+    for event in player_events:
+        score_margin = event.score_margin if event.score_margin is not None else None
+        if score_margin is None:
+            continue
+        if not ClutchPerformance.is_clutch_situation(
+            score_margin, parse_time_to_seconds(event.time_remaining or "5:00")
+        ):
+            continue
+        clutch["plays"] += 1
+        clutch["points"] += _player_event_points(event)
+        if event.event_type in {"SHOT_2PT", "SHOT_3PT"}:
+            clutch["fga"] += 1
+            if event.shot_attempt == "made":
+                clutch["fgm"] += 1
+        if event.event_type == "TURNOVER":
+            clutch["tov"] += 1
+    clutch["fg_pct"] = _safe_pct(clutch["fgm"], clutch["fga"])
+    summary["clutch"] = clutch
+    return summary
+
+
+def _build_player_shot_play_context(player_name, game_ids):
+    shots = (
+        ShotEvent.query.filter(ShotEvent.game_id.in_(game_ids))
+        .filter(ShotEvent.player_name == player_name)
+        .all()
+    )
+    return {
+        "zone_summary": _build_zone_summary(shots),
+        "play_summary": _build_play_summary(game_ids, player_name=player_name),
+    }
+
+
+def _build_team_box_detail(game_ids, games):
+    stats = PlayerStat.query.filter(PlayerStat.game_id.in_(game_ids)).all()
+    total_games = len(games)
+    totals = {
+        "oreb": sum(s.oreb or 0 for s in stats),
+        "dreb": sum(s.dreb or 0 for s in stats),
+        "reb": sum(s.reb or 0 for s in stats),
+        "pf": sum(s.pf or 0 for s in stats),
+        "reb_conceded": sum(s.reb_conceded or 0 for s in stats),
+    }
+    per_game = {
+        key: round(value / total_games, 1) if total_games else 0.0
+        for key, value in totals.items()
+    }
+    live_games = [game for game in games if game.source == "LIVE"]
+    live_ids = [game.id for game in live_games]
+    total_plus_minus = 0
+    if live_ids:
+        total_plus_minus = (
+            db.session.query(func.sum(PlayerStat.plus_minus))
+            .filter(PlayerStat.game_id.in_(live_ids))
+            .scalar()
+            or 0
+        )
+    return {
+        "available": bool(stats),
+        "totals": totals,
+        "per_game": per_game,
+        "live_plus_minus_total": total_plus_minus if live_ids else None,
+        "plus_minus_leaders": AnalyticsService.calculate_plus_minus_leaders(
+            games, db.session
+        ),
+    }
+
+
+def _build_team_lineup_summary(game_ids, session):
+    segment_rows = (
+        session.query(LineupSegment, Lineup)
+        .outerjoin(Lineup, LineupSegment.lineup_id == Lineup.id)
+        .filter(LineupSegment.game_id.in_(game_ids))
+        .all()
+    )
+    if not segment_rows:
+        return {
+            "available": False,
+            "top_offensive": [],
+            "top_defensive": [],
+            "most_used": [],
+            "starting_units": [],
+        }
+
+    lineup_map = {}
+    for segment, lineup in segment_rows:
+        players = (
+            list(lineup.players)
+            if lineup and lineup.players
+            else list(segment.players or [])
+        )
+        key = lineup.id if lineup else f"segment:{'|'.join(sorted(players))}"
+        record = lineup_map.setdefault(
+            key,
+            {
+                "name": lineup.display_name
+                if lineup and lineup.display_name
+                else " · ".join(players),
+                "players": players,
+                "total_seconds": 0,
+                "possessions": 0,
+                "points_scored": 0,
+                "points_allowed": 0,
+                "segment_count": 0,
+                "games": set(),
+                "is_starting": bool(lineup.is_starting) if lineup else False,
+                "fgm": 0,
+                "fga": 0,
+                "tpm": 0,
+                "tpa": 0,
+                "ftm": 0,
+                "fta": 0,
+                "oreb": 0,
+                "dreb": 0,
+                "ast": 0,
+                "stl": 0,
+                "blk": 0,
+                "tov": 0,
+                "reb_conceded": 0,
+            },
+        )
+        record["total_seconds"] += segment.duration_seconds or 0
+        record["possessions"] += segment.possessions or 0
+        record["points_scored"] += segment.points_scored or 0
+        record["points_allowed"] += segment.points_allowed or 0
+        record["segment_count"] += 1
+        record["games"].add(segment.game_id)
+
+    player_rows = (
+        session.query(PlayerLineupStats, LineupSegment)
+        .join(LineupSegment, PlayerLineupStats.lineup_segment_id == LineupSegment.id)
+        .filter(LineupSegment.game_id.in_(game_ids))
+        .all()
+    )
+    for player_stats, segment in player_rows:
+        players = list(segment.players or [])
+        key = (
+            segment.lineup_id
+            if segment.lineup_id is not None
+            else f"segment:{'|'.join(sorted(players))}"
+        )
+        if key not in lineup_map:
+            continue
+        record = lineup_map[key]
+        for field in (
+            "fgm",
+            "fga",
+            "tpm",
+            "tpa",
+            "ftm",
+            "fta",
+            "oreb",
+            "dreb",
+            "ast",
+            "stl",
+            "blk",
+            "tov",
+            "reb_conceded",
+        ):
+            record[field] += getattr(player_stats, field) or 0
+
+    summaries = [
+        _serialize_lineup_summary(item)
+        for item in lineup_map.values()
+        if item["possessions"] or item["total_seconds"]
+    ]
+    top_offensive = sorted(
+        summaries, key=lambda item: (item["ortg"], item["possessions"]), reverse=True
+    )[:5]
+    top_defensive = sorted(
+        summaries, key=lambda item: (item["drtg"], -item["possessions"])
+    )[:5]
+    most_used = sorted(summaries, key=lambda item: item["minutes"], reverse=True)[:5]
+    starting_units = [item for item in summaries if item["is_starting"]]
+    starting_units = sorted(
+        starting_units, key=lambda item: item["minutes"], reverse=True
+    )[:5]
+
+    return {
+        "available": bool(summaries),
+        "top_offensive": top_offensive,
+        "top_defensive": top_defensive,
+        "most_used": most_used,
+        "starting_units": starting_units,
+    }
+
+
+def _build_team_report_context(game_type, games, game_ids):
+    team_data = AnalyticsService.calculate_enhanced_team_metrics(
+        games, game_ids, db.session
+    )
+    team_data["chart_trend"] = generate_team_scoring_trend(games)
+    team_data["chart_shooting"] = generate_team_shot_chart(game_ids, db.session)
+
+    team_stats = PlayerStat.query.filter(PlayerStat.game_id.in_(game_ids)).all()
+    events = (
+        GameEvent.query.filter(GameEvent.game_id.in_(game_ids))
+        .order_by(GameEvent.game_id.asc(), GameEvent.timestamp.asc())
+        .all()
+    )
+    shots = ShotEvent.query.filter(ShotEvent.game_id.in_(game_ids)).all()
+
+    return {
+        "game_type": game_type,
+        "generated_date": datetime.now().strftime("%B %d, %Y"),
+        **team_data,
+        "team_box_detail": _build_team_box_detail(game_ids, games),
+        "lineup_summary": _build_team_lineup_summary(game_ids, db.session),
+        "possession_summary": _build_possession_summary(game_ids, events, team_stats),
+        "zone_summary": _build_zone_summary(shots),
+        "play_summary": _build_play_summary(game_ids),
+    }
 
 
 def _parse_detail(detail):
@@ -303,10 +1031,16 @@ def generate_game_pdf_bytes(game_id):
     team_poss = calculate_possessions(
         team_stats["fga"], team_stats["fta"], team_stats["oreb"], team_stats["tov"]
     )
-    
+
     # Use true tracked possessions if available for consistency with lineup stats
     from core.models import LineupSegment
-    segment_poss = db.session.query(func.sum(LineupSegment.possessions)).filter_by(game_id=game_id).scalar() or 0
+
+    segment_poss = (
+        db.session.query(func.sum(LineupSegment.possessions))
+        .filter_by(game_id=game_id)
+        .scalar()
+        or 0
+    )
     if segment_poss > 0:
         team_poss = float(segment_poss)
     elif team_poss <= 0:
@@ -321,16 +1055,20 @@ def generate_game_pdf_bytes(game_id):
 
     try:
         top_lineups_off = LineupAnalytics.get_game_lineup_rankings(
-            game_id, top_n=3, rank_by="offensive",
+            game_id,
+            top_n=3,
+            rank_by="offensive",
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss
+            total_possessions_override=team_poss,
         )
         top_lineups_def = LineupAnalytics.get_game_lineup_rankings(
-            game_id, top_n=3, rank_by="defensive",
+            game_id,
+            top_n=3,
+            rank_by="defensive",
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss
+            total_possessions_override=team_poss,
         )
     except Exception:
         top_lineups_off = []
@@ -346,7 +1084,7 @@ def generate_game_pdf_bytes(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="offensive"
+            rank_by="offensive",
         )
         top_duos_def = LineupAnalytics.get_combination_net_differentials(
             combination_type="duo",
@@ -357,7 +1095,7 @@ def generate_game_pdf_bytes(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="defensive"
+            rank_by="defensive",
         )
     except Exception:
         top_duos_off = []
@@ -373,7 +1111,7 @@ def generate_game_pdf_bytes(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="offensive"
+            rank_by="offensive",
         )
         top_trios_def = LineupAnalytics.get_combination_net_differentials(
             combination_type="trio",
@@ -384,7 +1122,7 @@ def generate_game_pdf_bytes(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="defensive"
+            rank_by="defensive",
         )
     except Exception:
         top_trios_off = []
@@ -938,18 +1676,8 @@ def team_report_pdf():
     if not games:
         return jsonify({"error": "No games for selected filter"}), 404
 
-    team_data = AnalyticsService.calculate_enhanced_team_metrics(
-        games, game_ids, db.session
-    )
-
-    team_data["chart_trend"] = generate_team_scoring_trend(games)
-    team_data["chart_shooting"] = generate_team_shot_chart(game_ids, db.session)
-
     html = render_template(
-        "team_report_pdf.html",
-        game_type=game_type,
-        generated_date=datetime.now().strftime("%B %d, %Y"),
-        **team_data,
+        "team_report_pdf.html", **_build_team_report_context(game_type, games, game_ids)
     )
 
     return _render_pdf(html, f"Team_Report_{game_type}.pdf")
@@ -982,6 +1710,7 @@ def download_all_reports():
     import gc
     import psutil
     import os
+    import tempfile
 
     current_app.logger.info("Starting memory-optimized bulk player report download...")
     game_type = _get_game_type()
@@ -998,73 +1727,100 @@ def download_all_reports():
         .all()
     )
     player_names = [p[0] for p in players]
-    
+
     team_avg = AnalyticsService.calculate_team_averages(game_ids, db.session)
-    zip_buffer = BytesIO()
+    zip_path = None
 
     process = psutil.Process(os.getpid())
-    
+
     def get_mem():
         return process.memory_info().rss / 1024 / 1024
 
     results = []
-    current_app.logger.info(f"Processing {len(player_names)} players sequentially. Initial Mem: {get_mem():.1f}MB")
+    current_app.logger.info(
+        f"Processing {len(player_names)} players sequentially. Initial Mem: {get_mem():.1f}MB"
+    )
 
     try:
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+            zip_path = tmp.name
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
             success_count = 0
-            
+
+            try:
+                team_context = _build_team_report_context(game_type, games, game_ids)
+                team_html = render_template("team_report_pdf.html", **team_context)
+                team_pdf = HTML(string=team_html).write_pdf()
+                if team_pdf:
+                    zipf.writestr(f"Team_Report_{game_type}.pdf", team_pdf)
+                    success_count += 1
+            except Exception as e:
+                current_app.logger.error(f"Failed team report for bulk download: {e}")
+
             for i, player_name in enumerate(player_names):
                 player_start_time = time.time()
                 try:
                     # Clear memory before starting each player
                     gc.collect()
-                    
+
                     context = _generate_player_report_data(
                         player_name,
                         games,
                         game_ids,
                         game_type,
-                        team_avg_override=team_avg
+                        team_avg_override=team_avg,
                     )
                     html = render_template("player_report_pdf.html", **context)
-                    
+
                     pdf_doc = HTML(string=html)
                     pdf_data = pdf_doc.write_pdf()
-                    
+
                     if pdf_data:
-                        filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
+                        filename = (
+                            f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
+                        )
                         zipf.writestr(filename, pdf_data)
                         success_count += 1
-                    
+
                     duration = time.time() - player_start_time
                     current_app.logger.info(
-                        f"[{i+1}/{len(player_names)}] {player_name}: {duration:.2f}s | Mem: {get_mem():.1f}MB"
+                        f"[{i + 1}/{len(player_names)}] {player_name}: {duration:.2f}s | Mem: {get_mem():.1f}MB"
                     )
-                    
+
                     # Force cleanup after each report
                     del context
                     del html
                     del pdf_doc
                     del pdf_data
-                    
+
                 except Exception as e:
                     current_app.logger.error(f"Failed report for {player_name}: {e}")
                     continue
 
             if success_count == 0:
+                if zip_path and os.path.exists(zip_path):
+                    os.unlink(zip_path)
                 return jsonify({"error": "Failed to generate any reports"}), 500
 
-        zip_buffer.seek(0)
         current_app.logger.info(f"Bulk download complete. Final Mem: {get_mem():.1f}MB")
-        
-        return send_file(
-            zip_buffer,
+
+        response = send_file(
+            zip_path,
             mimetype="application/zip",
             as_attachment=True,
-            download_name=f"all_player_reports_{game_type}.zip",
+            download_name=f"team_and_player_reports_{game_type}.zip",
         )
+
+        @response.call_on_close
+        def _cleanup_zip():
+            if zip_path and os.path.exists(zip_path):
+                os.unlink(zip_path)
+
+        return response
     except Exception as e:
+        if zip_path and os.path.exists(zip_path):
+            os.unlink(zip_path)
         current_app.logger.error(f"Bulk download critical failure: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
@@ -1103,7 +1859,8 @@ def _generate_player_report_data(
     """Internal helper to gather all data for a player report"""
     session = db_session or db.session
     stats = (
-        session.query(PlayerStat).filter(PlayerStat.player_name == player_name)
+        session.query(PlayerStat)
+        .filter(PlayerStat.player_name == player_name)
         .filter(PlayerStat.game_id.in_(game_ids))
         .filter(PlayerStat.minutes != "00:00")
         .filter(PlayerStat.minutes != "0")
@@ -1129,6 +1886,10 @@ def _generate_player_report_data(
 
     charts = generate_player_charts(stats, game_map, player_name, db_session=session)
     shot_chart = generate_shot_chart(player_name, game_ids, session)
+    box_detail = _build_player_box_detail(stats, len(stats))
+    lineup_context = _build_player_lineup_context(player_name, game_ids, session)
+    possession_context = _build_player_possession_context(player_name, game_ids, stats)
+    shot_play_context = _build_player_shot_play_context(player_name, game_ids)
 
     return {
         "player_name": player_name,
@@ -1137,6 +1898,10 @@ def _generate_player_report_data(
         "team_avg": team_avg,
         "team_rankings": team_rankings,
         "shot_chart": shot_chart,
+        "box_detail": box_detail,
+        "lineup_context": lineup_context,
+        "possession_context": possession_context,
+        "shot_play_context": shot_play_context,
         **report_data,
         **charts,
     }

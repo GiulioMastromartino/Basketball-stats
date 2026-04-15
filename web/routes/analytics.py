@@ -686,8 +686,8 @@ def player_report_pdf(player_name):
     return redirect(url_for('reports.player_report_pdf', player_name=player_name, **request.args), code=301)
 
 
-@analytics_bp.route("/reports/download-all")
+@analytics_bp.route("/analytics/reports/download-all")
 @login_required
 def download_all_reports():
-    """Redirect to new reports blueprint"""
+    """Legacy redirect to the reports blueprint."""
     return redirect(url_for('reports.download_all_reports', **request.args), code=301)

@@ -287,9 +287,12 @@ class AnalyticsService:
             'ts_pct': calculate_ts_percent(total_pts, total_fga, total_fta),
             'efg_pct': calculate_efg_percent(total_fgm, total_tpm, total_fga),
             'ortg': calculate_ortg(total_pts, total_poss),
+            'ppp': calculate_ppp(total_pts, total_poss) if total_poss else 0,
             'ast_tov': avg_stats['ast'] / avg_stats['tov'] if avg_stats['tov'] > 0 else avg_stats['ast'],
             'avg_plus_minus': round(avg_plus_minus, 1),
-            'has_live_plus_minus': len(live_game_stats) > 0
+            'has_live_plus_minus': len(live_game_stats) > 0,
+            'oreb_pct': safe_percentage(avg_stats['oreb'], avg_stats['reb']) if avg_stats['reb'] else 0,
+            'dreb_pct': safe_percentage(avg_stats['dreb'], avg_stats['reb']) if avg_stats['reb'] else 0,
         }
         
         # Game Logs
@@ -310,6 +313,8 @@ class AnalyticsService:
                 'minutes': s.minutes,
                 'pts': s.points,
                 'reb': s.reb,
+                'oreb': s.oreb,
+                'dreb': s.dreb,
                 'ast': s.ast,
                 'stl': s.stl,
                 'blk': s.blk,
