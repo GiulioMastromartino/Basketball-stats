@@ -3,198 +3,338 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Season Trend Report</title>
+    <title>Season Trend Report // Basketball Stats</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Work+Sans:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-pure: #000000;
+            --bg-dark: #0a0a0c;
+            --bg-module: #141417;
+            --accent-primary: #00f2ff; /* Cyber Blue */
+            --accent-secondary: #ff3e00; /* Safety Orange */
+            --accent-tertiary: #adff00; /* Neon Lime */
+            --text-main: #e2e8f0;
+            --text-dim: #94a3b8;
+            --border-color: #2d2d33;
+            --font-display: 'Archivo Black', sans-serif;
+            --font-mono: 'Space Mono', monospace;
+            --font-body: 'Work Sans', sans-serif;
+        }
+
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
         
+        html, body {
+            background: var(--bg-pure);
+            color: var(--text-main);
+            width: 100%;
+            height: 100%;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: var(--font-body);
             font-size: 11px;
-            line-height: 1.4;
-            color: #333;
-            background: #fff;
+            line-height: 1.5;
+            -webkit-print-color-adjust: exact;
+            display: flex;
+            justify-content: center;
         }
         
         .page {
             width: 210mm;
             min-height: 297mm;
-            padding: 15mm;
-            margin: 0 auto;
+            padding: 20mm;
+            background: var(--bg-dark);
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
         }
-        
+
+        /* Decorative Background Elements */
+        .page::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                radial-gradient(circle at 2px 2px, rgba(255,255,255,0.03) 1px, transparent 0);
+            background-size: 24px 24px;
+            pointer-events: none;
+        }
+
+        /* Header */
         .header {
-            text-align: center;
-            border-bottom: 3px solid #007bff;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-bottom: 4px solid var(--text-main);
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+            position: relative;
         }
-        
-        .header h1 {
-            font-size: 24px;
-            color: #007bff;
+
+        .header-main h1 {
+            font-family: var(--font-display);
+            font-size: 42px;
+            text-transform: uppercase;
+            line-height: 0.9;
+            letter-spacing: -2px;
+            color: var(--text-main);
             margin-bottom: 5px;
         }
         
-        .header .subtitle {
+        .header-main .subtitle {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent-primary);
+        }
+
+        .header-meta {
+            text-align: right;
+            font-family: var(--font-mono);
+        }
+
+        .header-meta .label {
+            font-size: 8px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .header-meta .value {
             font-size: 12px;
-            color: #666;
-        }
-        
-        .section {
-            margin-bottom: 25px;
-        }
-        
-        .section-title {
-            font-size: 14px;
-            font-weight: bold;
-            color: #007bff;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 5px;
-            margin-bottom: 15px;
-        }
-        
-        /* Player Trend Card */
-        .trend-card {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-        
-        .trend-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-        
-        .trend-header .player-name {
-            font-size: 16px;
+            color: var(--text-main);
             font-weight: bold;
         }
-        
-        .trend-header .games {
-            font-size: 11px;
-            color: #666;
-        }
-        
-        /* Mini Chart */
-        .trend-chart {
-            width: 100%;
-            height: 80px;
-            background: #fff;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            position: relative;
-            margin-bottom: 10px;
-        }
-        
-        .trend-chart svg {
-            width: 100%;
-            height: 100%;
-        }
-        
-        /* Trend Stats */
-        .trend-stats {
-            display: flex;
-            justify-content: space-around;
-            text-align: center;
-        }
-        
-        .trend-stat .value {
-            font-size: 16px;
-            font-weight: bold;
-            color: #007bff;
-        }
-        
-        .trend-stat .label {
-            font-size: 9px;
-            color: #666;
-        }
-        
-        /* Rolling Average Legend */
+
+        /* Legend */
         .legend {
             display: flex;
+            gap: 25px;
+            margin-bottom: 30px;
+            padding: 12px;
+            background: var(--bg-module);
+            border: 1px solid var(--border-color);
             justify-content: center;
-            gap: 20px;
-            margin-bottom: 15px;
         }
         
         .legend-item {
             display: flex;
             align-items: center;
-            gap: 5px;
-            font-size: 10px;
+            gap: 8px;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            text-transform: uppercase;
         }
         
         .legend-color {
-            width: 20px;
-            height: 3px;
+            width: 12px;
+            height: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
         }
+
+        .legend-color.points { background: var(--accent-primary); }
+        .legend-color.rolling-5 { background: var(--accent-tertiary); }
+        .legend-color.rolling-10 { background: var(--accent-secondary); }
         
-        .legend-color.points {
-            background: #007bff;
+        /* Section Titles */
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 18px;
+            text-transform: uppercase;
+            color: var(--text-main);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
-        
-        .legend-color.rolling-5 {
-            background: #28a745;
+
+        .section-title::after {
+            content: '';
+            flex-grow: 1;
+            height: 1px;
+            background: var(--border-color);
         }
-        
-        .legend-color.rolling-10 {
-            background: #ffc107;
+
+        /* Player Trend Modules */
+        .trend-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
         }
-        
-        /* Consistency Grid */
+
+        .trend-module {
+            background: var(--bg-module);
+            border-left: 4px solid var(--accent-primary);
+            padding: 20px;
+            position: relative;
+            display: grid;
+            grid-template-columns: 180px 1fr 180px;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .player-identity {
+            border-right: 1px solid var(--border-color);
+            padding-right: 20px;
+        }
+
+        .player-identity .name {
+            font-family: var(--font-display);
+            font-size: 16px;
+            text-transform: uppercase;
+            color: var(--text-main);
+            line-height: 1.1;
+            margin-bottom: 5px;
+        }
+
+        .player-identity .games {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        /* Chart Area */
+        .chart-container {
+            height: 80px;
+            position: relative;
+        }
+
+        .chart-container svg {
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+        }
+
+        .chart-grid-bg {
+            stroke: rgba(255,255,255,0.05);
+            stroke-width: 0.5;
+        }
+
+        /* Module Stats */
+        .module-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            padding-left: 20px;
+            border-left: 1px solid var(--border-color);
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-item .label {
+            font-family: var(--font-mono);
+            font-size: 8px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .stat-item .value {
+            font-family: var(--font-mono);
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--accent-primary);
+        }
+
+        /* Consistency Board */
         .consistency-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 15px;
         }
-        
-        .consistency-card {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 12px;
+
+        .consistency-node {
+            background: var(--bg-module);
+            border: 1px solid var(--border-color);
+            padding: 15px;
             text-align: center;
+            position: relative;
         }
-        
-        .consistency-card .player {
-            font-weight: bold;
+
+        .consistency-node .rank {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            font-family: var(--font-mono);
+            font-size: 8px;
+            color: var(--text-dim);
+        }
+
+        .consistency-node .player {
+            font-family: var(--font-display);
+            font-size: 11px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+
+        .consistency-node .cv-box {
+            background: rgba(0, 242, 255, 0.05);
+            padding: 8px;
             margin-bottom: 8px;
         }
-        
-        .consistency-card .cv {
-            font-size: 20px;
+
+        .consistency-node .cv {
+            font-family: var(--font-mono);
+            font-size: 24px;
             font-weight: bold;
-            color: #007bff;
+            color: var(--accent-primary);
         }
-        
-        .consistency-card .cv.consistent {
-            color: #28a745;
+
+        .consistency-node .cv.consistent { color: var(--accent-tertiary); }
+        .consistency-node .cv.volatile { color: var(--accent-secondary); }
+
+        .consistency-node .detail {
+            font-family: var(--font-mono);
+            font-size: 8px;
+            color: var(--text-dim);
+            text-transform: uppercase;
         }
-        
-        .consistency-card .cv.volatile {
-            color: #dc3545;
-        }
-        
-        .consistency-card .detail {
-            font-size: 9px;
-            color: #666;
-            margin-top: 5px;
-        }
-        
+
         /* Footer */
         .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 8px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        .footer .brand {
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        /* No Data State */
+        .empty-state {
+            grid-column: span 3;
             text-align: center;
-            font-size: 10px;
-            color: #999;
-            margin-top: 20px;
-            padding-top: 10px;
-            border-top: 1px solid #dee2e6;
+            padding: 40px;
+            font-family: var(--font-mono);
+            color: var(--text-dim);
+            text-transform: uppercase;
+            border: 1px dashed var(--border-color);
         }
     </style>
 </head>
@@ -202,10 +342,15 @@
     <div class="page">
         <!-- Header -->
         <div class="header">
-            <h1>Season Trend Report</h1>
-            <div class="subtitle">
-                {{ game_type }} Performance Trends
-                | {{ total_games }} games in filter
+            <div class="header-main">
+                <h1>Season Trend</h1>
+                <div class="subtitle">Performance Analysis / System v4.0</div>
+            </div>
+            <div class="header-meta">
+                <div class="label">Games Filtered</div>
+                <div class="value">{{ total_games }} UNITS</div>
+                <div class="label" style="margin-top: 5px;">Category</div>
+                <div class="value">{{ game_type }}</div>
             </div>
         </div>
         
@@ -213,124 +358,141 @@
         <div class="legend">
             <div class="legend-item">
                 <div class="legend-color points"></div>
-                <span>Points Per Game</span>
+                <span>PPG Track</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color rolling-5"></div>
-                <span>5-Game Rolling Avg</span>
+                <span>5-Game Roll</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color rolling-10"></div>
-                <span>10-Game Rolling Avg</span>
+                <span>10-Game Roll</span>
             </div>
         </div>
         
         <!-- Player Trends -->
         <div class="section">
-            <div class="section-title">Player Performance Trends</div>
-            {% if player_trends %}
-            {% for player, data in player_trends.items() %}
-            <div class="trend-card">
-                <div class="trend-header">
-                    <div class="player-name">{{ player }}</div>
-                    <div class="games">{{ data.games }} games</div>
+            <div class="section-title">Performance Modules</div>
+            <div class="trend-grid">
+                {% if player_trends %}
+                {% for player, data in player_trends.items() %}
+                <div class="trend-module">
+                    <div class="player-identity">
+                        <div class="name">{{ player }}</div>
+                        <div class="games">Sample: {{ data.games }} GP</div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <svg viewBox="0 0 400 80">
+                            <!-- Background Grid -->
+                            {% for i in range(5) %}
+                            <line class="chart-grid-bg" x1="0" y1="{{ 10 + i*15 }}" x2="400" y2="{{ 10 + i*15 }}" />
+                            {% endfor %}
+                            
+                            <!-- Points line -->
+                            <polyline 
+                                fill="none" 
+                                stroke="var(--accent-primary)" 
+                                stroke-width="2"
+                                points="
+                                    {% for i in range(data.points|length) %}
+                                    {% set point_x = (i / (data.points|length - 1 if data.points|length > 1 else 1) * 400) %}
+                                    {% set point_height = (data.points[i] / (data.mean * 2 if data.mean > 0 else 20) * 50) %}
+                                    {% set point_height = 60 if point_height > 60 else point_height %}
+                                    {% set point_height = 5 if point_height < 5 else point_height %}
+                                    {{ point_x }},{{ 70 - point_height }}
+                                    {% if not loop.last %} {% endif %}
+                                    {% endfor %}
+                                "
+                            />
+                            
+                            <!-- Rolling 5 line -->
+                            {% if data.rolling_5 %}
+                            <polyline 
+                                fill="none" 
+                                stroke="var(--accent-tertiary)" 
+                                stroke-width="2"
+                                stroke-dasharray="4,2"
+                                points="
+                                    {% for i in range(data.rolling_5|length) %}
+                                    {% if data.rolling_5[i] is not none %}
+                                    {% set point_x = (i / (data.rolling_5|length - 1 if data.rolling_5|length > 1 else 1) * 400) %}
+                                    {% set point_height = (data.rolling_5[i] / (data.mean * 2 if data.mean > 0 else 20) * 50) %}
+                                    {% set point_height = 60 if point_height > 60 else point_height %}
+                                    {% set point_height = 5 if point_height < 5 else point_height %}
+                                    {{ point_x }},{{ 70 - point_height }}
+                                    {% endif %}
+                                    {% if not loop.last %} {% endif %}
+                                    {% endfor %}
+                                "
+                            />
+                            {% endif %}
+
+                            <!-- Rolling 10 line -->
+                            {% if data.rolling_10 %}
+                            <polyline 
+                                fill="none" 
+                                stroke="var(--accent-secondary)" 
+                                stroke-width="2"
+                                stroke-dasharray="2,2"
+                                points="
+                                    {% for i in range(data.rolling_10|length) %}
+                                    {% if data.rolling_10[i] is not none %}
+                                    {% set point_x = (i / (data.rolling_10|length - 1 if data.rolling_10|length > 1 else 1) * 400) %}
+                                    {% set point_height = (data.rolling_10[i] / (data.mean * 2 if data.mean > 0 else 20) * 50) %}
+                                    {% set point_height = 60 if point_height > 60 else point_height %}
+                                    {% set point_height = 5 if point_height < 5 else point_height %}
+                                    {{ point_x }},{{ 70 - point_height }}
+                                    {% endif %}
+                                    {% if not loop.last %} {% endif %}
+                                    {% endfor %}
+                                "
+                            />
+                            {% endif %}
+                        </svg>
+                    </div>
+                    
+                    <div class="module-stats">
+                        <div class="stat-item">
+                            <div class="label">Mean</div>
+                            <div class="value">{{ data.mean }}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="label">± Dev</div>
+                            <div class="value">{{ data.std_dev }}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="label">Last</div>
+                            <div class="value">{{ data.points[-1] if data.points else '--' }}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="label">R5 Avg</div>
+                            <div class="value">{{ data.rolling_5[-1] if data.rolling_5 and data.rolling_5[-1] else '--' }}</div>
+                        </div>
+                    </div>
                 </div>
-                
-                <!-- Mini Trend Chart -->
-                <div class="trend-chart">
-                    <svg viewBox="0 0 400 80">
-                        <!-- Grid lines -->
-                        <line x1="20" y1="10" x2="20" y2="70" stroke="#eee" stroke-width="1"/>
-                        <line x1="20" y1="70" x2="380" y2="70" stroke="#eee" stroke-width="1"/>
-                        
-                        <!-- Points line -->
-                        <polyline 
-                            fill="none" 
-                            stroke="#007bff" 
-                            stroke-width="1.5"
-                            points="
-                                {% for i in range(data.points|length) %}
-                                {% set point_x = 20 + (i / (data.points|length - 1 if data.points|length > 1 else 1) * 360) %}
-                                {% set point_height = (data.points[i] / (data.mean * 2 if data.mean > 0 else 20) * 50) %}
-                                {% set point_height = 60 if point_height > 60 else point_height %}
-                                {% set point_height = 5 if point_height < 5 else point_height %}
-                                {{ point_x }},{{ 70 - point_height }}
-                                {% if not loop.last %} {% endif %}
-                                {% endfor %}
-                            "
-                        />
-                        
-                        <!-- Rolling 5 line -->
-                        {% if data.rolling_5 %}
-                        <polyline 
-                            fill="none" 
-                            stroke="#28a745" 
-                            stroke-width="2"
-                            stroke-dasharray="4,2"
-                            points="
-                                {% for i in range(data.rolling_5|length) %}
-                                {% if data.rolling_5[i] is not none %}
-                                {% set point_x = 20 + (i / (data.rolling_5|length - 1 if data.rolling_5|length > 1 else 1) * 360) %}
-                                {% set point_height = (data.rolling_5[i] / (data.mean * 2 if data.mean > 0 else 20) * 50) %}
-                                {% set point_height = 60 if point_height > 60 else point_height %}
-                                {% set point_height = 5 if point_height < 5 else point_height %}
-                                {{ point_x }},{{ 70 - point_height }}
-                                {% endif %}
-                                {% if not loop.last %} {% endif %}
-                                {% endfor %}
-                            "
-                        />
-                        {% endif %}
-                    </svg>
+                {% endfor %}
+                {% else %}
+                <div class="empty-state">
+                    No performance data available for current filter parameters.
                 </div>
-                
-                <!-- Stats -->
-                <div class="trend-stats">
-                    <div class="trend-stat">
-                        <div class="value">{{ data.mean }}</div>
-                        <div class="label">Mean PPG</div>
-                    </div>
-                    <div class="trend-stat">
-                        <div class="value">{{ data.std_dev }}</div>
-                        <div class="label">Std Dev</div>
-                    </div>
-                    <div class="trend-stat">
-                        <div class="value">{{ data.points[-1] if data.points else '--' }}</div>
-                        <div class="label">Last Game</div>
-                    </div>
-                    <div class="trend-stat">
-                        <div class="value">{{ data.rolling_5[-1] if data.rolling_5 and data.rolling_5[-1] else '--' }}</div>
-                        <div class="label">5-Game Avg</div>
-                    </div>
-                </div>
+                {% endif %}
             </div>
-            {% endfor %}
-            {% else %}
-            <div class="trend-card">
-                <div class="trend-header">
-                    <div class="player-name">No trend data</div>
-                    <div class="games">0 games</div>
-                </div>
-                <div class="trend-stats">
-                    <div class="trend-stat">
-                        <div class="value">--</div>
-                        <div class="label">Add more tracked games</div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
         </div>
         
-        <!-- Consistency Rankings -->
-        <div class="section">
-            <div class="section-title">Consistency Index (Lower CV = More Consistent)</div>
+        <!-- Consistency Board -->
+        <div class="section" style="margin-top: 40px;">
+            <div class="section-title">Consistency Index</div>
             {% if consistency_leaders %}
             <div class="consistency-grid">
                 {% for player, data in consistency_leaders %}
-                <div class="consistency-card">
+                <div class="consistency-node">
+                    <div class="rank">#{{ loop.index }}</div>
                     <div class="player">{{ player }}</div>
-                    <div class="cv {% if data.cv < 30 %}consistent{% elif data.cv > 50 %}volatile{% endif %}">
-                        {{ data.cv }}%
+                    <div class="cv-box">
+                        <div class="cv {% if data.cv < 30 %}consistent{% elif data.cv > 50 %}volatile{% endif %}">
+                            {{ data.cv }}%
+                        </div>
                     </div>
                     <div class="detail">
                         {{ data.mean }} ± {{ data.std_dev }} PPG
@@ -339,15 +501,16 @@
                 {% endfor %}
             </div>
             {% else %}
-            <div class="trend-card">
-                No consistency ranking available for the selected filter.
+            <div class="empty-state">
+                Insufficient data for consistency ranking.
             </div>
             {% endif %}
         </div>
         
         <!-- Footer -->
         <div class="footer">
-            Generated on {{ generated_date }} | Basketball Stats Analytics Platform
+            <div>REF: {{ generated_date }} // SEQ: SEASON_TREND</div>
+            <div class="brand">BASKETBALL STATS ANALYTICS PLATFORM</div>
         </div>
     </div>
 </body>
