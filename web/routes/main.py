@@ -23,7 +23,7 @@ from flask import (
 )
 from io import BytesIO
 from urllib.parse import unquote
-from flask_login import login_required
+from flask_login import login_required, current_user
 from sqlalchemy import case, func
 from weasyprint import HTML
 
@@ -1062,10 +1062,19 @@ def _notify_users_game_saved(game: Game):
         )
 
 
+@main_bp.route("/landing")
+def landing():
+    """Landing page for unauthenticated users"""
+    if current_user.is_authenticated:
+        return redirect(url_for("main.index"))
+    return render_template("landing.html")
+
+
 @main_bp.route("/")
-@login_required
 def index():
     """Dashboard home page"""
+    if not current_user.is_authenticated:
+        return redirect(url_for("main.landing"))
     games = Game.query.order_by(Game.sort_date.desc()).all()
     total_games = len(games)
     total_players = db.session.query(PlayerStat.player_name).distinct().count()

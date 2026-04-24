@@ -149,7 +149,7 @@ def logout():
     """Log out the user and redirect to WorkOS logout"""
     logout_user()
     flash("You have been logged out.", "info")
-    return redirect(url_for("auth.login"))
+    return redirect(url_for("main.landing"))
 
 
 @auth_bp.route("/verify-otp", methods=["GET", "POST"])

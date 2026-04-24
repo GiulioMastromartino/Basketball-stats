@@ -91,7 +91,7 @@ def create_app(config_name: str = None) -> Flask:
         login_manager.login_message_category = None
         login_manager.anonymous_user = NoAuthUser
     else:
-        login_manager.login_view = "auth.login"
+        login_manager.login_view = "main.landing"
         login_manager.login_message = "Please log in to access this page."
         login_manager.login_message_category = "info"
 
