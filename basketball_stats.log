@@ -1,1 +1,1 @@
-2026-04-24 13:07:21,245 WARNING [web]: WorkOS auth URL unavailable: WorkOS API key must be provided when instantiating the client or via the WORKOS_API_KEY environment variable.
+2026-04-24 14:25:49,922 WARNING [web]: WorkOS auth URL unavailable: WorkOS API key must be provided when instantiating the client or via the WORKOS_API_KEY environment variable.

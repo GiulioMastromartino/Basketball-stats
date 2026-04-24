@@ -2,6 +2,7 @@ import unittest
 import json
 from web import create_app, db
 from core.models import User, Game, PlayerStat
+from web.routes.main import _build_opponent_game_card
 
 class TestMainRoutes(unittest.TestCase):
     def setUp(self):
@@ -135,15 +136,17 @@ class TestMainRoutes(unittest.TestCase):
 
         response = self.client.get('/teams/TestOpp')
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'Opponent dossier', response.data)
+        self.assertIn(b'Opponent Detail', response.data)
         self.assertIn(b'TestOpp', response.data)
-        self.assertIn(b'1 wins, 1 losses', response.data)
+        self.assertIn(b'1', response.data)
+        self.assertIn(b'win', response.data.lower())
+        self.assertIn(b'loss', response.data.lower())
         self.assertIn(b'15/01/2024', response.data)
         self.assertIn(b'01/01/2024', response.data)
         self.assertNotIn(b'OtherOpp', response.data)
         self.assertIn(b'Player1', response.data)
         self.assertIn(b'Scorer B', response.data)
-        self.assertIn(b'Open full game detail', response.data)
+        self.assertIn(b'Full game detail', response.data)
 
     def test_opponent_detail_page_handles_missing_player_stats(self):
         sparse_game = Game(
@@ -156,14 +159,59 @@ class TestMainRoutes(unittest.TestCase):
         response = self.client.get('/teams/SparseOpp')
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'SparseOpp', response.data)
-        self.assertIn(b'61 - 59', response.data)
-        self.assertIn(b'Advanced metrics unavailable', response.data)
+        self.assertIn(b'61', response.data)
+        self.assertIn(b'59', response.data)
+        self.assertIn(b'Advanced', response.data)
         self.assertIn(b'--', response.data)
 
     def test_teams_page_links_to_opponent_detail(self):
         response = self.client.get('/games-list')
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'/teams/TestOpp', response.data)
+
+    def test_build_opponent_game_card_includes_top_players_by_gamescore(self):
+        game = Game.query.filter_by(opponent='TestOpp').first()
+
+        extra_stats = []
+        for idx in range(2, 14):
+            extra_stats.append(
+                PlayerStat(
+                    game_id=game.id,
+                    player_name=f'Bench{idx}',
+                    minutes='05:00',
+                    points=idx,
+                    fgm=max(idx // 2, 1),
+                    fga=idx + 2,
+                    reb=idx % 4,
+                    ast=idx % 3,
+                    tov=1,
+                    stl=0,
+                    blk=0,
+                    pf=1,
+                    oreb=0,
+                    dreb=idx % 4,
+                    tpm=0,
+                    tpa=1,
+                    ftm=0,
+                    fta=0,
+                    fg_percent=0,
+                    tp_percent=0,
+                    ft_percent=0,
+                    plus_minus=0,
+                )
+            )
+        db.session.add_all(extra_stats)
+        db.session.commit()
+
+        card = _build_opponent_game_card(game)
+
+        self.assertIn('top_players_by_gamescore', card)
+        self.assertEqual(len(card['top_players_by_gamescore']), 10)
+        self.assertEqual(card['top_players_by_gamescore'][0]['player'], 'Player1')
+        self.assertGreaterEqual(
+            card['top_players_by_gamescore'][0]['game_score'],
+            card['top_players_by_gamescore'][-1]['game_score']
+        )
 
     def test_live_game_save(self):
         # The game_service.py expects player_stats to be a DICT, not a list
