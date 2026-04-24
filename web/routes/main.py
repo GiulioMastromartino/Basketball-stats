@@ -206,6 +206,81 @@ def _get_stat_leader(stat_rows, field):
     return {"player": leader.player_name, "value": value}
 
 
+def _get_top_players_by_gamescore(stat_rows, limit=10):
+    ranked_players = []
+
+    for stat in stat_rows:
+        possessions = calculate_possessions(
+            stat.fga or 0,
+            stat.fta or 0,
+            stat.oreb or 0,
+            stat.tov or 0,
+        )
+        game_score = calculate_game_score(
+            stat.points or 0,
+            stat.fgm or 0,
+            stat.fga or 0,
+            stat.ftm or 0,
+            stat.fta or 0,
+            stat.oreb or 0,
+            stat.dreb or 0,
+            stat.stl or 0,
+            stat.ast or 0,
+            stat.blk or 0,
+            stat.pf or 0,
+            stat.tov or 0,
+        )
+        ranked_players.append(
+            {
+                "player": stat.player_name,
+                "game_score": round(game_score, 1),
+                "points": stat.points or 0,
+                "reb": stat.reb or 0,
+                "ast": stat.ast or 0,
+                "minutes": stat.minutes or "00:00",
+                "fgm": stat.fgm or 0,
+                "fga": stat.fga or 0,
+                "tpm": stat.tpm or 0,
+                "tpa": stat.tpa or 0,
+                "ftm": stat.ftm or 0,
+                "fta": stat.fta or 0,
+                "stl": stat.stl or 0,
+                "tov": stat.tov or 0,
+                "ts_pct": round(
+                    calculate_ts_percent(
+                        stat.points or 0,
+                        stat.fga or 0,
+                        stat.fta or 0,
+                    ),
+                    1,
+                ),
+                "efg_pct": round(
+                    calculate_efg_percent(
+                        stat.fgm or 0,
+                        stat.tpm or 0,
+                        stat.fga or 0,
+                    ),
+                    1,
+                ),
+                "ortg": round(calculate_ortg(stat.points or 0, possessions), 1)
+                if possessions > 0
+                else 0.0,
+            }
+        )
+
+    ranked_players.sort(
+        key=lambda player: (
+            player["game_score"],
+            player["points"],
+            player["reb"],
+            player["ast"],
+            player["player"],
+        ),
+        reverse=True,
+    )
+    return ranked_players[:limit]
+
+
 def _build_opponent_game_card(game):
     stat_rows = list(game.stats or [])
     team_totals = _sum_team_stat_rows(stat_rows) if stat_rows else None
@@ -224,6 +299,7 @@ def _build_opponent_game_card(game):
         "has_stats": bool(stat_rows),
         "team_stats": team_totals,
         "advanced": advanced,
+        "top_players_by_gamescore": _get_top_players_by_gamescore(stat_rows),
         "leaders": {
             "points": _get_stat_leader(stat_rows, "points"),
             "reb": _get_stat_leader(stat_rows, "reb"),
