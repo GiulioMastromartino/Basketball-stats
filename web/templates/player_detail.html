@@ -2,6 +2,13 @@
 
 {% block content %}
 <style>
+    {% if pdf_mode %}
+    @page {
+        size: A4 portrait;
+        margin: 6mm;
+    }
+    {% endif %}
+
     /* Prevent layout jump while charts initialize */
     .page-loading-overlay {
         position: fixed;
@@ -322,8 +329,290 @@
     .pm-pos { color: #15803d; background: #dcfce7; }
     .pm-neg { color: #b91c1c; background: #fee2e2; }
     .pm-neu { color: #6b7280; background: #f3f4f6; }
+
+    {% if pdf_mode %}
+    body {
+        background: #fff !important;
+        margin: 0 !important;
+    }
+
+    body.app-body--authed {
+        display: block !important;
+        background: #fff !important;
+    }
+
+    .app-sidebar,
+    .app-menu-toggle,
+    .app-sidebar-backdrop,
+    .app-flashes {
+        display: none !important;
+    }
+
+    .app-main {
+        margin-left: 0 !important;
+        min-height: auto !important;
+        width: 100% !important;
+        max-width: none !important;
+        padding: 0 !important;
+    }
+
+    #playerPage {
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    .container-fluid {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+    }
+
+    .pdf-page-one {
+        page-break-after: always;
+    }
+
+    .pdf-table-page {
+        page-break-before: always;
+    }
+
+    #playerPage {
+        font-size: 11px;
+    }
+
+    #playerPage .d-flex {
+        gap: 10px !important;
+    }
+
+    #playerPage .row {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        gap: 10px;
+        margin: 0 !important;
+    }
+
+    #playerPage .row > [class*="col-"] {
+        flex: 1 1 0;
+        width: auto !important;
+        max-width: none !important;
+        padding: 0 !important;
+    }
+
+    #playerPage .col-lg-8 {
+        flex: 0 0 68% !important;
+        width: 68% !important;
+    }
+
+    #playerPage .col-lg-4 {
+        flex: 0 0 32% !important;
+        width: 32% !important;
+    }
+
+    #playerPage .row.g-3,
+    #playerPage .row .row {
+        gap: 8px;
+    }
+
+    #playerPage .row.g-3 > .col-md-6,
+    #playerPage .row > .col-md-6 {
+        flex: 0 0 calc(50% - 4px) !important;
+        width: calc(50% - 4px) !important;
+    }
+
+    .player-header {
+        padding: 14px 16px;
+        margin-bottom: 10px;
+        box-shadow: none;
+        border-radius: 10px;
+    }
+
+    .player-header h1 {
+        font-size: 24px !important;
+    }
+
+    .player-header span {
+        font-size: 12px !important;
+    }
+
+    .player-avatar-lg {
+        width: 58px;
+        height: 58px;
+        font-size: 22px;
+        border-width: 2px;
+    }
+
+    .stat-grid {
+        gap: 6px;
+        margin-top: 8px;
+    }
+
+    .quick-overview-grid {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        align-items: stretch;
+        margin-bottom: 10px;
+    }
+
+    .quick-overview-grid > .stat-card {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        min-height: 54px !important;
+    }
+
+    .advanced-layout {
+        align-items: flex-start !important;
+    }
+
+    .advanced-top-row {
+        align-items: stretch !important;
+        margin-top: 2px !important;
+    }
+
+    .metrics-grid-compact,
+    .metrics-grid-splits {
+        display: grid !important;
+        margin-top: 0 !important;
+    }
+
+    .metrics-grid-compact {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 6px !important;
+    }
+
+    .metrics-grid-splits {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 5px !important;
+    }
+
+    .metrics-grid-compact .stat-card,
+    .metrics-grid-splits .stat-card {
+        padding: 6px 5px !important;
+        min-height: 36px !important;
+    }
+
+    .metrics-grid-splits .stat-card-value {
+        font-size: 12px !important;
+    }
+
+    .stat-card {
+        padding: 8px 6px !important;
+        min-height: 42px !important;
+        box-shadow: none;
+        break-inside: avoid;
+    }
+
+    .stat-card-value {
+        font-size: 14px;
+        margin-bottom: 2px;
+    }
+
+    .stat-card-subvalue,
+    .stat-card-label,
+    .per40-title,
+    .per40-label {
+        font-size: 6.5px;
+    }
+
+    .section-title {
+        font-size: 10px;
+        margin: 8px 0 5px;
+        padding-bottom: 4px;
+        gap: 6px;
+    }
+
+    .chart-container {
+        padding: 6px;
+        margin-bottom: 4px;
+        box-shadow: none;
+        break-inside: avoid;
+        border-radius: 8px;
+    }
+
+    .chart-container h5,
+    .chart-container h6 {
+        font-size: 7px !important;
+        margin-bottom: 4px !important;
+    }
+
+    .chart-box.chart-box--md {
+        height: 72px;
+    }
+
+    .chart-box img,
+    .shot-chart-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .shot-chart-container {
+        max-width: 145px;
+    }
+
+    .per40-section {
+        margin-top: 6px;
+        padding-top: 6px;
+    }
+
+    .per40-grid {
+        gap: 4px;
+    }
+
+    .per40-item {
+        padding: 5px 4px;
+    }
+
+    .per40-value {
+        font-size: 10px;
+    }
+
+    .col-lg-4 .stat-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 4px;
+    }
+
+    .col-lg-4 .stat-card {
+        min-height: 34px !important;
+        padding: 5px 4px !important;
+    }
+
+    .col-lg-4 .fa-2x {
+        font-size: 1rem !important;
+    }
+
+    .col-lg-4 .px-4 {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+    }
+
+    .game-log-table {
+        box-shadow: none;
+        border-radius: 0;
+    }
+
+    .game-log-table th {
+        padding: 4px 3px;
+        font-size: 7px;
+    }
+
+    .game-log-table td {
+        padding: 4px 3px;
+        font-size: 7px;
+    }
+
+    .result-badge,
+    .pm-badge {
+        font-size: 6px !important;
+        padding: 2px 4px !important;
+    }
+
+    .pdf-hide {
+        display: none !important;
+    }
+    {% endif %}
 </style>
 
+{% if not pdf_mode %}
 <!-- Loading overlay -->
 <div id="pageLoader" class="page-loading-overlay">
     <div class="page-loading-card">
@@ -331,8 +620,10 @@
         Loading player analytics…
     </div>
 </div>
+{% endif %}
 
-<div id="playerPage" class="container-fluid page-hidden">
+<div id="playerPage" class="container-fluid {% if not pdf_mode %}page-hidden{% endif %}">
+    {% if pdf_mode %}<div class="pdf-page-one">{% endif %}
     <!-- Player Header -->
     <div class="player-header">
         <div class="d-flex align-items-center gap-4">
@@ -344,11 +635,11 @@
                     <span style="font-size: 18px;"><i class="fas fa-clock"></i> {{ averages.mpg|round(1) }} MIN</span>
                 </div>
             </div>
-            <div class="d-flex gap-2">
-                <a href="{{ url_for('analytics.player_report_pdf', player_name=player_name, game_type=game_type) }}" class="btn btn-outline-light">
+            <div class="d-flex gap-2 {% if pdf_mode %}pdf-hide{% endif %}">
+                <a href="{{ report_url if report_url is defined else url_for('analytics.player_report_pdf', player_name=player_name, game_type=game_type) }}" class="btn btn-outline-light">
                     <i class="fas fa-file-download"></i> Download Report
                 </a>
-                <a href="{{ url_for('main.players', game_type=game_type) }}" class="btn btn-light">
+                <a href="{{ back_url if back_url is defined else url_for('main.players', game_type=game_type) }}" class="btn btn-light">
                     <i class="fas fa-arrow-left"></i> Back to Players
                 </a>
             </div>
@@ -356,7 +647,7 @@
     </div>
 
     <!-- Quick Overview (Key Stats) -->
-    <div class="stat-grid">
+    <div class="stat-grid quick-overview-grid">
         <div class="stat-card">
             <div class="stat-card-value">{{ averages.ppg|round(1) }}</div>
             <div class="stat-card-label">Points</div>
@@ -390,20 +681,20 @@
         </div>
     </div>
 
-    <div class="row">
+    <div class="row advanced-layout">
         <!-- Advanced Metrics Panel -->
         <div class="col-lg-8">
             <div class="section-title">
                 <i class="fas fa-calculator" style="color: #667eea;"></i>
                 Advanced Metrics Breakdown
             </div>
-            
-            <div class="row g-3">
+
+            <div class="row g-3 advanced-top-row">
                 <!-- Scoring Efficiency -->
                 <div class="col-md-6">
                     <div class="chart-container h-100">
                         <h6 style="color: #4a5568; font-weight: 700; text-transform: uppercase; font-size: 12px; margin-bottom: 15px;">Scoring & Efficiency</h6>
-                        <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 0;">
+                        <div class="stat-grid metrics-grid-compact">
                             <div class="stat-card" style="padding: 12px; min-height: 75px;">
                                 <div class="stat-card-value">{{ averages.ppp|round(2) }}</div>
                                 <div class="stat-card-label">PPP (Pts/Poss)</div>
@@ -421,7 +712,7 @@
                                 <div class="stat-card-label">CV (Consistency)</div>
                             </div>
                         </div>
-                        
+
                         <!-- Per 40 Estimate -->
                         <div class="per40-section">
                             <h6 class="per40-title">Per 40 Minutes Estimate</h6>
@@ -447,7 +738,7 @@
                 <div class="col-md-6">
                     <div class="chart-container h-100">
                         <h6 style="color: #4a5568; font-weight: 700; text-transform: uppercase; font-size: 12px; margin-bottom: 15px;">Handling & Shooting Splits</h6>
-                         <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 0;">
+                         <div class="stat-grid metrics-grid-splits">
                             <div class="stat-card" style="padding: 12px; min-height: 75px;">
                                 <div class="stat-card-value">{{ averages.ast_tov|round(2) }}</div>
                                 <div class="stat-card-label">AST / TOV</div>
@@ -460,7 +751,15 @@
                                 <div class="stat-card-value">{{ averages.two_pt_pct|round(1) }}%</div>
                                 <div class="stat-card-label">2PT FG%</div>
                             </div>
-                             <div class="stat-card" style="padding: 12px; min-height: 75px;">
+                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
+                                <div class="stat-card-value">{{ averages.tp_pct|round(1) }}%</div>
+                                <div class="stat-card-label">3PT FG%</div>
+                            </div>
+                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
+                                <div class="stat-card-value">{{ averages.ft_pct|round(1) }}%</div>
+                                <div class="stat-card-label">FT%</div>
+                            </div>
+                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
                                 <div class="stat-card-value">{{ averages.oreb_pct|round(1) }}%</div>
                                 <div class="stat-card-label">Off. Reb %</div>
                             </div>
@@ -479,7 +778,11 @@
                     <div class="chart-container">
                         <h5>Scoring History</h5>
                         <div class="chart-box chart-box--md">
+                            {% if pdf_mode and pdf_chart_scoring %}
+                            <img src="data:image/png;base64,{{ pdf_chart_scoring }}" alt="Scoring History" style="width:100%; height:100%; object-fit:contain;">
+                            {% else %}
                             <canvas id="scoringChart"></canvas>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -487,12 +790,16 @@
                     <div class="chart-container">
                         <h5>Shooting Efficiency</h5>
                         <div class="chart-box chart-box--md">
+                            {% if pdf_mode and pdf_chart_shooting %}
+                            <img src="data:image/png;base64,{{ pdf_chart_shooting }}" alt="Shooting Efficiency" style="width:100%; height:100%; object-fit:contain;">
+                            {% else %}
                             <canvas id="shootingChart"></canvas>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <!-- Shot Chart Section -->
             {% if shot_events %}
             <div class="section-title">
@@ -502,30 +809,34 @@
             <div class="row">
                 <div class="col-md-12">
                      <div class="chart-container text-center">
-                         <h6 style="color: #4a5568; font-weight: 700; text-transform: uppercase; font-size: 12px; margin-bottom: 15px;">Field Goal Locations (Made Only)</h6>
+                         <h6 style="color: #4a5568; font-weight: 700; text-transform: uppercase; font-size: 12px; margin-bottom: 15px;">Field Goal Locations</h6>
                          <div class="shot-chart-container" id="shotChartContainer">
+                            {% if pdf_mode and pdf_shot_chart %}
+                            <img src="data:image/png;base64,{{ pdf_shot_chart }}" alt="Shot Chart" style="width:100%; height:auto; display:block;">
+                            {% else %}
                             <!-- Half Court SVG -->
                              <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; background-color: #d2b48c; display: block;">
                         <!-- Court Floor -->
                         <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
-                        
+
                         <!-- 3-Point Arc (Approximate) -->
                         <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
-                        
+
                         <!-- Key / Paint Area -->
                         <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
-                        
+
                         <!-- Free Throw Circle -->
                         <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
-                        
+
                         <!-- Hoop / Backboard -->
                         <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
                         <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
-                        
+
                         <!-- Baseline -->
                         <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
                     </svg>
                             <div id="shotLayer"></div>
+                            {% endif %}
                          </div>
                      </div>
                 </div>
@@ -588,8 +899,10 @@
             </div>
         </div>
     </div>
+    {% if pdf_mode %}</div>{% endif %}
 
     <!-- Game Log -->
+    <div class="{% if pdf_mode %}pdf-table-page{% endif %}">
     <div class="section-title">
         <i class="fas fa-list" style="color: #20c997;"></i>
         Game Log
@@ -659,125 +972,21 @@
             </tbody>
         </table>
     </div>
+    </div>
 </div>
 
+{% if not pdf_mode %}
 <div id="shot-tooltip" class="shot-tooltip"></div>
+{% endif %}
 
+{% if not pdf_mode %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     const chartData = {{ chart_data|tojson }};
 
     let scoringChart, shootingChart;
 
-    function buildCharts() {
-        const scoringEl = document.getElementById('scoringChart');
-        const shootingEl = document.getElementById('shootingChart');
-
-        if (!scoringEl || !shootingEl) return;
-
-        if (scoringChart) scoringChart.destroy();
-        if (shootingChart) shootingChart.destroy();
-
-        scoringChart = new Chart(scoringEl, {
-            type: 'line',
-            data: {
-                labels: chartData.labels,
-                datasets: [{
-                    label: 'Points',
-                    data: chartData.points,
-                    borderColor: '#667eea',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                    tension: 0.4,
-                    fill: true,
-                    pointRadius: 4,
-                    pointHoverRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { backgroundColor: 'rgba(0,0,0,0.8)' }
-                },
-                scales: { y: { beginAtZero: true } }
-            }
-        });
-
-        shootingChart = new Chart(shootingEl, {
-            type: 'line',
-            data: {
-                labels: chartData.labels,
-                datasets: [
-                    {
-                        label: 'FG%',
-                        data: chartData.fg_pct,
-                        borderColor: '#28a745',
-                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                        tension: 0.4
-                    },
-                    {
-                        label: '3PT%',
-                        data: chartData.tp_pct,
-                        borderColor: '#f5576c',
-                        backgroundColor: 'rgba(245, 87, 108, 0.1)',
-                        tension: 0.4
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { tooltip: { backgroundColor: 'rgba(0,0,0,0.8)' } },
-                scales: { y: { beginAtZero: true, max: 100 } }
-            }
-        });
-
-        /* Render Shot Chart */
-        {% if shot_events %}
-        const shots = [
-            {% for s in shot_events %}
-            {
-                game: "{{ s.game.opponent }}",
-                x: {{ s.x_loc }},
-                y: {{ s.y_loc }},
-                result: "{{ s.result }}",
-                type: "{{ s.shot_type }}",
-                points: {{ s.points }}
-            },
-            {% endfor %}
-        ];
-
-        const shotLayer = document.getElementById('shotLayer');
-        const shotTooltip = document.getElementById('shot-tooltip');
-
-        if (shotLayer) {
-            shots.forEach(shot => {
-                if (shot.x === null || shot.y === null) return;
-                
-                const dot = document.createElement('div');
-                dot.classList.add('shot-point');
-                dot.classList.add(shot.result === 'made' ? 'shot-made' : 'shot-missed');
-                
-                dot.style.left = shot.x + '%';
-                dot.style.top = shot.y + '%';
-                
-                dot.addEventListener('mouseenter', (e) => {
-                    shotTooltip.innerHTML = `<strong>vs ${shot.game}</strong><br>${shot.type} (${shot.points} pts)<br>${shot.result.toUpperCase()}`;
-                    shotTooltip.style.display = 'block';
-                    shotTooltip.style.left = e.pageX + 10 + 'px';
-                    shotTooltip.style.top = e.pageY + 10 + 'px';
-                });
-                
-                dot.addEventListener('mouseleave', () => {
-                    shotTooltip.style.display = 'none';
-                });
-
-                shotLayer.appendChild(dot);
-            });
-        }
-        {% endif %}
-
+    function revealPlayerPage() {
         const loader = document.getElementById('pageLoader');
         const page = document.getElementById('playerPage');
         if (page) page.classList.remove('page-hidden');
@@ -787,8 +996,125 @@
         }
     }
 
+    function buildCharts() {
+        try {
+            const scoringEl = document.getElementById('scoringChart');
+            const shootingEl = document.getElementById('shootingChart');
+
+            if (!scoringEl || !shootingEl || typeof Chart === 'undefined') return;
+
+            if (scoringChart) scoringChart.destroy();
+            if (shootingChart) shootingChart.destroy();
+
+            scoringChart = new Chart(scoringEl, {
+                type: 'line',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: 'Points',
+                        data: chartData.points,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { backgroundColor: 'rgba(0,0,0,0.8)' }
+                    },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            shootingChart = new Chart(shootingEl, {
+                type: 'line',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [
+                        {
+                            label: 'FG%',
+                            data: chartData.fg_pct,
+                            borderColor: '#28a745',
+                            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: '3PT%',
+                            data: chartData.tp_pct,
+                            borderColor: '#f5576c',
+                            backgroundColor: 'rgba(245, 87, 108, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { tooltip: { backgroundColor: 'rgba(0,0,0,0.8)' } },
+                    scales: { y: { beginAtZero: true, max: 100 } }
+                }
+            });
+
+            /* Render Shot Chart */
+            {% if shot_events %}
+            const shots = [
+                {% for s in shot_events %}
+                {
+                    game: {{ s.game.opponent|tojson }},
+                    x: {{ s.x_loc|tojson }},
+                    y: {{ s.y_loc|tojson }},
+                    result: {{ s.result|tojson }},
+                    type: {{ s.shot_type|tojson }},
+                    points: {{ s.points|tojson }}
+                },
+                {% endfor %}
+            ];
+
+            const shotLayer = document.getElementById('shotLayer');
+            const shotTooltip = document.getElementById('shot-tooltip');
+
+            if (shotLayer && shotTooltip) {
+                shots.forEach(shot => {
+                    if (shot.x === null || shot.y === null) return;
+
+                    const dot = document.createElement('div');
+                    dot.classList.add('shot-point');
+                    dot.classList.add(shot.result === 'made' ? 'shot-made' : 'shot-missed');
+
+                    dot.style.left = shot.x + '%';
+                    dot.style.top = shot.y + '%';
+
+                    dot.addEventListener('mouseenter', (e) => {
+                        shotTooltip.innerHTML = `<strong>vs ${shot.game}</strong><br>${shot.type} (${shot.points} pts)<br>${shot.result.toUpperCase()}`;
+                        shotTooltip.style.display = 'block';
+                        shotTooltip.style.left = e.pageX + 10 + 'px';
+                        shotTooltip.style.top = e.pageY + 10 + 'px';
+                    });
+
+                    dot.addEventListener('mouseleave', () => {
+                        shotTooltip.style.display = 'none';
+                    });
+
+                    shotLayer.appendChild(dot);
+                });
+            }
+            {% endif %}
+        } catch (error) {
+            console.error('Failed to initialize player detail charts', error);
+        } finally {
+            revealPlayerPage();
+        }
+    }
+
     window.addEventListener('load', () => {
         requestAnimationFrame(() => requestAnimationFrame(buildCharts));
     });
 </script>
+{% endif %}
 {% endblock %}

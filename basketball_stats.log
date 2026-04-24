@@ -1,1 +1,1 @@
-2026-04-15 20:49:32,292 INFO [web]: Seeded default PlayTypes: Offense, Defense, Special
+2026-04-24 13:07:21,245 WARNING [web]: WorkOS auth URL unavailable: WorkOS API key must be provided when instantiating the client or via the WORKOS_API_KEY environment variable.

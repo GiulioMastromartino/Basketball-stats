@@ -68,6 +68,8 @@ reports_bp = Blueprint("reports", __name__)
 
 VALID_GAME_TYPES = {"ALL", "Season", "Friendly"}
 MAX_PLAYERS_IN_ZIP = 50
+MIN_TOP_LINEUP_MINUTES = 10
+MIN_TOP_LINEUP_SECONDS = MIN_TOP_LINEUP_MINUTES * 60
 
 
 def _safe_pct(made, attempts):
@@ -80,6 +82,10 @@ def _safe_ppp(points, possessions):
 
 def _seconds_to_minutes(seconds):
     return round((seconds or 0) / 60, 1)
+
+
+def _meets_top_lineup_minutes(item):
+    return (item.get("total_seconds") or 0) >= MIN_TOP_LINEUP_SECONDS
 
 
 def _get_player_reb_conceded_summary(player_name, game_ids, session):
@@ -331,7 +337,9 @@ def _build_play_summary(game_ids, player_name=None):
 
     rows = []
     for record in play_map.values():
-        denominator = record["possessions"] or record["actions"] or record["attempts"]
+        denominator = record["possessions"] or (
+            record["attempts"] + record["turnovers"]
+        )
         rows.append(
             {
                 **record,
@@ -346,7 +354,7 @@ def _build_play_summary(game_ids, player_name=None):
     efficient = [
         row
         for row in rows
-        if (row["possessions"] or row["actions"] or row["attempts"]) >= 2
+        if (row["possessions"] or (row["attempts"] + row["turnovers"])) >= 2
     ]
     efficient.sort(key=lambda row: row["ppp"], reverse=True)
 
@@ -499,14 +507,35 @@ def _build_player_lineup_context(player_name, game_ids, session):
         ):
             record[field] += getattr(player_stats, field) or 0
 
-    summaries = [_serialize_lineup_summary(item) for item in lineup_map.values()]
-    best = max(summaries, key=lambda item: (item["net_rating"], item["possessions"]))
-    worst = min(summaries, key=lambda item: (item["net_rating"], -item["possessions"]))
+    summary_records = list(lineup_map.values())
+    summaries = [_serialize_lineup_summary(item) for item in summary_records]
+    qualified_summaries = [
+        _serialize_lineup_summary(item)
+        for item in summary_records
+        if _meets_top_lineup_minutes(item)
+    ]
+    best = (
+        max(
+            qualified_summaries,
+            key=lambda item: (item["net_rating"], item["possessions"]),
+        )
+        if qualified_summaries
+        else None
+    )
+    worst = (
+        min(
+            qualified_summaries,
+            key=lambda item: (item["net_rating"], -item["possessions"]),
+        )
+        if qualified_summaries
+        else None
+    )
     most_used = sorted(summaries, key=lambda item: item["minutes"], reverse=True)[:3]
     starting = [item for item in most_used + summaries if item["is_starting"]]
 
     return {
         "available": True,
+        "top_lineups_available": bool(qualified_summaries),
         "best_lineup": best,
         "worst_lineup": worst,
         "most_used_lineups": most_used,
@@ -788,16 +817,24 @@ def _build_team_lineup_summary(game_ids, session):
         ):
             record[field] += getattr(player_stats, field) or 0
 
-    summaries = [
-        _serialize_lineup_summary(item)
+    summary_records = [
+        item
         for item in lineup_map.values()
         if item["possessions"] or item["total_seconds"]
     ]
+    summaries = [_serialize_lineup_summary(item) for item in summary_records]
+    qualified_summaries = [
+        _serialize_lineup_summary(item)
+        for item in summary_records
+        if _meets_top_lineup_minutes(item)
+    ]
     top_offensive = sorted(
-        summaries, key=lambda item: (item["ortg"], item["possessions"]), reverse=True
+        qualified_summaries,
+        key=lambda item: (item["ortg"], item["possessions"]),
+        reverse=True,
     )[:5]
     top_defensive = sorted(
-        summaries, key=lambda item: (item["drtg"], -item["possessions"])
+        qualified_summaries, key=lambda item: (item["drtg"], -item["possessions"])
     )[:5]
     most_used = sorted(summaries, key=lambda item: item["minutes"], reverse=True)[:5]
     starting_units = [item for item in summaries if item["is_starting"]]
@@ -1970,12 +2007,17 @@ def lineup_report_pdf():
     pdf_io = BytesIO(pdf_bytes)
     pdf_io.seek(0)
 
-    return send_file(
+    response = send_file(
         pdf_io,
         mimetype="application/pdf",
         as_attachment=True,
         download_name=filename,
     )
+    # Avoid browsers reusing a cached PDF when regenerating the same URL.
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @reports_bp.route("/player/<player_name>/scouting.pdf")

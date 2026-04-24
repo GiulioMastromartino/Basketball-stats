@@ -235,3 +235,69 @@ def test_season_trend_report_includes_players_with_fewer_than_three_games(
     assert "Short Sample" in captured["context"]["player_trends"]
     assert "Second Player" in captured["context"]["player_trends"]
     assert captured["context"]["player_trends"]["Short Sample"]["games"] == 2
+
+
+def test_generate_lineup_report_uses_duo_net_differential(db_session, mocker):
+    captured = {}
+
+    def fake_render(template_name, **context):
+        captured["template_name"] = template_name
+        captured["context"] = context
+        return "<html></html>"
+
+    html_instance = mocker.MagicMock()
+    html_instance.write_pdf.return_value = b"pdf"
+
+    mocker.patch("core.advanced_pdf_reports.render_template", side_effect=fake_render)
+    mocker.patch("core.advanced_pdf_reports.HTML", return_value=html_instance)
+    mocker.patch(
+        "core.advanced_pdf_reports.LineupAnalytics.get_lineup_efficiency_rankings",
+        return_value=[],
+    )
+    mocker.patch(
+        "core.advanced_pdf_reports.LineupAnalytics.get_combination_net_differentials",
+        return_value=[
+            {
+                "players": ["A", "B"],
+                "segments": 4,
+                "on": {
+                    "minutes": 12.0,
+                    "possessions": 10.0,
+                    "ortg": 110.0,
+                    "drtg": 90.0,
+                    "net": 20.0,
+                },
+                "impact": {
+                    "net_differential": 35.0,
+                },
+            },
+            {
+                "players": ["A", "C"],
+                "segments": 4,
+                "on": {
+                    "minutes": 12.0,
+                    "possessions": 10.0,
+                    "ortg": 95.0,
+                    "drtg": 100.0,
+                    "net": -5.0,
+                },
+                "impact": {
+                    "net_differential": -12.0,
+                },
+            },
+        ],
+    )
+    mocker.patch(
+        "core.advanced_pdf_reports.LineupAnalytics.calculate_trio_compatibility",
+        return_value=[],
+    )
+
+    filename, pdf_bytes = AdvancedPDFReports.generate_lineup_report(game_ids=[1], min_possessions=5)
+
+    assert filename is not None
+    assert pdf_bytes == b"pdf"
+    assert captured["template_name"] == "reports/lineup_report.html"
+    assert captured["context"]["duos"][0]["compatibility"] == 35.0
+    assert captured["context"]["duos"][0]["net_rating"] == 20.0
+    assert captured["context"]["duo_matrix"]["matrix"]["A"]["B"] == 35.0
+    assert captured["context"]["duo_matrix"]["matrix"]["A"]["C"] == -12.0

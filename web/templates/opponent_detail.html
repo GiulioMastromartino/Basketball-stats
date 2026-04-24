@@ -1,0 +1,582 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .opponent-hero {
+        background: linear-gradient(135deg, #10212f 0%, #18384b 55%, #25566d 100%);
+        color: #f5fbff;
+        border-radius: 24px;
+        padding: 32px;
+        margin-bottom: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        box-shadow: 0 18px 40px rgba(16, 33, 47, 0.18);
+    }
+    .opponent-hero__eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-size: 0.78rem;
+        opacity: 0.78;
+        margin-bottom: 8px;
+    }
+    .opponent-hero__title {
+        font-size: clamp(2rem, 3vw, 3rem);
+        font-weight: 800;
+        margin-bottom: 10px;
+    }
+    .opponent-hero__meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        font-size: 0.95rem;
+        opacity: 0.95;
+    }
+    .hero-chip {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-weight: 600;
+    }
+    .summary-grid,
+    .metrics-grid {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .summary-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    .metrics-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .summary-card,
+    .metric-card-advanced,
+    .trend-card,
+    .matchup-card {
+        background: #ffffff;
+        border-radius: 20px;
+        border: 1px solid #e7edf3;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+    }
+    .summary-card,
+    .metric-card-advanced {
+        padding: 20px;
+    }
+    .summary-card__label,
+    .metric-card-advanced__label {
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.78rem;
+        margin-bottom: 8px;
+    }
+    .summary-card__value,
+    .metric-card-advanced__value {
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: #10212f;
+        line-height: 1.1;
+    }
+    .summary-card__sub,
+    .metric-card-advanced__sub {
+        color: var(--text-muted);
+        margin-top: 8px;
+        font-size: 0.92rem;
+    }
+    .trend-card {
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+    .section-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .section-heading h2 {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 800;
+    }
+    .section-heading p {
+        margin: 0;
+        color: var(--text-muted);
+    }
+    .chart-shell {
+        position: relative;
+        height: 300px;
+    }
+    .matchup-list {
+        display: grid;
+        gap: 18px;
+    }
+    .matchup-card {
+        padding: 22px;
+    }
+    .matchup-header {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+    }
+    .matchup-header h3 {
+        margin: 0 0 6px 0;
+        font-size: 1.2rem;
+        font-weight: 800;
+    }
+    .matchup-meta {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        color: var(--text-muted);
+        font-size: 0.92rem;
+    }
+    .result-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: 0.85rem;
+    }
+    .result-pill.win {
+        background: #dcfce7;
+        color: #166534;
+    }
+    .result-pill.loss {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    .matchup-score {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #10212f;
+        text-align: right;
+        line-height: 1;
+    }
+    .matchup-score small {
+        display: block;
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        margin-top: 8px;
+    }
+    .stats-grid-inline {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .tiny-stat {
+        background: #f8fbfd;
+        border: 1px solid #e7edf3;
+        border-radius: 16px;
+        padding: 12px;
+    }
+    .tiny-stat__label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+    }
+    .tiny-stat__value {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #10212f;
+    }
+    .matchup-footer {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        align-items: start;
+    }
+    .info-block {
+        background: #fbfdff;
+        border: 1px solid #e7edf3;
+        border-radius: 16px;
+        padding: 16px;
+    }
+    .info-block h4 {
+        margin: 0 0 10px 0;
+        font-size: 0.92rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-muted);
+    }
+    .leader-line,
+    .advanced-line {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 0;
+        border-bottom: 1px solid #eef3f7;
+        font-size: 0.94rem;
+    }
+    .leader-line:last-child,
+    .advanced-line:last-child {
+        border-bottom: 0;
+    }
+    .leader-label,
+    .advanced-label {
+        color: var(--text-muted);
+    }
+    .leader-value,
+    .advanced-value {
+        font-weight: 700;
+        color: #10212f;
+        text-align: right;
+    }
+    .empty-state {
+        background: #ffffff;
+        border: 1px dashed #cbd5e1;
+        border-radius: 22px;
+        padding: 42px 24px;
+        text-align: center;
+        color: var(--text-muted);
+    }
+    @media (max-width: 768px) {
+        .opponent-hero {
+            padding: 24px;
+        }
+        .matchup-score {
+            text-align: left;
+        }
+    }
+</style>
+
+<div class="container-fluid">
+    <div class="opponent-hero">
+        <div class="opponent-hero__eyebrow">Opponent dossier</div>
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div>
+                <div class="opponent-hero__title">{{ opponent_name }}</div>
+                <div class="opponent-hero__meta">
+                    <span class="hero-chip">{{ summary.record }} record</span>
+                    <span class="hero-chip">{{ summary.win_rate }}% win rate</span>
+                    <span class="hero-chip">Avg {{ summary.avg_team_score }} - {{ summary.avg_opponent_score }}</span>
+                    <span class="hero-chip">Margin {% if summary.avg_margin > 0 %}+{% endif %}{{ summary.avg_margin }}</span>
+                </div>
+            </div>
+            <div>
+                <a href="{{ url_for('main.games') }}" class="btn btn-light btn-sm">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i> Back to opponents
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% if summary.games == 0 %}
+    <div class="empty-state">
+        <i class="fas fa-shield-alt fa-3x mb-3 opacity-50" aria-hidden="true"></i>
+        <h3 class="mb-2">No games found for {{ opponent_name }}</h3>
+        <p class="mb-0">This opponent does not have any saved matchups yet.</p>
+    </div>
+    {% else %}
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-card__label">Games</div>
+            <div class="summary-card__value">{{ summary.games }}</div>
+            <div class="summary-card__sub">{{ summary.wins }} wins, {{ summary.losses }} losses</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card__label">Average Score</div>
+            <div class="summary-card__value">{{ summary.avg_team_score }} - {{ summary.avg_opponent_score }}</div>
+            <div class="summary-card__sub">Across every recorded matchup</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card__label">Average Margin</div>
+            <div class="summary-card__value">{% if summary.avg_margin > 0 %}+{% endif %}{{ summary.avg_margin }}</div>
+            <div class="summary-card__sub">Positive means we outscored them</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card__label">Win Rate</div>
+            <div class="summary-card__value">{{ summary.win_rate }}%</div>
+            <div class="summary-card__sub">Result consistency versus {{ opponent_name }}</div>
+        </div>
+    </div>
+
+    <div class="metrics-grid">
+        <div class="metric-card-advanced">
+            <div class="metric-card-advanced__label">Shooting</div>
+            <div class="metric-card-advanced__value">
+                {% if aggregate_totals %}
+                    {{ aggregate_totals.fg_pct }}%
+                {% else %}
+                    --
+                {% endif %}
+            </div>
+            <div class="metric-card-advanced__sub">
+                FG%{% if aggregate_totals %} · 3PT {{ aggregate_totals.tp_pct }}% · FT {{ aggregate_totals.ft_pct }}%{% endif %}
+            </div>
+        </div>
+        <div class="metric-card-advanced">
+            <div class="metric-card-advanced__label">Playmaking / Ball Security</div>
+            <div class="metric-card-advanced__value">
+                {% if aggregate_totals %}
+                    {{ aggregate_totals.ast }} AST
+                {% else %}
+                    --
+                {% endif %}
+            </div>
+            <div class="metric-card-advanced__sub">
+                {% if aggregate_totals %}{{ aggregate_totals.tov }} TOV · {{ aggregate_totals.stl }} STL · {{ aggregate_totals.blk }} BLK{% else %}No team stat rows available{% endif %}
+            </div>
+        </div>
+        <div class="metric-card-advanced">
+            <div class="metric-card-advanced__label">Rebounding</div>
+            <div class="metric-card-advanced__value">
+                {% if aggregate_totals %}
+                    {{ aggregate_totals.reb }} REB
+                {% else %}
+                    --
+                {% endif %}
+            </div>
+            <div class="metric-card-advanced__sub">
+                {% if aggregate_totals %}{{ aggregate_totals.oreb }} OREB · {{ aggregate_totals.dreb }} DREB{% else %}No rebounding totals available{% endif %}
+            </div>
+        </div>
+        <div class="metric-card-advanced">
+            <div class="metric-card-advanced__label">Efficiency</div>
+            <div class="metric-card-advanced__value">
+                {% if aggregate_advanced %}
+                    {{ aggregate_advanced.ortg }}
+                {% else %}
+                    --
+                {% endif %}
+            </div>
+            <div class="metric-card-advanced__sub">
+                {% if aggregate_advanced %}
+                    ORtg · DRtg {{ aggregate_advanced.drtg }} · Net {% if aggregate_advanced.net_rating > 0 %}+{% endif %}{{ aggregate_advanced.net_rating }}
+                {% else %}
+                    Advanced metrics unavailable
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="trend-card">
+        <div class="section-heading">
+            <div>
+                <h2>Matchup Trends</h2>
+                <p>Score margin, efficiency, and shooting across every game versus {{ opponent_name }}</p>
+            </div>
+        </div>
+        <div class="chart-shell">
+            <canvas id="opponentTrendChart"></canvas>
+        </div>
+    </div>
+
+    <div class="section-heading">
+        <div>
+            <h2>Matchup History</h2>
+            <p>Detailed performance snapshot for every recorded game against {{ opponent_name }}</p>
+        </div>
+    </div>
+
+    <div class="matchup-list">
+        {% for game in matchup_cards %}
+        <div class="matchup-card">
+            <div class="matchup-header">
+                <div>
+                    <h3>{{ game.date }}</h3>
+                    <div class="matchup-meta">
+                        <span class="result-pill {{ 'win' if game.result == 'W' else 'loss' }}">{{ game.result }}</span>
+                        <span>{{ game.game_type }}</span>
+                        <span>Margin {% if game.margin > 0 %}+{% endif %}{{ game.margin }}</span>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div class="matchup-score">{{ game.team_score }} - {{ game.opponent_score }}</div>
+                    <small><a href="{{ url_for('main.game_detail', game_id=game.id) }}">Open full game detail</a></small>
+                </div>
+            </div>
+
+            <div class="stats-grid-inline">
+                <div class="tiny-stat">
+                    <div class="tiny-stat__label">FG</div>
+                    <div class="tiny-stat__value">{% if game.team_stats %}{{ game.team_stats.fgm }}-{{ game.team_stats.fga }}{% else %}--{% endif %}</div>
+                </div>
+                <div class="tiny-stat">
+                    <div class="tiny-stat__label">FG%</div>
+                    <div class="tiny-stat__value">{% if game.team_stats %}{{ game.team_stats.fg_pct }}%{% else %}--{% endif %}</div>
+                </div>
+                <div class="tiny-stat">
+                    <div class="tiny-stat__label">3PT</div>
+                    <div class="tiny-stat__value">{% if game.team_stats %}{{ game.team_stats.tpm }}-{{ game.team_stats.tpa }}{% else %}--{% endif %}</div>
+                </div>
+                <div class="tiny-stat">
+                    <div class="tiny-stat__label">FT</div>
+                    <div class="tiny-stat__value">{% if game.team_stats %}{{ game.team_stats.ftm }}-{{ game.team_stats.fta }}{% else %}--{% endif %}</div>
+                </div>
+                <div class="tiny-stat">
+                    <div class="tiny-stat__label">REB</div>
+                    <div class="tiny-stat__value">{% if game.team_stats %}{{ game.team_stats.reb }}{% else %}--{% endif %}</div>
+                </div>
+                <div class="tiny-stat">
+                    <div class="tiny-stat__label">AST</div>
+                    <div class="tiny-stat__value">{% if game.team_stats %}{{ game.team_stats.ast }}{% else %}--{% endif %}</div>
+                </div>
+                <div class="tiny-stat">
+                    <div class="tiny-stat__label">STL</div>
+                    <div class="tiny-stat__value">{% if game.team_stats %}{{ game.team_stats.stl }}{% else %}--{% endif %}</div>
+                </div>
+                <div class="tiny-stat">
+                    <div class="tiny-stat__label">BLK</div>
+                    <div class="tiny-stat__value">{% if game.team_stats %}{{ game.team_stats.blk }}{% else %}--{% endif %}</div>
+                </div>
+                <div class="tiny-stat">
+                    <div class="tiny-stat__label">TOV</div>
+                    <div class="tiny-stat__value">{% if game.team_stats %}{{ game.team_stats.tov }}{% else %}--{% endif %}</div>
+                </div>
+                <div class="tiny-stat">
+                    <div class="tiny-stat__label">PF</div>
+                    <div class="tiny-stat__value">{% if game.team_stats %}{{ game.team_stats.pf }}{% else %}--{% endif %}</div>
+                </div>
+            </div>
+
+            <div class="matchup-footer">
+                <div class="info-block">
+                    <h4>Player Leaders</h4>
+                    <div class="leader-line">
+                        <span class="leader-label">Top scorer</span>
+                        <span class="leader-value">
+                            {% if game.leaders.points %}{{ game.leaders.points.player }} · {{ game.leaders.points.value }}{% else %}--{% endif %}
+                        </span>
+                    </div>
+                    <div class="leader-line">
+                        <span class="leader-label">Top rebounder</span>
+                        <span class="leader-value">
+                            {% if game.leaders.reb %}{{ game.leaders.reb.player }} · {{ game.leaders.reb.value }}{% else %}--{% endif %}
+                        </span>
+                    </div>
+                    <div class="leader-line">
+                        <span class="leader-label">Top assister</span>
+                        <span class="leader-value">
+                            {% if game.leaders.ast %}{{ game.leaders.ast.player }} · {{ game.leaders.ast.value }}{% else %}--{% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="info-block">
+                    <h4>Advanced Metrics</h4>
+                    <div class="advanced-line">
+                        <span class="advanced-label">Possessions</span>
+                        <span class="advanced-value">{% if game.advanced %}{{ game.advanced.possessions }}{% else %}--{% endif %}</span>
+                    </div>
+                    <div class="advanced-line">
+                        <span class="advanced-label">Pace</span>
+                        <span class="advanced-value">
+                            {% if game.advanced and game.advanced.pace is not none %}{{ game.advanced.pace }}{% else %}--{% endif %}
+                        </span>
+                    </div>
+                    <div class="advanced-line">
+                        <span class="advanced-label">ORtg / DRtg</span>
+                        <span class="advanced-value">
+                            {% if game.advanced %}{{ game.advanced.ortg }} / {{ game.advanced.drtg }}{% else %}--{% endif %}
+                        </span>
+                    </div>
+                    <div class="advanced-line">
+                        <span class="advanced-label">Net Rating</span>
+                        <span class="advanced-value">
+                            {% if game.advanced %}{% if game.advanced.net_rating > 0 %}+{% endif %}{{ game.advanced.net_rating }}{% else %}--{% endif %}
+                        </span>
+                    </div>
+                    <div class="advanced-line">
+                        <span class="advanced-label">TS% / eFG%</span>
+                        <span class="advanced-value">
+                            {% if game.advanced %}{{ game.advanced.ts_pct }}% / {{ game.advanced.efg_pct }}%{% else %}--{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+{% if summary.games > 0 %}
+<script>
+    (function () {
+        const trendData = {{ trend_data|tojson }};
+        const chartCanvas = document.getElementById('opponentTrendChart');
+        if (!chartCanvas || typeof Chart === 'undefined') return;
+
+        new Chart(chartCanvas, {
+            type: 'line',
+            data: {
+                labels: trendData.labels,
+                datasets: [
+                    {
+                        label: 'Margin',
+                        data: trendData.margins,
+                        borderColor: '#0f766e',
+                        backgroundColor: 'rgba(15, 118, 110, 0.15)',
+                        yAxisID: 'y',
+                        tension: 0.35,
+                        fill: false
+                    },
+                    {
+                        label: 'FG%',
+                        data: trendData.fg_pct,
+                        borderColor: '#d97706',
+                        backgroundColor: 'rgba(217, 119, 6, 0.15)',
+                        yAxisID: 'y1',
+                        tension: 0.35,
+                        fill: false
+                    },
+                    {
+                        label: 'ORtg',
+                        data: trendData.ortg,
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.15)',
+                        yAxisID: 'y1',
+                        tension: 0.35,
+                        fill: false
+                    },
+                    {
+                        label: 'DRtg',
+                        data: trendData.drtg,
+                        borderColor: '#dc2626',
+                        backgroundColor: 'rgba(220, 38, 38, 0.15)',
+                        yAxisID: 'y1',
+                        tension: 0.35,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                scales: {
+                    y: {
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Margin'
+                        }
+                    },
+                    y1: {
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'FG% / Ratings'
+                        }
+                    }
+                }
+            }
+        });
+    })();
+</script>
+{% endif %}
+{% endblock %}

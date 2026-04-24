@@ -809,6 +809,7 @@
     <h1>{{ player_name }} - Lineup Context</h1>
 
     {% if lineup_context.available %}
+    {% if lineup_context.top_lineups_available %}
     <div class="two-column">
       <div class="section-box">
         <h3>Best Lineup</h3>
@@ -827,6 +828,11 @@
         <p>ORTG {{ "%.1f"|format(lineup_context.worst_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.worst_lineup.drtg) }}</p>
       </div>
     </div>
+    {% else %}
+    <div class="section-box">
+      <p>No lineups reached the 10-minute minimum for best/worst lineup ranking.</p>
+    </div>
+    {% endif %}
 
     <h2>Most Used Lineups</h2>
     <table>

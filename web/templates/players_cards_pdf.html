@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Player Cards PDF</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 1cm;
+    }
+
+    body {
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      color: #1f2937;
+      font-size: 11px;
+      margin: 0;
+    }
+
+    .header {
+      margin-bottom: 14px;
+      border-bottom: 2px solid #e5e7eb;
+      padding-bottom: 10px;
+    }
+
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0 0 4px 0;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      margin: 0;
+      font-size: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      padding: 12px;
+      page-break-inside: avoid;
+      background: #ffffff;
+    }
+
+    .card.team {
+      background: linear-gradient(135deg, rgba(23,162,162,0.10), rgba(255,152,0,0.10));
+      border-color: rgba(23,162,162,0.35);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #667eea;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .team .avatar {
+      background: linear-gradient(135deg, #17a2a2, #ff9800);
+    }
+
+    .name {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .meta {
+      color: #6b7280;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .stat {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 8px 6px;
+      text-align: center;
+    }
+
+    .value {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .label {
+      font-size: 9px;
+      text-transform: uppercase;
+      color: #6b7280;
+      letter-spacing: 0.4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 class="title">Player Cards</h1>
+    <p class="subtitle">
+      {{ stats|length }} player cards • Filter: {{ filters.type }}
+      {% if total_row and total_row.excluded_player %}
+      • Team total excludes {{ total_row.excluded_player }}
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="grid">
+    {% if total_row %}
+    <div class="card team">
+      <div class="card-header">
+        <div class="avatar">TT</div>
+        <div>
+          <div class="name">Team Total</div>
+          <div class="meta">
+            {{ total_row.games_played }} Games • {{ total_row.mpg|round(1) }} MPG
+            {% if total_row.excluded_player %}
+            • without {{ total_row.excluded_player }}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="value">{{ total_row.ppg|round(1) }}</div><div class="label">PPG</div></div>
+        <div class="stat"><div class="value">{{ total_row.rpg|round(1) }}</div><div class="label">RPG</div></div>
+        <div class="stat"><div class="value">{{ total_row.apg|round(1) }}</div><div class="label">APG</div></div>
+        <div class="stat"><div class="value">{{ total_row.eff|round(1) }}</div><div class="label">EFF</div></div>
+        <div class="stat"><div class="value">{{ total_row.ortg|round(0) }}</div><div class="label">ORtg</div></div>
+        <div class="stat"><div class="value">{{ total_row.ppp|round(2) }}</div><div class="label">PPP</div></div>
+        <div class="stat"><div class="value">{{ total_row.ts_pct|round(1) }}%</div><div class="label">TS%</div></div>
+        <div class="stat"><div class="value">{{ total_row.poss_per_40|round(1) }}</div><div class="label">Poss/40</div></div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% for p in stats %}
+    <div class="card">
+      <div class="card-header">
+        <div class="avatar">{{ p.player_name[:2]|upper }}</div>
+        <div>
+          <div class="name">{{ p.player_name }}</div>
+          <div class="meta">{{ p.games_played }} Games • {{ p.mpg|round(1) }} MPG</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="value">{{ p.ppg|round(1) }}</div><div class="label">PPG</div></div>
+        <div class="stat"><div class="value">{{ p.rpg|round(1) }}</div><div class="label">RPG</div></div>
+        <div class="stat"><div class="value">{{ p.apg|round(1) }}</div><div class="label">APG</div></div>
+        <div class="stat"><div class="value">{{ p.eff|round(1) }}</div><div class="label">EFF</div></div>
+        <div class="stat"><div class="value">{{ p.ortg|round(0) }}</div><div class="label">ORtg</div></div>
+        <div class="stat"><div class="value">{{ p.ppp|round(2) }}</div><div class="label">PPP</div></div>
+        <div class="stat"><div class="value">{{ p.ts_pct|round(1) }}%</div><div class="label">TS%</div></div>
+        <div class="stat"><div class="value">{{ p.poss_per_40|round(1) }}</div><div class="label">Poss/40</div></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</body>
+</html>

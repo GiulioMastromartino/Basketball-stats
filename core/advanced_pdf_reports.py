@@ -69,7 +69,7 @@ class AdvancedPDFReports:
 
         if not stats:
             return None, None
-
+        
         # Get game events for score worm
         events = (
             GameEvent.query.filter_by(game_id=game_id)
@@ -85,7 +85,7 @@ class AdvancedPDFReports:
 
         # Get four factors
         four_factors = AnalyticsEngine.get_four_factors(game_id=game_id)
-
+        
         # Get team totals
         team_totals = {
             "points": sum(s.points for s in stats),
@@ -107,7 +107,7 @@ class AdvancedPDFReports:
 
         # Shot chart
         shot_chart = generate_team_shot_chart([game_id], db.session)
-
+        
         html = render_template(
             "reports/visual_game_report.html",
             game=game,
@@ -220,7 +220,7 @@ class AdvancedPDFReports:
         - Top 5 Lineups ranked by Net Rating
         - Substitution Timeline (Gantt chart)
         - Duo Compatibility Matrix
-
+        
         Returns:
             Tuple of (filename, pdf_bytes)
         """
@@ -229,15 +229,35 @@ class AdvancedPDFReports:
             game_ids, min_possessions
         )
 
-        # Get duo compatibility
-        duos = LineupAnalytics.calculate_duo_compatibility(game_ids)
+        # Use ON/OFF differential so compatibility is centered around neutral (0.0).
+        duo_impacts = LineupAnalytics.get_combination_net_differentials(
+            combination_type="duo",
+            game_ids=game_ids,
+            min_possessions=min_possessions,
+            top_n=200,
+            require_positive=False,
+        )
+        duos = [
+            {
+                "player1": duo["players"][0],
+                "player2": duo["players"][1],
+                "segments": duo["segments"],
+                "possessions": duo["on"]["possessions"],
+                "minutes": duo["on"]["minutes"],
+                "ortg": duo["on"]["ortg"],
+                "drtg": duo["on"]["drtg"],
+                "net_rating": duo["on"]["net"],
+                "compatibility": duo["impact"]["net_differential"],
+            }
+            for duo in duo_impacts
+        ]
 
         # Get trio compatibility
         trios = LineupAnalytics.calculate_trio_compatibility(game_ids)
 
         # Build duo matrix for visualization
         duo_matrix = AdvancedPDFReports._build_duo_matrix(duos)
-
+        
         html = render_template(
             "reports/lineup_report.html",
             rankings=rankings[:10],
@@ -276,7 +296,9 @@ class AdvancedPDFReports:
                         if (duo["player1"] == p1 and duo["player2"] == p2) or (
                             duo["player1"] == p2 and duo["player2"] == p1
                         ):
-                            matrix[p1][p2] = duo["net_rating"]
+                            matrix[p1][p2] = duo.get(
+                                "compatibility", duo.get("net_rating")
+                            )
                             break
                     else:
                         matrix[p1][p2] = None
