@@ -446,6 +446,10 @@
     .od-badge--loss {
         background: var(--hs-loss);
     }
+    .od-badge--diff {
+        background: var(--hs-cool);
+        color: #0f1a18;
+    }
 
     .od-row__date {
         font-weight: 700;
@@ -541,6 +545,24 @@
         padding-bottom: 0.4rem;
         border-bottom: 1px solid rgba(26, 23, 20, 0.08);
     }
+    .od-pblock--full {
+        grid-column: 1 / -1;
+    }
+    .od-rank-shift {
+        font-size: 0.72rem;
+        font-weight: 700;
+        margin-left: 0.4rem;
+        white-space: nowrap;
+    }
+    .od-rank-shift--up {
+        color: var(--hs-win);
+    }
+    .od-rank-shift--down {
+        color: var(--hs-loss);
+    }
+    .od-rank-shift--same {
+        color: var(--hs-ink-muted);
+    }
     .od-prow {
         display: flex;
         justify-content: space-between;
@@ -570,6 +592,7 @@
         width: 100%;
         border-collapse: collapse;
         font-size: 0.84rem;
+        table-layout: fixed;
     }
     .od-scorers th {
         font-size: 0.62rem;
@@ -625,6 +648,11 @@
     .od-panel-link:hover {
         color: var(--hs-accent);
     }
+    .od-diff-note {
+        font-size: 0.72rem;
+        color: var(--hs-ink-muted);
+        margin-top: 0.5rem;
+    }
 
     /* ── Empty ── */
     .od-empty {
@@ -660,6 +688,9 @@
         .od-h2h__row,
         .od-h2h__bar-row {
             grid-template-columns: 1fr 100px 1fr;
+        }
+        .od-scorers {
+            table-layout: auto;
         }
     }
 </style>
@@ -886,8 +917,8 @@
             </div>
             <div class="od-h2h__score od-h2h__score--right">
                 <span
-                    class="{{ 'c-neg' if g1.team_score > g1.opponent_score else 'c-pos' }}"
-                    >{{ g1.opponent_score }}</span
+                    class="{{ 'c-pos' if g1.team_score > g1.opponent_score else 'c-neg' }}"
+                    >{{ g1.team_score }}</span
                 >
                 <span
                     style="
@@ -898,8 +929,8 @@
                     >–</span
                 >
                 <span
-                    class="{{ 'c-pos' if g1.team_score > g1.opponent_score else 'c-neg' }}"
-                    >{{ g1.team_score }}</span
+                    class="{{ 'c-neg' if g1.team_score > g1.opponent_score else 'c-pos' }}"
+                    >{{ g1.opponent_score }}</span
                 >
                 <small style="text-align: right"
                     >{{ g1.result }} · {% if g1.margin > 0 %}+{% endif %}{{
@@ -931,19 +962,21 @@
         {% endmacro %} {{ h2h_row('FG', s0.fgm ~ '-' ~ s0.fga, s1.fgm ~ '-' ~
         s1.fga) }} {{ h2h_row('FG%', s0.fg_pct ~ '%', s1.fg_pct ~ '%') }} {# FG%
         bar #} {% set fg0 = s0.fg_pct|float %} {% set fg1 = s1.fg_pct|float %}
-        {% set fg_max = [fg0, fg1]|max %}
+        {% set fg_max = [fg0, fg1]|max %} {% set fg0_width = ((fg0 / fg_max *
+        100)|round) if fg_max > 0 else 0 %} {% set fg1_width = ((fg1 / fg_max *
+        100)|round) if fg_max > 0 else 0 %}
         <div class="od-h2h__bar-row">
             <div class="od-h2h__bar-left">
                 <div
                     class="od-h2h__bar-fill od-h2h__bar-fill--win"
-                    style="width:{{ (fg0/fg_max*100)|round }}%"
+                    style="width:{{ fg0_width }}%"
                 ></div>
             </div>
             <div></div>
             <div class="od-h2h__bar-right">
                 <div
                     class="od-h2h__bar-fill od-h2h__bar-fill--win"
-                    style="width:{{ (fg1/fg_max*100)|round }}%"
+                    style="width:{{ fg1_width }}%"
                 ></div>
             </div>
         </div>
@@ -959,19 +992,21 @@
         {{ h2h_row('REB', s0.reb, s1.reb) }} {{ h2h_row('OREB', s0.oreb,
         s1.oreb) }} {{ h2h_row('DREB', s0.dreb, s1.dreb) }} {% set reb0 =
         s0.reb|float %} {% set reb1 = s1.reb|float %} {% set reb_max = [reb0,
-        reb1]|max %}
+        reb1]|max %} {% set reb0_width = ((reb0 / reb_max * 100)|round) if
+        reb_max > 0 else 0 %} {% set reb1_width = ((reb1 / reb_max * 100)|round)
+        if reb_max > 0 else 0 %}
         <div class="od-h2h__bar-row">
             <div class="od-h2h__bar-left">
                 <div
                     class="od-h2h__bar-fill od-h2h__bar-fill--acc"
-                    style="width:{{ (reb0/reb_max*100)|round }}%"
+                    style="width:{{ reb0_width }}%"
                 ></div>
             </div>
             <div></div>
             <div class="od-h2h__bar-right">
                 <div
                     class="od-h2h__bar-fill od-h2h__bar-fill--acc"
-                    style="width:{{ (reb1/reb_max*100)|round }}%"
+                    style="width:{{ reb1_width }}%"
                 ></div>
             </div>
         </div>
@@ -1368,26 +1403,43 @@
                         </div>
                     </div>
 
-                    {# Top scorers table #} {% if game.top_scorers %}
-                    <div>
+                    {# Game Score ranking #} {% if game.top_players_by_gamescore
+                    %}
+                    <div class="od-pblock--full">
                         <div class="od-pblock__title">Top Performers</div>
                         <table class="od-scorers">
                             <thead>
                                 <tr>
                                     <th>Player</th>
+                                    <th>GmSc</th>
+                                    <th>MIN</th>
                                     <th>PTS</th>
                                     <th>REB</th>
                                     <th>AST</th>
                                     <th>FG</th>
-                                    <th>+/-</th>
+                                    <th>3PT</th>
+                                    <th>FT</th>
+                                    <th>STL</th>
+                                    <th>TS%</th>
+                                    <th>ORtg</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for p in game.top_scorers %}
+                                {% for p in game.top_players_by_gamescore %}
                                 <tr>
-                                    <td>{{ p.name }}</td>
+                                    <td>{{ p.player }}</td>
                                     <td>
-                                        <span class="pts-val">{{ p.pts }}</span>
+                                        <span class="pts-val"
+                                            >{{ p.game_score }}</span
+                                        >
+                                    </td>
+                                    <td style="color: var(--hs-ink-muted)">
+                                        {{ p.minutes }}
+                                    </td>
+                                    <td>
+                                        <span class="pts-val"
+                                            >{{ p.points }}</span
+                                        >
                                     </td>
                                     <td>
                                         <span class="reb-val">{{ p.reb }}</span>
@@ -1398,12 +1450,15 @@
                                     <td style="color: var(--hs-ink-muted)">
                                         {{ p.fgm }}-{{ p.fga }}
                                     </td>
-                                    <td
-                                        class="{{ 'c-pos' if p.plus_minus >= 0 else 'c-neg' }}"
-                                    >
-                                        {% if p.plus_minus > 0 %}+{% endif %}{{
-                                        p.plus_minus }}
+                                    <td style="color: var(--hs-ink-muted)">
+                                        {{ p.tpm }}-{{ p.tpa }}
                                     </td>
+                                    <td style="color: var(--hs-ink-muted)">
+                                        {{ p.ftm }}-{{ p.fta }}
+                                    </td>
+                                    <td>{{ p.stl }}</td>
+                                    <td class="c-cool">{{ p.ts_pct }}%</td>
+                                    <td class="c-pos">{{ p.ortg }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -1463,6 +1518,297 @@
             </div>
         </div>
         {% endfor %}
+
+        {% if matchup_cards|length >= 2 %}
+        {% set dg0 = matchup_cards[0] %}
+        {% set dg1 = matchup_cards[1] %}
+        {% set ds0 = dg0.team_stats %}
+        {% set ds1 = dg1.team_stats %}
+        {% set da0 = dg0.advanced %}
+        {% set da1 = dg1.advanced %}
+        {% set diff_margin = dg0.margin - dg1.margin %}
+        <div class="od-row" id="gr-diff">
+            <div class="od-row__main" onclick="toggleRow('diff')">
+                <div>
+                    <div class="od-badge od-badge--diff">Δ</div>
+                </div>
+
+                <div>
+                    <div class="od-row__date">Differential</div>
+                    <div class="od-row__meta">
+                        <span class="od-type-tag">{{ dg0.date }} vs {{ dg1.date }}</span>
+                        <span
+                            class="{{ 'c-pos' if diff_margin >= 0 else 'c-neg' }}"
+                            style="font-weight: 700; font-size: 0.78rem"
+                        >
+                            Margin {% if diff_margin > 0 %}+{% endif %}{{ diff_margin }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="od-cell">
+                    <div
+                        class="od-cell__main"
+                        style="font-family: var(--hs-font-display); font-size: 1rem; letter-spacing: 0.03em;"
+                    >
+                        {% set team_score_delta = dg0.team_score - dg1.team_score %}
+                        {% set opp_score_delta = dg0.opponent_score - dg1.opponent_score %}
+                        <span class="{{ 'c-pos' if team_score_delta >= 0 else 'c-neg' }}">
+                            {% if team_score_delta > 0 %}+{% endif %}{{ team_score_delta }}
+                        </span>
+                        <span style="color: var(--hs-ink-muted); margin: 0 2px">/</span>
+                        <span class="{{ 'c-neg' if opp_score_delta >= 0 else 'c-pos' }}">
+                            {% if opp_score_delta > 0 %}+{% endif %}{{ opp_score_delta }}
+                        </span>
+                    </div>
+                    <div class="od-cell__sub">team / opp</div>
+                </div>
+
+                <div class="od-cell">
+                    <div class="od-cell__main c-cool">
+                        {% if ds0 and ds1 %}
+                            {% set fg_delta = ds0.fg_pct - ds1.fg_pct %}
+                            {% if fg_delta > 0 %}+{% endif %}{{ fg_delta|round(1) }}%
+                        {% else %}--{% endif %}
+                    </div>
+                </div>
+
+                <div class="od-cell">
+                    <div class="od-cell__main">
+                        {% if ds0 and ds1 %}
+                            {% set reb_delta = ds0.reb - ds1.reb %}
+                            {% if reb_delta > 0 %}+{% endif %}{{ reb_delta }}
+                        {% else %}--{% endif %}
+                    </div>
+                </div>
+
+                <div class="od-cell">
+                    <div class="od-cell__main c-gold">
+                        {% if ds0 and ds1 %}
+                            {% set ast_delta = ds0.ast - ds1.ast %}
+                            {% if ast_delta > 0 %}+{% endif %}{{ ast_delta }}
+                        {% else %}--{% endif %}
+                    </div>
+                </div>
+
+                <div class="od-cell">
+                    <div class="od-cell__main">
+                        {% if ds0 and ds1 %}
+                            {% set tov_delta = ds0.tov - ds1.tov %}
+                            {% if tov_delta > 0 %}+{% endif %}{{ tov_delta }}
+                        {% else %}--{% endif %}
+                    </div>
+                </div>
+
+                <div class="od-cell">
+                    <div class="od-cell__main {% if da0 and da1 %}{{ 'c-pos' if (da0.net_rating - da1.net_rating) >= 0 else 'c-neg' }}{% endif %}">
+                        {% if da0 and da1 %}
+                            {% set net_delta = da0.net_rating - da1.net_rating %}
+                            {% if net_delta > 0 %}+{% endif %}{{ net_delta|round(1) }}
+                        {% else %}--{% endif %}
+                    </div>
+                    <div class="od-cell__sub">recent - previous</div>
+                </div>
+
+                <div class="od-chevron">
+                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                </div>
+            </div>
+
+            <div class="od-row__panel">
+                <div class="od-panel-grid">
+                    <div>
+                        <div class="od-pblock__title">Score Differential</div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">Team score</span>
+                            <span class="od-prow__val">
+                                {% set team_score_delta = dg0.team_score - dg1.team_score %}
+                                {% if team_score_delta > 0 %}+{% endif %}{{ team_score_delta }}
+                            </span>
+                        </div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">Opponent score</span>
+                            <span class="od-prow__val">
+                                {% set opp_score_delta = dg0.opponent_score - dg1.opponent_score %}
+                                {% if opp_score_delta > 0 %}+{% endif %}{{ opp_score_delta }}
+                            </span>
+                        </div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">Margin</span>
+                            <span class="od-prow__val {{ 'c-pos' if diff_margin >= 0 else 'c-neg' }}">
+                                {% if diff_margin > 0 %}+{% endif %}{{ diff_margin }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="od-pblock__title">Shooting Differential</div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">FG%</span>
+                            <span class="od-prow__val">{% if ds0 and ds1 %}{% set fg_delta = ds0.fg_pct - ds1.fg_pct %}{% if fg_delta > 0 %}+{% endif %}{{ fg_delta|round(1) }}%{% else %}--{% endif %}</span>
+                        </div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">3PT%</span>
+                            <span class="od-prow__val">{% if ds0 and ds1 %}{% set tp_delta = ds0.tp_pct - ds1.tp_pct %}{% if tp_delta > 0 %}+{% endif %}{{ tp_delta|round(1) }}%{% else %}--{% endif %}</span>
+                        </div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">FT%</span>
+                            <span class="od-prow__val">{% if ds0 and ds1 %}{% set ft_delta = ds0.ft_pct - ds1.ft_pct %}{% if ft_delta > 0 %}+{% endif %}{{ ft_delta|round(1) }}%{% else %}--{% endif %}</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="od-pblock__title">Box Score Differential</div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">REB</span>
+                            <span class="od-prow__val">{% if ds0 and ds1 %}{% set reb_delta = ds0.reb - ds1.reb %}{% if reb_delta > 0 %}+{% endif %}{{ reb_delta }}{% else %}--{% endif %}</span>
+                        </div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">AST</span>
+                            <span class="od-prow__val">{% if ds0 and ds1 %}{% set ast_delta = ds0.ast - ds1.ast %}{% if ast_delta > 0 %}+{% endif %}{{ ast_delta }}{% else %}--{% endif %}</span>
+                        </div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">TOV</span>
+                            <span class="od-prow__val">{% if ds0 and ds1 %}{% set tov_delta = ds0.tov - ds1.tov %}{% if tov_delta > 0 %}+{% endif %}{{ tov_delta }}{% else %}--{% endif %}</span>
+                        </div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">STL</span>
+                            <span class="od-prow__val">{% if ds0 and ds1 %}{% set stl_delta = ds0.stl - ds1.stl %}{% if stl_delta > 0 %}+{% endif %}{{ stl_delta }}{% else %}--{% endif %}</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="od-pblock__title">Advanced Differential</div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">Pace</span>
+                            <span class="od-prow__val">{% if da0 and da1 and da0.pace is not none and da1.pace is not none %}{% set pace_delta = da0.pace - da1.pace %}{% if pace_delta > 0 %}+{% endif %}{{ pace_delta|round(1) }}{% else %}--{% endif %}</span>
+                        </div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">ORtg</span>
+                            <span class="od-prow__val">{% if da0 and da1 %}{% set ortg_delta = da0.ortg - da1.ortg %}{% if ortg_delta > 0 %}+{% endif %}{{ ortg_delta|round(1) }}{% else %}--{% endif %}</span>
+                        </div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">DRtg</span>
+                            <span class="od-prow__val">{% if da0 and da1 %}{% set drtg_delta = da0.drtg - da1.drtg %}{% if drtg_delta > 0 %}+{% endif %}{{ drtg_delta|round(1) }}{% else %}--{% endif %}</span>
+                        </div>
+                        <div class="od-prow">
+                            <span class="od-prow__lbl">Net Rating</span>
+                            <span class="od-prow__val {% if da0 and da1 %}{{ 'c-pos' if (da0.net_rating - da1.net_rating) >= 0 else 'c-neg' }}{% endif %}">
+                                {% if da0 and da1 %}{% set net_delta = da0.net_rating - da1.net_rating %}{% if net_delta > 0 %}+{% endif %}{{ net_delta|round(1) }}{% else %}--{% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    {% if dg0.top_players_by_gamescore %}
+                    <div class="od-pblock--full">
+                        <div class="od-pblock__title">Top Performers Differential</div>
+                        <table class="od-scorers">
+                            <thead>
+                                <tr>
+                                    <th>Player</th>
+                                    <th>Δ GmSc</th>
+                                    <th>Δ MIN</th>
+                                    <th>Δ PTS</th>
+                                    <th>Δ REB</th>
+                                    <th>Δ AST</th>
+                                    <th>Δ FG</th>
+                                    <th>Δ 3PT</th>
+                                    <th>Δ FT</th>
+                                    <th>Δ STL</th>
+                                    <th>Δ TS%</th>
+                                    <th>Δ ORtg</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in dg0.top_players_by_gamescore %}
+                                {% set prev = dg1.top_players_by_gamescore|selectattr('player', 'equalto', p.player)|list|first %}
+                                {% set rank = loop.index %}
+                                {% set rank_ns = namespace(prev_rank=None) %}
+                                {% for prev_player in dg1.top_players_by_gamescore %}
+                                    {% if prev_player.player == p.player %}
+                                        {% set rank_ns.prev_rank = loop.index %}
+                                    {% endif %}
+                                {% endfor %}
+                                <tr>
+                                    <td>
+                                        {{ p.player }}
+                                        {% if rank_ns.prev_rank is none %}
+                                            <span class="od-rank-shift od-rank-shift--up">new ↑</span>
+                                        {% else %}
+                                            {% set rank_delta = rank_ns.prev_rank - rank %}
+                                            {% if rank_delta > 0 %}
+                                                <span class="od-rank-shift od-rank-shift--up">{{ rank }} ↑{{ rank_delta }}</span>
+                                            {% elif rank_delta < 0 %}
+                                                <span class="od-rank-shift od-rank-shift--down">{{ rank }} ↓{{ (-rank_delta) }}</span>
+                                            {% else %}
+                                                <span class="od-rank-shift od-rank-shift--same">{{ rank }} =</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                    <td class="{{ 'c-pos' if (p.game_score - (prev.game_score if prev else 0)) >= 0 else 'c-neg' }}">
+                                        {% if prev %}
+                                            {% set game_score_delta = p.game_score - prev.game_score %}
+                                            {% if game_score_delta > 0 %}+{% endif %}{{ game_score_delta|round(1) }}
+                                        {% else %}
+                                            +{{ p.game_score }}
+                                        {% endif %}
+                                    </td>
+                                    <td style="color: var(--hs-ink-muted)">
+                                        {{ p.minutes }}
+                                        {% if prev %}<span style="opacity:.65"> vs {{ prev.minutes }}</span>{% endif %}
+                                    </td>
+                                    <td class="{{ 'c-pos' if (p.points - (prev.points if prev else 0)) >= 0 else 'c-neg' }}">
+                                        {% if prev %}{% set points_delta = p.points - prev.points %}{% if points_delta > 0 %}+{% endif %}{{ points_delta }}{% else %}+{{ p.points }}{% endif %}
+                                    </td>
+                                    <td class="{{ 'c-pos' if (p.reb - (prev.reb if prev else 0)) >= 0 else 'c-neg' }}">
+                                        {% if prev %}{% set reb_delta = p.reb - prev.reb %}{% if reb_delta > 0 %}+{% endif %}{{ reb_delta }}{% else %}+{{ p.reb }}{% endif %}
+                                    </td>
+                                    <td class="{{ 'c-pos' if (p.ast - (prev.ast if prev else 0)) >= 0 else 'c-neg' }}">
+                                        {% if prev %}{% set ast_delta = p.ast - prev.ast %}{% if ast_delta > 0 %}+{% endif %}{{ ast_delta }}{% else %}+{{ p.ast }}{% endif %}
+                                    </td>
+                                    <td style="color: var(--hs-ink-muted)">
+                                        {% if prev %}
+                                            {{ p.fgm - prev.fgm }}-{{ p.fga - prev.fga }}
+                                        {% else %}
+                                            +{{ p.fgm }}-{{ p.fga }}
+                                        {% endif %}
+                                    </td>
+                                    <td style="color: var(--hs-ink-muted)">
+                                        {% if prev %}
+                                            {{ p.tpm - prev.tpm }}-{{ p.tpa - prev.tpa }}
+                                        {% else %}
+                                            +{{ p.tpm }}-{{ p.tpa }}
+                                        {% endif %}
+                                    </td>
+                                    <td style="color: var(--hs-ink-muted)">
+                                        {% if prev %}
+                                            {{ p.ftm - prev.ftm }}-{{ p.fta - prev.fta }}
+                                        {% else %}
+                                            +{{ p.ftm }}-{{ p.fta }}
+                                        {% endif %}
+                                    </td>
+                                    <td class="{{ 'c-pos' if (p.stl - (prev.stl if prev else 0)) >= 0 else 'c-neg' }}">
+                                        {% if prev %}{% set stl_delta = p.stl - prev.stl %}{% if stl_delta > 0 %}+{% endif %}{{ stl_delta }}{% else %}+{{ p.stl }}{% endif %}
+                                    </td>
+                                    <td class="{{ 'c-pos' if (p.ts_pct - (prev.ts_pct if prev else 0)) >= 0 else 'c-neg' }}">
+                                        {% if prev %}{% set ts_delta = p.ts_pct - prev.ts_pct %}{% if ts_delta > 0 %}+{% endif %}{{ ts_delta|round(1) }}%{% else %}+{{ p.ts_pct }}%{% endif %}
+                                    </td>
+                                    <td class="{{ 'c-pos' if (p.ortg - (prev.ortg if prev else 0)) >= 0 else 'c-neg' }}">
+                                        {% if prev %}{% set ortg_delta = p.ortg - prev.ortg %}{% if ortg_delta > 0 %}+{% endif %}{{ ortg_delta|round(1) }}{% else %}+{{ p.ortg }}{% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="od-diff-note">
+                    Differential is calculated as {{ dg0.date }} minus {{ dg1.date }}.
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     {% endif %}{# end games > 0 #}

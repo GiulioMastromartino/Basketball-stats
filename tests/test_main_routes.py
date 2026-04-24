@@ -208,6 +208,9 @@ class TestMainRoutes(unittest.TestCase):
         self.assertIn('top_players_by_gamescore', card)
         self.assertEqual(len(card['top_players_by_gamescore']), 10)
         self.assertEqual(card['top_players_by_gamescore'][0]['player'], 'Player1')
+        self.assertIn('fgm', card['top_players_by_gamescore'][0])
+        self.assertIn('ts_pct', card['top_players_by_gamescore'][0])
+        self.assertIn('ortg', card['top_players_by_gamescore'][0])
         self.assertGreaterEqual(
             card['top_players_by_gamescore'][0]['game_score'],
             card['top_players_by_gamescore'][-1]['game_score']

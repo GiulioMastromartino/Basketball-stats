@@ -210,6 +210,12 @@ def _get_top_players_by_gamescore(stat_rows, limit=10):
     ranked_players = []
 
     for stat in stat_rows:
+        possessions = calculate_possessions(
+            stat.fga or 0,
+            stat.fta or 0,
+            stat.oreb or 0,
+            stat.tov or 0,
+        )
         game_score = calculate_game_score(
             stat.points or 0,
             stat.fgm or 0,
@@ -232,6 +238,33 @@ def _get_top_players_by_gamescore(stat_rows, limit=10):
                 "reb": stat.reb or 0,
                 "ast": stat.ast or 0,
                 "minutes": stat.minutes or "00:00",
+                "fgm": stat.fgm or 0,
+                "fga": stat.fga or 0,
+                "tpm": stat.tpm or 0,
+                "tpa": stat.tpa or 0,
+                "ftm": stat.ftm or 0,
+                "fta": stat.fta or 0,
+                "stl": stat.stl or 0,
+                "tov": stat.tov or 0,
+                "ts_pct": round(
+                    calculate_ts_percent(
+                        stat.points or 0,
+                        stat.fga or 0,
+                        stat.fta or 0,
+                    ),
+                    1,
+                ),
+                "efg_pct": round(
+                    calculate_efg_percent(
+                        stat.fgm or 0,
+                        stat.tpm or 0,
+                        stat.fga or 0,
+                    ),
+                    1,
+                ),
+                "ortg": round(calculate_ortg(stat.points or 0, possessions), 1)
+                if possessions > 0
+                else 0.0,
             }
         )
 
