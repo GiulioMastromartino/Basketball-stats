@@ -197,9 +197,15 @@
                 Analytics Suite
             </h1>
             <div style="display: flex; gap: 15px; align-items: center">
+                <select id="reportPlayer" style="padding: 10px 12px; border-radius: 6px; border: 1px solid #d0d7de; min-width: 220px;">
+                    {% for p in players %}
+                    <option value="{{ p }}">{{ p }}</option>
+                    {% endfor %}
+                </select>
+
                 <!-- Team PDF Report Button -->
                 <button 
-                    onclick="window.location.href='/team/report.pdf?game_type=ALL'" 
+                    onclick="openTeamReport()" 
                     style="
                         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                         color: white;
@@ -218,6 +224,81 @@
                     onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)'"
                 >
                     <i class="fas fa-users"></i> Team Report
+                </button>
+
+                <button
+                    onclick="openLineupReport()"
+                    style="
+                        background: linear-gradient(135deg, #1abc9c 0%, #16a085 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 16px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    "
+                >
+                    <i class="fas fa-layer-group"></i> Lineup Report
+                </button>
+
+                <button
+                    onclick="openClutchReport()"
+                    style="
+                        background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 16px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    "
+                >
+                    <i class="fas fa-stopwatch"></i> Clutch Report
+                </button>
+
+                <button
+                    onclick="openPlayerReport()"
+                    style="
+                        background: linear-gradient(135deg, #4dabf7 0%, #1c7ed6 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 16px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    "
+                >
+                    <i class="fas fa-user"></i> Player Report
+                </button>
+
+                <button
+                    onclick="openPlayerScouting()"
+                    style="
+                        background: linear-gradient(135deg, #6c5ce7 0%, #4834d4 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 16px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    "
+                >
+                    <i class="fas fa-crosshairs"></i> Scouting Card
+                </button>
+
+                <button
+                    onclick="openSeasonTrends()"
+                    style="
+                        background: linear-gradient(135deg, #e056fd 0%, #be2edd 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 16px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    "
+                >
+                    <i class="fas fa-chart-line"></i> Season Trends
                 </button>
                 
                 <!-- Download All Button with Progress -->
@@ -507,8 +588,8 @@
                                     <span>Fouls</span>
                                 </label>
                                 <label class="checkbox-item">
-                                    <input type="checkbox" class="s-select" value="usg_pct" onchange="updateMultiChart()" />
-                                    <span>Usage</span>
+                                    <input type="checkbox" class="s-select" value="poss_per_40" onchange="updateMultiChart()" />
+                                    <span>Poss/40</span>
                                 </label>
                             </div>
                         </div>
@@ -825,6 +906,47 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+            function getReportGameType() {
+                const gameType = document.getElementById("gameType");
+                return gameType ? gameType.value : "ALL";
+            }
+
+            function getSelectedReportPlayer() {
+                const player = document.getElementById("reportPlayer");
+                return player ? player.value : "";
+            }
+
+            function openTeamReport() {
+                window.location.href = `/reports/team/report.pdf?game_type=${encodeURIComponent(getReportGameType())}`;
+            }
+
+            function openLineupReport() {
+                window.location.href = `/reports/lineup/report.pdf?game_type=${encodeURIComponent(getReportGameType())}`;
+            }
+
+            function openClutchReport() {
+                window.location.href = `/reports/clutch/report.pdf?game_type=${encodeURIComponent(getReportGameType())}`;
+            }
+
+            function openPlayerReport() {
+                const player = getSelectedReportPlayer();
+                if (!player) return;
+                window.location.href = `/reports/player/${encodeURIComponent(player)}/report.pdf?game_type=${encodeURIComponent(getReportGameType())}`;
+            }
+
+            function openPlayerScouting() {
+                const player = getSelectedReportPlayer();
+                if (!player) return;
+                window.location.href = `/reports/player/${encodeURIComponent(player)}/scouting.pdf?game_type=${encodeURIComponent(getReportGameType())}`;
+            }
+
+            function openSeasonTrends() {
+                const player = getSelectedReportPlayer();
+                const params = new URLSearchParams({ game_type: getReportGameType() });
+                if (player) params.set("player", player);
+                window.location.href = `/reports/season/trends.pdf?${params.toString()}`;
+            }
+
             // Download All Reports with Progress Bar
             async function downloadAllReports() {
                 const modal = document.getElementById('progressModal');
@@ -859,7 +981,7 @@
                 try {
                     // Start the actual download
                     progressStage.textContent = 'Compiling ZIP archive...';
-                    const response = await fetch('/reports/download-all?game_type=ALL');
+                    const response = await fetch(`/reports/download-all?game_type=${encodeURIComponent(getReportGameType())}`);
                     
                     if (!response.ok) {
                         throw new Error('Download failed');
@@ -882,7 +1004,7 @@
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'all_player_reports_ALL.zip';
+                    a.download = `team_and_player_reports_${getReportGameType()}.zip`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);

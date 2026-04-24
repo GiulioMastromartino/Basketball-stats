@@ -276,6 +276,12 @@
       display: inline-block;
       margin-left: 4px;
     }
+
+    .two-column {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
   </style>
 </head>
 <body>
@@ -367,7 +373,7 @@
         <td>{{ "%.0f"|format(avg_stats.tov * games_played) }}</td>
         <td>{{ "%.0f"|format(avg_stats.pf * games_played) }}</td>
         {% if advanced.avg_plus_minus is not none %}
-          <td class="{% if advanced.avg_plus_minus * games_played > 0 %}positive{% elif advanced.avg_plus_minus * games_played < 0 %}negative{% endif %}">{{ "%+.0f"|format(advanced.avg_plus_minus * games_played) }}</td>
+          <td class="{% if advanced.avg_plus_minus * box_detail.tracked_plus_minus_games > 0 %}positive{% elif advanced.avg_plus_minus * box_detail.tracked_plus_minus_games < 0 %}negative{% endif %}">{{ "%+.0f"|format(advanced.avg_plus_minus * box_detail.tracked_plus_minus_games) }}</td>
         {% else %}
           <td style="color: #666;">N/A</td>
         {% endif %}
@@ -721,6 +727,224 @@
   
   <div class="page-break"></div>
 
+  <div class="page">
+    <h1>{{ player_name }} - Box Detail & Impact</h1>
+
+    <h2>Rebounding and Discipline</h2>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">OREB / G</div>
+        <div class="stat-value">{{ "%.1f"|format(box_detail.per_game.oreb) }}</div>
+        <div class="note">{{ box_detail.totals.oreb }} total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">DREB / G</div>
+        <div class="stat-value">{{ "%.1f"|format(box_detail.per_game.dreb) }}</div>
+        <div class="note">{{ box_detail.totals.dreb }} total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">PF / G</div>
+        <div class="stat-value">{{ "%.1f"|format(box_detail.per_game.pf) }}</div>
+        <div class="note">{{ box_detail.totals.pf }} total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">REB Conceded / G</div>
+        <div class="stat-value">{{ "%.1f"|format(box_detail.per_game.reb_conceded) }}</div>
+        <div class="note">{{ box_detail.totals.reb_conceded }} total</div>
+      </div>
+    </div>
+
+    <table>
+      <tr>
+        <th>Metric</th><th>Total</th><th>Per Game</th><th>Notes</th>
+      </tr>
+      <tr>
+        <td>Offensive Rebounds</td>
+        <td>{{ box_detail.totals.oreb }}</td>
+        <td>{{ "%.1f"|format(box_detail.per_game.oreb) }}</td>
+        <td>Second-chance creation</td>
+      </tr>
+      <tr>
+        <td>Defensive Rebounds</td>
+        <td>{{ box_detail.totals.dreb }}</td>
+        <td>{{ "%.1f"|format(box_detail.per_game.dreb) }}</td>
+        <td>Possession-ending boards</td>
+      </tr>
+      <tr>
+        <td>Personal Fouls</td>
+        <td>{{ box_detail.totals.pf }}</td>
+        <td>{{ "%.1f"|format(box_detail.per_game.pf) }}</td>
+        <td>Discipline and availability</td>
+      </tr>
+      <tr>
+        <td>Rebounds Conceded</td>
+        <td>{{ box_detail.totals.reb_conceded }}</td>
+        <td>{{ "%.1f"|format(box_detail.per_game.reb_conceded) }}</td>
+        <td>{% if box_detail.has_reb_conceded %}Tracked in {{ box_detail.tracked_reb_conceded_games }} games{% else %}Tracking unavailable{% endif %}</td>
+      </tr>
+      <tr>
+        <td>Plus/Minus</td>
+        <td>
+          {% if box_detail.totals.plus_minus is not none %}
+            <span class="{% if box_detail.totals.plus_minus > 0 %}positive{% elif box_detail.totals.plus_minus < 0 %}negative{% endif %}">{{ "%+d"|format(box_detail.totals.plus_minus) }}</span>
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+        <td>
+          {% if box_detail.per_game.plus_minus is not none %}
+            <span class="{% if box_detail.per_game.plus_minus > 0 %}positive{% elif box_detail.per_game.plus_minus < 0 %}negative{% endif %}">{{ "%+.1f"|format(box_detail.per_game.plus_minus) }}</span>
+          {% else %}
+            N/A
+          {% endif %}
+        </td>
+        <td>{% if box_detail.has_live_plus_minus %}Tracked in {{ box_detail.tracked_plus_minus_games }} supported games{% else %}Plus/minus unavailable{% endif %}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="page-break"></div>
+
+  <div class="page">
+    <h1>{{ player_name }} - Lineup Context</h1>
+
+    {% if lineup_context.available %}
+    {% if lineup_context.top_lineups_available %}
+    <div class="two-column">
+      <div class="section-box">
+        <h3>Best Lineup</h3>
+        <p><strong>{{ lineup_context.best_lineup.players|join(' · ') }}</strong></p>
+        <p>Teammates: {{ lineup_context.best_lineup.teammates|join(', ') }}</p>
+        <p>Net Rating: <span class="{% if lineup_context.best_lineup.net_rating >= 0 %}positive{% else %}negative{% endif %}">{{ "%+.1f"|format(lineup_context.best_lineup.net_rating) }}</span></p>
+        <p>Minutes: {{ "%.1f"|format(lineup_context.best_lineup.minutes) }} | Possessions: {{ lineup_context.best_lineup.possessions }}</p>
+        <p>ORTG {{ "%.1f"|format(lineup_context.best_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.best_lineup.drtg) }}</p>
+      </div>
+      <div class="section-box">
+        <h3>Worst Lineup</h3>
+        <p><strong>{{ lineup_context.worst_lineup.players|join(' · ') }}</strong></p>
+        <p>Teammates: {{ lineup_context.worst_lineup.teammates|join(', ') }}</p>
+        <p>Net Rating: <span class="{% if lineup_context.worst_lineup.net_rating >= 0 %}positive{% else %}negative{% endif %}">{{ "%+.1f"|format(lineup_context.worst_lineup.net_rating) }}</span></p>
+        <p>Minutes: {{ "%.1f"|format(lineup_context.worst_lineup.minutes) }} | Possessions: {{ lineup_context.worst_lineup.possessions }}</p>
+        <p>ORTG {{ "%.1f"|format(lineup_context.worst_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.worst_lineup.drtg) }}</p>
+      </div>
+    </div>
+    {% else %}
+    <div class="section-box">
+      <p>No lineups reached the 10-minute minimum for best/worst lineup ranking.</p>
+    </div>
+    {% endif %}
+
+    <h2>Most Used Lineups</h2>
+    <table>
+      <tr>
+        <th>Lineup</th><th>Min</th><th>Poss</th><th>Net</th><th>FG%</th><th>REB</th><th>AST</th><th>Segments</th>
+      </tr>
+      {% for lineup in lineup_context.most_used_lineups %}
+      <tr>
+        <td>{{ lineup.players|join(' · ') }}</td>
+        <td>{{ "%.1f"|format(lineup.minutes) }}</td>
+        <td>{{ lineup.possessions }}</td>
+        <td class="{% if lineup.net_rating >= 0 %}positive{% else %}negative{% endif %}">{{ "%+.1f"|format(lineup.net_rating) }}</td>
+        <td>{{ "%.1f"|format(lineup.fg_pct) }}%</td>
+        <td>{{ lineup.reb }}</td>
+        <td>{{ lineup.ast }}</td>
+        <td>{{ lineup.segment_count }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div class="section-box">
+      <p>No lineup data available for this player in the selected filter.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="page-break"></div>
+
+  <div class="page">
+    <h1>{{ player_name }} - Possession, Clutch, and Play Intelligence</h1>
+
+    <h2>Possession Context</h2>
+    <div class="section-box">
+      <p><strong>Source:</strong> {{ possession_context.source|capitalize }} possessions</p>
+      <p><strong>Team PPP:</strong> {{ "%.3f"|format(possession_context.team_ppp) }} | <strong>Opponent PPP:</strong> {{ "%.3f"|format(possession_context.opp_ppp) }}</p>
+      <p><strong>Total Team Possessions:</strong> {{ possession_context.total_team_possessions }} | <strong>Total Opp Possessions:</strong> {{ possession_context.total_opp_possessions }}</p>
+    </div>
+
+    {% if possession_context.quarter_rows %}
+    <table>
+      <tr>
+        <th>Quarter</th><th>Team Poss</th><th>Opp Poss</th><th>Team Pts</th><th>Opp Pts</th><th>Team PPP</th><th>Opp PPP</th>
+      </tr>
+      {% for row in possession_context.quarter_rows %}
+      <tr>
+        <td>Q{{ row.quarter }}</td>
+        <td>{{ row.team_possessions }}</td>
+        <td>{{ row.opp_possessions }}</td>
+        <td>{{ row.team_points }}</td>
+        <td>{{ row.opp_points }}</td>
+        <td>{{ "%.3f"|format(row.team_ppp) }}</td>
+        <td>{{ "%.3f"|format(row.opp_ppp) }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    <h2>Clutch Snapshot</h2>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Clutch Plays</div><div class="stat-value">{{ possession_context.clutch.plays }}</div></div>
+      <div class="stat-card"><div class="stat-label">Clutch Points</div><div class="stat-value">{{ possession_context.clutch.points }}</div></div>
+      <div class="stat-card"><div class="stat-label">Clutch FG%</div><div class="stat-value">{{ "%.1f"|format(possession_context.clutch.fg_pct) }}%</div></div>
+      <div class="stat-card"><div class="stat-label">Clutch TOV</div><div class="stat-value">{{ possession_context.clutch.tov }}</div></div>
+    </div>
+
+    <h2>Zone Efficiency</h2>
+    {% if shot_play_context.zone_summary.available %}
+    <table>
+      <tr>
+        <th>Zone</th><th>M-A</th><th>FG%</th><th>PTS</th><th>PTS/Shot</th><th>Expected</th><th>Delta</th>
+      </tr>
+      {% for row in shot_play_context.zone_summary.rows %}
+      <tr>
+        <td>{{ row.zone }}</td>
+        <td>{{ row.makes }}-{{ row.attempts }}</td>
+        <td>{{ "%.1f"|format(row.fg_pct) }}%</td>
+        <td>{{ row.points }}</td>
+        <td>{{ "%.2f"|format(row.actual_pps) }}</td>
+        <td>{% if row.expected_value is not none %}{{ "%.2f"|format(row.expected_value) }}{% else %}N/A{% endif %}</td>
+        <td>{% if row.value_delta is not none %}<span class="{% if row.value_delta >= 0 %}positive{% else %}negative{% endif %}">{{ "%+.2f"|format(row.value_delta) }}</span>{% else %}N/A{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p>No shot zone data available.</p>
+    {% endif %}
+
+    <h2>Top Tagged Plays</h2>
+    {% if shot_play_context.play_summary.available %}
+    <table>
+      <tr>
+        <th>Play</th><th>Type</th><th>Pts</th><th>Attempts</th><th>FG%</th><th>PPP</th><th>TOV</th>
+      </tr>
+      {% for play in shot_play_context.play_summary.top_volume %}
+      <tr>
+        <td>{{ play.play_name }}</td>
+        <td>{{ play.play_type }}</td>
+        <td>{{ play.points }}</td>
+        <td>{{ play.attempts }}</td>
+        <td>{{ "%.1f"|format(play.fg_pct) }}%</td>
+        <td>{{ "%.3f"|format(play.ppp) }}</td>
+        <td>{{ play.turnovers }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p>No play-tagged events available.</p>
+    {% endif %}
+  </div>
+
+  <div class="page-break"></div>
+
   <!-- PAGE 6: GAME-BY-GAME LOG -->
   <div class="page">
     <h1>{{ player_name }} - Game-by-Game Log</h1>
@@ -734,10 +958,12 @@
           <th>MIN</th>
           <th>PTS</th>
           <th>REB</th>
+          <th>O/D</th>
           <th>AST</th>
           <th>STL</th>
           <th>BLK</th>
           <th>TOV</th>
+          <th>PF</th>
           <th>FG</th>
           <th>FG%</th>
           <th>3P</th>
@@ -756,10 +982,12 @@
           <td>{{ game.minutes }}</td>
           <td class="{% if game.pts >= 20 %}highlight{% endif %}">{{ game.pts }}</td>
           <td>{{ game.reb }}</td>
+          <td>{{ game.oreb }}/{{ game.dreb }}</td>
           <td>{{ game.ast }}</td>
           <td>{{ game.stl }}</td>
           <td>{{ game.blk }}</td>
           <td>{{ game.tov }}</td>
+          <td>{{ game.pf }}</td>
           <td>{{ game.fgm }}/{{ game.fga }}</td>
           <td>{{ game.fg_pct }}%</td>
           <td>{{ game.tpm }}/{{ game.tpa }}</td>

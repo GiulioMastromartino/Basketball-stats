@@ -525,7 +525,7 @@
                                     <span class="pm-badge pm-neu">0</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-center">{{ "%.1f"|format(p.usg_pct) }}%</td>
+                                <td class="text-center">{{ "%.1f"|format(p.poss_per_40) }}</td>
                                 <td class="text-center fw-bold {% if p.ortg >= 110 %}text-success{% elif p.ortg <= 90 %}text-danger{% endif %}">{{ "%.1f"|format(p.ortg) }}</td>
                                 <td class="text-center">{{ "%.2f"|format(p.ppp) }}</td>
                                 <td class="text-center text-info">{{ "%.1f"|format(p.ts_pct) }}%</td>

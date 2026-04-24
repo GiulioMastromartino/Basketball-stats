@@ -4,193 +4,319 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clutch Time Performance Report</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Work+Sans:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-pure: #000000;
+            --bg-dark: #0a0a0c;
+            --bg-module: #141417;
+            --accent-primary: #00f2ff;
+            --accent-hot: #00ff41;
+            --accent-cold: #ff003c;
+            --text-main: #e2e8f0;
+            --text-dim: #94a3b8;
+            --border-color: #2d2d33;
+            --font-display: 'Archivo Black', sans-serif;
+            --font-mono: 'Space Mono', monospace;
+            --font-body: 'Work Sans', sans-serif;
+        }
+
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
+        html, body {
+            background: var(--bg-pure);
+            color: var(--text-main);
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: var(--font-body);
             font-size: 11px;
             line-height: 1.4;
-            color: #333;
-            background: #fff;
+            -webkit-print-color-adjust: exact;
+            display: block;
         }
-        
+
         .page {
             width: 210mm;
             min-height: 297mm;
-            padding: 15mm;
+            padding: 20mm;
+            background: var(--bg-dark);
+            position: relative;
+            display: block;
             margin: 0 auto;
+            }
+
+        .page-start {
+            break-before: page;
         }
-        
+
+        .page::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.1) 2px,
+                rgba(0, 0, 0, 0.1) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
         .header {
-            text-align: center;
-            border-bottom: 3px solid #dc3545;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 30px;
+            border-bottom: 2px solid var(--text-main);
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+            align-items: center;
         }
-        
-        .header h1 {
-            font-size: 24px;
-            color: #dc3545;
+
+        .header-title h1 {
+            font-family: var(--font-display);
+            font-size: 28px;
+            text-transform: uppercase;
+            color: var(--text-main);
             margin-bottom: 5px;
         }
-        
-        .header .subtitle {
-            font-size: 12px;
-            color: #666;
+
+        .header-title .subtitle {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--accent-primary);
+            text-transform: uppercase;
         }
-        
-        /* Definition Box */
+
+        .header-ref {
+            font-family: var(--font-mono);
+            text-align: right;
+            border-left: 1px solid var(--border-color);
+            padding-left: 20px;
+        }
+
+        .header-ref .label {
+            font-size: 8px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .header-ref .value {
+            font-size: 14px;
+            color: var(--text-main);
+        }
+
         .definition-box {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: center;
+            background: var(--bg-module);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-primary);
+            border-radius: 4px;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            text-align: left;
         }
-        
+
         .definition-box h3 {
-            color: #856404;
-            margin-bottom: 5px;
-        }
-        
-        .definition-box p {
-            color: #856404;
+            font-family: var(--font-display);
             font-size: 12px;
+            color: var(--accent-primary);
+            text-transform: uppercase;
+            margin-bottom: 8px;
         }
-        
+
+        .definition-box p {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-dim);
+        }
+
         .section {
             margin-bottom: 25px;
         }
-        
+
         .section-title {
+            font-family: var(--font-display);
             font-size: 14px;
-            font-weight: bold;
-            color: #dc3545;
-            border-bottom: 2px solid #dc3545;
-            padding-bottom: 5px;
+            text-transform: uppercase;
+            color: var(--text-main);
             margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        
-        /* Clutch Table */
-        .clutch-table {
-            width: 100%;
-            border-collapse: collapse;
+
+        .section-title::after {
+            content: '';
+            flex-grow: 1;
+            height: 1px;
+            background: var(--border-color);
         }
-        
-        .clutch-table th,
-        .clutch-table td {
-            padding: 10px;
-            text-align: center;
-            border: 1px solid #dee2e6;
-        }
-        
-        .clutch-table th {
-            background: #dc3545;
-            color: white;
-            font-weight: bold;
-        }
-        
-        .clutch-table tr:nth-child(even) {
-            background: #f8f9fa;
-        }
-        
-        .clutch-table tr:hover {
-            background: #fff3cd;
-        }
-        
-        .clutch-table .player-name {
-            text-align: left;
-            font-weight: bold;
-        }
-        
-        .clutch-table .positive {
-            color: #28a745;
-            font-weight: bold;
-        }
-        
-        .clutch-table .negative {
-            color: #dc3545;
-            font-weight: bold;
-        }
-        
-        /* Top Clutch Players */
+
         .clutch-cards {
             display: flex;
             gap: 15px;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
-        
+
         .clutch-card {
             flex: 1;
-            background: linear-gradient(135deg, #dc3545, #c82333);
-            color: white;
-            border-radius: 12px;
+            background: var(--bg-module);
+            border-top: 3px solid var(--accent-cold);
+            border-radius: 4px;
             padding: 20px;
             text-align: center;
         }
-        
+
+        .clutch-card:nth-child(2) {
+            border-top-color: var(--text-dim);
+        }
+
+        .clutch-card:nth-child(3) {
+            border-top-color: #cd7f32;
+        }
+
         .clutch-card .rank {
-            font-size: 12px;
-            opacity: 0.8;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 8px;
         }
-        
+
         .clutch-card .name {
-            font-size: 16px;
-            font-weight: bold;
-            margin: 10px 0;
+            font-family: var(--font-display);
+            font-size: 14px;
+            color: var(--text-main);
+            margin-bottom: 10px;
         }
-        
+
         .clutch-card .points {
-            font-size: 32px;
+            font-family: var(--font-mono);
+            font-size: 28px;
             font-weight: bold;
+            color: var(--accent-hot);
         }
-        
+
         .clutch-card .stats {
-            font-size: 11px;
-            opacity: 0.9;
-            margin-top: 10px;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-dim);
+            margin-top: 8px;
         }
-        
-        /* Clutch Stat Box */
+
         .clutch-stat-boxes {
-            display: flex;
-            justify-content: space-around;
-            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
         }
-        
+
         .clutch-stat-box {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 15px 25px;
+            background: var(--bg-module);
+            border-top: 3px solid var(--accent-primary);
+            padding: 15px;
             text-align: center;
         }
-        
+
         .clutch-stat-box .value {
-            font-size: 24px;
+            font-family: var(--font-mono);
+            font-size: 22px;
             font-weight: bold;
-            color: #dc3545;
+            color: var(--text-main);
         }
-        
+
         .clutch-stat-box .label {
-            font-size: 10px;
-            color: #666;
+            font-family: var(--font-mono);
+            font-size: 8px;
+            color: var(--accent-primary);
+            text-transform: uppercase;
             margin-top: 5px;
         }
-        
-        /* Footer */
-        .footer {
+
+        .clutch-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8px;
+        }
+
+        .clutch-table th,
+        .clutch-table td {
+            padding: 10px 8px;
             text-align: center;
-            font-size: 10px;
-            color: #999;
-            margin-top: 20px;
-            padding-top: 10px;
-            border-top: 1px solid #dee2e6;
+            border: 1px solid var(--border-color);
+        }
+
+        .clutch-table th {
+            background: var(--bg-module);
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--accent-primary);
+            text-transform: uppercase;
+            border-bottom: 2px solid var(--accent-primary);
+        }
+
+        .clutch-table tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .clutch-table tr:hover {
+            background: rgba(0, 242, 255, 0.05);
+        }
+
+        .clutch-table .player-name {
+            text-align: left;
+            font-family: var(--font-body);
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .clutch-table .positive {
+            color: var(--accent-hot);
+            font-weight: bold;
+        }
+
+        .clutch-table .negative {
+            color: var(--accent-cold);
+            font-weight: bold;
+        }
+
+        .page-break {
+            page-break-after: always;
+            break-after: page;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 8px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        @media print {
+            .page {
+                box-shadow: none;
+            }
         }
     </style>
 </head>
@@ -198,44 +324,50 @@
     <div class="page">
         <!-- Header -->
         <div class="header">
-            <h1> Clutch Time Performance Report</h1>
-            <div class="subtitle">{{ game_type }} Season | High-Pressure Situations</div>
+            <div class="header-title">
+                <h1>Clutch Time Report</h1>
+                <div class="subtitle">{{ game_type }} Season // High-Pressure Analysis</div>
+            </div>
+            <div class="header-ref">
+                <div class="label">Generated</div>
+                <div class="value">{{ generated_date }}</div>
+            </div>
         </div>
-        
+
         <!-- Definition -->
         <div class="definition-box">
-            <h3>What is "Clutch Time"?</h3>
-            <p>Score within 5 points with less than 5 minutes remaining in the game</p>
+            <h3>// Clutch Time Protocol</h3>
+            <p>Score differential ≤ 5 points // Remaining time &lt; 5:00</p>
         </div>
-        
+
         <!-- Top Clutch Performers -->
         <div class="section">
             <div class="section-title">Top Clutch Performers</div>
             <div class="clutch-cards">
                 {% for player in clutch_stats[:3] %}
                 <div class="clutch-card">
-                    <div class="rank">#{{ loop.index }}</div>
+                    <div class="rank">Rank {{ loop.index }}</div>
                     <div class="name">{{ player.player }}</div>
                     <div class="points">{{ player.clutch_points }}</div>
                     <div class="stats">
-                        {{ player.clutch_fg_pct }}% FG | {{ player.clutch_plays }} plays
+                        {{ player.clutch_fg_pct }}% FG // {{ player.clutch_plays }} plays
                     </div>
                 </div>
                 {% endfor %}
             </div>
         </div>
-        
+
         <!-- Team Clutch Summary -->
         <div class="section">
             <div class="section-title">Team Clutch Summary</div>
             <div class="clutch-stat-boxes">
                 <div class="clutch-stat-box">
                     <div class="value">{{ clutch_stats|sum(attribute='clutch_points') }}</div>
-                    <div class="label">Total Clutch Points</div>
+                    <div class="label">Total Points</div>
                 </div>
                 <div class="clutch-stat-box">
                     <div class="value">{{ clutch_stats|sum(attribute='clutch_plays') }}</div>
-                    <div class="label">Total Clutch Plays</div>
+                    <div class="label">Total Plays</div>
                 </div>
                 <div class="clutch-stat-box">
                     <div class="value">
@@ -243,16 +375,24 @@
                         {% set total_fga = clutch_stats|sum(attribute='clutch_fga') %}
                         {{ (total_fgm / total_fga * 100)|round(1) if total_fga > 0 else 0 }}%
                     </div>
-                    <div class="label">Team Clutch FG%</div>
+                    <div class="label">Team FG%</div>
                 </div>
                 <div class="clutch-stat-box">
                     <div class="value">{{ clutch_stats|sum(attribute='clutch_tov') }}</div>
-                    <div class="label">Clutch Turnovers</div>
+                    <div class="label">Turnovers</div>
                 </div>
             </div>
         </div>
-        
-        <!-- Detailed Table -->
+
+        <!-- Footer -->
+        <div class="footer">
+            <div>CLUTCH_REPORT // {{ generated_date }}</div>
+            <div>BASKETBALL STATS ANALYTICS PLATFORM</div>
+        </div>
+    </div>
+
+    <div class="page page-start">
+    <!-- Full Table (Page 2+) -->
         <div class="section">
             <div class="section-title">Complete Clutch Statistics</div>
             <table class="clutch-table">
@@ -269,7 +409,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for player in clutch_stats %}
+                    {% for player in clutch_stats[:20] %}
                     <tr>
                         <td class="player-name">{{ player.player }}</td>
                         <td>{{ player.games_with_clutch }}</td>
@@ -283,14 +423,77 @@
                         <td class="{% if player.clutch_tov > 0 %}negative{% endif %}">{{ player.clutch_tov }}</td>
                     </tr>
                     {% endfor %}
+                    {% if clutch_stats|length <= 20 %}
+                    <tr style="background: var(--bg-module); font-weight: bold;">
+                        <td class="player-name">TEAM TOTALS</td>
+                        <td>-</td>
+                        <td>{{ clutch_stats|sum(attribute='clutch_plays') }}</td>
+                        <td>{{ clutch_stats|sum(attribute='clutch_points') }}</td>
+                        <td>{{ clutch_stats|sum(attribute='clutch_fgm') }}</td>
+                        <td>{{ clutch_stats|sum(attribute='clutch_fga') }}</td>
+                        <td>
+                            {% set total_fgm = clutch_stats|sum(attribute='clutch_fgm') %}
+                            {% set total_fga = clutch_stats|sum(attribute='clutch_fga') %}
+                            {{ (total_fgm / total_fga * 100)|round(1) if total_fga > 0 else 0 }}%
+                        </td>
+                        <td>{{ clutch_stats|sum(attribute='clutch_tov') }}</td>
+                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
-        
-        <!-- Footer -->
-        <div class="footer">
-            Generated on {{ generated_date }} | Basketball Stats Analytics Platform
         </div>
-    </div>
+
+        {% if clutch_stats|length > 20 %}
+        <div class="page page-start">
+        <div class="section">
+            <div class="section-title">Complete Clutch Statistics (Cont.)</div>
+            <table class="clutch-table">
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>Games</th>
+                        <th>Plays</th>
+                        <th>Points</th>
+                        <th>FGM</th>
+                        <th>FGA</th>
+                        <th>FG%</th>
+                        <th>TOV</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for player in clutch_stats[20:] %}
+                    <tr>
+                        <td class="player-name">{{ player.player }}</td>
+                        <td>{{ player.games_with_clutch }}</td>
+                        <td>{{ player.clutch_plays }}</td>
+                        <td class="{% if player.clutch_points >= 5 %}positive{% endif %}">{{ player.clutch_points }}</td>
+                        <td>{{ player.clutch_fgm }}</td>
+                        <td>{{ player.clutch_fga }}</td>
+                        <td class="{% if player.clutch_fg_pct >= 40 %}positive{% elif player.clutch_fg_pct < 30 and player.clutch_fga > 0 %}negative{% endif %}">
+                            {{ player.clutch_fg_pct }}%
+                        </td>
+                        <td class="{% if player.clutch_tov > 0 %}negative{% endif %}">{{ player.clutch_tov }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr style="background: var(--bg-module); font-weight: bold;">
+                        <td class="player-name">TEAM TOTALS</td>
+                        <td>-</td>
+                        <td>{{ clutch_stats|sum(attribute='clutch_plays') }}</td>
+                        <td>{{ clutch_stats|sum(attribute='clutch_points') }}</td>
+                        <td>{{ clutch_stats|sum(attribute='clutch_fgm') }}</td>
+                        <td>{{ clutch_stats|sum(attribute='clutch_fga') }}</td>
+                        <td>
+                            {% set total_fgm = clutch_stats|sum(attribute='clutch_fgm') %}
+                            {% set total_fga = clutch_stats|sum(attribute='clutch_fga') %}
+                            {{ (total_fgm / total_fga * 100)|round(1) if total_fga > 0 else 0 }}%
+                        </td>
+                        <td>{{ clutch_stats|sum(attribute='clutch_tov') }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        </div>
+        {% endif %}
 </body>
 </html>

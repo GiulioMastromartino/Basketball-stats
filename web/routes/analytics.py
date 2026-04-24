@@ -12,7 +12,7 @@ from core.utils import (
     calculate_ortg,
     calculate_possessions,
     calculate_ppp,
-    parse_minutes
+    parse_minutes,
 )
 
 analytics_bp = Blueprint("analytics", __name__)
@@ -317,11 +317,15 @@ def multi_compare():
                     val = p_stat.ast / p_stat.tov if p_stat.tov > 0 else p_stat.ast
                 elif metric == "minutes":
                     val = parse_minutes(p_stat.minutes)
-                elif metric == "usg_pct":
+                elif metric == "poss_per_40":
                     poss = calculate_possessions(
                         p_stat.fga, p_stat.fta, p_stat.oreb, p_stat.tov
                     )
-                    val = poss
+                    val = (
+                        (poss / (parse_minutes(p_stat.minutes) / 40))
+                        if parse_minutes(p_stat.minutes) > 0
+                        else 0
+                    )
 
                 # Rebounding
                 elif metric == "oreb":
@@ -665,29 +669,33 @@ def role_analysis():
 
 # --- Redirects for Legacy PDF Routes ---
 
+
 @analytics_bp.route("/games/<int:game_id>/summary.pdf")
 @login_required
 def game_summary_pdf(game_id):
     """Redirect to new reports blueprint"""
-    return redirect(url_for('reports.game_summary_pdf', game_id=game_id), code=301)
+    return redirect(url_for("reports.game_summary_pdf", game_id=game_id), code=301)
 
 
 @analytics_bp.route("/team/report.pdf")
 @login_required
 def team_report_pdf():
     """Redirect to new reports blueprint"""
-    return redirect(url_for('reports.team_report_pdf', **request.args), code=301)
+    return redirect(url_for("reports.team_report_pdf", **request.args), code=301)
 
 
 @analytics_bp.route("/player/<player_name>/report.pdf")
 @login_required
 def player_report_pdf(player_name):
     """Redirect to new reports blueprint"""
-    return redirect(url_for('reports.player_report_pdf', player_name=player_name, **request.args), code=301)
+    return redirect(
+        url_for("reports.player_report_pdf", player_name=player_name, **request.args),
+        code=301,
+    )
 
 
-@analytics_bp.route("/reports/download-all")
+@analytics_bp.route("/analytics/reports/download-all")
 @login_required
 def download_all_reports():
-    """Redirect to new reports blueprint"""
-    return redirect(url_for('reports.download_all_reports', **request.args), code=301)
+    """Legacy redirect to the reports blueprint."""
+    return redirect(url_for("reports.download_all_reports", **request.args), code=301)

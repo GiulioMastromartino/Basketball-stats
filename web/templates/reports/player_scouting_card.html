@@ -3,388 +3,440 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Player Scouting Card - {{ player_name }}</title>
+    <title>Scouting Archive // {{ player_name }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Work+Sans:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-pure: #000000;
+            --bg-dark: #0a0a0c;
+            --bg-module: #141417;
+            --accent-primary: #00f2ff;
+            --accent-hot: #adff00;
+            --accent-cold: #ff3e00;
+            --text-main: #e2e8f0;
+            --text-dim: #94a3b8;
+            --border-color: #2d2d33;
+            --font-display: 'Archivo Black', sans-serif;
+            --font-mono: 'Space Mono', monospace;
+            --font-body: 'Work Sans', sans-serif;
+        }
+
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
         
+        html, body {
+            background: var(--bg-pure);
+            color: var(--text-main);
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: var(--font-body);
             font-size: 11px;
             line-height: 1.4;
-            color: #333;
-            background: #fff;
+            -webkit-print-color-adjust: exact;
+            display: flex;
+            justify-content: center;
         }
         
         .page {
             width: 210mm;
             min-height: 297mm;
-            padding: 15mm;
-            margin: 0 auto;
+            padding: 20mm;
+            background: var(--bg-dark);
+            position: relative;
+            flex-shrink: 0;
         }
-        
-        /* Header Card */
-        .header-card {
-            background: linear-gradient(135deg, #007bff, #0056b3);
-            color: white;
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 20px;
-            display: flex;
+
+        /* Technical Header */
+        .scout-header {
+            display: grid;
+            grid-template-columns: 120px 1fr 200px;
+            gap: 30px;
+            border-bottom: 2px solid var(--text-main);
+            padding-bottom: 30px;
+            margin-bottom: 30px;
             align-items: center;
-            gap: 25px;
         }
-        
-        .avatar {
-            width: 80px;
-            height: 80px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 50%;
+
+        .avatar-module {
+            width: 120px;
+            height: 120px;
+            background: var(--bg-module);
+            border: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 36px;
+            font-family: var(--font-display);
+            font-size: 64px;
+            color: var(--accent-primary);
+            position: relative;
         }
-        
-        .player-info h1 {
-            font-size: 28px;
-            margin-bottom: 5px;
+
+        .avatar-module::after {
+            content: 'ID-{{ player_name[:3]|upper }}';
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            font-family: var(--font-mono);
+            font-size: 8px;
+            color: var(--text-dim);
         }
-        
-        .player-info .meta {
-            opacity: 0.8;
-            font-size: 12px;
+
+        .player-identity h1 {
+            font-family: var(--font-display);
+            font-size: 48px;
+            text-transform: uppercase;
+            line-height: 0.9;
+            letter-spacing: -2px;
+            margin-bottom: 10px;
         }
-        
-        /* Stats Grid */
-        .stats-grid {
+
+        .player-identity .meta-strip {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            text-transform: uppercase;
+            color: var(--accent-primary);
+            display: flex;
+            gap: 20px;
+        }
+
+        .header-status {
+            font-family: var(--font-mono);
+            text-align: right;
+            border-left: 1px solid var(--border-color);
+            padding-left: 20px;
+        }
+
+        .header-status .label {
+            font-size: 8px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .header-status .value {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        /* Core Stats Instrumentation */
+        .stats-instrumentation {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             gap: 15px;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
         }
-        
-        .stat-box {
-            background: #f8f9fa;
-            border-radius: 8px;
+
+        .instrument-box {
+            background: var(--bg-module);
+            border-top: 3px solid var(--accent-primary);
             padding: 15px;
             text-align: center;
         }
-        
-        .stat-box .value {
-            font-size: 24px;
+
+        .instrument-box .value {
+            font-family: var(--font-mono);
+            font-size: 28px;
             font-weight: bold;
-            color: #007bff;
+            color: var(--text-main);
         }
-        
-        .stat-box .label {
-            font-size: 10px;
-            color: #666;
-            margin-top: 5px;
+
+        .instrument-box .label {
+            font-family: var(--font-mono);
+            font-size: 8px;
+            color: var(--accent-primary);
             text-transform: uppercase;
-        }
-        
-        /* Section */
-        .section {
-            margin-bottom: 20px;
-        }
-        
-        .section-title {
-            font-size: 14px;
-            font-weight: bold;
-            color: #007bff;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 5px;
-            margin-bottom: 15px;
-        }
-        
-        /* Advanced Metrics */
-        .advanced-metrics {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-        }
-        
-        .metric-box {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-            border-radius: 8px;
-            padding: 15px;
-            text-align: center;
-        }
-        
-        .metric-box .value {
-            font-size: 22px;
-            font-weight: bold;
-        }
-        
-        .metric-box .value.positive {
-            color: #28a745;
-        }
-        
-        .metric-box .value.negative {
-            color: #dc3545;
-        }
-        
-        .metric-box .label {
-            font-size: 10px;
-            color: #666;
             margin-top: 5px;
         }
-        
-        /* Zone Heatmap */
-        .zone-grid {
+
+        /* Layout Grid */
+        .scout-layout {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .section-module {
+            margin-bottom: 30px;
+        }
+
+        .module-title {
+            font-family: var(--font-display);
+            font-size: 14px;
+            text-transform: uppercase;
+            color: var(--text-main);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
             gap: 10px;
         }
-        
-        .zone-box {
-            background: #f8f9fa;
-            border-radius: 8px;
+
+        .module-title::after {
+            content: '';
+            flex-grow: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+
+        /* Advanced Metrics List */
+        .metric-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .metric-item {
+            background: var(--bg-module);
             padding: 12px;
-            text-align: center;
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        
-        .zone-box.hot {
-            background: rgba(40, 167, 69, 0.2);
-            border: 2px solid #28a745;
+
+        .metric-item .label {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-dim);
+            text-transform: uppercase;
         }
-        
-        .zone-box.cold {
-            background: rgba(220, 53, 69, 0.2);
-            border: 2px solid #dc3545;
-        }
-        
-        .zone-box .name {
+
+        .metric-item .value {
+            font-family: var(--font-mono);
+            font-size: 14px;
             font-weight: bold;
-            font-size: 11px;
-            margin-bottom: 5px;
         }
-        
-        .zone-box .fg-pct {
+
+        /* Efficiency Zone Grid */
+        .zone-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .zone-node {
+            background: var(--bg-module);
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            position: relative;
+        }
+
+        .zone-node.hot { border-left: 4px solid var(--accent-hot); }
+        .zone-node.cold { border-left: 4px solid var(--accent-cold); }
+
+        .zone-node .name {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+
+        .zone-node .pct {
+            font-family: var(--font-mono);
             font-size: 18px;
             font-weight: bold;
         }
-        
-        .zone-box .details {
-            font-size: 9px;
-            color: #666;
-            margin-top: 3px;
+
+        .zone-node .details {
+            font-family: var(--font-mono);
+            font-size: 8px;
+            color: var(--text-dim);
         }
-        
-        /* Shot Chart */
-        .shot-chart {
-            text-align: center;
-            background: #f8f9fa;
-            border-radius: 8px;
+
+        /* Shot Chart Frame */
+        .shot-chart-frame {
+            background: var(--bg-module);
+            border: 1px solid var(--border-color);
             padding: 15px;
+            text-align: center;
         }
-        
-        .shot-chart img {
+
+        .shot-chart-frame img {
             max-width: 100%;
             height: auto;
+            filter: grayscale(0.2) contrast(1.1);
         }
-        
-        /* Consistency Box */
-        .consistency-box {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 15px;
-            display: flex;
-            justify-content: space-around;
-            text-align: center;
-        }
-        
-        .consistency-stat .value {
-            font-size: 20px;
-            font-weight: bold;
-            color: #007bff;
-        }
-        
-        .consistency-stat .label {
-            font-size: 10px;
-            color: #666;
-        }
-        
-        /* Shot Quality */
-        .shot-quality {
-            display: flex;
-            justify-content: space-between;
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 15px;
-        }
-        
-        .quality-stat {
-            text-align: center;
-        }
-        
-        .quality-stat .value {
-            font-size: 20px;
-            font-weight: bold;
-        }
-        
-        .quality-stat .label {
-            font-size: 10px;
-            color: #666;
-        }
-        
+
         /* Footer */
         .footer {
-            text-align: center;
-            font-size: 10px;
-            color: #999;
-            margin-top: 20px;
-            padding-top: 10px;
-            border-top: 1px solid #dee2e6;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 8px;
+            text-transform: uppercase;
+            color: var(--text-dim);
         }
     </style>
 </head>
 <body>
     <div class="page">
         <!-- Header -->
-        <div class="header-card">
-            <div class="avatar"> Basketball</div>
-            <div class="player-info">
+        <div class="scout-header">
+            <div class="avatar-module">{{ player_name[0]|upper }}</div>
+            <div class="player-identity">
                 <h1>{{ player_name }}</h1>
-                <div class="meta">
-                    {{ game_type }} Season | {{ games_played }} Games Played
+                <div class="meta-strip">
+                    <span>{{ game_type }} Season</span>
+                    <span>Sample: {{ games_played }} Games</span>
                 </div>
+            </div>
+            <div class="header-status">
+                <div class="label">Archive Reference</div>
+                <div class="value">SKT-{{ generated_date.replace('-', '') }}</div>
             </div>
         </div>
         
-        <!-- Primary Stats -->
-        <div class="stats-grid">
-            <div class="stat-box">
+        <!-- Instrumentation -->
+        <div class="stats-instrumentation">
+            <div class="instrument-box">
                 <div class="value">{{ stats.ppg|default('--') }}</div>
                 <div class="label">PPG</div>
             </div>
-            <div class="stat-box">
+            <div class="instrument-box">
                 <div class="value">{{ stats.rpg|default('--') }}</div>
                 <div class="label">RPG</div>
             </div>
-            <div class="stat-box">
+            <div class="instrument-box">
                 <div class="value">{{ stats.apg|default('--') }}</div>
                 <div class="label">APG</div>
             </div>
-            <div class="stat-box">
+            <div class="instrument-box">
                 <div class="value">{{ stats.fg_pct|default('--') }}%</div>
                 <div class="label">FG%</div>
             </div>
-            <div class="stat-box">
+            <div class="instrument-box">
                 <div class="value">{{ stats.tp_pct|default('--') }}%</div>
                 <div class="label">3P%</div>
             </div>
         </div>
         
-        <!-- Advanced Metrics -->
-        <div class="section">
-            <div class="section-title">Advanced Metrics</div>
-            <div class="advanced-metrics">
-                <div class="metric-box">
-                    <div class="value">{{ stats.usage_rate|default('--') }}%</div>
-                    <div class="label">Usage Rate</div>
-                </div>
-                <div class="metric-box">
-                    <div class="value">{{ stats.pps|default('--') }}</div>
-                    <div class="label">Points Per Shot</div>
-                </div>
-                <div class="metric-box">
-                    <div class="value">{{ stats.ts_pct|default('--') }}%</div>
-                    <div class="label">True Shooting %</div>
-                </div>
-                <div class="metric-box">
-                    <div class="value">{{ stats.efg_pct|default('--') }}%</div>
-                    <div class="label">Effective FG%</div>
-                </div>
-                <div class="metric-box">
-                    <div class="value {% if shot_quality.shot_quality_delta >= 0 %}positive{% else %}negative{% endif %}">
-                        {% if shot_quality.shot_quality_delta >= 0 %}+{% endif %}{{ shot_quality.shot_quality_delta|default('--') }}
-                    </div>
-                    <div class="label">Shot Quality Delta</div>
-                </div>
-                <div class="metric-box">
-                    <div class="value">{{ stats.possessions|default('--') }}</div>
-                    <div class="label">Possessions/Game</div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Shot Quality Breakdown -->
-        <div class="section">
-            <div class="section-title">Shot Quality Analysis</div>
-            <div class="shot-quality">
-                <div class="quality-stat">
-                    <div class="value">{{ shot_quality.total_shots|default(0) }}</div>
-                    <div class="label">Total Shots</div>
-                </div>
-                <div class="quality-stat">
-                    <div class="value">{{ shot_quality.total_points|default(0) }}</div>
-                    <div class="label">Total Points</div>
-                </div>
-                <div class="quality-stat">
-                    <div class="value">{{ shot_quality.expected_points|default('--') }}</div>
-                    <div class="label">Expected Points</div>
-                </div>
-                <div class="quality-stat">
-                    <div class="value">{{ shot_quality.ppps|default('--') }}</div>
-                    <div class="label">Points Per Shot</div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Zone Efficiency -->
-        <div class="section">
-            <div class="section-title">Zone Efficiency (Hot Zones)</div>
-            <div class="zone-grid">
-                {% for zone_name in ['Rim', 'Paint', 'Midrange', 'Corner_3', 'Above_Break_3', 'FT'] %}
-                {% set zone_data = heatmap.get(zone_name, {}) %}
-                <div class="zone-box {% if zone_data.efficiency_delta|default(0) > 0.1 %}hot{% elif zone_data.efficiency_delta|default(0) < -0.1 %}cold{% endif %}">
-                    <div class="name">{{ zone_name.replace('_', ' ') }}</div>
-                    <div class="fg-pct">{{ zone_data.fg_pct|default('--') }}%</div>
-                    <div class="details">
-                        {{ zone_data.attempts|default(0) }} att | {{ zone_data.actual_pps|default('--') }} PPS
+        <div class="scout-layout">
+            <!-- Left Column -->
+            <div class="scout-col">
+                <div class="section-module">
+                    <div class="module-title">Advanced Metrics</div>
+                    <div class="metric-list">
+                        <div class="metric-item">
+                            <span class="label">Usage Rate</span>
+                            <span class="value">{{ stats.usage_rate|default('--') }}%</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">PPS</span>
+                            <span class="value">{{ stats.pps|default('--') }}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">TS%</span>
+                            <span class="value">{{ stats.ts_pct|default('--') }}%</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">eFG%</span>
+                            <span class="value">{{ stats.efg_pct|default('--') }}%</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">SQ Delta</span>
+                            <span class="value" style="color: {% if (shot_quality.shot_quality_delta|default(0)) >= 0 %}var(--accent-hot){% else %}var(--accent-cold){% endif %}">
+                                {{ '+' if (shot_quality.shot_quality_delta|default(0)) >= 0 }}{{ shot_quality.shot_quality_delta|default('--') }}
+                            </span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">Poss/G</span>
+                            <span class="value">{{ stats.possessions|default('--') }}</span>
+                        </div>
                     </div>
                 </div>
-                {% endfor %}
-            </div>
-        </div>
-        
-        <!-- Shot Chart -->
-        {% if shot_chart %}
-        <div class="section">
-            <div class="section-title">Shot Chart</div>
-            <div class="shot-chart">
-                {{ shot_chart|safe }}
-            </div>
-        </div>
-        {% endif %}
-        
-        <!-- Consistency -->
-        <div class="section">
-            <div class="section-title">Consistency Index</div>
-            <div class="consistency-box">
-                <div class="consistency-stat">
-                    <div class="value">{{ consistency.mean }}</div>
-                    <div class="label">Mean PPG</div>
+
+                <div class="section-module">
+                    <div class="module-title">Consistency Index</div>
+                    <div class="metric-list">
+                        <div class="metric-item">
+                            <span class="label">Mean PPG</span>
+                            <span class="value">{{ consistency.mean }}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">Std Dev</span>
+                            <span class="value">{{ consistency.std_dev }}</span>
+                        </div>
+                        <div class="metric-item" style="grid-column: span 2;">
+                            <span class="label">Coeff. of Variation</span>
+                            <span class="value" style="color: var(--accent-primary)">{{ consistency.cv }}%</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="consistency-stat">
-                    <div class="value">{{ consistency.std_dev }}</div>
-                    <div class="label">Std Deviation</div>
+
+                <div class="section-module">
+                    <div class="module-title">Shot Quality Analysis</div>
+                    <div class="metric-list">
+                        <div class="metric-item">
+                            <span class="label">Total Shots</span>
+                            <span class="value">{{ shot_quality.total_shots|default(0) }}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">Total Points</span>
+                            <span class="value">{{ shot_quality.total_points|default(0) }}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">Expected Pts</span>
+                            <span class="value">{{ shot_quality.expected_points|default('--') }}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">Points Per Shot</span>
+                            <span class="value">{{ shot_quality.ppps|default('--') }}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="consistency-stat">
-                    <div class="value">{{ consistency.cv }}%</div>
-                    <div class="label">Coeff. of Variation</div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="scout-col">
+                <div class="section-module">
+                    <div class="module-title">Zone Efficiency</div>
+                    <div class="zone-grid">
+                        {% for zone_name in ['Rim', 'Paint', 'Midrange', 'Corner_3', 'Above_Break_3', 'FT'] %}
+                        {% set zone_data = heatmap.get(zone_name, {}) %}
+                        <div class="zone-node {% if zone_data.efficiency_delta|default(0) > 0.1 %}hot{% elif zone_data.efficiency_delta|default(0) < -0.1 %}cold{% endif %}">
+                            <div class="name">{{ zone_name.replace('_', ' ') }}</div>
+                            <div class="pct">{{ zone_data.fg_pct|default('--') }}%</div>
+                            <div class="details">
+                                {{ zone_data.attempts|default(0) }} ATT / {{ zone_data.actual_pps|default('--') }} PPS
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="section-module">
+                    <div class="module-title">Visual Shot Map</div>
+                    <div class="shot-chart-frame">
+                        {% if shot_chart %}
+                        <img src="data:image/png;base64,{{ shot_chart }}" alt="Shot chart">
+                        {% else %}
+                        <div style="font-family: var(--font-mono); color: var(--text-dim); padding: 40px; text-transform: uppercase;">
+                            No Spatial Data Available
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
         
         <!-- Footer -->
         <div class="footer">
-            Generated on {{ generated_date }} | Basketball Stats Analytics Platform
+            <div>REF: {{ generated_date }} // SEQ: SCOUT_CARD</div>
+            <div>BASKETBALL STATS ANALYTICS PLATFORM // HIGH FIDELITY SCOUTING</div>
         </div>
     </div>
 </body>

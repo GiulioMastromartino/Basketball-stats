@@ -2,6 +2,8 @@ import os
 import json
 import statistics
 import re
+import zipfile
+from types import SimpleNamespace
 from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
@@ -17,10 +19,13 @@ from flask import (
     current_app,
     jsonify,
     make_response,
+    send_file,
 )
+from io import BytesIO
 from urllib.parse import unquote
 from flask_login import login_required
 from sqlalchemy import case, func
+from weasyprint import HTML
 
 from core.models import (
     Game,
@@ -36,6 +41,12 @@ from core.models import (
     PlayerLineupStats,
 )
 from core.csv_processor import CSVProcessor
+from core.charts import (
+    generate_player_charts,
+    generate_shot_chart,
+    generate_team_shot_chart,
+    generate_team_scoring_trend,
+)
 from core.parser import parse_game_pdf
 from core.services import create_game_from_live_data
 from core.services.game_service import (
@@ -85,6 +96,824 @@ def normalize_date_to_sort(date_str: str) -> str:
         return ""
     day, month, year = display.split("/")
     return f"{year}-{month}-{day}"
+
+
+def _format_total_minutes(total_minutes):
+    whole_minutes = int(total_minutes)
+    seconds = int(round((total_minutes - whole_minutes) * 60))
+    if seconds == 60:
+        whole_minutes += 1
+        seconds = 0
+    return f"{whole_minutes:02d}:{seconds:02d}"
+
+
+def _sum_team_stat_rows(stat_rows):
+    totals = {
+        "points": 0,
+        "fgm": 0,
+        "fga": 0,
+        "tpm": 0,
+        "tpa": 0,
+        "ftm": 0,
+        "fta": 0,
+        "oreb": 0,
+        "dreb": 0,
+        "reb": 0,
+        "ast": 0,
+        "tov": 0,
+        "stl": 0,
+        "blk": 0,
+        "pf": 0,
+        "reb_conceded": 0,
+    }
+
+    for stat in stat_rows:
+        for key in totals:
+            totals[key] += getattr(stat, key, 0) or 0
+
+    totals["fg_pct"] = safe_percentage(totals["fgm"], totals["fga"])
+    totals["tp_pct"] = safe_percentage(totals["tpm"], totals["tpa"])
+    totals["ft_pct"] = safe_percentage(totals["ftm"], totals["fta"])
+    totals["two_pt_made"] = max(totals["fgm"] - totals["tpm"], 0)
+    totals["two_pt_att"] = max(totals["fga"] - totals["tpa"], 0)
+    totals["two_pt_pct"] = safe_percentage(totals["two_pt_made"], totals["two_pt_att"])
+    return totals
+
+
+def _calculate_team_advanced_from_stats(game, stat_rows):
+    if not stat_rows:
+        return None
+
+    team_totals = _sum_team_stat_rows(stat_rows)
+    team_poss = calculate_possessions(
+        team_totals["fga"],
+        team_totals["fta"],
+        team_totals["oreb"],
+        team_totals["tov"],
+    )
+
+    segment_poss = (
+        db.session.query(func.sum(LineupSegment.possessions))
+        .filter_by(game_id=game.id)
+        .scalar()
+        or 0
+    )
+    if segment_poss > 0:
+        team_poss = float(segment_poss)
+
+    if team_poss <= 0:
+        return None
+
+    total_minutes = sum(parse_minutes(s.minutes) for s in stat_rows)
+    total_game_min = total_minutes / 5.0 if total_minutes > 0 else 0
+    pace = calculate_pace(team_poss, total_game_min) if total_game_min > 0 else 0
+
+    ortg = calculate_ortg(game.team_score or 0, team_poss)
+    drtg = calculate_ortg(game.opponent_score or 0, team_poss)
+    net_rating = ortg - drtg
+
+    return {
+        "possessions": round(team_poss, 1),
+        "pace": round(pace, 1) if total_game_min > 0 else None,
+        "efg_pct": round(
+            calculate_efg_percent(
+                team_totals["fgm"], team_totals["tpm"], team_totals["fga"]
+            ),
+            1,
+        ),
+        "ts_pct": round(
+            calculate_ts_percent(
+                team_totals["points"], team_totals["fga"], team_totals["fta"]
+            ),
+            1,
+        ),
+        "tov_pct": round(safe_percentage(team_totals["tov"], team_poss), 1),
+        "ft_rate": round(safe_percentage(team_totals["fta"], team_totals["fga"]), 1),
+        "oreb_pct": round(safe_percentage(team_totals["oreb"], team_totals["reb"]), 1),
+        "ortg": round(ortg, 1),
+        "drtg": round(drtg, 1),
+        "net_rating": round(net_rating, 1),
+    }
+
+
+def _get_stat_leader(stat_rows, field):
+    if not stat_rows:
+        return None
+    leader = max(stat_rows, key=lambda s: (getattr(s, field, 0) or 0, s.player_name or ""))
+    value = getattr(leader, field, 0) or 0
+    if value <= 0:
+        return None
+    return {"player": leader.player_name, "value": value}
+
+
+def _build_opponent_game_card(game):
+    stat_rows = list(game.stats or [])
+    team_totals = _sum_team_stat_rows(stat_rows) if stat_rows else None
+    advanced = _calculate_team_advanced_from_stats(game, stat_rows)
+    margin = (game.team_score or 0) - (game.opponent_score or 0)
+
+    return {
+        "id": game.id,
+        "date": game.date,
+        "sort_date": game.sort_date,
+        "game_type": game.game_type,
+        "result": game.result,
+        "team_score": game.team_score,
+        "opponent_score": game.opponent_score,
+        "margin": margin,
+        "has_stats": bool(stat_rows),
+        "team_stats": team_totals,
+        "advanced": advanced,
+        "leaders": {
+            "points": _get_stat_leader(stat_rows, "points"),
+            "reb": _get_stat_leader(stat_rows, "reb"),
+            "ast": _get_stat_leader(stat_rows, "ast"),
+        },
+    }
+
+
+def _build_opponent_detail_context(opponent_name, games):
+    wins = sum(1 for game in games if game.result == "W")
+    losses = len(games) - wins
+    avg_team_score = round(sum((g.team_score or 0) for g in games) / len(games), 1) if games else 0
+    avg_opponent_score = round(sum((g.opponent_score or 0) for g in games) / len(games), 1) if games else 0
+    avg_margin = round(
+        sum(((g.team_score or 0) - (g.opponent_score or 0)) for g in games) / len(games),
+        1,
+    ) if games else 0
+
+    all_stat_rows = [stat for game in games for stat in (game.stats or [])]
+    aggregate_totals = _sum_team_stat_rows(all_stat_rows) if all_stat_rows else None
+
+    aggregate_advanced = None
+    if games and all_stat_rows:
+        aggregate_game = SimpleNamespace(
+            id=-1,
+            team_score=sum((g.team_score or 0) for g in games),
+            opponent_score=sum((g.opponent_score or 0) for g in games),
+        )
+        aggregate_advanced = _calculate_team_advanced_from_stats(
+            aggregate_game, all_stat_rows
+        )
+
+    matchup_cards = [_build_opponent_game_card(game) for game in games]
+    trend_data = {
+        "labels": [game.date for game in reversed(games)],
+        "team_scores": [game.team_score or 0 for game in reversed(games)],
+        "opponent_scores": [game.opponent_score or 0 for game in reversed(games)],
+        "margins": [
+            (game.team_score or 0) - (game.opponent_score or 0) for game in reversed(games)
+        ],
+        "fg_pct": [
+            (
+                game_card["team_stats"]["fg_pct"]
+                if game_card["team_stats"] is not None
+                else None
+            )
+            for game_card in reversed(matchup_cards)
+        ],
+        "ortg": [
+            game_card["advanced"]["ortg"] if game_card["advanced"] else None
+            for game_card in reversed(matchup_cards)
+        ],
+        "drtg": [
+            game_card["advanced"]["drtg"] if game_card["advanced"] else None
+            for game_card in reversed(matchup_cards)
+        ],
+    }
+
+    return {
+        "opponent_name": opponent_name,
+        "games": games,
+        "summary": {
+            "games": len(games),
+            "wins": wins,
+            "losses": losses,
+            "win_rate": round((wins / len(games)) * 100, 1) if games else 0,
+            "avg_team_score": avg_team_score,
+            "avg_opponent_score": avg_opponent_score,
+            "avg_margin": avg_margin,
+            "record": f"{wins}-{losses}",
+        },
+        "aggregate_totals": aggregate_totals,
+        "aggregate_advanced": aggregate_advanced,
+        "trend_data": trend_data,
+        "matchup_cards": matchup_cards,
+    }
+
+
+def _build_player_summary_dict(
+    player_name, gp, stat_totals, total_minutes, game_ppgs, total_plus_minus
+):
+    total_poss = sum(
+        calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in stat_totals
+    )
+
+    total_points = sum((s.points or 0) for s in stat_totals)
+    total_reb = sum((s.reb or 0) for s in stat_totals)
+    total_oreb = sum((s.oreb or 0) for s in stat_totals)
+    total_dreb = sum((s.dreb or 0) for s in stat_totals)
+    total_ast = sum((s.ast or 0) for s in stat_totals)
+    total_stl = sum((s.stl or 0) for s in stat_totals)
+    total_blk = sum((s.blk or 0) for s in stat_totals)
+    total_tov = sum((s.tov or 0) for s in stat_totals)
+    total_pf = sum((s.pf or 0) for s in stat_totals)
+    total_fgm = sum((s.fgm or 0) for s in stat_totals)
+    total_fga = sum((s.fga or 0) for s in stat_totals)
+    total_tpm = sum((s.tpm or 0) for s in stat_totals)
+    total_tpa = sum((s.tpa or 0) for s in stat_totals)
+    total_ftm = sum((s.ftm or 0) for s in stat_totals)
+    total_fta = sum((s.fta or 0) for s in stat_totals)
+
+    ortg = calculate_ortg(total_points, total_poss)
+    ppp = calculate_ppp(total_points, total_poss)
+    poss_per_40 = (total_poss / (total_minutes / 40)) if total_minutes > 0 else 0
+
+    eff = calculate_efficiency(
+        total_points,
+        total_reb,
+        total_ast,
+        total_stl,
+        total_blk,
+        total_fgm,
+        total_fga,
+        total_ftm,
+        total_fta,
+        total_tov,
+    )
+
+    ts_pct = calculate_ts_percent(total_points, total_fga, total_fta)
+    efg_pct = calculate_efg_percent(total_fgm, total_tpm, total_fga)
+    two_pt_stats = calculate_two_point_stats(total_fgm, total_fga, total_tpm, total_tpa)
+
+    consistency = 0
+    if len(game_ppgs) > 1:
+        std_dev = statistics.stdev(game_ppgs)
+        mean_ppg = statistics.mean(game_ppgs)
+        consistency = (std_dev / mean_ppg) if mean_ppg > 0 else 0
+
+    return {
+        "player_name": player_name,
+        "games_played": gp,
+        "mpg": total_minutes / gp if gp > 0 else 0,
+        "ppg": total_points / gp if gp > 0 else 0,
+        "plus_minus_avg": (total_plus_minus / gp) if gp > 0 else 0,
+        "plus_minus_total": total_plus_minus,
+        "rpg": total_reb / gp if gp > 0 else 0,
+        "orebpg": total_oreb / gp if gp > 0 else 0,
+        "drebpg": total_dreb / gp if gp > 0 else 0,
+        "apg": total_ast / gp if gp > 0 else 0,
+        "spg": total_stl / gp if gp > 0 else 0,
+        "bpg": total_blk / gp if gp > 0 else 0,
+        "topg": total_tov / gp if gp > 0 else 0,
+        "pfpg": total_pf / gp if gp > 0 else 0,
+        "eff": eff / gp if gp > 0 else 0,
+        "ortg": ortg,
+        "ppp": ppp,
+        "poss_per_40": poss_per_40,
+        "usg_pct": (total_poss / gp) if gp > 0 else 0,
+        "fg_pct": total_fgm / total_fga if total_fga > 0 else 0,
+        "two_pt_pct": two_pt_stats["two_pt_pct"],
+        "tp_pct": total_tpm / total_tpa if total_tpa > 0 else 0,
+        "ft_pct": total_ftm / total_fta if total_fta > 0 else 0,
+        "ts_pct": ts_pct,
+        "efg_pct": efg_pct,
+        "ast_tov": total_ast / total_tov if total_tov > 0 else total_ast,
+        "fta_pct": safe_percentage(total_fta, total_fga),
+        "oreb_pct": safe_percentage(total_oreb, total_reb),
+        "consistency": consistency,
+        "fgm": total_fgm,
+        "fga": total_fga,
+        "two_pt_made": two_pt_stats["two_pt_made"],
+        "two_pt_att": two_pt_stats["two_pt_att"],
+        "tpm": total_tpm,
+        "tpa": total_tpa,
+        "ftm": total_ftm,
+        "fta": total_fta,
+    }
+
+
+def _build_players_listing_context(game_type, limit, sort_by, order, excluded_player):
+    game_query = Game.query.order_by(Game.sort_date.desc())
+    if game_type == "Season":
+        game_query = game_query.filter(Game.game_type == "Season")
+    elif game_type == "Friendly":
+        game_query = game_query.filter(Game.game_type == "Friendly")
+    elif game_type == "Playoff":
+        game_query = game_query.filter(Game.game_type == "Playoff")
+
+    all_filtered_games = game_query.all()
+    target_games = all_filtered_games[:limit] if limit > 0 else all_filtered_games
+    target_game_ids = [g.id for g in target_games]
+
+    if not target_game_ids:
+        return {
+            "stats": [],
+            "total_row": None,
+            "all_player_names": [],
+            "filters": {
+                "type": game_type,
+                "limit": limit,
+                "sort": sort_by,
+                "order": order,
+                "exclude_player": excluded_player,
+            },
+        }
+
+    stats_query = (
+        db.session.query(
+            PlayerStat.player_name,
+            func.count(PlayerStat.id).label("games_played"),
+            func.sum(PlayerStat.plus_minus).label("total_plus_minus"),
+        )
+        .filter(PlayerStat.game_id.in_(target_game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .group_by(PlayerStat.player_name)
+        .all()
+    )
+
+    players_data = []
+    all_player_names = []
+
+    for row in stats_query:
+        gp = row.games_played
+        all_player_names.append(row.player_name)
+        player_stats = (
+            PlayerStat.query.filter(PlayerStat.player_name == row.player_name)
+            .filter(PlayerStat.game_id.in_(target_game_ids))
+            .filter(PlayerStat.minutes != "00:00")
+            .filter(PlayerStat.minutes != "0")
+            .all()
+        )
+
+        players_data.append(
+            _build_player_summary_dict(
+                row.player_name,
+                gp,
+                player_stats,
+                sum(parse_minutes(s.minutes) for s in player_stats),
+                [s.points for s in player_stats],
+                row.total_plus_minus or 0,
+            )
+        )
+
+    all_player_names.sort()
+    excluded_player = excluded_player if excluded_player in all_player_names else ""
+
+    included_team_stats = (
+        PlayerStat.query.filter(PlayerStat.game_id.in_(target_game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .filter(PlayerStat.player_name != excluded_player)
+        .all()
+        if excluded_player
+        else PlayerStat.query.filter(PlayerStat.game_id.in_(target_game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .all()
+    )
+
+    team_game_points = {}
+    for stat in included_team_stats:
+        team_game_points.setdefault(stat.game_id, 0)
+        team_game_points[stat.game_id] += stat.points or 0
+
+    team_point_diff_total = sum(
+        (game.team_score or 0) - (game.opponent_score or 0) for game in target_games
+    )
+    team_row = _build_player_summary_dict(
+        "TEAM TOTAL",
+        len(target_games),
+        included_team_stats,
+        sum(parse_minutes(s.minutes) for s in included_team_stats),
+        list(team_game_points.values()),
+        team_point_diff_total,
+    )
+    team_row["excluded_player"] = excluded_player
+
+    reverse = order == "desc"
+    players_data.sort(key=lambda x: x.get(sort_by, 0), reverse=reverse)
+
+    return {
+        "stats": players_data,
+        "total_row": team_row,
+        "all_player_names": all_player_names,
+        "filters": {
+            "type": game_type,
+            "limit": limit,
+            "sort": sort_by,
+            "order": order,
+            "exclude_player": excluded_player,
+        },
+    }
+
+
+def _generate_shooting_trend_base64(chart_data, title):
+    try:
+        import matplotlib.pyplot as plt
+        import base64
+
+        labels = chart_data.get("labels", [])
+        fg_pct = chart_data.get("fg_pct", [])
+        tp_pct = chart_data.get("tp_pct", [])
+        if not labels:
+            return ""
+
+        fig, ax = plt.subplots(figsize=(8, 3.2))
+        ax.plot(labels, fg_pct, color="#28a745", linewidth=2, marker="o", label="FG%")
+        ax.plot(labels, tp_pct, color="#f5576c", linewidth=2, marker="o", label="3PT%")
+        ax.set_ylim(0, 100)
+        ax.set_title(title, fontsize=11, fontweight="bold")
+        ax.grid(True, alpha=0.25)
+        ax.legend(loc="best", fontsize=8)
+        plt.xticks(rotation=35, ha="right", fontsize=8)
+        plt.yticks(fontsize=8)
+        plt.tight_layout()
+
+        img_io = BytesIO()
+        plt.savefig(img_io, format="png", dpi=100, bbox_inches="tight")
+        img_io.seek(0)
+        data = base64.b64encode(img_io.read()).decode()
+        plt.close(fig)
+        return data
+    except Exception:
+        try:
+            plt.close("all")
+        except Exception:
+            pass
+        return ""
+
+
+def _normalize_shot_events_for_detail(shot_events):
+    normalized_events = []
+    for s in shot_events:
+        x = s.x_loc
+        y = s.y_loc
+        if s.x_loc is not None and s.y_loc is not None:
+            x = float(s.x_loc)
+            y = float(s.y_loc)
+            if x > 100 or y > 100:
+                x = (x / 500.0) * 100.0
+                y = (y / 470.0) * 100.0
+            elif 0 <= x <= 1 and 0 <= y <= 1:
+                x *= 100.0
+                y *= 100.0
+            x = max(0.0, min(100.0, x))
+            y = max(0.0, min(100.0, y))
+        normalized_events.append(
+            SimpleNamespace(
+                game=s.game,
+                x_loc=x,
+                y_loc=y,
+                result=s.result,
+                shot_type=s.shot_type,
+                points=s.points,
+            )
+        )
+    return normalized_events
+
+
+def _build_player_detail_context(player_name, game_type):
+    game_query = Game.query.order_by(Game.sort_date.desc())
+    if game_type == "Season":
+        game_query = game_query.filter(Game.game_type == "Season")
+    elif game_type == "Friendly":
+        game_query = game_query.filter(Game.game_type == "Friendly")
+    elif game_type == "Playoff":
+        game_query = game_query.filter(Game.game_type == "Playoff")
+
+    all_filtered_games = game_query.all()
+    target_game_ids = [g.id for g in all_filtered_games]
+    if not target_game_ids:
+        raise ValueError("No games found")
+
+    player_stats = (
+        PlayerStat.query.filter(PlayerStat.player_name == player_name)
+        .filter(PlayerStat.game_id.in_(target_game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .join(Game)
+        .order_by(Game.sort_date.desc())
+        .all()
+    )
+    if not player_stats:
+        raise ValueError("No stats found")
+
+    shot_events = (
+        ShotEvent.query.filter(ShotEvent.player_name == player_name)
+        .filter(ShotEvent.game_id.in_(target_game_ids))
+        .all()
+    )
+    shot_events = _normalize_shot_events_for_detail(shot_events)
+
+    gp = len(player_stats)
+    total_minutes = sum(parse_minutes(s.minutes) for s in player_stats)
+    totals = {
+        "points": sum(s.points for s in player_stats),
+        "reb": sum(s.reb for s in player_stats),
+        "oreb": sum(s.oreb for s in player_stats),
+        "dreb": sum(s.dreb for s in player_stats),
+        "ast": sum(s.ast for s in player_stats),
+        "stl": sum(s.stl for s in player_stats),
+        "blk": sum(s.blk for s in player_stats),
+        "tov": sum(s.tov for s in player_stats),
+        "pf": sum(s.pf for s in player_stats),
+        "fgm": sum(s.fgm for s in player_stats),
+        "fga": sum(s.fga for s in player_stats),
+        "tpm": sum(s.tpm for s in player_stats),
+        "tpa": sum(s.tpa for s in player_stats),
+        "ftm": sum(s.ftm for s in player_stats),
+        "fta": sum(s.fta for s in player_stats),
+        "plus_minus": sum((s.plus_minus or 0) for s in player_stats),
+    }
+    total_poss = sum(
+        calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in player_stats
+    )
+    two_pt_stats = calculate_two_point_stats(
+        totals["fgm"], totals["fga"], totals["tpm"], totals["tpa"]
+    )
+    game_ppgs = [s.points for s in player_stats]
+    consistency_value = 0
+    if len(game_ppgs) > 1 and statistics.mean(game_ppgs) > 0:
+        consistency_value = statistics.stdev(game_ppgs) / statistics.mean(game_ppgs)
+
+    averages = {
+        "mpg": total_minutes / gp,
+        "ppg": totals["points"] / gp,
+        "rpg": totals["reb"] / gp,
+        "orebpg": totals["oreb"] / gp,
+        "drebpg": totals["dreb"] / gp,
+        "apg": totals["ast"] / gp,
+        "spg": totals["stl"] / gp,
+        "bpg": totals["blk"] / gp,
+        "topg": totals["tov"] / gp,
+        "pfpg": totals["pf"] / gp,
+        "pm": totals["plus_minus"] / gp if gp > 0 else 0,
+        "eff": calculate_efficiency(
+            totals["points"], totals["reb"], totals["ast"], totals["stl"], totals["blk"],
+            totals["fgm"], totals["fga"], totals["ftm"], totals["fta"], totals["tov"]
+        ) / gp,
+        "ortg": calculate_ortg(totals["points"], total_poss),
+        "ppp": calculate_ppp(totals["points"], total_poss),
+        "poss_per_40": (total_poss / (total_minutes / 40)) if total_minutes > 0 else 0,
+        "usg_pct": total_poss / gp,
+        "fg_pct": (totals["fgm"] / totals["fga"] * 100) if totals["fga"] > 0 else 0,
+        "two_pt_pct": two_pt_stats["two_pt_pct"],
+        "tp_pct": (totals["tpm"] / totals["tpa"] * 100) if totals["tpa"] > 0 else 0,
+        "ft_pct": (totals["ftm"] / totals["fta"] * 100) if totals["fta"] > 0 else 0,
+        "ts_pct": calculate_ts_percent(totals["points"], totals["fga"], totals["fta"]),
+        "efg_pct": calculate_efg_percent(totals["fgm"], totals["tpm"], totals["fga"]),
+        "ast_tov": totals["ast"] / totals["tov"] if totals["tov"] > 0 else totals["ast"],
+        "fta_pct": safe_percentage(totals["fta"], totals["fga"]),
+        "oreb_pct": safe_percentage(totals["oreb"], totals["reb"]),
+        "consistency": consistency_value,
+    }
+    career_highs = {
+        "points": max(s.points for s in player_stats),
+        "reb": max(s.reb for s in player_stats),
+        "ast": max(s.ast for s in player_stats),
+        "stl": max(s.stl for s in player_stats),
+        "blk": max(s.blk for s in player_stats),
+    }
+    game_logs = []
+    for stat in player_stats:
+        poss = calculate_possessions(stat.fga, stat.fta, stat.oreb, stat.tov)
+        game_logs.append(
+            {
+                "game": stat.game,
+                "stat": stat,
+                "ortg": calculate_ortg(stat.points, poss),
+                "ppp": calculate_ppp(stat.points, poss),
+                "poss_per_40": (poss / (parse_minutes(stat.minutes) / 40))
+                if parse_minutes(stat.minutes) > 0
+                else 0,
+                "eff": calculate_efficiency(
+                    stat.points, stat.reb, stat.ast, stat.stl, stat.blk,
+                    stat.fgm, stat.fga, stat.ftm, stat.fta, stat.tov,
+                ),
+            }
+        )
+    recent_games = game_logs[:10][::-1]
+    chart_data = {
+        "labels": [g["game"].opponent[:10] for g in recent_games],
+        "points": [g["stat"].points for g in recent_games],
+        "rebounds": [g["stat"].reb for g in recent_games],
+        "assists": [g["stat"].ast for g in recent_games],
+        "efficiency": [g["eff"] for g in recent_games],
+        "fg_pct": [
+            (g["stat"].fgm / g["stat"].fga * 100) if g["stat"].fga > 0 else 0
+            for g in recent_games
+        ],
+        "tp_pct": [
+            (g["stat"].tpm / g["stat"].tpa * 100) if g["stat"].tpa > 0 else 0
+            for g in recent_games
+        ],
+    }
+    game_map = {g.id: g for g in all_filtered_games}
+    chart_images = generate_player_charts(player_stats, game_map, player_name)
+    return {
+        "player_name": player_name,
+        "games_played": gp,
+        "totals": totals,
+        "averages": averages,
+        "career_highs": career_highs,
+        "consistency_cv": consistency_value * 100,
+        "game_logs": game_logs,
+        "chart_data": chart_data,
+        "game_type": game_type,
+        "two_pt_made": two_pt_stats["two_pt_made"],
+        "two_pt_att": two_pt_stats["two_pt_att"],
+        "shot_events": shot_events,
+        "pdf_chart_scoring": chart_images.get("chart_scoring", ""),
+        "pdf_chart_shooting": _generate_shooting_trend_base64(
+            chart_data, f"{player_name} - Shooting Efficiency"
+        ),
+        "pdf_shot_chart": generate_shot_chart(player_name, target_game_ids),
+    }
+
+
+def _build_team_detail_context_for_pdf(game_type, excluded_player):
+    game_query = Game.query.order_by(Game.sort_date.desc())
+    if game_type == "Season":
+        game_query = game_query.filter(Game.game_type == "Season")
+    elif game_type == "Friendly":
+        game_query = game_query.filter(Game.game_type == "Friendly")
+    elif game_type == "Playoff":
+        game_query = game_query.filter(Game.game_type == "Playoff")
+
+    games = game_query.all()
+    game_ids = [g.id for g in games]
+    if not game_ids:
+        raise ValueError("No team games found")
+
+    stats_query = (
+        PlayerStat.query.filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+    )
+    if excluded_player:
+        stats_query = stats_query.filter(PlayerStat.player_name != excluded_player)
+    team_stats = stats_query.all()
+    shot_query = ShotEvent.query.filter(ShotEvent.game_id.in_(game_ids))
+    if excluded_player:
+        shot_query = shot_query.filter(ShotEvent.player_name != excluded_player)
+    shot_events = shot_query.all()
+    shot_events = _normalize_shot_events_for_detail(shot_events)
+
+    games_played = len(games)
+    total_point_diff = sum(
+        (game.team_score or 0) - (game.opponent_score or 0) for game in games
+    )
+    total_minutes = sum(parse_minutes(s.minutes) for s in team_stats)
+    totals = {
+        "points": sum((s.points or 0) for s in team_stats),
+        "reb": sum((s.reb or 0) for s in team_stats),
+        "oreb": sum((s.oreb or 0) for s in team_stats),
+        "dreb": sum((s.dreb or 0) for s in team_stats),
+        "ast": sum((s.ast or 0) for s in team_stats),
+        "stl": sum((s.stl or 0) for s in team_stats),
+        "blk": sum((s.blk or 0) for s in team_stats),
+        "tov": sum((s.tov or 0) for s in team_stats),
+        "pf": sum((s.pf or 0) for s in team_stats),
+        "fgm": sum((s.fgm or 0) for s in team_stats),
+        "fga": sum((s.fga or 0) for s in team_stats),
+        "tpm": sum((s.tpm or 0) for s in team_stats),
+        "tpa": sum((s.tpa or 0) for s in team_stats),
+        "ftm": sum((s.ftm or 0) for s in team_stats),
+        "fta": sum((s.fta or 0) for s in team_stats),
+        "plus_minus": total_point_diff,
+    }
+    total_poss = sum(
+        calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in team_stats
+    )
+    two_pt_stats = calculate_two_point_stats(
+        totals["fgm"], totals["fga"], totals["tpm"], totals["tpa"]
+    )
+    game_logs = []
+    for game in games:
+        game_player_stats = [s for s in team_stats if s.game_id == game.id]
+        if not game_player_stats:
+            continue
+        game_minutes = sum(parse_minutes(s.minutes) for s in game_player_stats)
+        poss = sum(
+            calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in game_player_stats
+        )
+        aggregate_stat = SimpleNamespace(
+            minutes=_format_total_minutes(game_minutes),
+            points=sum((s.points or 0) for s in game_player_stats),
+            reb=sum((s.reb or 0) for s in game_player_stats),
+            oreb=sum((s.oreb or 0) for s in game_player_stats),
+            dreb=sum((s.dreb or 0) for s in game_player_stats),
+            ast=sum((s.ast or 0) for s in game_player_stats),
+            stl=sum((s.stl or 0) for s in game_player_stats),
+            blk=sum((s.blk or 0) for s in game_player_stats),
+            tov=sum((s.tov or 0) for s in game_player_stats),
+            pf=sum((s.pf or 0) for s in game_player_stats),
+            fgm=sum((s.fgm or 0) for s in game_player_stats),
+            fga=sum((s.fga or 0) for s in game_player_stats),
+            tpm=sum((s.tpm or 0) for s in game_player_stats),
+            tpa=sum((s.tpa or 0) for s in game_player_stats),
+            ftm=sum((s.ftm or 0) for s in game_player_stats),
+            fta=sum((s.fta or 0) for s in game_player_stats),
+            plus_minus=(game.team_score or 0) - (game.opponent_score or 0),
+        )
+        game_logs.append(
+            {
+                "game": game,
+                "stat": aggregate_stat,
+                "ortg": calculate_ortg(aggregate_stat.points, poss),
+                "ppp": calculate_ppp(aggregate_stat.points, poss),
+                "poss_per_40": (poss / (game_minutes / 40)) if game_minutes > 0 else 0,
+                "eff": calculate_efficiency(
+                    aggregate_stat.points, aggregate_stat.reb, aggregate_stat.ast,
+                    aggregate_stat.stl, aggregate_stat.blk, aggregate_stat.fgm,
+                    aggregate_stat.fga, aggregate_stat.ftm, aggregate_stat.fta,
+                    aggregate_stat.tov,
+                ),
+            }
+        )
+
+    game_ppgs = [item["stat"].points for item in game_logs]
+    consistency_value = 0
+    if len(game_ppgs) > 1 and statistics.mean(game_ppgs) > 0:
+        consistency_value = statistics.stdev(game_ppgs) / statistics.mean(game_ppgs)
+    averages = {
+        "mpg": total_minutes / games_played if games_played > 0 else 0,
+        "ppg": totals["points"] / games_played if games_played > 0 else 0,
+        "rpg": totals["reb"] / games_played if games_played > 0 else 0,
+        "orebpg": totals["oreb"] / games_played if games_played > 0 else 0,
+        "drebpg": totals["dreb"] / games_played if games_played > 0 else 0,
+        "apg": totals["ast"] / games_played if games_played > 0 else 0,
+        "spg": totals["stl"] / games_played if games_played > 0 else 0,
+        "bpg": totals["blk"] / games_played if games_played > 0 else 0,
+        "topg": totals["tov"] / games_played if games_played > 0 else 0,
+        "pfpg": totals["pf"] / games_played if games_played > 0 else 0,
+        "pm": total_point_diff / games_played if games_played > 0 else 0,
+        "eff": calculate_efficiency(
+            totals["points"], totals["reb"], totals["ast"], totals["stl"], totals["blk"],
+            totals["fgm"], totals["fga"], totals["ftm"], totals["fta"], totals["tov"]
+        ) / games_played if games_played > 0 else 0,
+        "ortg": calculate_ortg(totals["points"], total_poss),
+        "ppp": calculate_ppp(totals["points"], total_poss),
+        "poss_per_40": (total_poss / (total_minutes / 40)) if total_minutes > 0 else 0,
+        "usg_pct": total_poss / games_played if games_played > 0 else 0,
+        "fg_pct": (totals["fgm"] / totals["fga"] * 100) if totals["fga"] > 0 else 0,
+        "two_pt_pct": two_pt_stats["two_pt_pct"],
+        "tp_pct": (totals["tpm"] / totals["tpa"] * 100) if totals["tpa"] > 0 else 0,
+        "ft_pct": (totals["ftm"] / totals["fta"] * 100) if totals["fta"] > 0 else 0,
+        "ts_pct": calculate_ts_percent(totals["points"], totals["fga"], totals["fta"]),
+        "efg_pct": calculate_efg_percent(totals["fgm"], totals["tpm"], totals["fga"]),
+        "ast_tov": totals["ast"] / totals["tov"] if totals["tov"] > 0 else totals["ast"],
+        "fta_pct": safe_percentage(totals["fta"], totals["fga"]),
+        "oreb_pct": safe_percentage(totals["oreb"], totals["reb"]),
+        "consistency": consistency_value,
+    }
+    career_highs = {
+        "points": max((item["stat"].points for item in game_logs), default=0),
+        "reb": max((item["stat"].reb for item in game_logs), default=0),
+        "ast": max((item["stat"].ast for item in game_logs), default=0),
+        "stl": max((item["stat"].stl for item in game_logs), default=0),
+        "blk": max((item["stat"].blk for item in game_logs), default=0),
+    }
+    recent_games = game_logs[:10][::-1]
+    chart_data = {
+        "labels": [g["game"].opponent[:10] for g in recent_games],
+        "points": [g["stat"].points for g in recent_games],
+        "rebounds": [g["stat"].reb for g in recent_games],
+        "assists": [g["stat"].ast for g in recent_games],
+        "efficiency": [g["eff"] for g in recent_games],
+        "fg_pct": [
+            (g["stat"].fgm / g["stat"].fga * 100) if g["stat"].fga > 0 else 0
+            for g in recent_games
+        ],
+        "tp_pct": [
+            (g["stat"].tpm / g["stat"].tpa * 100) if g["stat"].tpa > 0 else 0
+            for g in recent_games
+        ],
+    }
+    team_name = "Team Total"
+    if excluded_player:
+        team_name = f"Team Total (without {excluded_player})"
+    return {
+        "player_name": team_name,
+        "games_played": games_played,
+        "totals": totals,
+        "averages": averages,
+        "career_highs": career_highs,
+        "consistency_cv": consistency_value * 100,
+        "game_logs": game_logs,
+        "chart_data": chart_data,
+        "game_type": game_type,
+        "two_pt_made": two_pt_stats["two_pt_made"],
+        "two_pt_att": two_pt_stats["two_pt_att"],
+        "shot_events": shot_events,
+        "pdf_chart_scoring": generate_team_scoring_trend(games),
+        "pdf_chart_shooting": _generate_shooting_trend_base64(
+            chart_data, "Team Shooting Efficiency"
+        ),
+        "pdf_shot_chart": generate_team_shot_chart(game_ids),
+    }
 
 
 def coerce_json_game_dates(game_data: dict) -> tuple[str, str]:
@@ -397,6 +1226,7 @@ def upload_game():
                                 blk=player["blk"],
                                 pf=player["pf"],
                                 plus_minus=int(player.get("plus_minus", 0) or 0),
+                                reb_conceded=int(player.get("reb_conceded", 0) or 0),
                             )
                             db.session.add(stat)
 
@@ -576,6 +1406,7 @@ def upload_game():
                             blk=int(player.get("blk", 0) or 0),
                             pf=int(player.get("pf", 0) or 0),
                             plus_minus=int(player.get("plus_minus", 0) or 0),
+                            reb_conceded=int(player.get("reb_conceded", 0) or 0),
                         )
                         db.session.add(stat)
 
@@ -615,7 +1446,9 @@ def upload_game():
                         if not file or file.filename == "":
                             continue
 
-                        if not allowed_file(file.filename) or not file.filename.lower().endswith(".json"):
+                        if not allowed_file(
+                            file.filename
+                        ) or not file.filename.lower().endswith(".json"):
                             errors.append(f"{file.filename}: Invalid file type")
                             continue
 
@@ -628,15 +1461,24 @@ def upload_game():
                         # Extract basic info for duplicate check
                         game_data = data.get("game", data)
                         date_display, sort_date = coerce_json_game_dates(game_data)
-                        opponent = (game_data.get("opponent") or game_data.get("Opponent") or game_data.get("vs") or "").strip()
+                        opponent = (
+                            game_data.get("opponent")
+                            or game_data.get("Opponent")
+                            or game_data.get("vs")
+                            or ""
+                        ).strip()
 
                         if not sort_date or not opponent:
                             errors.append(f"{file.filename}: Missing date or opponent")
                             continue
 
-                        existing = Game.query.filter_by(sort_date=sort_date, opponent=opponent).first()
+                        existing = Game.query.filter_by(
+                            sort_date=sort_date, opponent=opponent
+                        ).first()
                         if existing:
-                            errors.append(f"{file.filename}: Game already exists ({existing.opponent})")
+                            errors.append(
+                                f"{file.filename}: Game already exists ({existing.opponent})"
+                            )
                             continue
 
                         # Use service to handle the heavy lifting (supports Schema 4, lineups, plays, etc.)
@@ -648,10 +1490,18 @@ def upload_game():
                         errors.append(f"{file.filename}: {str(e)}")
 
                 if success_count > 0:
-                    flash(f"Successfully imported {success_count} JSON game(s).", "success")
+                    flash(
+                        f"Successfully imported {success_count} JSON game(s).",
+                        "success",
+                    )
 
                 if errors:
-                    flash(f"Errors occurred with {len(errors)} file(s): " + "; ".join(errors[:5]) + ("..." if len(errors) > 5 else ""), "danger")
+                    flash(
+                        f"Errors occurred with {len(errors)} file(s): "
+                        + "; ".join(errors[:5])
+                        + ("..." if len(errors) > 5 else ""),
+                        "danger",
+                    )
 
                 return redirect(url_for("main.index"))
 
@@ -720,6 +1570,7 @@ def game_detail(game_id):
     """Detailed stats for a specific game with Advanced Metrics"""
     game = Game.query.get_or_404(game_id)
     from core.advanced_analytics import LineupAnalytics
+
     stats = (
         PlayerStat.query.filter_by(game_id=game.id)
         .order_by(PlayerStat.points.desc())
@@ -742,6 +1593,9 @@ def game_detail(game_id):
         p.possessions = calculate_possessions(p.fga, p.fta, p.oreb, p.tov)
         p.ortg = calculate_ortg(p.points, p.possessions)
         p.ppp = calculate_ppp(p.points, p.possessions)
+        p.poss_per_40 = (
+            p.possessions / (p.min_decimal / 40) if p.min_decimal > 0 else 0
+        )
         p.usg_pct = safe_percentage(p.possessions, team_possessions)
         p.ast_tov_ratio = (p.ast / p.tov) if p.tov > 0 else p.ast
         p.eff = calculate_efficiency(
@@ -809,14 +1663,19 @@ def game_detail(game_id):
     team_poss = calculate_possessions(
         team_stats["fga"], team_stats["fta"], team_stats["oreb"], team_stats["tov"]
     )
-    
+
     # Try to get more accurate possessions from lineup segments if available
     from core.models import LineupSegment
-    segment_poss = db.session.query(func.sum(LineupSegment.possessions)).filter_by(game_id=game.id).scalar() or 0
+
+    segment_poss = (
+        db.session.query(func.sum(LineupSegment.possessions))
+        .filter_by(game_id=game.id)
+        .scalar()
+        or 0
+    )
     if segment_poss > 0:
         team_poss = float(segment_poss)
-    elif team_poss <= 0:
-        team_poss = team_possessions
+    team_poss = max(team_poss, 1.0)
 
     total_game_min = sum(p.min_decimal for p in stats) / 5.0
     pace = calculate_pace(team_poss, total_game_min)
@@ -890,16 +1749,22 @@ def game_detail(game_id):
 
     try:
         top_game_lineups_off = LineupAnalytics.get_game_lineup_rankings(
-            game.id, top_n=3, rank_by="offensive", min_possessions=10,
+            game.id,
+            top_n=3,
+            rank_by="offensive",
+            min_possessions=10,
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss
+            total_possessions_override=team_poss,
         )
         top_game_lineups_def = LineupAnalytics.get_game_lineup_rankings(
-            game.id, top_n=3, rank_by="defensive", min_possessions=10,
+            game.id,
+            top_n=3,
+            rank_by="defensive",
+            min_possessions=10,
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss
+            total_possessions_override=team_poss,
         )
     except Exception as e:
         print(f"[GameDetail] Error fetching lineups: {e}")
@@ -916,7 +1781,7 @@ def game_detail(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="offensive"
+            rank_by="offensive",
         )
         top_game_duos_def = LineupAnalytics.get_combination_net_differentials(
             combination_type="duo",
@@ -927,7 +1792,7 @@ def game_detail(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="defensive"
+            rank_by="defensive",
         )
     except Exception as e:
         print(f"[GameDetail] Error fetching duos: {e}")
@@ -944,7 +1809,7 @@ def game_detail(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="offensive"
+            rank_by="offensive",
         )
         top_game_trios_def = LineupAnalytics.get_combination_net_differentials(
             combination_type="trio",
@@ -955,7 +1820,7 @@ def game_detail(game_id):
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
-            rank_by="defensive"
+            rank_by="defensive",
         )
     except Exception as e:
         print(f"[GameDetail] Error fetching trios: {e}")
@@ -1165,6 +2030,7 @@ def player_detail(player_name):
         / gp,
         "ortg": calculate_ortg(totals["points"], total_poss),
         "ppp": calculate_ppp(totals["points"], total_poss),
+        "poss_per_40": (total_poss / (total_minutes / 40)) if total_minutes > 0 else 0,
         "usg_pct": total_poss / gp,
         "fg_pct": (totals["fgm"] / totals["fga"] * 100) if totals["fga"] > 0 else 0,
         "two_pt_pct": two_pt_stats["two_pt_pct"],
@@ -1200,6 +2066,9 @@ def player_detail(player_name):
                 "stat": stat,
                 "ortg": calculate_ortg(stat.points, poss),
                 "ppp": calculate_ppp(stat.points, poss),
+                "poss_per_40": (poss / (parse_minutes(stat.minutes) / 40))
+                if parse_minutes(stat.minutes) > 0
+                else 0,
                 "eff": calculate_efficiency(
                     stat.points,
                     stat.reb,
@@ -1238,6 +2107,11 @@ def player_detail(player_name):
     return render_template(
         "player_detail.html",
         player_name=player_name,
+        report_url=url_for(
+            "analytics.player_report_pdf", player_name=player_name, game_type=game_type
+        ),
+        back_url=url_for("main.players", game_type=game_type),
+        back_label="Back to Players",
         games_played=gp,
         totals=totals,
         averages=averages,
@@ -1252,10 +2126,351 @@ def player_detail(player_name):
     )
 
 
+@main_bp.route("/team-detail")
+@login_required
+def team_detail():
+    """Team totals rendered on the same detail page as players."""
+    game_type = request.args.get("game_type", "ALL")
+    if game_type not in VALID_GAME_TYPES:
+        game_type = "ALL"
+
+    excluded_player = (request.args.get("exclude_player") or "").strip()
+
+    game_query = Game.query.order_by(Game.sort_date.desc())
+    if game_type == "Season":
+        game_query = game_query.filter(Game.game_type == "Season")
+    elif game_type == "Friendly":
+        game_query = game_query.filter(Game.game_type == "Friendly")
+    elif game_type == "Playoff":
+        game_query = game_query.filter(Game.game_type == "Playoff")
+
+    games = game_query.all()
+    game_ids = [g.id for g in games]
+    if not game_ids:
+        flash("No games found for team totals", "warning")
+        return redirect(url_for("main.players"))
+
+    stats_query = (
+        PlayerStat.query.filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+    )
+    if excluded_player:
+        stats_query = stats_query.filter(PlayerStat.player_name != excluded_player)
+    team_stats = stats_query.all()
+
+    if not team_stats:
+        flash("No stats found for team totals", "warning")
+        return redirect(url_for("main.players"))
+
+    shot_query = ShotEvent.query.filter(ShotEvent.game_id.in_(game_ids))
+    if excluded_player:
+        shot_query = shot_query.filter(ShotEvent.player_name != excluded_player)
+    shot_events = shot_query.all()
+    shot_events = _normalize_shot_events_for_detail(shot_events)
+
+    games_played = len(games)
+    total_point_diff = sum(
+        (game.team_score or 0) - (game.opponent_score or 0) for game in games
+    )
+    total_minutes = sum(parse_minutes(s.minutes) for s in team_stats)
+    totals = {
+        "points": sum((s.points or 0) for s in team_stats),
+        "reb": sum((s.reb or 0) for s in team_stats),
+        "oreb": sum((s.oreb or 0) for s in team_stats),
+        "dreb": sum((s.dreb or 0) for s in team_stats),
+        "ast": sum((s.ast or 0) for s in team_stats),
+        "stl": sum((s.stl or 0) for s in team_stats),
+        "blk": sum((s.blk or 0) for s in team_stats),
+        "tov": sum((s.tov or 0) for s in team_stats),
+        "pf": sum((s.pf or 0) for s in team_stats),
+        "fgm": sum((s.fgm or 0) for s in team_stats),
+        "fga": sum((s.fga or 0) for s in team_stats),
+        "tpm": sum((s.tpm or 0) for s in team_stats),
+        "tpa": sum((s.tpa or 0) for s in team_stats),
+        "ftm": sum((s.ftm or 0) for s in team_stats),
+        "fta": sum((s.fta or 0) for s in team_stats),
+        "plus_minus": total_point_diff,
+    }
+    total_poss = sum(
+        calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in team_stats
+    )
+    two_pt_stats = calculate_two_point_stats(
+        totals["fgm"], totals["fga"], totals["tpm"], totals["tpa"]
+    )
+
+    game_logs = []
+    chart_rows = []
+    for game in games:
+        game_player_stats = [s for s in team_stats if s.game_id == game.id]
+        if not game_player_stats:
+            continue
+        game_points = sum((s.points or 0) for s in game_player_stats)
+        game_reb = sum((s.reb or 0) for s in game_player_stats)
+        game_oreb = sum((s.oreb or 0) for s in game_player_stats)
+        game_dreb = sum((s.dreb or 0) for s in game_player_stats)
+        game_ast = sum((s.ast or 0) for s in game_player_stats)
+        game_stl = sum((s.stl or 0) for s in game_player_stats)
+        game_blk = sum((s.blk or 0) for s in game_player_stats)
+        game_tov = sum((s.tov or 0) for s in game_player_stats)
+        game_pf = sum((s.pf or 0) for s in game_player_stats)
+        game_fgm = sum((s.fgm or 0) for s in game_player_stats)
+        game_fga = sum((s.fga or 0) for s in game_player_stats)
+        game_tpm = sum((s.tpm or 0) for s in game_player_stats)
+        game_tpa = sum((s.tpa or 0) for s in game_player_stats)
+        game_ftm = sum((s.ftm or 0) for s in game_player_stats)
+        game_fta = sum((s.fta or 0) for s in game_player_stats)
+        game_pm = (game.team_score or 0) - (game.opponent_score or 0)
+        game_minutes = sum(parse_minutes(s.minutes) for s in game_player_stats)
+        poss = sum(
+            calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in game_player_stats
+        )
+
+        aggregate_stat = SimpleNamespace(
+            minutes=_format_total_minutes(game_minutes),
+            points=game_points,
+            reb=game_reb,
+            oreb=game_oreb,
+            dreb=game_dreb,
+            ast=game_ast,
+            stl=game_stl,
+            blk=game_blk,
+            tov=game_tov,
+            pf=game_pf,
+            fgm=game_fgm,
+            fga=game_fga,
+            tpm=game_tpm,
+            tpa=game_tpa,
+            ftm=game_ftm,
+            fta=game_fta,
+            plus_minus=game_pm,
+        )
+        eff = calculate_efficiency(
+            game_points,
+            game_reb,
+            game_ast,
+            game_stl,
+            game_blk,
+            game_fgm,
+            game_fga,
+            game_ftm,
+            game_fta,
+            game_tov,
+        )
+        game_logs.append(
+            {
+                "game": game,
+                "stat": aggregate_stat,
+                "ortg": calculate_ortg(game_points, poss),
+                "ppp": calculate_ppp(game_points, poss),
+                "poss_per_40": (poss / (game_minutes / 40)) if game_minutes > 0 else 0,
+                "eff": eff,
+                "ts_pct": calculate_ts_percent(game_points, game_fga, game_fta),
+                "efg_pct": calculate_efg_percent(game_fgm, game_tpm, game_fga),
+                "ast_tov": (game_ast / game_tov) if game_tov > 0 else game_ast,
+            }
+        )
+        chart_rows.append((game, aggregate_stat, eff))
+
+    game_ppgs = [item["stat"].points for item in game_logs]
+    consistency_value = 0
+    if len(game_ppgs) > 1 and statistics.mean(game_ppgs) > 0:
+        consistency_value = statistics.stdev(game_ppgs) / statistics.mean(game_ppgs)
+
+    averages = {
+        "mpg": total_minutes / games_played if games_played > 0 else 0,
+        "ppg": totals["points"] / games_played if games_played > 0 else 0,
+        "rpg": totals["reb"] / games_played if games_played > 0 else 0,
+        "orebpg": totals["oreb"] / games_played if games_played > 0 else 0,
+        "drebpg": totals["dreb"] / games_played if games_played > 0 else 0,
+        "apg": totals["ast"] / games_played if games_played > 0 else 0,
+        "spg": totals["stl"] / games_played if games_played > 0 else 0,
+        "bpg": totals["blk"] / games_played if games_played > 0 else 0,
+        "topg": totals["tov"] / games_played if games_played > 0 else 0,
+        "pfpg": totals["pf"] / games_played if games_played > 0 else 0,
+        "pm": total_point_diff / games_played if games_played > 0 else 0,
+        "eff": calculate_efficiency(
+            totals["points"],
+            totals["reb"],
+            totals["ast"],
+            totals["stl"],
+            totals["blk"],
+            totals["fgm"],
+            totals["fga"],
+            totals["ftm"],
+            totals["fta"],
+            totals["tov"],
+        ) / games_played if games_played > 0 else 0,
+        "ortg": calculate_ortg(totals["points"], total_poss),
+        "ppp": calculate_ppp(totals["points"], total_poss),
+        "poss_per_40": (total_poss / (total_minutes / 40)) if total_minutes > 0 else 0,
+        "usg_pct": total_poss / games_played if games_played > 0 else 0,
+        "fg_pct": (totals["fgm"] / totals["fga"] * 100) if totals["fga"] > 0 else 0,
+        "two_pt_pct": two_pt_stats["two_pt_pct"],
+        "tp_pct": (totals["tpm"] / totals["tpa"] * 100) if totals["tpa"] > 0 else 0,
+        "ft_pct": (totals["ftm"] / totals["fta"] * 100) if totals["fta"] > 0 else 0,
+        "ts_pct": calculate_ts_percent(totals["points"], totals["fga"], totals["fta"]),
+        "efg_pct": calculate_efg_percent(totals["fgm"], totals["tpm"], totals["fga"]),
+        "ast_tov": totals["ast"] / totals["tov"] if totals["tov"] > 0 else totals["ast"],
+        "fta_pct": safe_percentage(totals["fta"], totals["fga"]),
+        "oreb_pct": safe_percentage(totals["oreb"], totals["reb"]),
+        "consistency": consistency_value,
+    }
+
+    career_highs = {
+        "points": max((item["stat"].points for item in game_logs), default=0),
+        "reb": max((item["stat"].reb for item in game_logs), default=0),
+        "ast": max((item["stat"].ast for item in game_logs), default=0),
+        "stl": max((item["stat"].stl for item in game_logs), default=0),
+        "blk": max((item["stat"].blk for item in game_logs), default=0),
+    }
+
+    recent_games = game_logs[:10][::-1]
+    chart_data = {
+        "labels": [g["game"].opponent[:10] for g in recent_games],
+        "points": [g["stat"].points for g in recent_games],
+        "rebounds": [g["stat"].reb for g in recent_games],
+        "assists": [g["stat"].ast for g in recent_games],
+        "efficiency": [g["eff"] for g in recent_games],
+        "fg_pct": [
+            (g["stat"].fgm / g["stat"].fga * 100) if g["stat"].fga > 0 else 0
+            for g in recent_games
+        ],
+        "tp_pct": [
+            (g["stat"].tpm / g["stat"].tpa * 100) if g["stat"].tpa > 0 else 0
+            for g in recent_games
+        ],
+    }
+
+    team_name = "Team Total"
+    if excluded_player:
+        team_name = f"Team Total (without {excluded_player})"
+
+    return render_template(
+        "player_detail.html",
+        player_name=team_name,
+        report_url=url_for("analytics.team_report_pdf", game_type=game_type),
+        back_url=url_for(
+            "main.players",
+            view="cards",
+            game_type=game_type,
+            exclude_player=excluded_player,
+        ),
+        back_label="Back to Players",
+        games_played=games_played,
+        totals=totals,
+        averages=averages,
+        career_highs=career_highs,
+        consistency_cv=consistency_value * 100,
+        game_logs=game_logs,
+        chart_data=chart_data,
+        game_type=game_type,
+        two_pt_made=two_pt_stats["two_pt_made"],
+        two_pt_att=two_pt_stats["two_pt_att"],
+        shot_events=shot_events,
+    )
+
+
 @main_bp.route("/players")
 @login_required
 def players():
     """List of all players with Comprehensive Advanced Stats"""
+    def build_player_summary(
+        player_name, gp, stat_totals, total_minutes, game_ppgs, total_plus_minus
+    ):
+        total_poss = sum(
+            calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in stat_totals
+        )
+
+        ortg = calculate_ortg(
+            sum((s.points or 0) for s in stat_totals),
+            total_poss,
+        )
+        ppp = calculate_ppp(
+            sum((s.points or 0) for s in stat_totals),
+            total_poss,
+        )
+        poss_per_40 = (total_poss / (total_minutes / 40)) if total_minutes > 0 else 0
+
+        total_points = sum((s.points or 0) for s in stat_totals)
+        total_reb = sum((s.reb or 0) for s in stat_totals)
+        total_oreb = sum((s.oreb or 0) for s in stat_totals)
+        total_dreb = sum((s.dreb or 0) for s in stat_totals)
+        total_ast = sum((s.ast or 0) for s in stat_totals)
+        total_stl = sum((s.stl or 0) for s in stat_totals)
+        total_blk = sum((s.blk or 0) for s in stat_totals)
+        total_tov = sum((s.tov or 0) for s in stat_totals)
+        total_pf = sum((s.pf or 0) for s in stat_totals)
+        total_fgm = sum((s.fgm or 0) for s in stat_totals)
+        total_fga = sum((s.fga or 0) for s in stat_totals)
+        total_tpm = sum((s.tpm or 0) for s in stat_totals)
+        total_tpa = sum((s.tpa or 0) for s in stat_totals)
+        total_ftm = sum((s.ftm or 0) for s in stat_totals)
+        total_fta = sum((s.fta or 0) for s in stat_totals)
+
+        eff = calculate_efficiency(
+            total_points,
+            total_reb,
+            total_ast,
+            total_stl,
+            total_blk,
+            total_fgm,
+            total_fga,
+            total_ftm,
+            total_fta,
+            total_tov,
+        )
+
+        ts_pct = calculate_ts_percent(total_points, total_fga, total_fta)
+        efg_pct = calculate_efg_percent(total_fgm, total_tpm, total_fga)
+        two_pt_stats = calculate_two_point_stats(total_fgm, total_fga, total_tpm, total_tpa)
+
+        consistency = 0
+        if len(game_ppgs) > 1:
+            std_dev = statistics.stdev(game_ppgs)
+            mean_ppg = statistics.mean(game_ppgs)
+            consistency = (std_dev / mean_ppg) if mean_ppg > 0 else 0
+
+        return {
+            "player_name": player_name,
+            "games_played": gp,
+            "mpg": total_minutes / gp if gp > 0 else 0,
+            "ppg": total_points / gp if gp > 0 else 0,
+            "plus_minus_avg": (total_plus_minus / gp) if gp > 0 else 0,
+            "plus_minus_total": total_plus_minus,
+            "rpg": total_reb / gp if gp > 0 else 0,
+            "orebpg": total_oreb / gp if gp > 0 else 0,
+            "drebpg": total_dreb / gp if gp > 0 else 0,
+            "apg": total_ast / gp if gp > 0 else 0,
+            "spg": total_stl / gp if gp > 0 else 0,
+            "bpg": total_blk / gp if gp > 0 else 0,
+            "topg": total_tov / gp if gp > 0 else 0,
+            "pfpg": total_pf / gp if gp > 0 else 0,
+            "eff": eff / gp if gp > 0 else 0,
+            "ortg": ortg,
+            "ppp": ppp,
+            "poss_per_40": poss_per_40,
+            "usg_pct": (total_poss / gp) if gp > 0 else 0,
+            "fg_pct": total_fgm / total_fga if total_fga > 0 else 0,
+            "two_pt_pct": two_pt_stats["two_pt_pct"],
+            "tp_pct": total_tpm / total_tpa if total_tpa > 0 else 0,
+            "ft_pct": total_ftm / total_fta if total_fta > 0 else 0,
+            "ts_pct": ts_pct,
+            "efg_pct": efg_pct,
+            "ast_tov": total_ast / total_tov if total_tov > 0 else total_ast,
+            "fta_pct": safe_percentage(total_fta, total_fga),
+            "oreb_pct": safe_percentage(total_oreb, total_reb),
+            "consistency": consistency,
+            "fgm": total_fgm,
+            "fga": total_fga,
+            "two_pt_made": two_pt_stats["two_pt_made"],
+            "two_pt_att": two_pt_stats["two_pt_att"],
+            "tpm": total_tpm,
+            "tpa": total_tpa,
+            "ftm": total_ftm,
+            "fta": total_fta,
+        }
+
     view = request.args.get("view", "cards")
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
@@ -1270,6 +2485,7 @@ def players():
 
     sort_by = request.args.get("sort", "ppg")
     order = request.args.get("order", "desc")
+    excluded_player = (request.args.get("exclude_player") or "").strip()
 
     game_query = Game.query.order_by(Game.sort_date.desc())
     if game_type == "Season":
@@ -1289,11 +2505,14 @@ def players():
         return render_template(
             template,
             stats=[],
+            total_row=None,
+            all_player_names=[],
             filters={
                 "type": game_type,
                 "limit": limit,
                 "sort": sort_by,
                 "order": order,
+                "exclude_player": excluded_player,
             },
         )
 
@@ -1326,9 +2545,11 @@ def players():
     )
 
     players_data = []
+    all_player_names = []
 
     for row in stats_query:
         gp = row.games_played
+        all_player_names.append(row.player_name)
 
         player_stats = (
             PlayerStat.query.filter(PlayerStat.player_name == row.player_name)
@@ -1340,84 +2561,54 @@ def players():
 
         total_minutes = sum(parse_minutes(s.minutes) for s in player_stats)
         game_ppgs = [s.points for s in player_stats]
-
-        total_poss = sum(
-            calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in player_stats
-        )
-
-        ortg = calculate_ortg(row.total_points, total_poss)
-        ppp = calculate_ppp(row.total_points, total_poss)
-
-        eff = calculate_efficiency(
-            row.total_points,
-            row.total_reb,
-            row.total_ast,
-            row.total_stl,
-            row.total_blk,
-            row.total_fgm,
-            row.total_fga,
-            row.total_ftm,
-            row.total_fta,
-            row.total_tov,
-        )
-
-        ts_pct = calculate_ts_percent(row.total_points, row.total_fga, row.total_fta)
-        efg_pct = calculate_efg_percent(row.total_fgm, row.total_tpm, row.total_fga)
-
-        two_pt_stats = calculate_two_point_stats(
-            row.total_fgm, row.total_fga, row.total_tpm, row.total_tpa
-        )
-
-        consistency = 0
-        if len(game_ppgs) > 1:
-            std_dev = statistics.stdev(game_ppgs)
-            mean_ppg = statistics.mean(game_ppgs)
-            consistency = (std_dev / mean_ppg) if mean_ppg > 0 else 0
-
         total_pm = row.total_plus_minus or 0
 
         players_data.append(
-            {
-                "player_name": row.player_name,
-                "games_played": gp,
-                "mpg": total_minutes / gp if gp > 0 else 0,
-                "ppg": row.total_points / gp if gp > 0 else 0,
-                "plus_minus_avg": (total_pm / gp) if gp > 0 else 0,
-                "plus_minus_total": total_pm,
-                "rpg": row.total_reb / gp if gp > 0 else 0,
-                "orebpg": row.total_oreb / gp if gp > 0 else 0,
-                "drebpg": row.total_dreb / gp if gp > 0 else 0,
-                "apg": row.total_ast / gp if gp > 0 else 0,
-                "spg": row.total_stl / gp if gp > 0 else 0,
-                "bpg": row.total_blk / gp if gp > 0 else 0,
-                "topg": row.total_tov / gp if gp > 0 else 0,
-                "pfpg": row.total_pf / gp if gp > 0 else 0,
-                "eff": eff / gp if gp > 0 else 0,
-                "ortg": ortg,
-                "ppp": ppp,
-                "usg_pct": (total_poss / gp) if gp > 0 else 0,
-                "fg_pct": row.total_fgm / row.total_fga if row.total_fga > 0 else 0,
-                "two_pt_pct": two_pt_stats["two_pt_pct"],
-                "tp_pct": row.total_tpm / row.total_tpa if row.total_tpa > 0 else 0,
-                "ft_pct": row.total_ftm / row.total_fta if row.total_fta > 0 else 0,
-                "ts_pct": ts_pct,
-                "efg_pct": efg_pct,
-                "ast_tov": row.total_ast / row.total_tov
-                if row.total_tov > 0
-                else row.total_ast,
-                "fta_pct": safe_percentage(row.total_fta, row.total_fga),
-                "oreb_pct": safe_percentage(row.total_oreb, row.total_reb),
-                "consistency": consistency,
-                "fgm": row.total_fgm,
-                "fga": row.total_fga,
-                "two_pt_made": two_pt_stats["two_pt_made"],
-                "two_pt_att": two_pt_stats["two_pt_att"],
-                "tpm": row.total_tpm,
-                "tpa": row.total_tpa,
-                "ftm": row.total_ftm,
-                "fta": row.total_fta,
-            }
+            build_player_summary(
+                row.player_name,
+                gp,
+                player_stats,
+                total_minutes,
+                game_ppgs,
+                total_pm,
+            )
         )
+
+    all_player_names.sort()
+
+    excluded_player = excluded_player if excluded_player in all_player_names else ""
+
+    included_team_stats = (
+        PlayerStat.query.filter(PlayerStat.game_id.in_(target_game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .filter(PlayerStat.player_name != excluded_player)
+        .all()
+        if excluded_player
+        else PlayerStat.query.filter(PlayerStat.game_id.in_(target_game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .all()
+    )
+
+    team_game_points = {}
+    for stat in included_team_stats:
+        team_game_points.setdefault(stat.game_id, 0)
+        team_game_points[stat.game_id] += stat.points or 0
+
+    team_point_diff_total = sum(
+        (game.team_score or 0) - (game.opponent_score or 0) for game in target_games
+    )
+
+    team_row = build_player_summary(
+        "TEAM TOTAL",
+        len(target_games),
+        included_team_stats,
+        sum(parse_minutes(s.minutes) for s in included_team_stats),
+        list(team_game_points.values()),
+        team_point_diff_total,
+    )
+    team_row["excluded_player"] = excluded_player
 
     reverse = order == "desc"
     players_data.sort(key=lambda x: x.get(sort_by, 0), reverse=reverse)
@@ -1427,7 +2618,105 @@ def players():
     return render_template(
         template,
         stats=players_data,
-        filters={"type": game_type, "limit": limit, "sort": sort_by, "order": order},
+        total_row=team_row,
+        all_player_names=all_player_names,
+        filters={
+            "type": game_type,
+            "limit": limit,
+            "sort": sort_by,
+            "order": order,
+            "exclude_player": excluded_player,
+        },
+    )
+
+
+@main_bp.route("/players/cards.pdf")
+@login_required
+def players_cards_pdf():
+    game_type = request.args.get("game_type", "ALL")
+    if game_type not in VALID_GAME_TYPES:
+        game_type = "ALL"
+
+    try:
+        limit = int(request.args.get("limit", 0))
+        if limit < 0:
+            limit = 0
+    except ValueError:
+        limit = 0
+
+    sort_by = request.args.get("sort", "ppg")
+    order = request.args.get("order", "desc")
+    excluded_player = (request.args.get("exclude_player") or "").strip()
+
+    context = _build_players_listing_context(
+        game_type, limit, sort_by, order, excluded_player
+    )
+
+    html = render_template("players_cards_pdf.html", **context)
+    pdf_bytes = HTML(string=html, base_url=request.host_url).write_pdf()
+    pdf_io = BytesIO(pdf_bytes)
+    pdf_io.seek(0)
+
+    return send_file(
+        pdf_io,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"player_cards_{game_type}.pdf",
+    )
+
+
+@main_bp.route("/players/pages.zip")
+@login_required
+def players_pages_zip():
+    game_type = request.args.get("game_type", "ALL")
+    if game_type not in VALID_GAME_TYPES:
+        game_type = "ALL"
+
+    try:
+        limit = int(request.args.get("limit", 0))
+        if limit < 0:
+            limit = 0
+    except ValueError:
+        limit = 0
+
+    sort_by = request.args.get("sort", "ppg")
+    order = request.args.get("order", "desc")
+    excluded_player = (request.args.get("exclude_player") or "").strip()
+
+    listing = _build_players_listing_context(game_type, limit, sort_by, order, excluded_player)
+    zip_buffer = BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        team_context = _build_team_detail_context_for_pdf(game_type, excluded_player)
+        team_html = render_template(
+            "player_detail.html",
+            **team_context,
+            pdf_mode=True,
+            report_url="",
+            back_url="",
+        )
+        team_pdf = HTML(string=team_html, base_url=request.host_url).write_pdf()
+        zipf.writestr("Team_Total_Page.pdf", team_pdf)
+
+        for player in listing["stats"]:
+            detail_context = _build_player_detail_context(player["player_name"], game_type)
+            html = render_template(
+                "player_detail.html",
+                **detail_context,
+                pdf_mode=True,
+                report_url="",
+                back_url="",
+            )
+            pdf_data = HTML(string=html, base_url=request.host_url).write_pdf()
+            filename = f"{player['player_name'].replace(' ', '_')}_page.pdf"
+            zipf.writestr(filename, pdf_data)
+
+    zip_buffer.seek(0)
+    return send_file(
+        zip_buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"player_pages_{game_type}.zip",
     )
 
 
@@ -1466,21 +2755,14 @@ def games():
 @main_bp.route("/teams/<opponent_name>")
 @login_required
 def opponent_games(opponent_name):
-    """List games against a specific opponent"""
+    """Detailed performance view against a specific opponent"""
     opp_games = (
         Game.query.filter_by(opponent=opponent_name)
         .order_by(Game.sort_date.desc())
         .all()
     )
-
-    wins = sum(1 for g in opp_games if g.result == "W")
-    losses = len(opp_games) - wins
-
-    return render_template(
-        "index.html",
-        games=opp_games,
-        stats={"games": len(opp_games), "players": 0, "wins": wins, "losses": losses},
-    )
+    context = _build_opponent_detail_context(opponent_name, opp_games)
+    return render_template("opponent_detail.html", **context)
 
 
 @main_bp.route("/advanced-analytics")
@@ -1626,14 +2908,14 @@ def create_test_game():
     try:
         # Clear any existing memory before starting heavy operation
         gc.collect()
-        
+
         payload = generate_test_game_payload()
-        
+
         # After payload is ready, try to free any generation-time overhead
         gc.collect()
-        
+
         game = create_game_from_live_data(payload)
-        
+
         # Clear payload from memory after import
         del payload
         gc.collect()

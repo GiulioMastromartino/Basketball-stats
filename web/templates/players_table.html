@@ -127,6 +127,17 @@
         text-decoration: none;
     }
 
+    .team-total-row td {
+        background: linear-gradient(90deg, rgba(23,162,162,0.12), rgba(255,152,0,0.08));
+        font-weight: 600;
+        border-top: 2px solid rgba(23,162,162,0.25);
+        border-bottom: 2px solid rgba(23,162,162,0.18);
+    }
+
+    .team-total-row td.sticky-col {
+        background: linear-gradient(90deg, rgba(23,162,162,0.18), rgba(255,152,0,0.08));
+    }
+
     .header-content {
         display: inline-flex;
         align-items: center;
@@ -187,11 +198,19 @@
     <div class="page-hero">
         <div>
             <h1 class="page-hero__title"><i class="fas fa-table" aria-hidden="true"></i> Players Table</h1>
-            <p class="page-hero__lead">{{ stats|length }} active players</p>
+            <p class="page-hero__lead">
+                {{ stats|length }} active players
+                {% if total_row and total_row.excluded_player %}
+                    • team total excludes {{ total_row.excluded_player }}
+                {% endif %}
+            </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
-            <a href="{{ url_for('main.players', view='cards', game_type=filters.type) }}" class="btn btn-outline-primary">
+            <a href="{{ url_for('main.players', view='cards', game_type=filters.type, limit=filters.limit, sort=filters.sort, order=filters.order, exclude_player=filters.exclude_player) }}" class="btn btn-outline-primary">
                 <i class="fas fa-th"></i> Card View
+            </a>
+            <a href="{{ url_for('reports.download_all_reports', game_type=filters.type) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
+                <i class="fas fa-download"></i> Download All
             </a>
             <a href="#" class="btn btn-primary">
                 <i class="fas fa-plus"></i> Add Player
@@ -202,18 +221,34 @@
     <!-- Controls / Filter Bar -->
     <div class="card mb-4">
         <div class="control-bar d-flex justify-content-between align-items-center p-3">
-            <div style="flex: 1; min-width: 250px; position: relative; max-width: 420px;">
-                <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                <input type="text" placeholder="Search players..." style="padding-left: 36px; width: 100%; border-radius: var(--border-radius); border: 1px solid #ced4da; padding: 8px 36px;" onkeyup="searchTable(this.value)">
+            <div style="flex: 1; min-width: 250px; max-width: 420px;">
+                <label class="me-2"><i class="fas fa-user"></i> Show Player:</label>
+                <select class="form-select d-inline-block w-100" id="playerFilter" onchange="filterTableByPlayer(this.value)">
+                    <option value="">All players</option>
+                    {% for player_name in all_player_names %}
+                    <option value="{{ player_name|lower }}">{{ player_name }}</option>
+                    {% endfor %}
+                </select>
             </div>
 
             <div class="d-flex gap-3 align-items-center">
                 <div>
                     <label class="me-2"><i class="fas fa-filter"></i> Filter:</label>
-                    <select class="form-select d-inline-block w-auto" id="gameType" onchange="window.location.href='{{ url_for('main.players', view='table') }}&game_type=' + this.value">
+                    <select class="form-select d-inline-block w-auto" id="gameType" onchange="updatePlayersTableParams({ game_type: this.value })">
                         <option value="ALL" {% if filters.type == 'ALL' %}selected{% endif %}>All Game Types</option>
                         <option value="Season" {% if filters.type == 'Season' %}selected{% endif %}>Season Only</option>
                         <option value="Friendly" {% if filters.type == 'Friendly' %}selected{% endif %}>Friendly Only</option>
+                        <option value="Playoff" {% if filters.type == 'Playoff' %}selected{% endif %}>Playoff Only</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="me-2"><i class="fas fa-user-minus"></i> Hide 1 Player From Total:</label>
+                    <select class="form-select d-inline-block w-auto" id="excludePlayer" onchange="updatePlayersTableParams({ exclude_player: this.value })">
+                        <option value="">No hidden player</option>
+                        {% for player_name in all_player_names %}
+                        <option value="{{ player_name }}" {% if filters.exclude_player == player_name %}selected{% endif %}>Hide {{ player_name }}</option>
+                        {% endfor %}
                     </select>
                 </div>
             </div>
@@ -244,7 +279,7 @@
 
                         <!-- Sticky Player Column -->
                         <th class="sticky-col">
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort='player_name', order=next_order) }}" class="sort-link text-start ps-3">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, limit=filters.limit, sort='player_name', order=next_order, exclude_player=filters.exclude_player) }}" class="sort-link text-start ps-3">
                                 Player
                                 {% if current_sort == 'player_name' %}
                                     <i class="fas fa-sort-{{ 'down' if current_order == 'desc' else 'up' }} sort-icon active-sort"></i>
@@ -263,7 +298,7 @@
                             data-title="{{ col[1] }}"
                             data-desc="{{ col[2] }}"
                             {% if col[3] %}data-formula="{{ col[3] }}"{% endif %}>
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, limit=filters.limit, sort=col[0], order=next_order, exclude_player=filters.exclude_player) }}" class="sort-link">
                                 <div class="header-content">
                                     {{ col[1] }}
                                     {% if current_sort == col[0] %}
@@ -282,7 +317,7 @@
                             ('plus_minus_avg', '+/-', 'Average plus/minus per game (LIVE games).', ''),
                             ('ortg', 'ORtg', 'Points produced per 100 possessions.', 'Formula: ORtg = (Points / Possessions) × 100'),
                             ('ppp', 'PPP', 'Scoring efficiency per possession.', 'Formula: PPP = Points / Possessions'),
-                            ('usg_pct', 'USG', 'How many possessions a player finishes.', 'Formula: USG% ≈ (FGA + 0.44×FTA + TOV) / Poss × 100'),
+                            ('poss_per_40', 'Poss/40', 'Possessions per 40 minutes.', 'Formula: Possessions / (Minutes / 40)'),
                             ('rpg', 'REB', 'Total rebounds per game.', ''),
                             ('orebpg', 'OREB', 'Offensive rebounds per game.', ''),
                             ('drebpg', 'DREB', 'Defensive rebounds per game.', ''),
@@ -293,7 +328,7 @@
                             data-title="{{ col[1] }}"
                             data-desc="{{ col[2] }}"
                             {% if col[3] %}data-formula="{{ col[3] }}"{% endif %}>
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, limit=filters.limit, sort=col[0], order=next_order, exclude_player=filters.exclude_player) }}" class="sort-link">
                                 <div class="header-content">
                                     {{ col[1] }}
                                     {% if current_sort == col[0] %}
@@ -318,7 +353,7 @@
                             data-title="{{ col[1] }}"
                             data-desc="{{ col[2] }}"
                             {% if col[3] %}data-formula="{{ col[3] }}"{% endif %}>
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, limit=filters.limit, sort=col[0], order=next_order, exclude_player=filters.exclude_player) }}" class="sort-link">
                                 <div class="header-content">
                                     {{ col[1] }}
                                     {% if current_sort == col[0] %}
@@ -343,7 +378,7 @@
                             data-title="{{ col[1] }}"
                             data-desc="{{ col[2] }}"
                             {% if col[3] %}data-formula="{{ col[3] }}"{% endif %}>
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, limit=filters.limit, sort=col[0], order=next_order, exclude_player=filters.exclude_player) }}" class="sort-link">
                                 <div class="header-content">
                                     {{ col[1] }}
                                     {% if current_sort == col[0] %}
@@ -372,7 +407,7 @@
                             data-title="{{ col[1] }}"
                             data-desc="{{ col[2] }}"
                             {% if col[3] %}data-formula="{{ col[3] }}"{% endif %}>
-                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, sort=col[0], order=next_order) }}" class="sort-link">
+                            <a href="{{ url_for('main.players', view='table', game_type=filters.type, limit=filters.limit, sort=col[0], order=next_order, exclude_player=filters.exclude_player) }}" class="sort-link">
                                 <div class="header-content">
                                     {{ col[1] }}
                                     {% if current_sort == col[0] %}
@@ -390,6 +425,46 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {% if total_row %}
+                    <tr class="team-total-row">
+                        <td class="sticky-col ps-3">
+                            TEAM TOTAL{% if total_row.excluded_player %} <span class="text-muted">(without {{ total_row.excluded_player }})</span>{% endif %}
+                        </td>
+                        <td class="text-center">{{ total_row.games_played }}</td>
+                        <td class="text-center">{{ total_row.mpg|round(1) }}</td>
+
+                        <td class="text-center fw-bold" style="color: var(--primary);">{{ total_row.ppg|round(1) }}</td>
+                        <td class="text-center fw-bold {% if total_row.plus_minus_avg > 0 %}flag-excellent{% elif total_row.plus_minus_avg < 0 %}flag-poor{% endif %}">{% if total_row.plus_minus_avg > 0 %}+{% endif %}{{ total_row.plus_minus_avg|round(1) }}</td>
+                        <td class="text-center fw-bold" style="color: var(--success);">{{ total_row.ortg|round(0) }}</td>
+                        <td class="text-center fw-bold {% if total_row.ppp > 1.1 %}flag-excellent{% elif total_row.ppp < 0.8 %}flag-poor{% endif %}">{{ total_row.ppp|round(2) }}</td>
+                        <td class="text-center">{{ total_row.poss_per_40|round(1) }}</td>
+                        <td class="text-center">{{ total_row.rpg|round(1) }}</td>
+                        <td class="text-center">{{ total_row.orebpg|round(1) }}</td>
+                        <td class="text-center">{{ total_row.drebpg|round(1) }}</td>
+                        <td class="text-center">{{ total_row.apg|round(1) }}</td>
+                        <td class="text-center {% if total_row.ast_tov >= 2.0 %}flag-excellent{% elif total_row.ast_tov < 1.0 %}flag-poor{% endif %}">{{ total_row.ast_tov|round(2) }}</td>
+
+                        <td class="text-center fw-bold bg-light">{{ total_row.eff|round(1) }}</td>
+                        <td class="text-center fw-bold" style="color: var(--info);">{{ total_row.ts_pct|round(1) }}%</td>
+                        <td class="text-center">{{ total_row.efg_pct|round(1) }}%</td>
+                        <td class="text-center {% if total_row.consistency < 0.15 %}flag-good{% elif total_row.consistency > 0.30 %}flag-poor{% endif %}">{{ (total_row.consistency * 100)|round(1) }}%</td>
+                        <td class="text-center">{{ total_row.topg|round(1) }}</td>
+
+                        <td class="text-center">{{ (total_row.fg_pct * 100)|int }}%</td>
+                        <td class="text-center">{{ total_row.two_pt_pct|round(1) }}%</td>
+                        <td class="text-center">{{ (total_row.tp_pct * 100)|int }}%</td>
+                        <td class="text-center">{{ (total_row.ft_pct * 100)|int }}%</td>
+                        <td class="text-center">{{ total_row.fta_pct|round(1) }}%</td>
+                        <td class="text-center text-muted" style="font-size: 0.75rem;">
+                            <div>{{ total_row.fgm }}/{{ total_row.fga }}</div>
+                        </td>
+
+                        <td class="text-center">{{ total_row.spg|round(1) }}</td>
+                        <td class="text-center">{{ total_row.bpg|round(1) }}</td>
+                        <td class="text-center">{{ total_row.pfpg|round(1) }}</td>
+                        <td class="text-center text-muted">-</td>
+                    </tr>
+                    {% endif %}
                     {% for p in stats %}
                     <tr style="border-bottom: 1px solid rgba(0,0,0,0.05)">
                         <td class="sticky-col ps-3 fw-bold">
@@ -405,7 +480,7 @@
                         <td class="text-center fw-bold {% if p.plus_minus_avg > 0 %}flag-excellent{% elif p.plus_minus_avg < 0 %}flag-poor{% endif %}">{% if p.plus_minus_avg > 0 %}+{% endif %}{{ p.plus_minus_avg|round(1) }}</td>
                         <td class="text-center fw-bold" style="color: var(--success);">{{ p.ortg|round(0) }}</td>
                         <td class="text-center fw-bold {% if p.ppp > 1.1 %}flag-excellent{% elif p.ppp < 0.8 %}flag-poor{% endif %}">{{ p.ppp|round(2) }}</td>
-                        <td class="text-center">{{ p.usg_pct|round(1) }}</td>
+                        <td class="text-center">{{ p.poss_per_40|round(1) }}</td>
                         <td class="text-center">{{ p.rpg|round(1) }}</td>
                         <td class="text-center">{{ p.orebpg|round(1) }}</td>
                         <td class="text-center">{{ p.drebpg|round(1) }}</td>
@@ -452,13 +527,32 @@
 <div id="global-tooltip"></div>
 
 <script>
-    function searchTable(query) {
+    function updatePlayersTableParams(updates) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', 'table');
+
+        Object.entries(updates).forEach(([key, value]) => {
+            if (value === null || value === undefined || value === '') {
+                url.searchParams.delete(key);
+            } else {
+                url.searchParams.set(key, value);
+            }
+        });
+
+        window.location.href = url.toString();
+    }
+
+    function filterTableByPlayer(playerName) {
         const rows = document.querySelectorAll('#playersTable tbody tr');
-        const lowerQuery = query.toLowerCase();
+        const selectedPlayer = playerName.toLowerCase();
 
         rows.forEach(row => {
+            if (row.classList.contains('team-total-row')) {
+                row.style.display = '';
+                return;
+            }
             const nameCell = row.cells[0].textContent.trim().toLowerCase();
-            row.style.display = nameCell.includes(lowerQuery) ? '' : 'none';
+            row.style.display = !selectedPlayer || nameCell.includes(selectedPlayer) ? '' : 'none';
         });
     }
 

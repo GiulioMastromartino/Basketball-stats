@@ -911,6 +911,14 @@ def create_game_from_live_data(data):
             points = get_nested_value(stats, "points", "PTS", "pts", default=0)
             minutes = get_nested_value(stats, "minutes", "MIN", "min", default="00:00")
             plus_minus = get_nested_value(stats, "plus_minus", "+/-", "pm", "PlusMinus", default=0)
+            reb_conceded = get_nested_value(
+                stats,
+                "reb_conceded",
+                "REB_CONCEDED",
+                "rebConceded",
+                "rebounds_conceded",
+                default=0,
+            )
 
             fg_pct = (fgm / fga * 100) if fga > 0 else 0.0
             tp_pct = (tpm / tpa * 100) if tpa > 0 else 0.0
@@ -920,7 +928,9 @@ def create_game_from_live_data(data):
                 game_id=game.id, player_name=p_name, minutes=minutes, points=points,
                 fgm=fgm, fga=fga, fg_percent=fg_pct, tpm=tpm, tpa=tpa, tp_percent=tp_pct,
                 ftm=ftm, fta=fta, ft_percent=ft_pct, oreb=oreb, dreb=dreb, reb=oreb + dreb,
-                ast=ast, tov=tov, stl=stl, blk=blk, pf=pf, plus_minus=int(plus_minus or 0),
+                ast=ast, tov=tov, stl=stl, blk=blk, pf=pf,
+                plus_minus=int(plus_minus or 0),
+                reb_conceded=int(reb_conceded or 0),
             ))
     else:
         # EXPORT format: [{"name": "Player Name", ...}]

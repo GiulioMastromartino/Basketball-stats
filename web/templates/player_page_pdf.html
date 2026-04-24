@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ player_name }}</title>
+  <style>
+    @page { size: A4; margin: 1cm; }
+    body { font-family: Helvetica, Arial, sans-serif; font-size: 10px; color: #222; margin: 0; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 18px; border-radius: 12px; margin-bottom: 16px; }
+    .title { font-size: 28px; font-weight: 700; margin: 0 0 6px 0; }
+    .meta { font-size: 13px; opacity: 0.95; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px; text-align: center; page-break-inside: avoid; }
+    .value { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .sub { font-size: 9px; color: #6b7280; margin-bottom: 4px; }
+    .label { font-size: 9px; text-transform: uppercase; color: #4b5563; letter-spacing: 0.4px; }
+    .section { margin-bottom: 16px; page-break-inside: avoid; }
+    .section h2 { font-size: 15px; margin: 0 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 9px; }
+    th, td { border: 1px solid #e5e7eb; padding: 5px; text-align: center; }
+    th { background: #f3f4f6; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">{{ player_name }}</div>
+    <div class="meta">{{ games_played }} Games • {{ averages.mpg|round(1) }} MIN</div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="value">{{ averages.ppg|round(1) }}</div><div class="label">Points</div></div>
+    <div class="card"><div class="value">{{ averages.rpg|round(1) }}</div><div class="sub">{{ averages.orebpg|round(1) }} Off · {{ averages.drebpg|round(1) }} Def</div><div class="label">Rebounds</div></div>
+    <div class="card"><div class="value">{{ averages.apg|round(1) }}</div><div class="label">Assists</div></div>
+    <div class="card"><div class="value">{% if averages.pm > 0 %}+{% endif %}{{ averages.pm|round(1) }}</div><div class="label">Plus/Minus</div></div>
+    <div class="card"><div class="value">{{ averages.ortg|round(0) }}</div><div class="label">Off Rating</div></div>
+    <div class="card"><div class="value">{{ averages.ts_pct|round(1) }}%</div><div class="label">True Shooting</div></div>
+    <div class="card"><div class="value">{{ averages.ppp|round(2) }}</div><div class="label">PPP</div></div>
+    <div class="card"><div class="value">{{ averages.poss_per_40|round(1) }}</div><div class="label">Poss/40</div></div>
+  </div>
+
+  <div class="section two-col">
+    <div>
+      <h2>Advanced Metrics</h2>
+      <div class="grid" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="card"><div class="value">{{ averages.efg_pct|round(1) }}%</div><div class="label">eFG%</div></div>
+        <div class="card"><div class="value">{{ (averages.consistency * 100)|round(1) }}%</div><div class="label">CV</div></div>
+        <div class="card"><div class="value">{{ averages.ast_tov|round(2) }}</div><div class="label">AST/TOV</div></div>
+        <div class="card"><div class="value">{{ averages.fta_pct|round(1) }}%</div><div class="label">FTA/FGA</div></div>
+        <div class="card"><div class="value">{{ averages.two_pt_pct|round(1) }}%</div><div class="label">2PT%</div></div>
+        <div class="card"><div class="value">{{ averages.oreb_pct|round(1) }}%</div><div class="label">OREB%</div></div>
+      </div>
+    </div>
+    <div>
+      <h2>Season Bests / Defense</h2>
+      <div class="grid" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="card"><div class="value">{{ career_highs.points }}</div><div class="label">Best Points</div></div>
+        <div class="card"><div class="value">{{ career_highs.reb }}</div><div class="label">Best Rebounds</div></div>
+        <div class="card"><div class="value">{{ career_highs.ast }}</div><div class="label">Best Assists</div></div>
+        <div class="card"><div class="value">{{ averages.spg|round(1) }}</div><div class="label">Steals</div></div>
+        <div class="card"><div class="value">{{ averages.bpg|round(1) }}</div><div class="label">Blocks</div></div>
+        <div class="card"><div class="value">{{ averages.pfpg|round(1) }}</div><div class="label">Fouls</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Game Log</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Opponent</th>
+          <th>Result</th>
+          <th>MIN</th>
+          <th>PTS</th>
+          <th>+/-</th>
+          <th>REB</th>
+          <th>AST</th>
+          <th>STL</th>
+          <th>BLK</th>
+          <th>FG</th>
+          <th>3PT</th>
+          <th>FT</th>
+          <th>TOV</th>
+          <th>EFF</th>
+          <th>ORtg</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in game_logs %}
+        <tr>
+          <td>{{ log.game.date }}</td>
+          <td>{{ log.game.opponent }}</td>
+          <td>{{ log.game.result }} {{ log.game.team_score }}-{{ log.game.opponent_score }}</td>
+          <td>{{ log.stat.minutes }}</td>
+          <td>{{ log.stat.points }}</td>
+          <td>{% if log.stat.plus_minus > 0 %}+{% endif %}{{ log.stat.plus_minus }}</td>
+          <td>{{ log.stat.reb }}</td>
+          <td>{{ log.stat.ast }}</td>
+          <td>{{ log.stat.stl }}</td>
+          <td>{{ log.stat.blk }}</td>
+          <td>{{ log.stat.fgm }}-{{ log.stat.fga }}</td>
+          <td>{{ log.stat.tpm }}-{{ log.stat.tpa }}</td>
+          <td>{{ log.stat.ftm }}-{{ log.stat.fta }}</td>
+          <td>{{ log.stat.tov }}</td>
+          <td>{{ log.eff|round(1) }}</td>
+          <td>{{ log.ortg|round(0) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

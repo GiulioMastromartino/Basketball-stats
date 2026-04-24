@@ -139,3 +139,104 @@ def test_generate_game_pdf_bytes_uses_summary_play_metrics(db_session, mocker):
     assert captured["context"]["plays_data"][0]["possessions"] == 2
     assert captured["context"]["plays_data"][0]["points"] == 5
     assert captured["context"]["plays_data"][0]["shot_attempts"] == 2
+
+
+def test_build_play_summary_player_ppp_uses_attempts_plus_turnovers(db_session):
+    game = Game(
+        date="21-03-2026",
+        opponent="PPP Opponent",
+        team_score=10,
+        opponent_score=0,
+        result="W",
+        game_type="Season",
+        sort_date="2026-03-21",
+        source="MANUAL",
+    )
+    db_session.add(game)
+    db_session.flush()
+
+    play = Play(name="Contropiede", play_type="Offense", description="Fast break")
+    db_session.add(play)
+    db_session.flush()
+
+    db_session.add_all(
+        [
+            ShotEvent(
+                game_id=game.id,
+                player_name="Alice",
+                shot_type="2pt",
+                result="made",
+                points=2,
+                quarter=1,
+                play_id=play.id,
+            ),
+            ShotEvent(
+                game_id=game.id,
+                player_name="Alice",
+                shot_type="3pt",
+                result="made",
+                points=3,
+                quarter=1,
+                play_id=play.id,
+            ),
+            GameEvent(
+                game_id=game.id,
+                event_type="SHOT_2PT",
+                player_name="Alice",
+                shot_attempt="made",
+                quarter=1,
+                timestamp=1000,
+                time_remaining="9:55",
+                play_id=play.id,
+            ),
+            GameEvent(
+                game_id=game.id,
+                event_type="SHOT_3PT",
+                player_name="Alice",
+                shot_attempt="made",
+                quarter=1,
+                timestamp=1010,
+                time_remaining="9:45",
+                play_id=play.id,
+            ),
+            GameEvent(
+                game_id=game.id,
+                event_type="TURNOVER",
+                player_name="Alice",
+                quarter=1,
+                timestamp=1020,
+                time_remaining="9:35",
+                play_id=play.id,
+            ),
+            GameEvent(
+                game_id=game.id,
+                event_type="SUB_IN",
+                player_name="Alice",
+                quarter=1,
+                timestamp=1030,
+                time_remaining="9:25",
+                play_id=play.id,
+            ),
+            GameEvent(
+                game_id=game.id,
+                event_type="FOUL",
+                player_name="Alice",
+                quarter=1,
+                timestamp=1040,
+                time_remaining="9:15",
+                play_id=play.id,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    summary = reports_module._build_play_summary([game.id], player_name="Alice")
+
+    assert summary["available"] is True
+    row = summary["top_volume"][0]
+    assert row["play_name"] == "Contropiede"
+    assert row["points"] == 5
+    assert row["attempts"] == 2
+    assert row["turnovers"] == 1
+    assert row["actions"] == 5
+    assert row["ppp"] == pytest.approx(5 / 3, rel=1e-3)

@@ -1,0 +1,388 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* BasketballStatsNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* BasketballStatsNativeApp.swift */; };
+		A10000000000000000000002 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* AppModel.swift */; };
+		A10000000000000000000003 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* RootView.swift */; };
+		A10000000000000000000004 /* GameModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* GameModels.swift */; };
+		A10000000000000000000005 /* LiveGameSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* LiveGameSession.swift */; };
+		A10000000000000000000006 /* DashboardSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* DashboardSummary.swift */; };
+		A10000000000000000000007 /* GameRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* GameRepository.swift */; };
+		A10000000000000000000008 /* LocalGameRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* LocalGameRepository.swift */; };
+		A10000000000000000000009 /* SampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* SampleData.swift */; };
+		A1000000000000000000000A /* DashboardScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* DashboardScreen.swift */; };
+		A1000000000000000000000B /* GamesSplitScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* GamesSplitScreen.swift */; };
+		A1000000000000000000000C /* GameDetailScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000C /* GameDetailScreen.swift */; };
+		A1000000000000000000000D /* LiveGameScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D /* LiveGameScreen.swift */; };
+		A1000000000000000000000E /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* SettingsScreen.swift */; };
+		A1000000000000000000000F /* AnalyticsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* AnalyticsScreen.swift */; };
+		A10000000000000000000010 /* PlaybookScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* PlaybookScreen.swift */; };
+		A10000000000000000000011 /* ReportsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* ReportsScreen.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B10000000000000000000001 /* BasketballStatsNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasketballStatsNativeApp.swift; sourceTree = "<group>"; };
+		B10000000000000000000002 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000003 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		B10000000000000000000004 /* GameModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000005 /* LiveGameSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveGameSession.swift; sourceTree = "<group>"; };
+		B10000000000000000000006 /* DashboardSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSummary.swift; sourceTree = "<group>"; };
+		B10000000000000000000007 /* GameRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRepository.swift; sourceTree = "<group>"; };
+		B10000000000000000000008 /* LocalGameRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalGameRepository.swift; sourceTree = "<group>"; };
+		B10000000000000000000009 /* SampleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleData.swift; sourceTree = "<group>"; };
+		B1000000000000000000000A /* DashboardScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardScreen.swift; sourceTree = "<group>"; };
+		B1000000000000000000000B /* GamesSplitScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamesSplitScreen.swift; sourceTree = "<group>"; };
+		B1000000000000000000000C /* GameDetailScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDetailScreen.swift; sourceTree = "<group>"; };
+		B1000000000000000000000D /* LiveGameScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveGameScreen.swift; sourceTree = "<group>"; };
+		B1000000000000000000000E /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
+		B1000000000000000000000F /* BasketballStatsNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = BasketballStatsNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B10000000000000000000011 /* AnalyticsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000012 /* PlaybookScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybookScreen.swift; sourceTree = "<group>"; };
+		B10000000000000000000013 /* ReportsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsScreen.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C10000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D10000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				D10000000000000000000002 /* BasketballStatsNative */,
+				D10000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D10000000000000000000002 /* BasketballStatsNative */ = {
+			isa = PBXGroup;
+			children = (
+				D10000000000000000000004 /* Sources */,
+				B10000000000000000000010 /* Info.plist */,
+			);
+			sourceTree = "<group>";
+		};
+		D10000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000F /* BasketballStatsNative.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000004 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				D10000000000000000000005 /* App */,
+				D10000000000000000000006 /* Models */,
+				D10000000000000000000007 /* Services */,
+				D10000000000000000000008 /* Features */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000005 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000001 /* BasketballStatsNativeApp.swift */,
+				B10000000000000000000002 /* AppModel.swift */,
+				B10000000000000000000003 /* RootView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000006 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000004 /* GameModels.swift */,
+				B10000000000000000000005 /* LiveGameSession.swift */,
+				B10000000000000000000006 /* DashboardSummary.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000007 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000007 /* GameRepository.swift */,
+				B10000000000000000000008 /* LocalGameRepository.swift */,
+				B10000000000000000000009 /* SampleData.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000008 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				D1000000000000000000000D /* Analytics */,
+				D10000000000000000000009 /* Dashboard */,
+				D1000000000000000000000A /* Games */,
+				D1000000000000000000000B /* LiveGame */,
+				D1000000000000000000000E /* Playbook */,
+				D1000000000000000000000F /* Reports */,
+				D1000000000000000000000C /* Settings */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000009 /* Dashboard */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000A /* DashboardScreen.swift */,
+			);
+			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		D1000000000000000000000A /* Games */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000B /* GamesSplitScreen.swift */,
+				B1000000000000000000000C /* GameDetailScreen.swift */,
+			);
+			path = Games;
+			sourceTree = "<group>";
+		};
+		D1000000000000000000000B /* LiveGame */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000D /* LiveGameScreen.swift */,
+			);
+			path = LiveGame;
+			sourceTree = "<group>";
+		};
+		D1000000000000000000000C /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000E /* SettingsScreen.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		D1000000000000000000000D /* Analytics */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000011 /* AnalyticsScreen.swift */,
+			);
+			path = Analytics;
+			sourceTree = "<group>";
+		};
+		D1000000000000000000000E /* Playbook */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000012 /* PlaybookScreen.swift */,
+			);
+			path = Playbook;
+			sourceTree = "<group>";
+		};
+		D1000000000000000000000F /* Reports */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000013 /* ReportsScreen.swift */,
+			);
+			path = Reports;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E10000000000000000000001 /* BasketballStatsNative */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F10000000000000000000001 /* Build configuration list for PBXNativeTarget "BasketballStatsNative" */;
+			buildPhases = (
+				C10000000000000000000002 /* Sources */,
+				C10000000000000000000001 /* Frameworks */,
+				C10000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BasketballStatsNative;
+			productName = BasketballStatsNative;
+			productReference = B1000000000000000000000F /* BasketballStatsNative.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E10000000000000000000002 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					E10000000000000000000001 = {
+						CreatedOnToolsVersion = 26.4;
+					};
+				};
+			};
+			buildConfigurationList = F10000000000000000000002 /* Build configuration list for PBXProject "BasketballStatsNative" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = D10000000000000000000001;
+			productRefGroup = D10000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E10000000000000000000001 /* BasketballStatsNative */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C10000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C10000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* BasketballStatsNativeApp.swift in Sources */,
+				A10000000000000000000002 /* AppModel.swift in Sources */,
+				A10000000000000000000003 /* RootView.swift in Sources */,
+				A10000000000000000000004 /* GameModels.swift in Sources */,
+				A10000000000000000000005 /* LiveGameSession.swift in Sources */,
+				A10000000000000000000006 /* DashboardSummary.swift in Sources */,
+				A10000000000000000000007 /* GameRepository.swift in Sources */,
+				A10000000000000000000008 /* LocalGameRepository.swift in Sources */,
+				A10000000000000000000009 /* SampleData.swift in Sources */,
+				A1000000000000000000000A /* DashboardScreen.swift in Sources */,
+				A1000000000000000000000B /* GamesSplitScreen.swift in Sources */,
+				A1000000000000000000000C /* GameDetailScreen.swift in Sources */,
+				A1000000000000000000000D /* LiveGameScreen.swift in Sources */,
+				A1000000000000000000000E /* SettingsScreen.swift in Sources */,
+				A1000000000000000000000F /* AnalyticsScreen.swift in Sources */,
+				A10000000000000000000010 /* PlaybookScreen.swift in Sources */,
+				A10000000000000000000011 /* ReportsScreen.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F10000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Basketball Stats";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.giulio.basketballstats.native;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+		F10000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Basketball Stats";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.giulio.basketballstats.native;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Release;
+		};
+		F10000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		F10000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F10000000000000000000001 /* Build configuration list for PBXNativeTarget "BasketballStatsNative" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F10000000000000000000003 /* Debug */,
+				F10000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F10000000000000000000002 /* Build configuration list for PBXProject "BasketballStatsNative" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F10000000000000000000005 /* Debug */,
+				F10000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E10000000000000000000002 /* Project object */;
+}
