@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CourtIQ · Basketball Analytics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:       #0d1117;
+            --surface:  #13181f;
+            --surface2: #1a2029;
+            --border:   rgba(255,255,255,.07);
+            --ink:      #e8edf3;
+            --ink-muted:#6b7a8d;
+            --accent:   #ff6b2b;
+            --accent2:  #ff9a5c;
+            --cool:     #2ec4b6;
+            --win:      #3d9a5c;
+            --gold:     #e8b86d;
+            --display:  'Barlow Condensed', sans-serif;
+            --body:     'Inter', sans-serif;
+            --radius:   14px;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--body);
+            background: var(--bg);
+            color: var(--ink);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Noise texture overlay ── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ════════════════════════
+           NAV
+        ════════════════════════ */
+        .nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2.5rem;
+            height: 64px;
+            background: rgba(13,17,23,.75);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-bottom: 1px solid var(--border);
+        }
+        .nav__logo {
+            font-family: var(--display);
+            font-size: 1.55rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            color: var(--ink);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .nav__logo-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            display: inline-block;
+            box-shadow: 0 0 10px var(--accent);
+        }
+        .nav__login {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--ink-muted);
+            text-decoration: none;
+            padding: 7px 18px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,.1);
+            background: rgba(255,255,255,.04);
+            transition: color .2s, border-color .2s, background .2s;
+            letter-spacing: 0.02em;
+        }
+        .nav__login:hover {
+            color: var(--ink);
+            border-color: rgba(255,255,255,.22);
+            background: rgba(255,255,255,.08);
+        }
+
+        /* ════════════════════════
+           HERO
+        ════════════════════════ */
+        .hero {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 100px 1.5rem 80px;
+            overflow: hidden;
+        }
+
+        /* Radial glow blobs */
+        .hero__blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(90px);
+            pointer-events: none;
+        }
+        .hero__blob--1 {
+            width: 680px; height: 680px;
+            background: radial-gradient(circle, rgba(255,107,43,.18) 0%, transparent 70%);
+            top: -180px; left: -180px;
+        }
+        .hero__blob--2 {
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(46,196,182,.12) 0%, transparent 70%);
+            bottom: -100px; right: -100px;
+        }
+        .hero__blob--3 {
+            width: 360px; height: 360px;
+            background: radial-gradient(circle, rgba(232,184,109,.08) 0%, transparent 70%);
+            top: 40%; left: 55%;
+        }
+
+        /* Grid lines decoration */
+        .hero__grid {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+            background-size: 60px 60px;
+            mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 0%, transparent 100%);
+            pointer-events: none;
+        }
+
+        .hero__eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--accent);
+            background: rgba(255,107,43,.1);
+            border: 1px solid rgba(255,107,43,.25);
+            padding: 5px 14px;
+            border-radius: 999px;
+            margin-bottom: 1.8rem;
+            position: relative;
+        }
+
+        .hero__title {
+            font-family: var(--display);
+            font-size: clamp(3.8rem, 9vw, 8rem);
+            font-weight: 900;
+            letter-spacing: 0.02em;
+            line-height: .95;
+            color: #fff;
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+        .hero__title em {
+            font-style: normal;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 60%, var(--gold) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero__sub {
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            color: var(--ink-muted);
+            max-width: 560px;
+            line-height: 1.7;
+            position: relative;
+            margin-bottom: 2.8rem;
+        }
+
+        .hero__cta {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            justify-content: center;
+            position: relative;
+        }
+        .btn-primary-lg {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            background: linear-gradient(135deg, var(--accent), #e85a20);
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.95rem;
+            padding: 14px 32px;
+            border-radius: 12px;
+            text-decoration: none;
+            letter-spacing: 0.02em;
+            box-shadow: 0 4px 28px rgba(255,107,43,.35), 0 0 0 1px rgba(255,107,43,.2);
+            transition: transform .2s, box-shadow .2s;
+        }
+        .btn-primary-lg:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 36px rgba(255,107,43,.45), 0 0 0 1px rgba(255,107,43,.3);
+        }
+        .btn-ghost-lg {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            background: transparent;
+            color: var(--ink-muted);
+            font-weight: 600;
+            font-size: 0.95rem;
+            padding: 14px 28px;
+            border-radius: 12px;
+            text-decoration: none;
+            border: 1px solid var(--border);
+            letter-spacing: 0.02em;
+            transition: color .2s, border-color .2s;
+        }
+        .btn-ghost-lg:hover {
+            color: var(--ink);
+            border-color: rgba(255,255,255,.2);
+        }
+
+        /* Stat pills row */
+        .hero__stats {
+            display: flex;
+            gap: 2px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 4rem;
+            position: relative;
+        }
+        .hero__stat {
+            padding: 10px 22px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            text-align: center;
+        }
+        .hero__stat-val {
+            font-family: var(--display);
+            font-size: 1.7rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            color: var(--ink);
+        }
+        .hero__stat-val--acc { color: var(--accent); }
+        .hero__stat-val--cool { color: var(--cool); }
+        .hero__stat-val--gold { color: var(--gold); }
+        .hero__stat-lbl {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--ink-muted);
+            font-weight: 600;
+            margin-top: 2px;
+        }
+
+        /* ════════════════════════
+           FEATURES SECTION
+        ════════════════════════ */
+        .section {
+            position: relative;
+            padding: 100px 1.5rem;
+            max-width: 1160px;
+            margin: 0 auto;
+        }
+        .section__label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            color: var(--accent);
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+        .section__title {
+            font-family: var(--display);
+            font-size: clamp(2rem, 4vw, 3.2rem);
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            color: var(--ink);
+            margin-bottom: 1rem;
+            line-height: 1.1;
+        }
+        .section__sub {
+            font-size: 1rem;
+            color: var(--ink-muted);
+            max-width: 480px;
+            line-height: 1.65;
+            margin-bottom: 3rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1px;
+            background: var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .feat-card {
+            background: var(--surface);
+            padding: 2rem 1.75rem;
+            position: relative;
+            transition: background .2s;
+        }
+        .feat-card:hover {
+            background: var(--surface2);
+        }
+        .feat-card__icon {
+            width: 42px; height: 42px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            margin-bottom: 1.1rem;
+        }
+        .feat-card__icon--acc  { background: rgba(255,107,43,.15); color: var(--accent); }
+        .feat-card__icon--cool { background: rgba(46,196,182,.15);  color: var(--cool);   }
+        .feat-card__icon--gold { background: rgba(232,184,109,.15); color: var(--gold);   }
+        .feat-card__icon--win  { background: rgba(61,154,92,.15);   color: var(--win);    }
+        .feat-card__icon--pink { background: rgba(201,76,92,.15);   color: #ff8fa3;       }
+        .feat-card__icon--blue { background: rgba(99,142,210,.15);  color: #7eaaff;       }
+
+        .feat-card__title {
+            font-family: var(--display);
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: var(--ink);
+            margin-bottom: 0.45rem;
+        }
+        .feat-card__body {
+            font-size: 0.88rem;
+            color: var(--ink-muted);
+            line-height: 1.6;
+        }
+
+        /* ════════════════════════
+           METRICS SHOWCASE
+        ════════════════════════ */
+        .metrics-showcase {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem 2.25rem;
+            margin-top: 4rem;
+        }
+        .metrics-showcase__title {
+            font-size: 0.62rem;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: var(--ink-muted);
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+        }
+        .metrics-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .mpill {
+            font-size: 0.78rem;
+            font-weight: 600;
+            padding: 5px 13px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--surface2);
+            color: var(--ink-muted);
+            letter-spacing: 0.02em;
+            transition: all .18s;
+        }
+        .mpill:hover { color: var(--ink); border-color: rgba(255,255,255,.18); }
+        .mpill--acc  { background: rgba(255,107,43,.1);  border-color: rgba(255,107,43,.25);  color: var(--accent);  }
+        .mpill--cool { background: rgba(46,196,182,.1);  border-color: rgba(46,196,182,.25);  color: var(--cool);    }
+        .mpill--gold { background: rgba(232,184,109,.1); border-color: rgba(232,184,109,.25); color: var(--gold);    }
+        .mpill--win  { background: rgba(61,154,92,.1);   border-color: rgba(61,154,92,.25);   color: var(--win);     }
+
+        /* ════════════════════════
+           WORKFLOW STEPS
+        ════════════════════════ */
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+        .step {
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+        }
+        .step__num {
+            font-family: var(--display);
+            font-size: 3.5rem;
+            font-weight: 900;
+            letter-spacing: 0.02em;
+            color: var(--surface2);
+            line-height: 1;
+            -webkit-text-stroke: 1px rgba(255,255,255,.08);
+        }
+        .step__title {
+            font-family: var(--display);
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: var(--ink);
+        }
+        .step__body {
+            font-size: 0.87rem;
+            color: var(--ink-muted);
+            line-height: 1.6;
+        }
+        .step__connector {
+            display: none;
+        }
+
+        /* ════════════════════════
+           SCOREBOARD MOCK
+        ════════════════════════ */
+        .mock-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: 0 24px 64px rgba(0,0,0,.45);
+        }
+        .mock-header {
+            padding: 0.9rem 1.4rem;
+            background: rgba(255,255,255,.025);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .mock-header__title {
+            font-size: 0.62rem;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            font-weight: 700;
+            color: var(--ink-muted);
+        }
+        .mock-header__badge {
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 999px;
+            background: rgba(61,154,92,.2);
+            color: var(--win);
+            border: 1px solid rgba(61,154,92,.3);
+        }
+        .mock-row {
+            display: grid;
+            grid-template-columns: 1fr 80px 60px 60px 60px 60px;
+            padding: 0.7rem 1.4rem;
+            border-bottom: 1px solid rgba(255,255,255,.04);
+            align-items: center;
+            font-size: 0.84rem;
+        }
+        .mock-row:last-child { border-bottom: none; }
+        .mock-row--head {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--ink-muted);
+            font-weight: 700;
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        .mock-row__name { font-weight: 700; color: var(--ink); }
+        .mock-row__val  { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-muted); }
+        .mock-row__val--pts { color: var(--accent); font-weight: 800; }
+        .mock-row__val--reb { color: var(--cool); font-weight: 700; }
+        .mock-row__val--ast { color: var(--gold); font-weight: 700; }
+
+        /* ════════════════════════
+           CTA SECTION
+        ════════════════════════ */
+        .cta-section {
+            position: relative;
+            padding: 120px 1.5rem;
+            text-align: center;
+            overflow: hidden;
+        }
+        .cta-section::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(255,107,43,.1), transparent 70%);
+            pointer-events: none;
+        }
+        .cta-section__title {
+            font-family: var(--display);
+            font-size: clamp(2.5rem, 5vw, 4.5rem);
+            font-weight: 900;
+            letter-spacing: 0.02em;
+            color: var(--ink);
+            margin-bottom: 1.2rem;
+            position: relative;
+        }
+        .cta-section__sub {
+            font-size: 1rem;
+            color: var(--ink-muted);
+            max-width: 420px;
+            margin: 0 auto 2.5rem;
+            line-height: 1.65;
+            position: relative;
+        }
+
+        /* ════════════════════════
+           FOOTER
+        ════════════════════════ */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 2rem 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        footer .logo {
+            font-family: var(--display);
+            font-size: 1.1rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            color: var(--ink-muted);
+        }
+        footer p {
+            font-size: 0.78rem;
+            color: var(--ink-muted);
+        }
+
+        /* ════════════════════════
+           DIVIDER
+        ════════════════════════ */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+            max-width: 1160px;
+            margin: 0 auto;
+        }
+
+        /* ════════════════════════
+           RESPONSIVE
+        ════════════════════════ */
+        @media (max-width: 640px) {
+            .nav { padding: 0 1.25rem; }
+            .section { padding: 60px 1.25rem; }
+            .mock-row { grid-template-columns: 1fr 60px 50px; }
+            .mock-row > *:nth-child(n+4) { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ══ NAV ══════════════════════════════════════════════ -->
+<nav class="nav">
+    <a class="nav__logo" href="#">
+        <span class="nav__logo-dot"></span>
+        CourtIQ
+    </a>
+    <a class="nav__login" href="{{ url_for('auth.login') }}">
+        <i class="fas fa-sign-in-alt" style="margin-right:6px; font-size:0.78rem;"></i>Sign in
+    </a>
+</nav>
+
+<!-- ══ HERO ═════════════════════════════════════════════ -->
+<section class="hero">
+    <div class="hero__blob hero__blob--1"></div>
+    <div class="hero__blob hero__blob--2"></div>
+    <div class="hero__blob hero__blob--3"></div>
+    <div class="hero__grid"></div>
+
+    <div class="hero__eyebrow">
+        <i class="fas fa-basketball-ball"></i>
+        Basketball Analytics Platform
+    </div>
+
+    <h1 class="hero__title">
+        Every stat.<br>
+        <em>Every edge.</em>
+    </h1>
+
+    <p class="hero__sub">
+        Advanced box scores, shooting splits, player efficiency, opponent scouting —
+        all in one coaching tool built for serious teams.
+    </p>
+
+    <div class="hero__cta">
+        <a href="{{ url_for('auth.login') }}" class="btn-primary-lg">
+            <i class="fas fa-sign-in-alt"></i> Enter Dashboard
+        </a>
+        <a href="#features" class="btn-ghost-lg">
+            <i class="fas fa-layer-group"></i> See Features
+        </a>
+    </div>
+
+    <div class="hero__stats">
+        <div class="hero__stat">
+            <div class="hero__stat-val hero__stat-val--acc">GmSc</div>
+            <div class="hero__stat-lbl">Game Score</div>
+        </div>
+        <div class="hero__stat">
+            <div class="hero__stat-val hero__stat-val--cool">TS%</div>
+            <div class="hero__stat-lbl">True Shooting</div>
+        </div>
+        <div class="hero__stat">
+            <div class="hero__stat-val hero__stat-val--gold">eFG%</div>
+            <div class="hero__stat-lbl">Eff. Field Goal</div>
+        </div>
+        <div class="hero__stat">
+            <div class="hero__stat-val" style="color:var(--win)">ORtg</div>
+            <div class="hero__stat-lbl">Off. Rating</div>
+        </div>
+        <div class="hero__stat">
+            <div class="hero__stat-val" style="color:#ff8fa3">DRtg</div>
+            <div class="hero__stat-lbl">Def. Rating</div>
+        </div>
+        <div class="hero__stat">
+            <div class="hero__stat-val" style="color:#7eaaff">USG%</div>
+            <div class="hero__stat-lbl">Usage Rate</div>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ══ FEATURES ═════════════════════════════════════════ -->
+<section class="section" id="features">
+    <div class="section__label">Features</div>
+    <h2 class="section__title">Built for coaches,<br>backed by numbers.</h2>
+    <p class="section__sub">
+        From raw CSV upload to full game intelligence — get the insights that actually move the needle.
+    </p>
+
+    <div class="features-grid">
+        <div class="feat-card">
+            <div class="feat-card__icon feat-card__icon--acc">
+                <i class="fas fa-chart-bar"></i>
+            </div>
+            <div class="feat-card__title">Advanced Box Score</div>
+            <div class="feat-card__body">Complete shooting splits, per-100 possession stats, and efficiency ratings for every player in every game.</div>
+        </div>
+        <div class="feat-card">
+            <div class="feat-card__icon feat-card__icon--cool">
+                <i class="fas fa-users"></i>
+            </div>
+            <div class="feat-card__title">Player Profiles</div>
+            <div class="feat-card__body">Season averages, trend charts, game-by-game breakdowns and a full Hollinger Game Score history per player.</div>
+        </div>
+        <div class="feat-card">
+            <div class="feat-card__icon feat-card__icon--gold">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="feat-card__title">Opponent Scouting</div>
+            <div class="feat-card__body">Per-opponent dossiers with head-to-head comparisons, differential analysis and top performer deltas.</div>
+        </div>
+        <div class="feat-card">
+            <div class="feat-card__icon feat-card__icon--win">
+                <i class="fas fa-layer-group"></i>
+            </div>
+            <div class="feat-card__title">Lineup Analytics</div>
+            <div class="feat-card__body">Net rating, pace and plus/minus for every 5-man unit — identify your best combinations with ease.</div>
+        </div>
+        <div class="feat-card">
+            <div class="feat-card__icon feat-card__icon--pink">
+                <i class="fas fa-file-pdf"></i>
+            </div>
+            <div class="feat-card__title">PDF Reports</div>
+            <div class="feat-card__body">One-click export of game summaries, player cards, halftime reports and advanced analytics PDFs.</div>
+        </div>
+        <div class="feat-card">
+            <div class="feat-card__icon feat-card__icon--blue">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <div class="feat-card__title">Live Game Mode</div>
+            <div class="feat-card__body">Real-time stat tracking during games with instant advanced metric updates as the action unfolds.</div>
+        </div>
+    </div>
+
+    <!-- Metric pills -->
+    <div class="metrics-showcase">
+        <div class="metrics-showcase__title">Metrics computed</div>
+        <div class="metrics-pills">
+            <span class="mpill mpill--acc">Game Score</span>
+            <span class="mpill mpill--cool">True Shooting %</span>
+            <span class="mpill mpill--cool">eFG%</span>
+            <span class="mpill mpill--gold">Offensive Rating</span>
+            <span class="mpill mpill--gold">Defensive Rating</span>
+            <span class="mpill mpill--win">Net Rating</span>
+            <span class="mpill mpill--win">Pace</span>
+            <span class="mpill">Usage %</span>
+            <span class="mpill">AST/TOV</span>
+            <span class="mpill">OREB %</span>
+            <span class="mpill">FTA Rate</span>
+            <span class="mpill">Points per Possession</span>
+            <span class="mpill">Per-100 Possessions</span>
+            <span class="mpill">2PT / 3PT Splits</span>
+            <span class="mpill">Plus / Minus</span>
+            <span class="mpill">Lineup Net Rating</span>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ══ SCOREBOARD PREVIEW ════════════════════════════════ -->
+<section class="section">
+    <div class="section__label">Preview</div>
+    <h2 class="section__title">Your squad,<br>in full detail.</h2>
+    <p class="section__sub">
+        Every player. Every game. Crystal-clear data at a glance.
+    </p>
+
+    <div class="mock-card">
+        <div class="mock-header">
+            <span class="mock-header__title">Game Performers · 15/02/2026</span>
+            <span class="mock-header__badge">W · +15</span>
+        </div>
+        <div class="mock-row mock-row--head">
+            <span>Player</span>
+            <span style="text-align:right">GmSc</span>
+            <span style="text-align:right">PTS</span>
+            <span style="text-align:right">REB</span>
+            <span style="text-align:right">AST</span>
+            <span style="text-align:right">TS%</span>
+        </div>
+        <div class="mock-row">
+            <span class="mock-row__name">Ardizzoia</span>
+            <span class="mock-row__val mock-row__val--pts">21.4</span>
+            <span class="mock-row__val mock-row__val--pts">24</span>
+            <span class="mock-row__val mock-row__val--reb">8</span>
+            <span class="mock-row__val mock-row__val--ast">3</span>
+            <span class="mock-row__val" style="color:var(--cool)">68.2%</span>
+        </div>
+        <div class="mock-row">
+            <span class="mock-row__name">Fernandez</span>
+            <span class="mock-row__val mock-row__val--pts">17.8</span>
+            <span class="mock-row__val mock-row__val--pts">18</span>
+            <span class="mock-row__val mock-row__val--reb">5</span>
+            <span class="mock-row__val mock-row__val--ast">6</span>
+            <span class="mock-row__val" style="color:var(--cool)">61.4%</span>
+        </div>
+        <div class="mock-row">
+            <span class="mock-row__name">Silva</span>
+            <span class="mock-row__val mock-row__val--pts">14.2</span>
+            <span class="mock-row__val mock-row__val--pts">15</span>
+            <span class="mock-row__val mock-row__val--reb">7</span>
+            <span class="mock-row__val mock-row__val--ast">2</span>
+            <span class="mock-row__val" style="color:var(--cool)">57.9%</span>
+        </div>
+        <div class="mock-row">
+            <span class="mock-row__name">Portaro</span>
+            <span class="mock-row__val mock-row__val--pts">11.6</span>
+            <span class="mock-row__val mock-row__val--pts">12</span>
+            <span class="mock-row__val mock-row__val--reb">4</span>
+            <span class="mock-row__val mock-row__val--ast">5</span>
+            <span class="mock-row__val" style="color:var(--cool)">54.1%</span>
+        </div>
+        <div class="mock-row">
+            <span class="mock-row__name">Cremona</span>
+            <span class="mock-row__val mock-row__val--pts">9.3</span>
+            <span class="mock-row__val mock-row__val--pts">10</span>
+            <span class="mock-row__val mock-row__val--reb">10</span>
+            <span class="mock-row__val mock-row__val--ast">1</span>
+            <span class="mock-row__val" style="color:var(--cool)">51.7%</span>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ══ HOW IT WORKS ══════════════════════════════════════ -->
+<section class="section">
+    <div class="section__label">Workflow</div>
+    <h2 class="section__title">Up and running<br>in minutes.</h2>
+    <p class="section__sub">
+        No complex setup. Just upload, analyse, win.
+    </p>
+
+    <div class="steps">
+        <div class="step">
+            <div class="step__num">01</div>
+            <div class="step__title">Upload CSV</div>
+            <div class="step__body">Drop your game stat sheet in CSV format. The platform parses and validates every row instantly.</div>
+        </div>
+        <div class="step">
+            <div class="step__num">02</div>
+            <div class="step__title">Auto-compute</div>
+            <div class="step__body">Dozens of advanced metrics are calculated server-side in milliseconds — no formulas needed.</div>
+        </div>
+        <div class="step">
+            <div class="step__num">03</div>
+            <div class="step__title">Analyse</div>
+            <div class="step__body">Browse interactive dashboards, player profiles, opponent dossiers and lineup breakdowns.</div>
+        </div>
+        <div class="step">
+            <div class="step__num">04</div>
+            <div class="step__title">Export &amp; Share</div>
+            <div class="step__body">Generate polished PDF reports for the whole team — from halftime summaries to full season reviews.</div>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ══ CTA ══════════════════════════════════════════════ -->
+<section class="cta-section">
+    <h2 class="cta-section__title">Ready to see the<br>full picture?</h2>
+    <p class="cta-section__sub">
+        Sign in and start turning raw game data into coaching intelligence.
+    </p>
+    <a href="{{ url_for('auth.login') }}" class="btn-primary-lg" style="font-size:1.05rem; padding:16px 40px;">
+        <i class="fas fa-sign-in-alt"></i> Sign in
+    </a>
+</section>
+
+<!-- ══ FOOTER ════════════════════════════════════════════ -->
+<footer>
+    <span class="logo">CourtIQ</span>
+    <p>Basketball Analytics &copy; {{ 2026 }}</p>
+</footer>
+
+</body>
+</html>
