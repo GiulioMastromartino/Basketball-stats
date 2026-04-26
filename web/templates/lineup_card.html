@@ -467,54 +467,7 @@
         <i class="fas fa-crosshairs" style="color: #e53e3e;"></i>
         Opponent Shot Chart
     </div>
-    
-    <style>
-        .shot-chart-wrapper {
-            position: relative;
-            width: 100%;
-            max-width: 500px;
-            margin: 0 auto;
-        }
-        .shot-chart-wrapper svg {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-        .shot-point {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: auto;
-            cursor: pointer;
-            transition: transform 0.1s;
-        }
-        .shot-point:hover {
-            transform: translate(-50%, -50%) scale(1.5);
-            z-index: 20;
-        }
-        .shot-team-make { 
-            background-color: #28a745; 
-        }
-        .shot-team-miss { 
-            background-color: transparent; 
-            border: 2px solid #dc3545; 
-            box-sizing: border-box;
-        }
-        .shot-opponent-make { 
-            background-color: #f59e0b; 
-        }
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-        #opponentMakesLayer .shot-point,
-    </style>
-    
+
     <div class="row">
         <div class="col-lg-6">
             <div class="chart-container">
@@ -547,3 +500,328 @@
         </div>
         <div class="col-lg-6">
             <div class="chart-container">
+                <h5 class="text-center mb-3">Opponent Misses <span id="missesCount" class="badge bg-danger">0</span></h5>
+                <div class="shot-chart-wrapper" id="missesChartWrapper">
+                    <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c;">
+                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                    </svg>
+                    <div id="opponentMissesLayer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-list" style="color: #20c997;"></i>
+        Per-Game Segment Log
+    </div>
+    <div style="overflow-x: auto; margin-bottom: 40px;">
+        <table class="game-log-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Opponent</th>
+                    <th>Result</th>
+                    <th>Minutes</th>
+                    <th>Poss</th>
+                    <th>Pts For</th>
+                    <th>Pts Ag</th>
+                    <th>ORTG</th>
+                    <th>DRTG</th>
+                    <th>Net</th>
+                </tr>
+            </thead>
+            <tbody id="gamesTableBody">
+                <tr><td colspan="10" class="py-4 text-center text-muted">Loading game log...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const lineupId = {{ lineup.id | tojson }};
+    let netRatingChart;
+
+    function signed(value) {
+        const num = Number(value || 0);
+        return `${num >= 0 ? '+' : ''}${num.toFixed(1)}`;
+    }
+
+    function formatPct(made, attempts) {
+        if (!attempts) return '0.0%';
+        return `${((made / attempts) * 100).toFixed(1)}%`;
+    }
+
+    function hideLoader() {
+        document.getElementById('pageLoader').classList.add('hidden');
+        document.getElementById('lineupPage').classList.remove('page-hidden');
+    }
+
+    function renderCourtShots(layerId, shots, tone) {
+        const layer = document.getElementById(layerId);
+        if (!layer) return;
+
+        layer.innerHTML = '';
+        if (!shots.length) {
+            layer.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#777;font-size:12px;">No shots</div>';
+            return;
+        }
+
+        shots.forEach(shot => {
+            if (shot.x == null || shot.y == null) return;
+            const dot = document.createElement('div');
+            dot.className = 'shot-point';
+            dot.style.left = `${(shot.x / 500) * 100}%`;
+            dot.style.top = `${(shot.y / 470) * 100}%`;
+            if (tone === 'make') {
+                dot.style.backgroundColor = '#f59e0b';
+                dot.style.border = '1px solid #fff';
+            } else {
+                dot.style.backgroundColor = 'transparent';
+                dot.style.border = '2px solid #dc3545';
+                dot.style.boxSizing = 'border-box';
+            }
+            layer.appendChild(dot);
+        });
+    }
+
+    function renderPlayerBreakdown(playerShots) {
+        const container = document.getElementById('playerBreakdownContainer');
+        const players = Object.keys(playerShots || {});
+        const playerDomId = player => `player-shots-${player.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+
+        if (!players.length) {
+            container.innerHTML = '<div class="col-12"><div class="alert alert-light border">No player shot data available.</div></div>';
+            return;
+        }
+
+        container.innerHTML = players.map(player => {
+            const shots = playerShots[player] || [];
+            const attempts = shots.length;
+            const makes = shots.filter(shot => shot.result === 'made').length;
+            const points = shots.reduce((sum, shot) => {
+                if (shot.result !== 'made') return sum;
+                return sum + (shot.type === '3pt' ? 3 : 2);
+            }, 0);
+
+            return `
+                <div class="col-lg-6 mb-4">
+                    <div class="chart-container h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0">${player}</h5>
+                            <span class="badge bg-light text-dark">${makes}/${attempts} FG</span>
+                        </div>
+                        <div class="small text-muted mb-3">${points} pts • ${formatPct(makes, attempts)}</div>
+                        <div class="shot-chart-wrapper">
+                            <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c;">
+                                <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                                <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                                <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                                <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                                <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                                <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                                <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                            </svg>
+                            <div id="${playerDomId(player)}" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        players.forEach(player => {
+            const safeId = playerDomId(player);
+            const layer = document.getElementById(safeId);
+            const shots = playerShots[player] || [];
+            if (!layer) return;
+            if (!shots.length) {
+                layer.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#777;font-size:12px;">No shots</div>';
+                return;
+            }
+            shots.forEach(shot => {
+                if (shot.x == null || shot.y == null) return;
+                const dot = document.createElement('div');
+                dot.className = 'shot-point';
+                dot.style.left = `${(shot.x / 500) * 100}%`;
+                dot.style.top = `${(shot.y / 470) * 100}%`;
+                if (shot.result === 'made') {
+                    dot.style.backgroundColor = shot.type === '3pt' ? '#2563eb' : '#16a34a';
+                    dot.style.border = '1px solid #fff';
+                } else {
+                    dot.style.backgroundColor = 'transparent';
+                    dot.style.border = `2px solid ${shot.type === '3pt' ? '#2563eb' : '#dc3545'}`;
+                    dot.style.boxSizing = 'border-box';
+                }
+                layer.appendChild(dot);
+            });
+        });
+    }
+
+    function renderGamesTable(games) {
+        const tbody = document.getElementById('gamesTableBody');
+        if (!games || !games.length) {
+            tbody.innerHTML = '<tr><td colspan="10" class="py-4 text-center text-muted">No games found.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = games.map(game => {
+            const poss = Number(game.possessions || 0);
+            const ortg = poss > 0 ? ((Number(game.points_scored || 0) / poss) * 100) : 0;
+            const drtg = poss > 0 ? ((Number(game.points_allowed || 0) / poss) * 100) : 0;
+            const net = ortg - drtg;
+            const netClass = net > 0 ? 'net-rating-pos' : (net < 0 ? 'net-rating-neg' : 'net-rating-neu');
+            const resultClass = game.result === 'W' ? 'result-w' : 'result-l';
+            return `
+                <tr>
+                    <td>${game.date || '--'}</td>
+                    <td><strong>${game.opponent || 'Unknown'}</strong></td>
+                    <td><span class="result-badge ${resultClass}">${game.result || '-'} ${game.team_score || 0}-${game.opponent_score || 0}</span></td>
+                    <td>${((Number(game.total_seconds || 0)) / 60).toFixed(1)}</td>
+                    <td>${poss}</td>
+                    <td>${game.points_scored || 0}</td>
+                    <td>${game.points_allowed || 0}</td>
+                    <td>${ortg.toFixed(1)}</td>
+                    <td>${drtg.toFixed(1)}</td>
+                    <td class="${netClass}"><strong>${signed(net)}</strong></td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderTrendChart(games) {
+        const ctx = document.getElementById('netRatingChart');
+        const sortedGames = [...(games || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+        const netRatings = sortedGames.map(game => {
+            const poss = Number(game.possessions || 0);
+            if (!poss) return 0;
+            return ((Number(game.points_scored || 0) - Number(game.points_allowed || 0)) / poss) * 100;
+        });
+
+        if (netRatingChart) netRatingChart.destroy();
+        netRatingChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sortedGames.map(game => game.opponent || '--'),
+                datasets: [{
+                    label: 'Net Rating',
+                    data: netRatings,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.12)',
+                    fill: true,
+                    tension: 0.35,
+                    pointBackgroundColor: netRatings.map(value => value >= 0 ? '#16a34a' : '#dc2626')
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        grid: { color: 'rgba(0, 0, 0, 0.06)' }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderLineupCard(data) {
+        const lineup = data.lineup || {};
+        const stats = data.stats || {};
+        const games = data.games || [];
+        const opponentShots = data.opponent_shots || [];
+        const playerShots = data.player_shots || {};
+
+        document.querySelector('#lineupPage h1').textContent = lineup.display_name || 'Lineup';
+        document.getElementById('lineupDisplayName').value = lineup.display_name || '';
+        document.getElementById('startingBadge').style.display = lineup.is_starting ? 'inline-flex' : 'none';
+        document.getElementById('playersContainer').innerHTML = (lineup.players || []).map(player => `
+            <div class="player-chip"><i class="fas fa-user"></i>${player}</div>
+        `).join('');
+
+        document.getElementById('statMinutes').textContent = Number(stats.total_minutes || 0).toFixed(1);
+        document.getElementById('statGames').textContent = stats.games_played || 0;
+        document.getElementById('statPossessions').textContent = stats.possessions || 0;
+        document.getElementById('statPoints').textContent = `${stats.points_scored || 0} / ${stats.points_allowed || 0}`;
+        document.getElementById('statOrtg').textContent = Number(stats.ortg || 0).toFixed(1);
+        document.getElementById('statDrtg').textContent = Number(stats.drtg || 0).toFixed(1);
+        document.getElementById('statNetRtg').textContent = signed(stats.net_rating || 0);
+
+        document.getElementById('statFg').textContent = `${Number(stats.fg_pct || 0).toFixed(1)}%`;
+        document.getElementById('statFgSub').textContent = `${stats.fgm || 0}/${stats.fga || 0}`;
+        document.getElementById('statTp').textContent = `${Number(stats.tp_pct || 0).toFixed(1)}%`;
+        document.getElementById('statTpSub').textContent = `${stats.tpm || 0}/${stats.tpa || 0}`;
+        document.getElementById('statFt').textContent = `${Number(stats.ft_pct || 0).toFixed(1)}%`;
+        document.getElementById('statFtSub').textContent = `${stats.ftm || 0}/${stats.fta || 0}`;
+        const efg = Number(stats.fga || 0) > 0 ? (((Number(stats.fgm || 0) + 0.5 * Number(stats.tpm || 0)) / Number(stats.fga || 0)) * 100) : 0;
+        document.getElementById('statEfg').textContent = `${efg.toFixed(1)}%`;
+
+        document.getElementById('statReb').textContent = Number(stats.rpg || 0).toFixed(1);
+        document.getElementById('statRebSub').textContent = `${stats.oreb || 0} OREB / ${stats.dreb || 0} DREB`;
+        document.getElementById('statAst').textContent = Number(stats.apg || 0).toFixed(1);
+        document.getElementById('statStl').textContent = Number(stats.spg || 0).toFixed(1);
+        document.getElementById('statBlk').textContent = Number(stats.bpg || 0).toFixed(1);
+        document.getElementById('statTov').textContent = Number(stats.topg || 0).toFixed(1);
+        const astTov = Number(stats.tov || 0) > 0 ? (Number(stats.ast || 0) / Number(stats.tov || 0)) : Number(stats.ast || 0);
+        document.getElementById('statAstTov').textContent = astTov.toFixed(2);
+
+        const opponentMakes = opponentShots.filter(shot => shot.result === 'made');
+        const opponentMisses = opponentShots.filter(shot => shot.result !== 'made');
+        document.getElementById('makesCount').textContent = opponentMakes.length;
+        document.getElementById('missesCount').textContent = opponentMisses.length;
+        renderCourtShots('opponentMakesLayer', opponentMakes, 'make');
+        renderCourtShots('opponentMissesLayer', opponentMisses, 'miss');
+
+        renderPlayerBreakdown(playerShots);
+        renderGamesTable(games);
+        renderTrendChart(games);
+    }
+
+    function saveLineupName() {
+        const displayName = document.getElementById('lineupDisplayName').value.trim();
+        fetch(`/api/advanced/lineup/${lineupId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ display_name: displayName })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.success) {
+                    document.querySelector('#lineupPage h1').textContent = displayName || 'Lineup';
+                }
+            })
+            .catch(error => console.error('Failed to save lineup name', error));
+    }
+
+    function loadLineupCard() {
+        fetch(`/api/advanced/lineup/${lineupId}`)
+            .then(response => response.json())
+            .then(data => {
+                renderLineupCard(data);
+                hideLoader();
+            })
+            .catch(error => {
+                console.error('Failed to load lineup card', error);
+                document.getElementById('playersContainer').innerHTML = '<div class="alert alert-warning w-100">Failed to load lineup data.</div>';
+                hideLoader();
+            });
+    }
+
+    document.getElementById('saveNameBtn').addEventListener('click', saveLineupName);
+    window.addEventListener('load', loadLineupCard);
+</script>
+{% endblock %}

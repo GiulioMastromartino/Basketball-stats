@@ -132,6 +132,8 @@ class GameTracker {
         window.onbeforeunload = () => {
             if (this.isClockRunning) return "Game is in progress. Are you sure?";
         };
+        document.addEventListener('fullscreenchange', () => this.updateFullscreenToggleUI());
+        this.updateFullscreenToggleUI();
     }
 
 
@@ -161,6 +163,41 @@ class GameTracker {
         this.shotPositionMode = !this.shotPositionMode;
         this.updateShotPositionToggleUI();
         this.saveState();
+    }
+
+
+    async toggleFullscreen() {
+        const fullscreenRoot = document.getElementById('live-game-shell');
+        if (!fullscreenRoot) return;
+
+        try {
+            if (document.fullscreenElement === fullscreenRoot) {
+                await document.exitFullscreen();
+            } else {
+                await fullscreenRoot.requestFullscreen();
+            }
+        } catch (error) {
+            console.error('Fullscreen toggle failed:', error);
+        } finally {
+            this.updateFullscreenToggleUI();
+        }
+    }
+
+
+    updateFullscreenToggleUI() {
+        const btn = document.getElementById('btn-fullscreen-toggle');
+        const label = document.getElementById('fullscreen-toggle-label');
+        if (!btn || !label) return;
+
+        const fullscreenRoot = document.getElementById('live-game-shell');
+        const isFullscreen = !!fullscreenRoot && document.fullscreenElement === fullscreenRoot;
+        const icon = btn.querySelector('i');
+
+        if (icon) {
+            icon.className = isFullscreen ? 'fas fa-compress-alt' : 'fas fa-expand-alt';
+        }
+
+        label.textContent = isFullscreen ? 'Exit' : 'Full';
     }
 
 
@@ -1146,6 +1183,7 @@ class GameTracker {
 
     buildLiveTipsCardHtml() {
         const insights = this.computeLiveTipsData();
+        const currentLineupRow = this.buildCurrentLineupSummaryHtml(insights.playerMetrics);
         const foulRow = insights.foulAlerts.length > 0
             ? `<div class="live-tips-foul-row">${insights.foulAlerts.map(alert => `
                 <span class="live-tips-foul-chip">
@@ -1174,10 +1212,39 @@ class GameTracker {
                         <span class="live-tips-context">Current Stint</span>
                     </div>
                     <div class="card-body p-2 d-flex flex-column">
+                        ${currentLineupRow}
                         ${foulRow}
                         <div class="live-tips-list">${tipsList}</div>
                     </div>
                 </div>
+            </div>
+        `;
+    }
+
+
+    buildCurrentLineupSummaryHtml(playerMetrics) {
+        if (!playerMetrics || playerMetrics.length === 0) {
+            return `
+                <div class="live-tip-row info">
+                    <div class="live-tip-topline">
+                        <span class="live-tip-badge info">On Court</span>
+                        <span class="live-tip-title">No active lineup</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        const playersLine = playerMetrics
+            .map(metrics => `${metrics.player} ${this.formatMinutes(metrics.stintSeconds)}`)
+            .join(' | ');
+
+        return `
+            <div class="live-tip-row info">
+                <div class="live-tip-topline">
+                    <span class="live-tip-badge info">On Court</span>
+                    <span class="live-tip-title">Continuous stint</span>
+                </div>
+                <div class="live-tip-body">${playersLine}</div>
             </div>
         `;
     }
@@ -1297,7 +1364,7 @@ class GameTracker {
             }
         });
 
-        return { foulAlerts, alerts: dedupedAlerts };
+        return { foulAlerts, playerMetrics, alerts: dedupedAlerts };
     }
 
 

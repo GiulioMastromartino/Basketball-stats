@@ -10,7 +10,7 @@
   --hs-surface: #f3efe6;
   --hs-surface-2: #e8e2d6;
   --hs-ink: #1a1714;
-  --hs-ink-muted: #5c564c;
+  --hs-ink-muted: #4f4a43;
   --hs-line: rgba(255, 248, 235, 0.08);
   --hs-line-strong: rgba(255, 248, 235, 0.14);
   --hs-accent: #ff4d00;
@@ -375,6 +375,7 @@ body.app-sidebar-open .app-sidebar-backdrop {
   --bs-success: var(--hs-win);
   --bs-danger: var(--hs-loss);
   --bs-border-radius: var(--hs-radius-sm);
+  color: var(--hs-ink);
 }
 
 .app-main .btn-primary {
@@ -420,6 +421,43 @@ body.app-sidebar-open .app-sidebar-backdrop {
 
 .app-main .text-muted {
   color: var(--hs-ink-muted) !important;
+}
+
+.app-main .text-secondary {
+  color: var(--hs-ink-muted) !important;
+}
+
+.app-main .card .text-light,
+.app-main .panel-surface .text-light,
+.app-main .bg-light .text-light,
+.app-main .list-group-item .text-light,
+.app-main .table .text-light {
+  color: var(--hs-ink) !important;
+}
+
+.app-main .btn-outline-secondary {
+  border-color: rgba(26, 23, 20, 0.18);
+  color: var(--hs-ink);
+  background: transparent;
+  font-weight: 600;
+}
+
+.app-main .btn-outline-secondary:hover,
+.app-main .btn-outline-secondary:focus,
+.app-main .btn-outline-secondary.active {
+  background: var(--hs-surface-2);
+  border-color: rgba(26, 23, 20, 0.28);
+  color: var(--hs-ink);
+}
+
+.app-main .btn-outline-danger {
+  color: #9f2638;
+  border-color: rgba(159, 38, 56, 0.35);
+}
+
+.app-main .btn-outline-danger:hover,
+.app-main .btn-outline-danger:focus {
+  color: #fff8eb;
 }
 
 .app-main .table {
@@ -478,20 +516,23 @@ body.app-sidebar-open .app-sidebar-backdrop {
   font-family: var(--hs-font-display);
   font-size: clamp(1.85rem, 3vw, 2.35rem);
   letter-spacing: 0.03em;
-  color: #fff8eb;
+  color: var(--hs-ink);
   margin-bottom: 0.5rem;
 }
 
 .app-main h2,
-.app-main h3 {
+.app-main h3,
+.app-main h4,
+.app-main h5,
+.app-main h6 {
   font-family: var(--hs-font-body);
   font-weight: 700;
-  color: #fff8eb;
+  color: var(--hs-ink);
 }
 
 .app-main h2 {
   font-size: 1.35rem;
-  border-bottom: 1px solid var(--hs-line-strong);
+  border-bottom: 1px solid rgba(26, 23, 20, 0.12);
   padding-bottom: 0.5rem;
   margin-bottom: 1rem;
 }
@@ -501,7 +542,15 @@ body.app-sidebar-open .app-sidebar-backdrop {
 }
 
 .app-main p {
-  color: rgba(255, 248, 235, 0.65);
+  color: var(--hs-ink-muted);
+}
+
+.app-main li,
+.app-main dt,
+.app-main dd,
+.app-main small,
+.app-main .small {
+  color: inherit;
 }
 
 /* ----- Stat / metric blocks ----- */
@@ -763,7 +812,7 @@ table {
 /* ----- Forms (non-Bootstrap custom) ----- */
 label {
   font-weight: 600;
-  color: rgba(255, 248, 235, 0.85);
+  color: var(--hs-ink);
 }
 
 .app-main .form-control,
@@ -774,7 +823,12 @@ label {
 }
 
 .app-main .form-label {
-  color: rgba(255, 248, 235, 0.75);
+  color: var(--hs-ink);
+}
+
+.app-main .form-text,
+.app-main .input-group-text {
+  color: var(--hs-ink-muted);
 }
 
 /* ----- Guest auth card ----- */
@@ -792,6 +846,24 @@ label {
   font-size: 1.75rem;
   letter-spacing: 0.04em;
   border: none;
+}
+
+.app-main--guest .card-header h1,
+.app-main--guest .card-header h2,
+.app-main--guest .card-header h3,
+.app-main--guest .card-header h4,
+.app-main--guest .card-header h5,
+.app-main--guest .card-header h6 {
+  color: #fff8eb !important;
+}
+
+.app-main--guest .card-header .auth-login-brand {
+  color: #fff8eb !important;
+  font-family: var(--hs-font-display);
+  letter-spacing: 0.04em;
+  border-bottom: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 .app-main--guest h4 {

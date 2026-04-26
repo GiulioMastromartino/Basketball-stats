@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CourtIQ · Basketball Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#06090f;--surface:#0d1320;--surface2:#131c2e;--surface3:#1a2440;
+  --border:rgba(255,255,255,.06);--border2:rgba(255,255,255,.11);
+  --ink:#e8edf3;--ink2:#a8b4c4;--ink-muted:#5c6d82;
+  --accent:#ff6b2b;--accent2:#ff9a5c;--accent3:#ffbd85;
+  --cool:#2ec4b6;--win:#3aaa64;--gold:#e8b86d;
+  --purple:#9b6dff;--pink:#ff7aa2;--blue:#6ea8fe;
+  --display:'Barlow Condensed',sans-serif;
+  --body:'Inter',sans-serif;
+  --r:16px;--rs:10px;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--body);background:var(--bg);color:var(--ink);min-height:100vh;overflow-x:hidden}
+
+/* noise */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  opacity:1;
+}
+
+/* ─── NAV ─── */
+.nav{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  height:62px;padding:0 2.5rem;
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(6,9,15,.85);
+  backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+  border-bottom:1px solid var(--border);
+}
+.nav__logo{
+  font-family:var(--display);font-size:1.5rem;font-weight:900;
+  letter-spacing:.06em;color:var(--ink);text-decoration:none;
+  display:flex;align-items:center;gap:9px;
+}
+.nav__orb{
+  width:9px;height:9px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 0 3px rgba(255,107,43,.18),0 0 14px var(--accent);
+  animation:orb-pulse 2.5s ease-in-out infinite;
+}
+@keyframes orb-pulse{
+  0%,100%{box-shadow:0 0 0 3px rgba(255,107,43,.18),0 0 14px var(--accent)}
+  50%{box-shadow:0 0 0 6px rgba(255,107,43,.08),0 0 28px var(--accent),0 0 60px rgba(255,107,43,.2)}
+}
+.nav__links{display:flex;align-items:center;gap:1.6rem}
+.nav__link{
+  font-size:.8rem;font-weight:600;letter-spacing:.03em;
+  color:var(--ink-muted);text-decoration:none;transition:color .2s;
+}
+.nav__link:hover{color:var(--ink)}
+.nav__btn{
+  font-size:.8rem;font-weight:700;letter-spacing:.03em;
+  color:var(--ink);text-decoration:none;
+  padding:8px 20px;border-radius:9px;
+  background:linear-gradient(135deg,var(--accent),#cc4a10);
+  box-shadow:0 2px 18px rgba(255,107,43,.28),inset 0 1px 0 rgba(255,255,255,.12);
+  transition:transform .18s,box-shadow .18s;
+}
+.nav__btn:hover{transform:translateY(-1px);box-shadow:0 5px 28px rgba(255,107,43,.42),inset 0 1px 0 rgba(255,255,255,.18)}
+
+/* ─── HERO ─── */
+.hero{
+  position:relative;min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  padding:80px 1.5rem 60px;overflow:hidden;
+}
+
+/* animated gradient mesh */
+.hero__mesh{
+  position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 900px 700px at -10% 20%,rgba(255,107,43,.18) 0%,transparent 60%),
+    radial-gradient(ellipse 600px 600px at 110% 80%,rgba(46,196,182,.11) 0%,transparent 60%),
+    radial-gradient(ellipse 500px 500px at 60% 10%,rgba(155,109,255,.07) 0%,transparent 55%);
+  animation:mesh-shift 18s ease-in-out infinite alternate;
+}
+@keyframes mesh-shift{
+  0%{opacity:1;filter:blur(0)}
+  50%{opacity:.8;filter:blur(4px)}
+  100%{opacity:1;filter:blur(0)}
+}
+
+/* perspective grid floor */
+.hero__floor{
+  position:absolute;bottom:0;left:0;right:0;height:55%;
+  pointer-events:none;overflow:hidden;
+}
+.hero__floor svg{width:100%;height:100%}
+
+/* dot grid overlay */
+.hero__dots{
+  position:absolute;inset:0;pointer-events:none;
+  background-image:radial-gradient(rgba(255,255,255,.065) 1px,transparent 1px);
+  background-size:28px 28px;
+  mask-image:radial-gradient(ellipse 85% 70% at 50% 45%,black,transparent);
+}
+
+.hero__inner{
+  position:relative;z-index:2;
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:3rem;align-items:center;
+  max-width:1180px;width:100%;
+}
+@media(max-width:900px){.hero__inner{grid-template-columns:1fr;text-align:center}}
+
+.hero__badge{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:.68rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);
+  background:rgba(255,107,43,.1);border:1px solid rgba(255,107,43,.25);
+  padding:4px 13px;border-radius:999px;margin-bottom:1.6rem;
+}
+.hero__badge-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);animation:blink 1.3s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
+
+.hero__title{
+  font-family:var(--display);font-weight:900;letter-spacing:.01em;line-height:.9;
+  font-size:clamp(4rem,8vw,7.5rem);color:#fff;margin-bottom:1.4rem;
+}
+.hero__title span{
+  display:block;
+  background:linear-gradient(120deg,var(--accent) 0%,var(--accent2) 45%,var(--gold) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.hero__sub{
+  font-size:1.05rem;color:var(--ink2);line-height:1.72;max-width:480px;margin-bottom:2.4rem;
+}
+@media(max-width:900px){.hero__sub{margin:0 auto 2.4rem}}
+
+.hero__cta{display:flex;gap:12px;flex-wrap:wrap}
+@media(max-width:900px){.hero__cta{justify-content:center}}
+
+.btn-fire{
+  display:inline-flex;align-items:center;gap:8px;
+  font-weight:700;font-size:.92rem;letter-spacing:.02em;
+  color:#fff;text-decoration:none;
+  padding:13px 30px;border-radius:11px;
+  background:linear-gradient(135deg,var(--accent),#d14b0e);
+  box-shadow:0 3px 22px rgba(255,107,43,.32),0 0 0 1px rgba(255,107,43,.18),inset 0 1px 0 rgba(255,255,255,.14);
+  transition:transform .2s,box-shadow .2s;
+}
+.btn-fire:hover{transform:translateY(-2px);box-shadow:0 7px 32px rgba(255,107,43,.48),0 0 0 1px rgba(255,107,43,.28),inset 0 1px 0 rgba(255,255,255,.2)}
+.btn-ghost{
+  display:inline-flex;align-items:center;gap:8px;
+  font-weight:600;font-size:.92rem;letter-spacing:.02em;
+  color:var(--ink2);text-decoration:none;
+  padding:13px 26px;border-radius:11px;
+  border:1px solid var(--border);background:rgba(255,255,255,.03);
+  transition:color .2s,border-color .2s,background .2s;
+}
+.btn-ghost:hover{color:var(--ink);border-color:rgba(255,255,255,.16);background:rgba(255,255,255,.06)}
+
+/* ─── HERO RIGHT: 3D BASKETBALL ─── */
+.hero__visual{
+  display:flex;justify-content:center;align-items:center;
+  position:relative;
+}
+.ball-wrap{
+  width:260px;height:260px;
+  animation:ball-float 7s ease-in-out infinite;
+  filter:drop-shadow(0 40px 80px rgba(255,107,43,.35)) drop-shadow(0 10px 30px rgba(0,0,0,.8));
+}
+@keyframes ball-float{
+  0%,100%{transform:translateY(0) rotate(0deg)}
+  25%{transform:translateY(-22px) rotate(4deg)}
+  75%{transform:translateY(-10px) rotate(-3deg)}
+}
+.ball-wrap svg{width:100%;height:100%}
+
+/* court halo under ball */
+.ball-shadow{
+  width:160px;height:28px;
+  background:radial-gradient(ellipse,rgba(255,107,43,.3) 0%,transparent 70%);
+  border-radius:50%;margin:-20px auto 0;
+  animation:shadow-pulse 7s ease-in-out infinite;
+  filter:blur(8px);
+}
+@keyframes shadow-pulse{
+  0%,100%{transform:scaleX(1);opacity:.7}
+  25%{transform:scaleX(.65);opacity:.3}
+  75%{transform:scaleX(.8);opacity:.45}
+}
+
+/* ─── SECTION SHELL ─── */
+.section{position:relative;padding:100px 1.5rem;max-width:1180px;margin:0 auto}
+.sec-label{
+  font-size:.65rem;text-transform:uppercase;letter-spacing:.18em;
+  font-weight:700;color:var(--accent);margin-bottom:.7rem;
+}
+.sec-title{
+  font-family:var(--display);font-size:clamp(2rem,4vw,3rem);
+  font-weight:800;letter-spacing:.03em;color:var(--ink);line-height:1.05;
+  margin-bottom:.9rem;
+}
+.sec-sub{
+  font-size:.97rem;color:var(--ink-muted);max-width:500px;line-height:1.68;
+  margin-bottom:2.8rem;
+}
+
+.divider{height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);max-width:1180px;margin:0 auto}
+
+/* ─── FEATURE CARDS + 3D TILT ─── */
+.features-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+  gap:18px;
+}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:1.9rem 1.7rem;
+  position:relative;overflow:hidden;
+  transition:box-shadow .35s,border-color .25s;
+  transform-style:preserve-3d;
+  will-change:transform;
+}
+/* shimmer layer */
+.card::before{
+  content:'';position:absolute;inset:0;border-radius:var(--r);
+  background:linear-gradient(130deg,rgba(255,255,255,.06) 0%,transparent 55%);
+  opacity:0;transition:opacity .3s;pointer-events:none;
+}
+.card:hover{box-shadow:0 22px 64px rgba(0,0,0,.6),0 3px 18px rgba(0,0,0,.35);border-color:var(--border2)}
+.card:hover::before{opacity:1}
+/* top accent line */
+.card[data-c]::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  border-radius:var(--r) var(--r) 0 0;opacity:0;transition:opacity .3s;
+}
+.card[data-c="acc"]::after{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.card[data-c="cool"]::after{background:linear-gradient(90deg,var(--cool),#52e0d4)}
+.card[data-c="gold"]::after{background:linear-gradient(90deg,var(--gold),#f0cf8c)}
+.card[data-c="win"]::after{background:linear-gradient(90deg,var(--win),#62dda0)}
+.card[data-c="purple"]::after{background:linear-gradient(90deg,var(--purple),#c4a7ff)}
+.card[data-c="pink"]::after{background:linear-gradient(90deg,var(--pink),#ffb3cb)}
+.card[data-c="blue"]::after{background:linear-gradient(90deg,var(--blue),#a8c8ff)}
+.card[data-c="teal"]::after{background:linear-gradient(90deg,#20d5c4,#5efff2)}
+.card:hover::after{opacity:1}
+
+.card__ico{
+  width:44px;height:44px;border-radius:11px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.05rem;margin-bottom:1.1rem;
+  transform:translateZ(10px);
+}
+.ico-acc{background:rgba(255,107,43,.14);color:var(--accent);box-shadow:0 3px 14px rgba(255,107,43,.22)}
+.ico-cool{background:rgba(46,196,182,.14);color:var(--cool);box-shadow:0 3px 14px rgba(46,196,182,.22)}
+.ico-gold{background:rgba(232,184,109,.14);color:var(--gold);box-shadow:0 3px 14px rgba(232,184,109,.22)}
+.ico-win{background:rgba(58,170,100,.14);color:var(--win);box-shadow:0 3px 14px rgba(58,170,100,.22)}
+.ico-purple{background:rgba(155,109,255,.14);color:var(--purple);box-shadow:0 3px 14px rgba(155,109,255,.22)}
+.ico-pink{background:rgba(255,122,162,.14);color:var(--pink);box-shadow:0 3px 14px rgba(255,122,162,.22)}
+.ico-blue{background:rgba(110,168,254,.14);color:var(--blue);box-shadow:0 3px 14px rgba(110,168,254,.22)}
+.ico-teal{background:rgba(32,213,196,.14);color:#20d5c4;box-shadow:0 3px 14px rgba(32,213,196,.22)}
+
+.card__title{
+  font-family:var(--display);font-size:1.15rem;font-weight:700;
+  letter-spacing:.04em;color:var(--ink);margin-bottom:.45rem;
+}
+.card__body{font-size:.87rem;color:var(--ink-muted);line-height:1.65}
+.card__tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:.85rem}
+.tag{
+  font-size:.65rem;font-weight:600;padding:2px 8px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.04);
+  color:var(--ink-muted);letter-spacing:.04em;
+}
+
+/* wide live card */
+.card--wide{
+  grid-column:1/-1;
+  display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:start;
+  padding:2.4rem;
+}
+@media(max-width:760px){.card--wide{grid-template-columns:1fr}}
+
+.live-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);background:rgba(255,107,43,.1);border:1px solid rgba(255,107,43,.28);
+  padding:3px 10px;border-radius:999px;margin-bottom:.7rem;
+}
+.live-chip__dot{width:5px;height:5px;border-radius:50%;background:var(--accent);animation:blink 1.2s infinite}
+
+/* ─── BROWSER MOCK FRAME ─── */
+.browser{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:14px;overflow:hidden;
+  box-shadow:0 28px 70px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.5);
+}
+.browser__bar{
+  height:36px;background:rgba(255,255,255,.03);
+  border-bottom:1px solid rgba(255,255,255,.05);
+  display:flex;align-items:center;padding:0 14px;gap:7px;
+}
+.browser__dot{
+  width:10px;height:10px;border-radius:50%;
+}
+.browser__dot:nth-child(1){background:#ff5f56}
+.browser__dot:nth-child(2){background:#ffbd2e}
+.browser__dot:nth-child(3){background:#27c93f}
+.browser__url{
+  flex:1;margin-left:10px;height:20px;
+  background:rgba(255,255,255,.05);border-radius:5px;
+  display:flex;align-items:center;padding:0 10px;
+  font-size:.62rem;color:var(--ink-muted);letter-spacing:.03em;
+}
+
+/* 3D tilt wrapper for browser mocks */
+.mock3d-wrap{perspective:1100px;cursor:default}
+.mock3d{
+  transform:rotateX(5deg) rotateY(-4deg) scale(.97);
+  transform-style:preserve-3d;
+  transition:transform .5s cubic-bezier(.22,1,.36,1),box-shadow .5s;
+  box-shadow:0 35px 90px rgba(0,0,0,.65),20px 20px 60px rgba(0,0,0,.3);
+  border-radius:14px;
+}
+.mock3d:hover{
+  transform:rotateX(1deg) rotateY(-1deg) scale(1);
+  box-shadow:0 50px 110px rgba(0,0,0,.7),8px 8px 40px rgba(0,0,0,.25);
+}
+
+/* ─── LIVE GAME SCREEN MOCK ─── */
+.live-screen{padding:16px}
+.live-score-bar{
+  display:flex;align-items:center;justify-content:center;gap:16px;
+  background:rgba(255,107,43,.07);border:1px solid rgba(255,107,43,.15);
+  border-radius:9px;padding:10px 18px;margin-bottom:12px;
+}
+.ls-team{font-family:var(--display);font-size:1.2rem;font-weight:800;letter-spacing:.05em;color:var(--ink)}
+.ls-score{font-family:var(--display);font-size:2.1rem;font-weight:900;color:var(--accent);line-height:1}
+.ls-sep{font-size:.7rem;color:var(--ink-muted);display:flex;flex-direction:column;align-items:center;gap:1px}
+.ls-qtr{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  background:rgba(255,107,43,.15);color:var(--accent);border-radius:4px;padding:2px 7px}
+
+.live-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:12px}
+.live-btn{
+  border-radius:8px;padding:10px 4px;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  border:1px solid;
+}
+.live-btn--pts{background:rgba(255,107,43,.14);border-color:rgba(255,107,43,.3);color:var(--accent)}
+.live-btn--reb{background:rgba(46,196,182,.1);border-color:rgba(46,196,182,.25);color:var(--cool)}
+.live-btn--ast{background:rgba(232,184,109,.1);border-color:rgba(232,184,109,.25);color:var(--gold)}
+.live-btn--tov{background:rgba(255,122,162,.1);border-color:rgba(255,122,162,.25);color:var(--pink)}
+.live-btn i{font-size:.9rem}
+
+.play-modal-preview{
+  background:rgba(155,109,255,.07);border:1px solid rgba(155,109,255,.2);
+  border-radius:9px;padding:10px 12px;
+}
+.play-modal-title{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--purple);margin-bottom:7px}
+.play-pills{display:flex;flex-wrap:wrap;gap:5px}
+.play-pill{
+  font-size:.62rem;font-weight:600;padding:3px 9px;border-radius:999px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--ink2);
+}
+.play-pill--active{
+  background:rgba(155,109,255,.2);border-color:rgba(155,109,255,.4);color:var(--purple);
+}
+
+/* ─── BOX SCORE SCREEN MOCK ─── */
+.bx-table{width:100%;font-size:.75rem;border-collapse:collapse}
+.bx-table thead th{
+  font-size:.55rem;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--ink-muted);font-weight:700;
+  padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.05);text-align:right;
+}
+.bx-table thead th:first-child{text-align:left}
+.bx-table tbody td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.03);text-align:right;color:var(--ink-muted)}
+.bx-table tbody td:first-child{text-align:left;font-weight:700;color:var(--ink)}
+.bx-table tbody tr:last-child td{border-bottom:none}
+.bx-table tbody tr:hover td{background:rgba(255,255,255,.02)}
+.v-pts{color:var(--accent)!important;font-weight:800!important}
+.v-reb{color:var(--cool)!important;font-weight:700!important}
+.v-ast{color:var(--gold)!important;font-weight:700!important}
+.v-ts{color:#6ea8fe!important;font-weight:700!important}
+
+/* ─── PLAYER PROFILE MOCK ─── */
+.pp-header{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.05);
+}
+.pp-avatar{
+  width:42px;height:42px;border-radius:50%;
+  background:linear-gradient(135deg,rgba(255,107,43,.4),rgba(155,109,255,.4));
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-size:1.1rem;font-weight:800;color:#fff;
+  border:2px solid rgba(255,107,43,.3);
+  box-shadow:0 0 20px rgba(255,107,43,.25);
+}
+.pp-name{font-family:var(--display);font-size:1rem;font-weight:800;letter-spacing:.04em;color:var(--ink)}
+.pp-role{font-size:.62rem;color:var(--ink-muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.pp-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid rgba(255,255,255,.05)}
+.pp-stat{padding:10px 12px;text-align:center;border-right:1px solid rgba(255,255,255,.04)}
+.pp-stat:last-child{border-right:none}
+.pp-stat-val{font-family:var(--display);font-size:1.25rem;font-weight:800;letter-spacing:.04em}
+.pp-stat-lbl{font-size:.52rem;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-muted);font-weight:600;margin-top:1px}
+.pp-charts{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.pp-chart-cell{padding:12px 14px;border-right:1px solid rgba(255,255,255,.04)}
+.pp-chart-cell:last-child{border-right:none}
+.pp-chart-lbl{font-size:.55rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-muted);font-weight:700;margin-bottom:8px}
+
+/* ─── LINEUP MOCK ─── */
+.lu-row{
+  display:grid;grid-template-columns:1fr 70px 70px 70px 70px;
+  padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.04);
+  font-size:.75rem;align-items:center;
+}
+.lu-row:last-child{border-bottom:none}
+.lu-row--head{font-size:.55rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-muted);font-weight:700;padding-top:6px;padding-bottom:6px}
+.lu-name{font-weight:600;color:var(--ink2);font-size:.7rem;line-height:1.3}
+.lu-name em{display:block;font-style:normal;font-size:.55rem;color:var(--ink-muted)}
+.lu-val{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-muted)}
+.lu-val--pos{color:var(--win)!important;font-weight:700!important}
+.lu-val--neg{color:var(--pink)!important;font-weight:700!important}
+.lu-val--neu{color:var(--gold)!important;font-weight:600!important}
+
+/* ─── ANALYTICS CHART MOCK ─── */
+.chart-wrap{padding:14px 16px}
+.chart-title{font-size:.58rem;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-muted);font-weight:700;margin-bottom:12px}
+
+/* ─── 3D STAT TILES ─── */
+.stat-tiles{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:14px;margin-top:3rem;
+}
+.stile{
+  background:rgba(255,255,255,.035);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:var(--r);padding:1.3rem 1.1rem;
+  text-align:center;position:relative;overflow:hidden;
+  transition:transform .3s cubic-bezier(.22,1,.36,1),box-shadow .3s;
+  transform-style:preserve-3d;
+}
+.stile::before{
+  content:'';position:absolute;
+  top:-60%;left:-60%;width:220%;height:220%;
+  background:radial-gradient(circle at 38% 38%,rgba(255,255,255,.07),transparent 50%);
+  pointer-events:none;
+}
+.stile:hover{transform:translateY(-7px) scale(1.03);box-shadow:0 18px 44px rgba(0,0,0,.5)}
+.stile__val{font-family:var(--display);font-size:2rem;font-weight:900;letter-spacing:.04em;line-height:1}
+.stile__lbl{font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-muted);font-weight:600;margin-top:.35rem}
+
+/* ─── METRICS CLOUD ─── */
+.metric-cloud{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:1.8rem 2rem;margin-top:3rem;
+  position:relative;overflow:hidden;
+}
+.metric-cloud::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,107,43,.04),transparent 55%);
+  pointer-events:none;
+}
+.metric-cloud__lbl{
+  font-size:.6rem;text-transform:uppercase;letter-spacing:.15em;
+  color:var(--ink-muted);font-weight:700;margin-bottom:1.2rem;
+}
+.mpills{display:flex;flex-wrap:wrap;gap:7px}
+.mp{
+  font-size:.75rem;font-weight:600;padding:4px 12px;
+  border-radius:999px;border:1px solid;letter-spacing:.02em;
+  transition:transform .18s;
+  cursor:default;
+}
+.mp:hover{transform:translateY(-2px)}
+.mp-acc{background:rgba(255,107,43,.1);border-color:rgba(255,107,43,.25);color:var(--accent)}
+.mp-cool{background:rgba(46,196,182,.1);border-color:rgba(46,196,182,.25);color:var(--cool)}
+.mp-gold{background:rgba(232,184,109,.1);border-color:rgba(232,184,109,.25);color:var(--gold)}
+.mp-win{background:rgba(58,170,100,.1);border-color:rgba(58,170,100,.25);color:var(--win)}
+.mp-purple{background:rgba(155,109,255,.1);border-color:rgba(155,109,255,.25);color:var(--purple)}
+.mp-base{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.09);color:var(--ink-muted)}
+
+/* ─── PDF GRID ─── */
+.pdf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:2rem}
+.pdf-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--rs);padding:1.1rem 1.2rem;
+  display:flex;align-items:center;gap:.8rem;
+  transition:transform .22s,box-shadow .22s,border-color .2s;
+}
+.pdf-card:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(0,0,0,.45);border-color:rgba(255,122,162,.18)}
+.pdf-card__ico{
+  width:34px;height:34px;border-radius:8px;
+  background:rgba(255,122,162,.12);color:var(--pink);
+  display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;
+}
+.pdf-card__name{font-size:.8rem;font-weight:600;color:var(--ink);line-height:1.3}
+
+/* ─── WORKFLOW STEPS ─── */
+.steps{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:2rem;margin-top:1rem;position:relative;
+}
+.steps::before{
+  content:'';position:absolute;
+  top:2rem;left:14%;right:14%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),rgba(255,255,255,.07),transparent);
+}
+.step{position:relative;display:flex;flex-direction:column;gap:.8rem}
+.step__n{
+  font-family:var(--display);font-size:3.2rem;font-weight:900;
+  color:transparent;line-height:1;
+  -webkit-text-stroke:1.5px rgba(255,255,255,.1);
+}
+.step__n.c-acc{-webkit-text-stroke-color:rgba(255,107,43,.35)}
+.step__n.c-cool{-webkit-text-stroke-color:rgba(46,196,182,.35)}
+.step__n.c-gold{-webkit-text-stroke-color:rgba(232,184,109,.35)}
+.step__n.c-win{-webkit-text-stroke-color:rgba(58,170,100,.35)}
+.step__title{font-family:var(--display);font-size:1.05rem;font-weight:700;letter-spacing:.04em;color:var(--ink)}
+.step__body{font-size:.85rem;color:var(--ink-muted);line-height:1.6}
+
+/* ─── CTA ─── */
+.cta-band{
+  position:relative;padding:110px 1.5rem;
+  text-align:center;overflow:hidden;
+}
+.cta-band::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 75% 65% at 50% 50%,rgba(255,107,43,.1),transparent 70%);
+  pointer-events:none;
+}
+.ring{
+  position:absolute;border-radius:50%;border:1px solid;
+  pointer-events:none;
+  animation:ring-pulse 9s ease-in-out infinite;
+  top:50%;left:50%;transform:translate(-50%,-50%);
+}
+.ring--1{width:380px;height:380px;border-color:rgba(255,107,43,.12);animation-delay:0s}
+.ring--2{width:620px;height:620px;border-color:rgba(255,107,43,.07);animation-delay:1.8s}
+.ring--3{width:860px;height:860px;border-color:rgba(255,107,43,.04);animation-delay:3.6s}
+@keyframes ring-pulse{
+  0%,100%{transform:translate(-50%,-50%) scale(1);opacity:1}
+  50%{transform:translate(-50%,-50%) scale(1.06);opacity:.45}
+}
+.cta-band__title{
+  font-family:var(--display);
+  font-size:clamp(2.6rem,5vw,4.8rem);
+  font-weight:900;letter-spacing:.02em;color:var(--ink);
+  margin-bottom:1rem;position:relative;
+}
+.cta-band__sub{font-size:1rem;color:var(--ink-muted);max-width:400px;margin:0 auto 2.4rem;line-height:1.65;position:relative}
+
+/* ─── FOOTER ─── */
+footer{
+  border-top:1px solid var(--border);
+  padding:1.8rem 2.5rem;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:1rem;
+}
+.footer-logo{font-family:var(--display);font-size:1.05rem;font-weight:900;letter-spacing:.06em;color:var(--ink-muted)}
+footer p{font-size:.75rem;color:var(--ink-muted)}
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:640px){
+  .nav{padding:0 1.1rem}.nav__links{display:none}
+  .section{padding:60px 1.1rem}
+  .ball-wrap{width:180px;height:180px}
+  .mock3d{transform:rotateX(2deg) rotateY(-1deg) scale(.98)}
+  .steps::before{display:none}
+  .lu-row{grid-template-columns:1fr 60px 60px}
+  .lu-row>*:nth-child(n+4){display:none}
+  .bx-table thead th:nth-child(n+5),.bx-table tbody td:nth-child(n+5){display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <a class="nav__logo" href="#"><span class="nav__orb"></span>CourtIQ</a>
+  <div class="nav__links">
+    <a class="nav__link" href="#features">Features</a>
+    <a class="nav__link" href="#preview">App Preview</a>
+    <a class="nav__link" href="#reports">Reports</a>
+    <a class="nav__link" href="#workflow">Workflow</a>
+  </div>
+  <a class="nav__btn" href="{{ url_for('auth.login') }}"><i class="fas fa-sign-in-alt"></i> Sign in</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero__mesh"></div>
+  <div class="hero__dots"></div>
+
+  <!-- perspective floor grid -->
+  <div class="hero__floor">
+    <svg viewBox="0 0 1200 400" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="floorFade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="rgba(255,107,43,0.06)"/>
+          <stop offset="100%" stop-color="rgba(255,107,43,0)"/>
+        </linearGradient>
+      </defs>
+      <!-- horizontal lines (vanishing) -->
+      <line x1="0" y1="400" x2="1200" y2="400" stroke="rgba(255,107,43,0.12)" stroke-width="1"/>
+      <line x1="100" y1="280" x2="1100" y2="280" stroke="rgba(255,107,43,0.08)" stroke-width="1"/>
+      <line x1="230" y1="190" x2="970" y2="190" stroke="rgba(255,107,43,0.06)" stroke-width="1"/>
+      <line x1="340" y1="130" x2="860" y2="130" stroke="rgba(255,107,43,0.04)" stroke-width="1"/>
+      <line x1="440" y1="85" x2="760" y2="85" stroke="rgba(255,107,43,0.03)" stroke-width="1"/>
+      <!-- vertical lines converging to center-top vanishing point -->
+      <line x1="600" y1="0" x2="0" y2="400" stroke="rgba(255,107,43,0.04)" stroke-width="1"/>
+      <line x1="600" y1="0" x2="150" y2="400" stroke="rgba(255,107,43,0.04)" stroke-width="1"/>
+      <line x1="600" y1="0" x2="300" y2="400" stroke="rgba(255,107,43,0.05)" stroke-width="1"/>
+      <line x1="600" y1="0" x2="450" y2="400" stroke="rgba(255,107,43,0.07)" stroke-width="1"/>
+      <line x1="600" y1="0" x2="600" y2="400" stroke="rgba(255,107,43,0.08)" stroke-width="1"/>
+      <line x1="600" y1="0" x2="750" y2="400" stroke="rgba(255,107,43,0.07)" stroke-width="1"/>
+      <line x1="600" y1="0" x2="900" y2="400" stroke="rgba(255,107,43,0.05)" stroke-width="1"/>
+      <line x1="600" y1="0" x2="1050" y2="400" stroke="rgba(255,107,43,0.04)" stroke-width="1"/>
+      <line x1="600" y1="0" x2="1200" y2="400" stroke="rgba(255,107,43,0.04)" stroke-width="1"/>
+      <!-- 3-point arc suggestion -->
+      <ellipse cx="600" cy="420" rx="320" ry="120" stroke="rgba(255,107,43,0.05)" stroke-width="1.5" fill="none"/>
+      <!-- paint area -->
+      <rect x="480" y="290" width="240" height="110" stroke="rgba(255,107,43,0.07)" stroke-width="1" fill="rgba(255,107,43,0.02)" rx="2"/>
+      <!-- free throw circle -->
+      <ellipse cx="600" cy="290" rx="80" ry="30" stroke="rgba(255,107,43,0.06)" stroke-width="1" fill="none"/>
+      <rect x="580" y="380" width="40" height="20" stroke="rgba(255,107,43,0.08)" stroke-width="1" fill="rgba(255,107,43,0.03)"/>
+    </svg>
+  </div>
+
+  <div class="hero__inner">
+    <!-- LEFT: text -->
+    <div>
+      <div class="hero__badge"><span class="hero__badge-dot"></span>Basketball Analytics Platform</div>
+      <h1 class="hero__title">
+        Every stat.<br>
+        <span>Every edge.</span>
+      </h1>
+      <p class="hero__sub">Live game tracking with play tagging, advanced box scores, lineup analytics, opponent scouting, and PDF reports — all in one coaching tool built for serious teams.</p>
+      <div class="hero__cta">
+        <a href="{{ url_for('auth.login') }}" class="btn-fire"><i class="fas fa-sign-in-alt"></i> Enter Dashboard</a>
+        <a href="#features" class="btn-ghost"><i class="fas fa-layer-group"></i> See Features</a>
+      </div>
+    </div>
+    <!-- RIGHT: 3D basketball SVG -->
+    <div class="hero__visual">
+      <div>
+        <div class="ball-wrap">
+          <!-- Photorealistic basketball SVG -->
+          <svg viewBox="0 0 260 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <!-- Base sphere gradient: warm left, dark right -->
+              <radialGradient id="bBase" cx="38%" cy="30%" r="70%">
+                <stop offset="0%" stop-color="#ffa06e"/>
+                <stop offset="30%" stop-color="#e86820"/>
+                <stop offset="65%" stop-color="#b84010"/>
+                <stop offset="100%" stop-color="#5c1a00"/>
+              </radialGradient>
+              <!-- ambient occlusion on edges -->
+              <radialGradient id="bAO" cx="50%" cy="50%" r="50%">
+                <stop offset="75%" stop-color="rgba(0,0,0,0)"/>
+                <stop offset="100%" stop-color="rgba(0,0,0,0.55)"/>
+              </radialGradient>
+              <!-- Primary specular highlight -->
+              <radialGradient id="bSpec1" cx="32%" cy="22%" r="28%">
+                <stop offset="0%" stop-color="rgba(255,255,255,0.55)"/>
+                <stop offset="50%" stop-color="rgba(255,255,255,0.12)"/>
+                <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+              </radialGradient>
+              <!-- Secondary soft glow highlight -->
+              <radialGradient id="bSpec2" cx="68%" cy="72%" r="30%">
+                <stop offset="0%" stop-color="rgba(255,160,80,0.18)"/>
+                <stop offset="100%" stop-color="rgba(255,160,80,0)"/>
+              </radialGradient>
+              <!-- Surface texture grain filter -->
+              <filter id="bGrain" x="-10%" y="-10%" width="120%" height="120%">
+                <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="4" seed="2" result="noise"/>
+                <feColorMatrix type="saturate" values="0" in="noise" result="grayNoise"/>
+                <feBlend in="SourceGraphic" in2="grayNoise" mode="multiply" result="blend"/>
+                <feComponentTransfer in="blend">
+                  <feFuncA type="linear" slope="0.06"/>
+                </feComponentTransfer>
+              </filter>
+              <!-- Drop shadow filter -->
+              <filter id="bShadow">
+                <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="rgba(0,0,0,0.4)"/>
+              </filter>
+              <clipPath id="bClip"><circle cx="130" cy="130" r="122"/></clipPath>
+            </defs>
+
+            <!-- Base sphere -->
+            <circle cx="130" cy="130" r="122" fill="url(#bBase)"/>
+
+            <!-- Ambient occlusion rim -->
+            <circle cx="130" cy="130" r="122" fill="url(#bAO)"/>
+
+            <!-- Texture grain overlay -->
+            <circle cx="130" cy="130" r="122" fill="rgba(180,70,10,0.3)" filter="url(#bGrain)"/>
+
+            <!-- ─── SEAM LINES ─── -->
+            <!-- The NBA ball has 8 panels with 4 seam groups -->
+            <!-- Seam 1: left vertical arc (slightly curving) -->
+            <path d="M 130 8 C 80 30, 30 70, 10 130 C 30 190, 80 230, 130 252"
+              stroke="#2a0a00" stroke-width="4.5" fill="none" stroke-linecap="round"
+              clip-path="url(#bClip)"/>
+            <!-- Seam 1 groove highlight -->
+            <path d="M 130 8 C 80 30, 30 70, 10 130 C 30 190, 80 230, 130 252"
+              stroke="rgba(255,140,60,0.25)" stroke-width="1.5" fill="none" stroke-linecap="round"
+              clip-path="url(#bClip)"/>
+            <!-- Seam 2: right vertical arc -->
+            <path d="M 130 8 C 180 30, 230 70, 250 130 C 230 190, 180 230, 130 252"
+              stroke="#2a0a00" stroke-width="4.5" fill="none" stroke-linecap="round"
+              clip-path="url(#bClip)"/>
+            <path d="M 130 8 C 180 30, 230 70, 250 130 C 230 190, 180 230, 130 252"
+              stroke="rgba(255,140,60,0.18)" stroke-width="1.5" fill="none" stroke-linecap="round"
+              clip-path="url(#bClip)"/>
+            <!-- Seam 3: upper horizontal arc -->
+            <path d="M 8 130 C 30 80, 80 55, 130 52 C 180 55, 230 80, 252 130"
+              stroke="#2a0a00" stroke-width="4.5" fill="none" stroke-linecap="round"
+              clip-path="url(#bClip)"/>
+            <path d="M 8 130 C 30 80, 80 55, 130 52 C 180 55, 230 80, 252 130"
+              stroke="rgba(255,140,60,0.18)" stroke-width="1.5" fill="none" stroke-linecap="round"
+              clip-path="url(#bClip)"/>
+            <!-- Seam 4: lower horizontal arc -->
+            <path d="M 8 130 C 30 180, 80 205, 130 208 C 180 205, 230 180, 252 130"
+              stroke="#2a0a00" stroke-width="4.5" fill="none" stroke-linecap="round"
+              clip-path="url(#bClip)"/>
+            <path d="M 8 130 C 30 180, 80 205, 130 208 C 180 205, 230 180, 252 130"
+              stroke="rgba(255,140,60,0.18)" stroke-width="1.5" fill="none" stroke-linecap="round"
+              clip-path="url(#bClip)"/>
+
+            <!-- Primary specular glint -->
+            <ellipse cx="92" cy="70" rx="32" ry="22" fill="url(#bSpec1)" transform="rotate(-30 92 70)"/>
+            <!-- Tiny sharp specular point -->
+            <ellipse cx="82" cy="62" rx="10" ry="6" fill="rgba(255,255,255,0.45)" transform="rotate(-30 82 62)"/>
+            <!-- Soft backlight rim -->
+            <path d="M 190 220 Q 240 200, 250 150" stroke="rgba(255,160,60,0.14)" stroke-width="22" fill="none" stroke-linecap="round"/>
+            <!-- Secondary bounce highlight -->
+            <ellipse cx="175" cy="185" rx="18" ry="12" fill="url(#bSpec2)" transform="rotate(25 175 185)"/>
+
+            <!-- Outer ring stroke (give it depth) -->
+            <circle cx="130" cy="130" r="122" stroke="rgba(0,0,0,0.55)" stroke-width="2" fill="none"/>
+            <circle cx="130" cy="130" r="122" stroke="rgba(255,160,80,0.1)" stroke-width="1" fill="none"/>
+          </svg>
+        </div>
+        <div class="ball-shadow"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ══ FEATURES ══ -->
+<section class="section" id="features">
+  <div class="sec-label">Features</div>
+  <h2 class="sec-title">Built for coaches,<br>backed by numbers.</h2>
+  <p class="sec-sub">Every tool from courtside tracking to post-game intelligence, in one platform.</p>
+
+  <div class="features-grid">
+
+    <!-- Wide: Live Game -->
+    <div class="card card--wide" data-c="acc" data-tilt>
+      <div>
+        <div class="live-chip"><span class="live-chip__dot"></span>Live</div>
+        <div class="card__ico ico-acc"><i class="fas fa-bolt"></i></div>
+        <div class="card__title">Live Game Tracking</div>
+        <div class="card__body">
+          Track every event in real time — 2PT, 3PT, assists, rebounds, turnovers, and fouls.
+          After each scored possession the <strong style="color:var(--ink)">Play Selector</strong> modal
+          lets you tag the action with a named play (Pick &amp; Roll, Isolation, Zone, etc.).
+          Toggle the selector mid-game; state is persisted. Advanced metrics refresh with every event.
+        </div>
+        <div class="card__tags">
+          <span class="tag">Play Tagging</span><span class="tag">Shot Location</span>
+          <span class="tag">Assist Tracking</span><span class="tag">Foul Tracking</span>
+          <span class="tag">Auto-save / Rescue</span><span class="tag">Quarter Management</span>
+        </div>
+      </div>
+      <!-- Live screen mock -->
+      <div class="browser">
+        <div class="browser__bar">
+          <div class="browser__dot"></div><div class="browser__dot"></div><div class="browser__dot"></div>
+          <div class="browser__url">courtiq.app/game/live</div>
+        </div>
+        <div class="live-screen">
+          <div class="live-score-bar">
+            <div class="ls-team">HOME</div>
+            <div class="ls-score">48</div>
+            <div class="ls-sep">
+              <span class="ls-qtr">Q3 · 4:17</span>
+              <span style="font-size:.55rem;color:var(--ink-muted);margin-top:3px">vs</span>
+            </div>
+            <div class="ls-score" style="color:var(--ink2)">41</div>
+            <div class="ls-team" style="color:var(--ink-muted)">AWAY</div>
+          </div>
+          <div class="live-btns">
+            <div class="live-btn live-btn--pts"><i class="fas fa-basketball-ball"></i>2 PTS</div>
+            <div class="live-btn live-btn--pts"><i class="fas fa-circle"></i>3 PTS</div>
+            <div class="live-btn live-btn--reb"><i class="fas fa-hands"></i>REB</div>
+            <div class="live-btn live-btn--ast"><i class="fas fa-share"></i>AST</div>
+            <div class="live-btn live-btn--tov"><i class="fas fa-exchange-alt"></i>TOV</div>
+            <div class="live-btn live-btn--reb" style="background:rgba(155,109,255,.1);border-color:rgba(155,109,255,.25);color:var(--purple)"><i class="fas fa-hand-paper"></i>FOUL</div>
+            <div class="live-btn live-btn--ast" style="background:rgba(110,168,254,.1);border-color:rgba(110,168,254,.25);color:var(--blue)"><i class="fas fa-minus-circle"></i>MISS 2</div>
+            <div class="live-btn live-btn--tov" style="background:rgba(110,168,254,.1);border-color:rgba(110,168,254,.25);color:var(--blue)"><i class="fas fa-times-circle"></i>MISS 3</div>
+          </div>
+          <div class="play-modal-preview">
+            <div class="play-modal-title"><i class="fas fa-flag" style="margin-right:5px"></i>Play Selector — choose a play</div>
+            <div class="play-pills">
+              <span class="play-pill play-pill--active">Pick &amp; Roll</span>
+              <span class="play-pill">Isolation</span>
+              <span class="play-pill">Drive &amp; Kick</span>
+              <span class="play-pill">Post-Up</span>
+              <span class="play-pill">Spot-Up</span>
+              <span class="play-pill">Out of TO</span>
+              <span class="play-pill">Zone Attack</span>
+              <span class="play-pill">Transition</span>
+              <span class="play-pill">Skip / None</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Box Score -->
+    <div class="card" data-c="cool" data-tilt>
+      <div class="card__ico ico-cool"><i class="fas fa-chart-bar"></i></div>
+      <div class="card__title">Advanced Box Score</div>
+      <div class="card__body">Full shooting splits (2PT/3PT/FT), per-100 possession stats, Game Score, TS%, eFG%, offensive/defensive/net rating for every player, every game.</div>
+      <div class="card__tags"><span class="tag">TS% · eFG%</span><span class="tag">Per-100 Poss.</span><span class="tag">Game Score</span><span class="tag">ORtg · DRtg</span></div>
+    </div>
+
+    <!-- Player Profiles -->
+    <div class="card" data-c="gold" data-tilt>
+      <div class="card__ico ico-gold"><i class="fas fa-user-circle"></i></div>
+      <div class="card__title">Player Profiles</div>
+      <div class="card__body">Season averages, game-by-game trend spark lines, shooting splits by zone, AST/TOV ratio, and full Hollinger Game Score history per player.</div>
+      <div class="card__tags"><span class="tag">Season Averages</span><span class="tag">Spark Lines</span><span class="tag">Usage %</span></div>
+    </div>
+
+    <!-- Opponent Scouting -->
+    <div class="card" data-c="purple" data-tilt>
+      <div class="card__ico ico-purple"><i class="fas fa-shield-alt"></i></div>
+      <div class="card__title">Opponent Scouting</div>
+      <div class="card__body">Per-opponent dossiers with head-to-head comparisons, differential analysis across every stat category, and top performer delta rankings.</div>
+      <div class="card__tags"><span class="tag">H2H Comparison</span><span class="tag">Differential</span><span class="tag">Top Performers</span></div>
+    </div>
+
+    <!-- Lineup Analytics -->
+    <div class="card" data-c="win" data-tilt>
+      <div class="card__ico ico-win"><i class="fas fa-layer-group"></i></div>
+      <div class="card__title">Lineup Analytics</div>
+      <div class="card__body">Net rating, pace, plus/minus, and point differential for every 5-man unit. Instantly identify your most effective lineup combinations.</div>
+      <div class="card__tags"><span class="tag">5-Man Units</span><span class="tag">Net Rating</span><span class="tag">Lineup +/−</span></div>
+    </div>
+
+    <!-- Advanced Analytics -->
+    <div class="card" data-c="teal" data-tilt>
+      <div class="card__ico ico-teal"><i class="fas fa-brain"></i></div>
+      <div class="card__title">Advanced Analytics</div>
+      <div class="card__body">Season-level insights: pace of play, efficiency trends, quarter-by-quarter scoring patterns, and cross-game statistical evolution dashboards.</div>
+      <div class="card__tags"><span class="tag">Pace</span><span class="tag">Scoring Trends</span><span class="tag">Quarter Splits</span></div>
+    </div>
+
+    <!-- Plays Management -->
+    <div class="card" data-c="blue" data-tilt>
+      <div class="card__ico ico-blue"><i class="fas fa-flag"></i></div>
+      <div class="card__title">Plays Management</div>
+      <div class="card__body">Build and manage your full playbook — Offense, Defense, and Special plays. Tag shots and turnovers live, then analyse frequency and efficiency per play.</div>
+      <div class="card__tags"><span class="tag">20 Sample Plays</span><span class="tag">Type Filtering</span><span class="tag">Playbook CRUD</span></div>
+    </div>
+
+    <!-- PDF Reports -->
+    <div class="card" data-c="pink" data-tilt>
+      <div class="card__ico ico-pink"><i class="fas fa-file-pdf"></i></div>
+      <div class="card__title">PDF Reports</div>
+      <div class="card__body">One-click export of polished coaching documents. Rendered server-side and ready to print or share immediately after a game.</div>
+      <div class="card__tags"><span class="tag">Halftime Summary</span><span class="tag">Game Summary</span><span class="tag">Player Cards</span><span class="tag">Advanced Report</span></div>
+    </div>
+
+  </div>
+
+  <div class="metric-cloud">
+    <div class="metric-cloud__lbl">Metrics computed automatically</div>
+    <div class="mpills">
+      <span class="mp mp-acc">Game Score</span>
+      <span class="mp mp-acc">True Shooting %</span>
+      <span class="mp mp-acc">eFG%</span>
+      <span class="mp mp-gold">Offensive Rating</span>
+      <span class="mp mp-gold">Defensive Rating</span>
+      <span class="mp mp-win">Net Rating</span>
+      <span class="mp mp-win">Pace</span>
+      <span class="mp mp-cool">Usage %</span>
+      <span class="mp mp-cool">AST/TOV Ratio</span>
+      <span class="mp mp-cool">OREB %</span>
+      <span class="mp mp-cool">DREB %</span>
+      <span class="mp mp-purple">FTA Rate</span>
+      <span class="mp mp-purple">Points per Possession</span>
+      <span class="mp mp-base">Per-100 Possessions</span>
+      <span class="mp mp-base">2PT / 3PT Splits</span>
+      <span class="mp mp-base">Plus / Minus</span>
+      <span class="mp mp-base">Lineup Net Rating</span>
+      <span class="mp mp-base">Quarter Scoring</span>
+      <span class="mp mp-base">Play Frequency</span>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ══ APP PREVIEW ══ -->
+<section class="section" id="preview">
+  <div class="sec-label">App Preview</div>
+  <h2 class="sec-title">Your app,<br>in full detail.</h2>
+  <p class="sec-sub">Real UI mocks from the app — every screen built for speed and clarity.</p>
+
+  <!-- ROW 1: Box Score (wide tilt) + Player Profile -->
+  <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:24px;margin-bottom:28px;align-items:start">
+    <!-- Box score -->
+    <div class="mock3d-wrap">
+      <div class="mock3d browser">
+        <div class="browser__bar">
+          <div class="browser__dot"></div><div class="browser__dot"></div><div class="browser__dot"></div>
+          <div class="browser__url">courtiq.app/game/42/boxscore</div>
+        </div>
+        <div style="padding:12px 0">
+          <div style="padding:8px 14px 4px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:.6rem;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-muted);font-weight:700">Advanced Box Score · 15/02/2026</span>
+            <span style="font-size:.62rem;font-weight:700;padding:2px 10px;border-radius:999px;background:rgba(58,170,100,.18);color:var(--win);border:1px solid rgba(58,170,100,.3)">W · +15</span>
+          </div>
+          <table class="bx-table">
+            <thead><tr>
+              <th style="text-align:left;padding-left:14px">Player</th>
+              <th>GmSc</th><th>PTS</th><th>REB</th><th>AST</th><th>TS%</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>Ardizzoia</td><td class="v-pts">21.4</td><td class="v-pts">24</td><td class="v-reb">8</td><td class="v-ast">3</td><td class="v-ts">68.2%</td></tr>
+              <tr><td>Fernandez</td><td class="v-pts">17.8</td><td class="v-pts">18</td><td class="v-reb">5</td><td class="v-ast">6</td><td class="v-ts">61.4%</td></tr>
+              <tr><td>Silva</td><td>14.2</td><td class="v-pts">15</td><td class="v-reb">7</td><td class="v-ast">2</td><td class="v-ts">57.9%</td></tr>
+              <tr><td>Portaro</td><td>11.6</td><td>12</td><td>4</td><td class="v-ast">5</td><td>54.1%</td></tr>
+              <tr><td>Cremona</td><td>9.3</td><td>10</td><td class="v-reb">10</td><td>1</td><td>51.7%</td></tr>
+              <tr><td>Mastromartino</td><td>7.1</td><td>8</td><td>3</td><td class="v-ast">4</td><td>49.3%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Player Profile -->
+    <div class="mock3d-wrap">
+      <div class="mock3d browser" style="transform:rotateX(4deg) rotateY(3deg) scale(.97)">
+        <div class="browser__bar">
+          <div class="browser__dot"></div><div class="browser__dot"></div><div class="browser__dot"></div>
+          <div class="browser__url">courtiq.app/player/3</div>
+        </div>
+        <div class="pp-header">
+          <div class="pp-avatar">A</div>
+          <div>
+            <div class="pp-name">Ardizzoia</div>
+            <div class="pp-role">Guard · #3 · Season 2025/26</div>
+          </div>
+        </div>
+        <div class="pp-stats-grid">
+          <div class="pp-stat"><div class="pp-stat-val" style="color:var(--accent)">18.4</div><div class="pp-stat-lbl">PPG</div></div>
+          <div class="pp-stat"><div class="pp-stat-val" style="color:var(--cool)">6.2</div><div class="pp-stat-lbl">RPG</div></div>
+          <div class="pp-stat"><div class="pp-stat-val" style="color:var(--gold)">3.8</div><div class="pp-stat-lbl">APG</div></div>
+          <div class="pp-stat"><div class="pp-stat-val" style="color:var(--purple)">14.6</div><div class="pp-stat-lbl">GmSc</div></div>
+        </div>
+        <div class="pp-charts">
+          <!-- TS% Donut SVG -->
+          <div class="pp-chart-cell">
+            <div class="pp-chart-lbl">True Shooting %</div>
+            <svg viewBox="0 0 80 80" width="80" height="80">
+              <circle cx="40" cy="40" r="30" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="9"/>
+              <!-- 64% arc = 0.64 * 2π * 30 ≈ 120.6deg stroke -->
+              <circle cx="40" cy="40" r="30" fill="none" stroke="var(--accent)" stroke-width="9"
+                stroke-dasharray="120.6 68.7" stroke-dashoffset="-47.1"
+                stroke-linecap="round"
+                transform="rotate(-90 40 40)"/>
+              <circle cx="40" cy="40" r="30" fill="none" stroke="rgba(255,107,43,.18)" stroke-width="9"
+                stroke-dasharray="68.7 120.6" stroke-dashoffset="73.5"
+                stroke-linecap="round"
+                transform="rotate(-90 40 40)"/>
+              <text x="40" y="37" text-anchor="middle" font-family="'Barlow Condensed',sans-serif" font-size="13" font-weight="800" fill="var(--ink)">64%</text>
+              <text x="40" y="49" text-anchor="middle" font-family="'Inter',sans-serif" font-size="5.5" fill="var(--ink-muted)" letter-spacing="0.5">TS%</text>
+            </svg>
+          </div>
+          <!-- Spark line SVG -->
+          <div class="pp-chart-cell" style="border-right:none">
+            <div class="pp-chart-lbl">Game Score trend (last 8)</div>
+            <svg viewBox="0 0 120 60" width="120" height="60">
+              <defs>
+                <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(255,107,43,0.35)"/>
+                  <stop offset="100%" stop-color="rgba(255,107,43,0)"/>
+                </linearGradient>
+              </defs>
+              <!-- area fill -->
+              <path d="M4 44 L20 32 L36 38 L52 22 L68 28 L84 14 L100 20 L116 10 L116 56 L4 56 Z"
+                fill="url(#sparkGrad)"/>
+              <!-- line -->
+              <path d="M4 44 L20 32 L36 38 L52 22 L68 28 L84 14 L100 20 L116 10"
+                stroke="var(--accent)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- dots -->
+              <circle cx="4"   cy="44" r="2.5" fill="var(--accent)"/>
+              <circle cx="20"  cy="32" r="2.5" fill="var(--accent)"/>
+              <circle cx="36"  cy="38" r="2.5" fill="var(--accent)"/>
+              <circle cx="52"  cy="22" r="2.5" fill="var(--accent)"/>
+              <circle cx="68"  cy="28" r="2.5" fill="var(--accent)"/>
+              <circle cx="84"  cy="14" r="2.5" fill="var(--accent)"/>
+              <circle cx="100" cy="20" r="2.5" fill="var(--accent)"/>
+              <circle cx="116" cy="10" r="3.5" fill="var(--accent2)" stroke="rgba(255,255,255,.3)" stroke-width="1.5"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 2: Lineup Analytics + Analytics Bar Chart -->
+  <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;margin-bottom:28px;align-items:start">
+    <!-- Lineup -->
+    <div class="mock3d-wrap">
+      <div class="mock3d browser" style="transform:rotateX(5deg) rotateY(4deg) scale(.97)">
+        <div class="browser__bar">
+          <div class="browser__dot"></div><div class="browser__dot"></div><div class="browser__dot"></div>
+          <div class="browser__url">courtiq.app/lineups</div>
+        </div>
+        <div style="padding:8px 0 4px">
+          <div style="padding:4px 14px 8px;font-size:.58rem;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-muted);font-weight:700">5-Man Lineup Ratings</div>
+          <div class="lu-row lu-row--head"><span>Lineup</span><span class="lu-val">MIN</span><span class="lu-val">+/−</span><span class="lu-val">NRtg</span><span class="lu-val">TS%</span></div>
+          <div class="lu-row">
+            <div class="lu-name">Ardi · Fern · Silva<em>+ Portaro · Cremona</em></div>
+            <div class="lu-val">18</div>
+            <div class="lu-val lu-val--pos">+12</div>
+            <div class="lu-val lu-val--pos">+8.4</div>
+            <div class="lu-val">61%</div>
+          </div>
+          <div class="lu-row">
+            <div class="lu-name">Ardi · Silva · Mastro<em>+ Cremona · Bianchi</em></div>
+            <div class="lu-val">14</div>
+            <div class="lu-val lu-val--pos">+7</div>
+            <div class="lu-val lu-val--pos">+5.1</div>
+            <div class="lu-val">58%</div>
+          </div>
+          <div class="lu-row">
+            <div class="lu-name">Fern · Portaro · Rossi<em>+ Bianchi · Mancini</em></div>
+            <div class="lu-val">11</div>
+            <div class="lu-val lu-val--neu">+1</div>
+            <div class="lu-val lu-val--neu">+0.8</div>
+            <div class="lu-val">54%</div>
+          </div>
+          <div class="lu-row">
+            <div class="lu-name">Silva · Mastro · Rossi<em>+ Mancini · Greco</em></div>
+            <div class="lu-val">9</div>
+            <div class="lu-val lu-val--neg">−5</div>
+            <div class="lu-val lu-val--neg">−3.6</div>
+            <div class="lu-val">49%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analytics bar chart -->
+    <div class="mock3d-wrap">
+      <div class="mock3d browser" style="transform:rotateX(5deg) rotateY(-3deg) scale(.97)">
+        <div class="browser__bar">
+          <div class="browser__dot"></div><div class="browser__dot"></div><div class="browser__dot"></div>
+          <div class="browser__url">courtiq.app/analytics</div>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-title">Points by Quarter — Last 6 Games</div>
+          <!-- SVG Bar Chart -->
+          <svg viewBox="0 0 340 160" width="100%" style="max-height:160px">
+            <defs>
+              <linearGradient id="barQ1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--accent)"/>
+                <stop offset="100%" stop-color="rgba(255,107,43,0.4)"/>
+              </linearGradient>
+              <linearGradient id="barQ2" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--cool)"/>
+                <stop offset="100%" stop-color="rgba(46,196,182,0.4)"/>
+              </linearGradient>
+              <linearGradient id="barQ3" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--gold)"/>
+                <stop offset="100%" stop-color="rgba(232,184,109,0.4)"/>
+              </linearGradient>
+              <linearGradient id="barQ4" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--purple)"/>
+                <stop offset="100%" stop-color="rgba(155,109,255,0.4)"/>
+              </linearGradient>
+            </defs>
+            <!-- Y axis lines -->
+            <line x1="32" y1="12" x2="32" y2="130" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+            <line x1="32" y1="130" x2="336" y2="130" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+            <text x="28" y="133" text-anchor="end" font-size="7" fill="rgba(255,255,255,.3)">0</text>
+            <line x1="32" y1="97" x2="336" y2="97" stroke="rgba(255,255,255,.035)" stroke-width="1" stroke-dasharray="4 4"/>
+            <text x="28" y="100" text-anchor="end" font-size="7" fill="rgba(255,255,255,.25)">10</text>
+            <line x1="32" y1="64" x2="336" y2="64" stroke="rgba(255,255,255,.035)" stroke-width="1" stroke-dasharray="4 4"/>
+            <text x="28" y="67" text-anchor="end" font-size="7" fill="rgba(255,255,255,.25)">20</text>
+            <line x1="32" y1="31" x2="336" y2="31" stroke="rgba(255,255,255,.035)" stroke-width="1" stroke-dasharray="4 4"/>
+            <text x="28" y="34" text-anchor="end" font-size="7" fill="rgba(255,255,255,.25)">30</text>
+            <!-- Game 1 -->
+            <rect x="36" y="63" width="11" height="67" rx="2" fill="url(#barQ1)"/>
+            <rect x="49" y="74" width="11" height="56" rx="2" fill="url(#barQ2)"/>
+            <rect x="62" y="57" width="11" height="73" rx="2" fill="url(#barQ3)"/>
+            <rect x="75" y="70" width="11" height="60" rx="2" fill="url(#barQ4)"/>
+            <!-- Game 2 -->
+            <rect x="94" y="54" width="11" height="76" rx="2" fill="url(#barQ1)"/>
+            <rect x="107" y="67" width="11" height="63" rx="2" fill="url(#barQ2)"/>
+            <rect x="120" y="74" width="11" height="56" rx="2" fill="url(#barQ3)"/>
+            <rect x="133" y="60" width="11" height="70" rx="2" fill="url(#barQ4)"/>
+            <!-- Game 3 -->
+            <rect x="152" y="47" width="11" height="83" rx="2" fill="url(#barQ1)"/>
+            <rect x="165" y="57" width="11" height="73" rx="2" fill="url(#barQ2)"/>
+            <rect x="178" y="80" width="11" height="50" rx="2" fill="url(#barQ3)"/>
+            <rect x="191" y="64" width="11" height="66" rx="2" fill="url(#barQ4)"/>
+            <!-- Game 4 -->
+            <rect x="210" y="74" width="11" height="56" rx="2" fill="url(#barQ1)"/>
+            <rect x="223" y="50" width="11" height="80" rx="2" fill="url(#barQ2)"/>
+            <rect x="236" y="60" width="11" height="70" rx="2" fill="url(#barQ3)"/>
+            <rect x="249" y="70" width="11" height="60" rx="2" fill="url(#barQ4)"/>
+            <!-- Game 5 -->
+            <rect x="268" y="44" width="11" height="86" rx="2" fill="url(#barQ1)"/>
+            <rect x="281" y="54" width="11" height="76" rx="2" fill="url(#barQ2)"/>
+            <rect x="294" y="64" width="11" height="66" rx="2" fill="url(#barQ3)"/>
+            <rect x="307" y="47" width="11" height="83" rx="2" fill="url(#barQ4)"/>
+            <!-- X labels -->
+            <text x="67"  y="144" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.3)">G1</text>
+            <text x="120" y="144" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.3)">G2</text>
+            <text x="176" y="144" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.3)">G3</text>
+            <text x="232" y="144" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.3)">G4</text>
+            <text x="288" y="144" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.3)">G5</text>
+            <!-- Legend -->
+            <rect x="36" y="152" width="7" height="5" rx="1" fill="var(--accent)"/>
+            <text x="46" y="157" font-size="6.5" fill="rgba(255,255,255,.4)">Q1</text>
+            <rect x="72" y="152" width="7" height="5" rx="1" fill="var(--cool)"/>
+            <text x="82" y="157" font-size="6.5" fill="rgba(255,255,255,.4)">Q2</text>
+            <rect x="108" y="152" width="7" height="5" rx="1" fill="var(--gold)"/>
+            <text x="118" y="157" font-size="6.5" fill="rgba(255,255,255,.4)">Q3</text>
+            <rect x="144" y="152" width="7" height="5" rx="1" fill="var(--purple)"/>
+            <text x="154" y="157" font-size="6.5" fill="rgba(255,255,255,.4)">Q4</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- stat tiles -->
+  <div class="stat-tiles">
+    <div class="stile"><div class="stile__val" style="color:var(--accent)">104.2</div><div class="stile__lbl">Team ORtg</div></div>
+    <div class="stile"><div class="stile__val" style="color:var(--cool)">97.8</div><div class="stile__lbl">Team DRtg</div></div>
+    <div class="stile"><div class="stile__val" style="color:var(--win)">+6.4</div><div class="stile__lbl">Net Rating</div></div>
+    <div class="stile"><div class="stile__val" style="color:var(--gold)">96.4</div><div class="stile__lbl">Pace</div></div>
+    <div class="stile"><div class="stile__val" style="color:var(--purple)">58.3%</div><div class="stile__lbl">Team TS%</div></div>
+    <div class="stile"><div class="stile__val" style="color:var(--blue)">2.1</div><div class="stile__lbl">AST/TOV</div></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ══ PDF ══ -->
+<section class="section" id="reports">
+  <div class="sec-label">Reports</div>
+  <h2 class="sec-title">Professional reports,<br>one click away.</h2>
+  <p class="sec-sub">Server-side PDF rendering — print-ready in seconds after saving a game.</p>
+  <div class="pdf-grid">
+    <div class="pdf-card"><div class="pdf-card__ico"><i class="fas fa-file-alt"></i></div><div class="pdf-card__name">Game Summary</div></div>
+    <div class="pdf-card"><div class="pdf-card__ico"><i class="fas fa-clock"></i></div><div class="pdf-card__name">Halftime Summary</div></div>
+    <div class="pdf-card"><div class="pdf-card__ico"><i class="fas fa-chart-line"></i></div><div class="pdf-card__name">Game Evolution</div></div>
+    <div class="pdf-card"><div class="pdf-card__ico"><i class="fas fa-brain"></i></div><div class="pdf-card__name">Advanced Game Report</div></div>
+    <div class="pdf-card"><div class="pdf-card__ico"><i class="fas fa-user"></i></div><div class="pdf-card__name">Player Report</div></div>
+    <div class="pdf-card"><div class="pdf-card__ico"><i class="fas fa-id-card"></i></div><div class="pdf-card__name">Player Cards</div></div>
+    <div class="pdf-card"><div class="pdf-card__ico"><i class="fas fa-users"></i></div><div class="pdf-card__name">Team Report</div></div>
+    <div class="pdf-card"><div class="pdf-card__ico"><i class="fas fa-chart-bar"></i></div><div class="pdf-card__name">Advanced Summary</div></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ══ WORKFLOW ══ -->
+<section class="section" id="workflow">
+  <div class="sec-label">Workflow</div>
+  <h2 class="sec-title">Up and running<br>in minutes.</h2>
+  <p class="sec-sub">No complex setup. Start a live game, track stats, export reports.</p>
+  <div class="steps">
+    <div class="step"><div class="step__n c-acc">01</div><div class="step__title">Start a Game</div><div class="step__body">Create a game, configure your roster and playbook, then open the live tracking interface from any device.</div></div>
+    <div class="step"><div class="step__n c-cool">02</div><div class="step__title">Track &amp; Tag</div><div class="step__body">Log shots, assists, rebounds, turnovers and fouls in real time. Tag each play with a named play from your playbook.</div></div>
+    <div class="step"><div class="step__n c-gold">03</div><div class="step__title">Analyse</div><div class="step__body">Browse game dashboards, player profiles, opponent dossiers, lineup breakdowns, and advanced analytics.</div></div>
+    <div class="step"><div class="step__n c-win">04</div><div class="step__title">Export &amp; Share</div><div class="step__body">Generate polished PDFs — halftime summaries, full game reports, player cards — and share instantly.</div></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ══ CTA ══ -->
+<section class="cta-band">
+  <div class="ring ring--1"></div>
+  <div class="ring ring--2"></div>
+  <div class="ring ring--3"></div>
+  <h2 class="cta-band__title">Ready to see the<br>full picture?</h2>
+  <p class="cta-band__sub">Sign in and start turning raw game data into coaching intelligence.</p>
+  <a href="{{ url_for('auth.login') }}" class="btn-fire" style="font-size:1rem;padding:15px 38px">
+    <i class="fas fa-sign-in-alt"></i> Sign in
+  </a>
+</section>
+
+<footer>
+  <span class="footer-logo">CourtIQ</span>
+  <p>Basketball Analytics &copy; 2026</p>
+</footer>
+
+<!-- JS: mouse-parallax 3D card tilt -->
+<script>
+(function(){
+  'use strict';
+  const TILT = 12; // max degrees
+  const LIFT = 22; // max px translateY on hover
+
+  function tiltCard(card, e){
+    const rect = card.getBoundingClientRect();
+    const cx = rect.left + rect.width  / 2;
+    const cy = rect.top  + rect.height / 2;
+    const dx = (e.clientX - cx) / (rect.width  / 2);
+    const dy = (e.clientY - cy) / (rect.height / 2);
+    const rotX = -dy * TILT;
+    const rotY =  dx * TILT;
+    card.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateY(-${LIFT*0.4}px)`;
+    card.style.boxShadow = `${-rotY*2}px ${rotX*2+14}px 50px rgba(0,0,0,.55), 0 4px 18px rgba(0,0,0,.3)`;
+  }
+
+  function resetCard(card){
+    card.style.transform = 'perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0)';
+    card.style.boxShadow = '';
+  }
+
+  document.querySelectorAll('[data-tilt]').forEach(card => {
+    card.addEventListener('mousemove', e => tiltCard(card, e));
+    card.addEventListener('mouseleave', () => resetCard(card));
+    card.style.transition = 'transform .08s ease-out, box-shadow .08s ease-out, border-color .25s';
+  });
+
+  // mock3d mouse parallax
+  document.querySelectorAll('.mock3d-wrap').forEach(wrap => {
+    const inner = wrap.querySelector('.mock3d');
+    if(!inner) return;
+    wrap.addEventListener('mousemove', e => {
+      const rect = wrap.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top  + rect.height / 2;
+      const dx = (e.clientX - cx) / (rect.width  / 2);
+      const dy = (e.clientY - cy) / (rect.height / 2);
+      inner.style.transform = `perspective(1000px) rotateX(${-dy*6}deg) rotateY(${dx*6}deg) scale(1)`;
+    });
+    wrap.addEventListener('mouseleave', () => {
+      inner.style.transform = '';
+    });
+    inner.style.transition = 'transform .12s ease-out, box-shadow .3s';
+  });
+})();
+</script>
+</body>
+</html>

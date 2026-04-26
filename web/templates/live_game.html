@@ -651,6 +651,38 @@
     padding: 1rem 0.75rem;
 }
 
+#live-game-shell:fullscreen {
+    background: #0f141a;
+    padding: 0;
+    overflow: auto;
+}
+
+#live-game-shell:fullscreen .container-fluid {
+    max-width: none;
+    width: 100vw;
+    min-height: 100vh;
+    margin: 0;
+    padding: 10px 12px 14px;
+}
+
+#live-game-shell:fullscreen #tracker-panel {
+    min-height: calc(100vh - 24px);
+}
+
+#live-game-shell:fullscreen #player-grid {
+    margin-left: -6px;
+    margin-right: -6px;
+}
+
+#live-game-shell:fullscreen #player-grid > [class*="col-"] {
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+#live-game-shell:fullscreen .card {
+    margin-bottom: 0.65rem;
+}
+
 /* Mobile/iPad Optimizations for Live Game */
 @media (max-width: 768px) {
     /* Reduce padding on mobile */
@@ -735,6 +767,7 @@
 {% endblock %}
 
 {% block content %}
+<div id="live-game-shell">
 <div class="container-fluid mt-3">
     <!-- Setup Panel -->
     <div id="setup-panel" class="card shadow-sm mx-auto" style="max-width: 600px;">
@@ -829,7 +862,9 @@
                                     <button class="btn btn-outline-light" onclick="gameTracker.showSubstitutionModal()">SUBS</button>
                                 </div>
                                 <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-warning" onclick="gameTracker.resetClock()">Reset</button>
+                                    <button class="btn btn-outline-light" id="btn-fullscreen-toggle" onclick="gameTracker.toggleFullscreen()">
+                                        <i class="fas fa-expand-alt"></i> <span id="fullscreen-toggle-label">Full</span>
+                                    </button>
                                     <button class="btn btn-outline-info" onclick="gameTracker.nextQuarter()">Next Q</button>
                                 </div>
                             </div>
@@ -1264,6 +1299,7 @@
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <!-- CSRF Token -->
