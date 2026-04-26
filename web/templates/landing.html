@@ -12,10 +12,12 @@
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-            --bg:       #0d1117;
-            --surface:  #13181f;
-            --surface2: #1a2029;
+            --bg:       #080c12;
+            --surface:  #0f151e;
+            --surface2: #161d28;
+            --surface3: #1d2635;
             --border:   rgba(255,255,255,.07);
+            --border2:  rgba(255,255,255,.12);
             --ink:      #e8edf3;
             --ink-muted:#6b7a8d;
             --accent:   #ff6b2b;
@@ -23,9 +25,13 @@
             --cool:     #2ec4b6;
             --win:      #3d9a5c;
             --gold:     #e8b86d;
+            --purple:   #9b6dff;
+            --pink:     #ff8fa3;
+            --blue:     #7eaaff;
             --display:  'Barlow Condensed', sans-serif;
             --body:     'Inter', sans-serif;
-            --radius:   14px;
+            --radius:   16px;
+            --radius-sm: 10px;
         }
 
         html { scroll-behavior: smooth; }
@@ -43,7 +49,7 @@
             content: '';
             position: fixed;
             inset: 0;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
             pointer-events: none;
             z-index: 0;
         }
@@ -60,9 +66,9 @@
             justify-content: space-between;
             padding: 0 2.5rem;
             height: 64px;
-            background: rgba(13,17,23,.75);
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
+            background: rgba(8,12,18,.82);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
             border-bottom: 1px solid var(--border);
         }
         .nav__logo {
@@ -81,8 +87,27 @@
             border-radius: 50%;
             background: var(--accent);
             display: inline-block;
-            box-shadow: 0 0 10px var(--accent);
+            box-shadow: 0 0 12px var(--accent);
+            animation: pulse-dot 2.4s ease-in-out infinite;
         }
+        @keyframes pulse-dot {
+            0%, 100% { box-shadow: 0 0 12px var(--accent); }
+            50%       { box-shadow: 0 0 22px var(--accent), 0 0 40px rgba(255,107,43,.3); }
+        }
+        .nav__links {
+            display: flex;
+            align-items: center;
+            gap: 1.4rem;
+        }
+        .nav__link {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--ink-muted);
+            text-decoration: none;
+            letter-spacing: 0.02em;
+            transition: color .2s;
+        }
+        .nav__link:hover { color: var(--ink); }
         .nav__login {
             font-size: 0.82rem;
             font-weight: 600;
@@ -120,23 +145,23 @@
         .hero__blob {
             position: absolute;
             border-radius: 50%;
-            filter: blur(90px);
+            filter: blur(100px);
             pointer-events: none;
         }
         .hero__blob--1 {
-            width: 680px; height: 680px;
-            background: radial-gradient(circle, rgba(255,107,43,.18) 0%, transparent 70%);
-            top: -180px; left: -180px;
+            width: 750px; height: 750px;
+            background: radial-gradient(circle, rgba(255,107,43,.2) 0%, transparent 70%);
+            top: -200px; left: -200px;
         }
         .hero__blob--2 {
-            width: 500px; height: 500px;
-            background: radial-gradient(circle, rgba(46,196,182,.12) 0%, transparent 70%);
-            bottom: -100px; right: -100px;
+            width: 550px; height: 550px;
+            background: radial-gradient(circle, rgba(46,196,182,.14) 0%, transparent 70%);
+            bottom: -120px; right: -120px;
         }
         .hero__blob--3 {
-            width: 360px; height: 360px;
-            background: radial-gradient(circle, rgba(232,184,109,.08) 0%, transparent 70%);
-            top: 40%; left: 55%;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(155,109,255,.1) 0%, transparent 70%);
+            top: 35%; left: 58%;
         }
 
         /* Grid lines decoration */
@@ -144,11 +169,33 @@
             position: absolute;
             inset: 0;
             background-image:
-                linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+                linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
             background-size: 60px 60px;
             mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 0%, transparent 100%);
             pointer-events: none;
+        }
+
+        /* 3D floating basketball */
+        .hero__ball-3d {
+            position: absolute;
+            right: 8%;
+            top: 22%;
+            width: 120px;
+            height: 120px;
+            pointer-events: none;
+            animation: float-ball 6s ease-in-out infinite;
+            transform-style: preserve-3d;
+        }
+        .hero__ball-3d svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 24px 40px rgba(255,107,43,.35)) drop-shadow(0 4px 12px rgba(0,0,0,.6));
+        }
+        @keyframes float-ball {
+            0%, 100% { transform: translateY(0px) rotate3d(1,1,0, 0deg); }
+            33%  { transform: translateY(-18px) rotate3d(1,1,0, 8deg); }
+            66%  { transform: translateY(-8px) rotate3d(1,1,0, -5deg); }
         }
 
         .hero__eyebrow {
@@ -214,12 +261,13 @@
             border-radius: 12px;
             text-decoration: none;
             letter-spacing: 0.02em;
-            box-shadow: 0 4px 28px rgba(255,107,43,.35), 0 0 0 1px rgba(255,107,43,.2);
+            box-shadow: 0 4px 28px rgba(255,107,43,.35), 0 0 0 1px rgba(255,107,43,.2), inset 0 1px 0 rgba(255,255,255,.15);
             transition: transform .2s, box-shadow .2s;
+            position: relative;
         }
         .btn-primary-lg:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 36px rgba(255,107,43,.45), 0 0 0 1px rgba(255,107,43,.3);
+            box-shadow: 0 8px 36px rgba(255,107,43,.5), 0 0 0 1px rgba(255,107,43,.3), inset 0 1px 0 rgba(255,255,255,.2);
         }
         .btn-ghost-lg {
             display: inline-flex;
@@ -234,11 +282,12 @@
             text-decoration: none;
             border: 1px solid var(--border);
             letter-spacing: 0.02em;
-            transition: color .2s, border-color .2s;
+            transition: color .2s, border-color .2s, background .2s;
         }
         .btn-ghost-lg:hover {
             color: var(--ink);
             border-color: rgba(255,255,255,.2);
+            background: rgba(255,255,255,.04);
         }
 
         /* Stat pills row */
@@ -256,6 +305,11 @@
             border: 1px solid var(--border);
             border-radius: 10px;
             text-align: center;
+            transition: transform .2s, box-shadow .2s;
+        }
+        .hero__stat:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(0,0,0,.4);
         }
         .hero__stat-val {
             font-family: var(--display);
@@ -264,7 +318,7 @@
             letter-spacing: 0.04em;
             color: var(--ink);
         }
-        .hero__stat-val--acc { color: var(--accent); }
+        .hero__stat-val--acc  { color: var(--accent); }
         .hero__stat-val--cool { color: var(--cool); }
         .hero__stat-val--gold { color: var(--gold); }
         .hero__stat-lbl {
@@ -277,12 +331,12 @@
         }
 
         /* ════════════════════════
-           FEATURES SECTION
+           SHARED SECTION
         ════════════════════════ */
         .section {
             position: relative;
             padding: 100px 1.5rem;
-            max-width: 1160px;
+            max-width: 1200px;
             margin: 0 auto;
         }
         .section__label {
@@ -305,58 +359,211 @@
         .section__sub {
             font-size: 1rem;
             color: var(--ink-muted);
-            max-width: 480px;
+            max-width: 520px;
             line-height: 1.65;
             margin-bottom: 3rem;
         }
 
+        /* ════════════════════════
+           3D FEATURE CARDS
+        ════════════════════════ */
         .features-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1px;
-            background: var(--border);
-            border-radius: var(--radius);
-            overflow: hidden;
-            border: 1px solid var(--border);
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            perspective: 1200px;
         }
+
         .feat-card {
             background: var(--surface);
-            padding: 2rem 1.75rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem 1.8rem;
             position: relative;
-            transition: background .2s;
+            overflow: hidden;
+            transition: transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s ease, border-color .25s;
+            transform-style: preserve-3d;
+            cursor: default;
+        }
+        .feat-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: var(--radius);
+            background: linear-gradient(135deg, rgba(255,255,255,.05) 0%, transparent 60%);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity .3s;
         }
         .feat-card:hover {
-            background: var(--surface2);
+            transform: translateY(-6px) rotateX(3deg) rotateY(-2deg);
+            box-shadow: 0 20px 60px rgba(0,0,0,.55), 0 4px 20px rgba(0,0,0,.3);
+            border-color: var(--border2);
         }
+        .feat-card:hover::before { opacity: 1; }
+
+        /* Accent top-edge line */
+        .feat-card::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            border-radius: var(--radius) var(--radius) 0 0;
+            opacity: 0;
+            transition: opacity .3s;
+        }
+        .feat-card--acc::after  { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+        .feat-card--cool::after { background: linear-gradient(90deg, var(--cool), #52e0d4); }
+        .feat-card--gold::after { background: linear-gradient(90deg, var(--gold), #f0cf8c); }
+        .feat-card--win::after  { background: linear-gradient(90deg, var(--win), #52c97a); }
+        .feat-card--purple::after { background: linear-gradient(90deg, var(--purple), #c4a7ff); }
+        .feat-card--pink::after { background: linear-gradient(90deg, var(--pink), #ffbac8); }
+        .feat-card--blue::after { background: linear-gradient(90deg, var(--blue), #aac8ff); }
+        .feat-card--teal::after { background: linear-gradient(90deg, #20d5c4, #62ffe8); }
+        .feat-card:hover::after { opacity: 1; }
+
         .feat-card__icon {
-            width: 42px; height: 42px;
-            border-radius: 10px;
+            width: 46px; height: 46px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.1rem;
-            margin-bottom: 1.1rem;
+            font-size: 1.15rem;
+            margin-bottom: 1.2rem;
+            position: relative;
+            transform: translateZ(8px);
         }
-        .feat-card__icon--acc  { background: rgba(255,107,43,.15); color: var(--accent); }
-        .feat-card__icon--cool { background: rgba(46,196,182,.15);  color: var(--cool);   }
-        .feat-card__icon--gold { background: rgba(232,184,109,.15); color: var(--gold);   }
-        .feat-card__icon--win  { background: rgba(61,154,92,.15);   color: var(--win);    }
-        .feat-card__icon--pink { background: rgba(201,76,92,.15);   color: #ff8fa3;       }
-        .feat-card__icon--blue { background: rgba(99,142,210,.15);  color: #7eaaff;       }
+        .feat-card__icon--acc    { background: rgba(255,107,43,.15);  color: var(--accent);  box-shadow: 0 4px 16px rgba(255,107,43,.2);  }
+        .feat-card__icon--cool   { background: rgba(46,196,182,.15);  color: var(--cool);    box-shadow: 0 4px 16px rgba(46,196,182,.2);   }
+        .feat-card__icon--gold   { background: rgba(232,184,109,.15); color: var(--gold);    box-shadow: 0 4px 16px rgba(232,184,109,.2);  }
+        .feat-card__icon--win    { background: rgba(61,154,92,.15);   color: var(--win);     box-shadow: 0 4px 16px rgba(61,154,92,.2);    }
+        .feat-card__icon--purple { background: rgba(155,109,255,.15); color: var(--purple);  box-shadow: 0 4px 16px rgba(155,109,255,.2);  }
+        .feat-card__icon--pink   { background: rgba(255,143,163,.15); color: var(--pink);    box-shadow: 0 4px 16px rgba(255,143,163,.2);  }
+        .feat-card__icon--blue   { background: rgba(126,170,255,.15); color: var(--blue);    box-shadow: 0 4px 16px rgba(126,170,255,.2);  }
+        .feat-card__icon--teal   { background: rgba(32,213,196,.15);  color: #20d5c4;        box-shadow: 0 4px 16px rgba(32,213,196,.2);   }
 
         .feat-card__title {
             font-family: var(--display);
-            font-size: 1.15rem;
+            font-size: 1.18rem;
             font-weight: 700;
             letter-spacing: 0.04em;
             color: var(--ink);
-            margin-bottom: 0.45rem;
+            margin-bottom: 0.5rem;
         }
         .feat-card__body {
-            font-size: 0.88rem;
+            font-size: 0.875rem;
             color: var(--ink-muted);
-            line-height: 1.6;
+            line-height: 1.65;
         }
+        .feat-card__tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 1rem;
+        }
+        .feat-tag {
+            font-size: 0.68rem;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,.08);
+            background: rgba(255,255,255,.04);
+            color: var(--ink-muted);
+            letter-spacing: 0.04em;
+        }
+
+        /* ════════════════════════
+           FEATURE HERO CARD (wide)
+        ════════════════════════ */
+        .feat-card--wide {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2.5rem;
+            align-items: center;
+            padding: 2.5rem 2.5rem;
+        }
+        @media (max-width: 760px) {
+            .feat-card--wide { grid-template-columns: 1fr; }
+        }
+        .feat-card--wide .feat-card__icon { width: 54px; height: 54px; font-size: 1.35rem; }
+
+        /* Live badge */
+        .live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--accent);
+            background: rgba(255,107,43,.12);
+            border: 1px solid rgba(255,107,43,.3);
+            padding: 3px 10px;
+            border-radius: 999px;
+            margin-bottom: 0.8rem;
+        }
+        .live-badge__dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: blink 1.2s ease-in-out infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.2; }
+        }
+
+        /* Play-by-play mini mock */
+        .pbp-mock {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+        }
+        .pbp-mock__header {
+            padding: 0.65rem 1rem;
+            background: rgba(255,255,255,.03);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--ink-muted);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .pbp-mock__row {
+            display: grid;
+            grid-template-columns: 38px 1fr auto;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,.03);
+            font-size: 0.8rem;
+        }
+        .pbp-mock__row:last-child { border-bottom: none; }
+        .pbp-mock__qtr {
+            font-family: var(--display);
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--ink-muted);
+            text-align: center;
+        }
+        .pbp-mock__desc { color: var(--ink-muted); }
+        .pbp-mock__desc strong { color: var(--ink); font-weight: 600; }
+        .pbp-mock__play {
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+        .pbp-mock__play--off { background: rgba(255,107,43,.15); color: var(--accent); border: 1px solid rgba(255,107,43,.25); }
+        .pbp-mock__play--def { background: rgba(46,196,182,.15); color: var(--cool);   border: 1px solid rgba(46,196,182,.25); }
+        .pbp-mock__play--sp  { background: rgba(155,109,255,.15); color: var(--purple); border: 1px solid rgba(155,109,255,.25); }
 
         /* ════════════════════════
            METRICS SHOWCASE
@@ -367,6 +574,15 @@
             border-radius: var(--radius);
             padding: 2rem 2.25rem;
             margin-top: 4rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .metrics-showcase::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,107,43,.04) 0%, transparent 50%);
+            pointer-events: none;
         }
         .metrics-showcase__title {
             font-size: 0.62rem;
@@ -392,64 +608,36 @@
             letter-spacing: 0.02em;
             transition: all .18s;
         }
-        .mpill:hover { color: var(--ink); border-color: rgba(255,255,255,.18); }
-        .mpill--acc  { background: rgba(255,107,43,.1);  border-color: rgba(255,107,43,.25);  color: var(--accent);  }
-        .mpill--cool { background: rgba(46,196,182,.1);  border-color: rgba(46,196,182,.25);  color: var(--cool);    }
-        .mpill--gold { background: rgba(232,184,109,.1); border-color: rgba(232,184,109,.25); color: var(--gold);    }
-        .mpill--win  { background: rgba(61,154,92,.1);   border-color: rgba(61,154,92,.25);   color: var(--win);     }
+        .mpill:hover { color: var(--ink); border-color: rgba(255,255,255,.18); transform: translateY(-1px); }
+        .mpill--acc    { background: rgba(255,107,43,.1);   border-color: rgba(255,107,43,.25);   color: var(--accent);  }
+        .mpill--cool   { background: rgba(46,196,182,.1);   border-color: rgba(46,196,182,.25);   color: var(--cool);    }
+        .mpill--gold   { background: rgba(232,184,109,.1);  border-color: rgba(232,184,109,.25);  color: var(--gold);    }
+        .mpill--win    { background: rgba(61,154,92,.1);    border-color: rgba(61,154,92,.25);    color: var(--win);     }
+        .mpill--purple { background: rgba(155,109,255,.1);  border-color: rgba(155,109,255,.25);  color: var(--purple);  }
 
         /* ════════════════════════
-           WORKFLOW STEPS
+           3D SCOREBOARD MOCK
         ════════════════════════ */
-        .steps {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 2rem;
-            margin-top: 1rem;
+        .mock-wrapper {
+            perspective: 900px;
         }
-        .step {
-            display: flex;
-            flex-direction: column;
-            gap: 0.85rem;
-        }
-        .step__num {
-            font-family: var(--display);
-            font-size: 3.5rem;
-            font-weight: 900;
-            letter-spacing: 0.02em;
-            color: var(--surface2);
-            line-height: 1;
-            -webkit-text-stroke: 1px rgba(255,255,255,.08);
-        }
-        .step__title {
-            font-family: var(--display);
-            font-size: 1.1rem;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            color: var(--ink);
-        }
-        .step__body {
-            font-size: 0.87rem;
-            color: var(--ink-muted);
-            line-height: 1.6;
-        }
-        .step__connector {
-            display: none;
-        }
-
-        /* ════════════════════════
-           SCOREBOARD MOCK
-        ════════════════════════ */
         .mock-card {
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: var(--radius);
             overflow: hidden;
-            box-shadow: 0 24px 64px rgba(0,0,0,.45);
+            box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.4);
+            transform: rotateX(4deg) rotateY(-3deg);
+            transform-style: preserve-3d;
+            transition: transform .4s cubic-bezier(.22,1,.36,1), box-shadow .4s;
+        }
+        .mock-card:hover {
+            transform: rotateX(1deg) rotateY(-1deg) translateY(-4px);
+            box-shadow: 0 40px 100px rgba(0,0,0,.65), 0 4px 16px rgba(0,0,0,.4);
         }
         .mock-header {
             padding: 0.9rem 1.4rem;
-            background: rgba(255,255,255,.025);
+            background: rgba(255,255,255,.028);
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
@@ -478,7 +666,9 @@
             border-bottom: 1px solid rgba(255,255,255,.04);
             align-items: center;
             font-size: 0.84rem;
+            transition: background .15s;
         }
+        .mock-row:hover { background: rgba(255,255,255,.025); }
         .mock-row:last-child { border-bottom: none; }
         .mock-row--head {
             font-size: 0.6rem;
@@ -491,9 +681,155 @@
         }
         .mock-row__name { font-weight: 700; color: var(--ink); }
         .mock-row__val  { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-muted); }
-        .mock-row__val--pts { color: var(--accent); font-weight: 800; }
-        .mock-row__val--reb { color: var(--cool); font-weight: 700; }
-        .mock-row__val--ast { color: var(--gold); font-weight: 700; }
+        .mock-row__val--pts  { color: var(--accent); font-weight: 800; }
+        .mock-row__val--reb  { color: var(--cool); font-weight: 700; }
+        .mock-row__val--ast  { color: var(--gold); font-weight: 700; }
+
+        /* ════════════════════════
+           PDF SECTION
+        ════════════════════════ */
+        .pdf-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 14px;
+            margin-top: 2rem;
+        }
+        .pdf-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 1.2rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            transition: transform .25s, box-shadow .25s, border-color .2s;
+        }
+        .pdf-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(0,0,0,.4);
+            border-color: rgba(255,143,163,.2);
+        }
+        .pdf-item__icon {
+            width: 36px; height: 36px;
+            border-radius: 8px;
+            background: rgba(255,143,163,.12);
+            color: var(--pink);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+        .pdf-item__name {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--ink);
+            line-height: 1.35;
+        }
+
+        /* ════════════════════════
+           WORKFLOW STEPS
+        ════════════════════════ */
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 2rem;
+            margin-top: 1rem;
+            position: relative;
+        }
+        .steps::before {
+            content: '';
+            position: absolute;
+            top: 2.2rem;
+            left: calc(12.5% + 1rem);
+            right: calc(12.5% + 1rem);
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), var(--border), transparent);
+            pointer-events: none;
+        }
+        .step {
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+            position: relative;
+        }
+        .step__num {
+            font-family: var(--display);
+            font-size: 3.5rem;
+            font-weight: 900;
+            letter-spacing: 0.02em;
+            color: transparent;
+            line-height: 1;
+            -webkit-text-stroke: 1.5px rgba(255,255,255,.1);
+        }
+        .step__num--acc  { -webkit-text-stroke-color: rgba(255,107,43,.3); }
+        .step__num--cool { -webkit-text-stroke-color: rgba(46,196,182,.3); }
+        .step__num--gold { -webkit-text-stroke-color: rgba(232,184,109,.3); }
+        .step__num--win  { -webkit-text-stroke-color: rgba(61,154,92,.3); }
+        .step__title {
+            font-family: var(--display);
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: var(--ink);
+        }
+        .step__body {
+            font-size: 0.87rem;
+            color: var(--ink-muted);
+            line-height: 1.6;
+        }
+
+        /* ════════════════════════
+           3D GLASSMORPHISM STAT CARDS
+        ════════════════════════ */
+        .stat3d-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-top: 3rem;
+        }
+        .stat3d {
+            background: rgba(255,255,255,.04);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,.09);
+            border-radius: var(--radius);
+            padding: 1.4rem 1.25rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s;
+            transform-style: preserve-3d;
+        }
+        .stat3d::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 40% 40%, rgba(255,255,255,.06) 0%, transparent 55%);
+            pointer-events: none;
+        }
+        .stat3d:hover {
+            transform: translateY(-6px) scale(1.02);
+            box-shadow: 0 16px 40px rgba(0,0,0,.45);
+        }
+        .stat3d__val {
+            font-family: var(--display);
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            line-height: 1;
+        }
+        .stat3d__lbl {
+            font-size: 0.63rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--ink-muted);
+            font-weight: 600;
+            margin-top: 0.4rem;
+        }
 
         /* ════════════════════════
            CTA SECTION
@@ -510,6 +846,21 @@
             inset: 0;
             background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(255,107,43,.1), transparent 70%);
             pointer-events: none;
+        }
+        /* 3D ring decoration */
+        .cta-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 1px solid rgba(255,107,43,.12);
+            pointer-events: none;
+            animation: ring-expand 8s ease-in-out infinite;
+        }
+        .cta-ring--1 { width: 400px; height: 400px; top: 50%; left: 50%; transform: translate(-50%,-50%); animation-delay: 0s; }
+        .cta-ring--2 { width: 650px; height: 650px; top: 50%; left: 50%; transform: translate(-50%,-50%); animation-delay: 1.5s; border-color: rgba(255,107,43,.07); }
+        .cta-ring--3 { width: 900px; height: 900px; top: 50%; left: 50%; transform: translate(-50%,-50%); animation-delay: 3s; border-color: rgba(255,107,43,.04); }
+        @keyframes ring-expand {
+            0%, 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+            50%       { opacity: .5; transform: translate(-50%,-50%) scale(1.04); }
         }
         .cta-section__title {
             font-family: var(--display);
@@ -559,7 +910,7 @@
         .divider {
             height: 1px;
             background: linear-gradient(90deg, transparent, var(--border), transparent);
-            max-width: 1160px;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
@@ -568,9 +919,12 @@
         ════════════════════════ */
         @media (max-width: 640px) {
             .nav { padding: 0 1.25rem; }
+            .nav__links { display: none; }
             .section { padding: 60px 1.25rem; }
             .mock-row { grid-template-columns: 1fr 60px 50px; }
             .mock-row > *:nth-child(n+4) { display: none; }
+            .hero__ball-3d { display: none; }
+            .steps::before { display: none; }
         }
     </style>
 </head>
@@ -582,6 +936,11 @@
         <span class="nav__logo-dot"></span>
         CourtIQ
     </a>
+    <div class="nav__links">
+        <a class="nav__link" href="#features">Features</a>
+        <a class="nav__link" href="#preview">Preview</a>
+        <a class="nav__link" href="#workflow">Workflow</a>
+    </div>
     <a class="nav__login" href="{{ url_for('auth.login') }}">
         <i class="fas fa-sign-in-alt" style="margin-right:6px; font-size:0.78rem;"></i>Sign in
     </a>
@@ -594,6 +953,34 @@
     <div class="hero__blob hero__blob--3"></div>
     <div class="hero__grid"></div>
 
+    <!-- 3D Floating Basketball -->
+    <div class="hero__ball-3d" aria-hidden="true">
+        <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <radialGradient id="ballGrad" cx="38%" cy="32%" r="68%">
+                    <stop offset="0%" stop-color="#ff9a5c"/>
+                    <stop offset="55%" stop-color="#e8601a"/>
+                    <stop offset="100%" stop-color="#8a2a00"/>
+                </radialGradient>
+                <radialGradient id="ballSheen" cx="30%" cy="25%" r="40%">
+                    <stop offset="0%" stop-color="rgba(255,255,255,0.28)"/>
+                    <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+                </radialGradient>
+            </defs>
+            <circle cx="60" cy="60" r="56" fill="url(#ballGrad)"/>
+            <circle cx="60" cy="60" r="56" fill="url(#ballSheen)"/>
+            <!-- Seam lines -->
+            <path d="M60 4 C80 20, 100 40, 116 60" stroke="rgba(0,0,0,0.35)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M60 4 C40 20, 20 40, 4 60" stroke="rgba(0,0,0,0.35)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M116 60 C100 80, 80 100, 60 116" stroke="rgba(0,0,0,0.35)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M4 60 C20 80, 40 100, 60 116" stroke="rgba(0,0,0,0.35)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M4 60 Q60 48, 116 60" stroke="rgba(0,0,0,0.35)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M4 60 Q60 72, 116 60" stroke="rgba(0,0,0,0.35)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <!-- Highlight -->
+            <ellipse cx="44" cy="36" rx="14" ry="9" fill="rgba(255,255,255,0.18)" transform="rotate(-20,44,36)"/>
+        </svg>
+    </div>
+
     <div class="hero__eyebrow">
         <i class="fas fa-basketball-ball"></i>
         Basketball Analytics Platform
@@ -605,8 +992,8 @@
     </h1>
 
     <p class="hero__sub">
-        Advanced box scores, shooting splits, player efficiency, opponent scouting —
-        all in one coaching tool built for serious teams.
+        Live game tracking with play tagging, advanced box scores, lineup analytics,
+        opponent scouting, and PDF reports — all in one coaching tool built for serious teams.
     </p>
 
     <div class="hero__cta">
@@ -636,11 +1023,11 @@
             <div class="hero__stat-lbl">Off. Rating</div>
         </div>
         <div class="hero__stat">
-            <div class="hero__stat-val" style="color:#ff8fa3">DRtg</div>
+            <div class="hero__stat-val" style="color:var(--pink)">DRtg</div>
             <div class="hero__stat-lbl">Def. Rating</div>
         </div>
         <div class="hero__stat">
-            <div class="hero__stat-val" style="color:#7eaaff">USG%</div>
+            <div class="hero__stat-val" style="color:var(--blue)">USG%</div>
             <div class="hero__stat-lbl">Usage Rate</div>
         </div>
     </div>
@@ -653,74 +1040,197 @@
     <div class="section__label">Features</div>
     <h2 class="section__title">Built for coaches,<br>backed by numbers.</h2>
     <p class="section__sub">
-        From raw CSV upload to full game intelligence — get the insights that actually move the needle.
+        Every tool you need — from courtside tracking to post-game intelligence — in one platform.
     </p>
 
     <div class="features-grid">
-        <div class="feat-card">
-            <div class="feat-card__icon feat-card__icon--acc">
+
+        <!-- Wide card: Live Game Mode -->
+        <div class="feat-card feat-card--acc feat-card--wide">
+            <div>
+                <div class="live-badge">
+                    <div class="live-badge__dot"></div>Live
+                </div>
+                <div class="feat-card__icon feat-card__icon--acc">
+                    <i class="fas fa-bolt"></i>
+                </div>
+                <div class="feat-card__title">Live Game Tracking</div>
+                <div class="feat-card__body">
+                    Track every event in real time — 2PT, 3PT, assists, rebounds, turnovers, and fouls.
+                    After each shot or turnover, the <strong style="color:var(--ink)">Play Selector</strong> modal
+                    lets you tag the action with a play from your playbook (Pick &amp; Roll, Isolation, Zone, etc.).
+                    Toggle the play selector on/off mid-game; state is persisted across reloads.
+                    Advanced metrics update live as the action unfolds.
+                </div>
+                <div class="feat-card__tags">
+                    <span class="feat-tag">Play Tagging</span>
+                    <span class="feat-tag">Shot Location Map</span>
+                    <span class="feat-tag">Assist Tracking</span>
+                    <span class="feat-tag">Foul Tracking</span>
+                    <span class="feat-tag">Game Rescue / Auto-save</span>
+                    <span class="feat-tag">Quarter Management</span>
+                </div>
+            </div>
+            <!-- Play-by-play mock -->
+            <div class="pbp-mock">
+                <div class="pbp-mock__header">
+                    <div class="live-badge__dot"></div>
+                    Live Event Feed
+                </div>
+                <div class="pbp-mock__row">
+                    <div class="pbp-mock__qtr">Q2<br>4:32</div>
+                    <div class="pbp-mock__desc"><strong>Ardizzoia</strong> +3 · Fernandez AST</div>
+                    <div class="pbp-mock__play pbp-mock__play--off">Pick &amp; Roll</div>
+                </div>
+                <div class="pbp-mock__row">
+                    <div class="pbp-mock__qtr">Q2<br>3:58</div>
+                    <div class="pbp-mock__desc"><strong>Silva</strong> TOV</div>
+                    <div class="pbp-mock__play pbp-mock__play--def">Trap</div>
+                </div>
+                <div class="pbp-mock__row">
+                    <div class="pbp-mock__qtr">Q2<br>3:14</div>
+                    <div class="pbp-mock__desc"><strong>Portaro</strong> +2 · Cremona AST</div>
+                    <div class="pbp-mock__play pbp-mock__play--off">Drive &amp; Kick</div>
+                </div>
+                <div class="pbp-mock__row">
+                    <div class="pbp-mock__qtr">Q2<br>2:47</div>
+                    <div class="pbp-mock__desc"><strong>Cremona</strong> +3</div>
+                    <div class="pbp-mock__play pbp-mock__play--sp">Out of TO</div>
+                </div>
+                <div class="pbp-mock__row">
+                    <div class="pbp-mock__qtr">Q2<br>1:30</div>
+                    <div class="pbp-mock__desc"><strong>Ardizzoia</strong> OREB → +2</div>
+                    <div class="pbp-mock__play pbp-mock__play--off">Post-Up</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Box Score -->
+        <div class="feat-card feat-card--cool">
+            <div class="feat-card__icon feat-card__icon--cool">
                 <i class="fas fa-chart-bar"></i>
             </div>
             <div class="feat-card__title">Advanced Box Score</div>
-            <div class="feat-card__body">Complete shooting splits, per-100 possession stats, and efficiency ratings for every player in every game.</div>
+            <div class="feat-card__body">Full shooting splits (2PT/3PT/FT), per-100 possession stats, Game Score, TS%, eFG%, offensive/defensive rating, and net rating for every player, every game.</div>
+            <div class="feat-card__tags">
+                <span class="feat-tag">TS% · eFG%</span>
+                <span class="feat-tag">Per-100 Poss.</span>
+                <span class="feat-tag">Game Score</span>
+            </div>
         </div>
-        <div class="feat-card">
-            <div class="feat-card__icon feat-card__icon--cool">
-                <i class="fas fa-users"></i>
+
+        <!-- Player Profiles -->
+        <div class="feat-card feat-card--gold">
+            <div class="feat-card__icon feat-card__icon--gold">
+                <i class="fas fa-user-circle"></i>
             </div>
             <div class="feat-card__title">Player Profiles</div>
-            <div class="feat-card__body">Season averages, trend charts, game-by-game breakdowns and a full Hollinger Game Score history per player.</div>
+            <div class="feat-card__body">Season averages, game-by-game trend charts, shooting splits by range, AST/TOV ratio, and a complete Hollinger Game Score history per player.</div>
+            <div class="feat-card__tags">
+                <span class="feat-tag">Season Averages</span>
+                <span class="feat-tag">Trend Charts</span>
+                <span class="feat-tag">Usage %</span>
+            </div>
         </div>
-        <div class="feat-card">
-            <div class="feat-card__icon feat-card__icon--gold">
+
+        <!-- Opponent Scouting -->
+        <div class="feat-card feat-card--purple">
+            <div class="feat-card__icon feat-card__icon--purple">
                 <i class="fas fa-shield-alt"></i>
             </div>
             <div class="feat-card__title">Opponent Scouting</div>
-            <div class="feat-card__body">Per-opponent dossiers with head-to-head comparisons, differential analysis and top performer deltas.</div>
+            <div class="feat-card__body">Per-opponent dossiers with head-to-head comparisons, differential analysis across every statistical category, and top performer delta rankings.</div>
+            <div class="feat-card__tags">
+                <span class="feat-tag">H2H Comparisons</span>
+                <span class="feat-tag">Differential Analysis</span>
+                <span class="feat-tag">Top Performers</span>
+            </div>
         </div>
-        <div class="feat-card">
+
+        <!-- Lineup Analytics -->
+        <div class="feat-card feat-card--win">
             <div class="feat-card__icon feat-card__icon--win">
                 <i class="fas fa-layer-group"></i>
             </div>
             <div class="feat-card__title">Lineup Analytics</div>
-            <div class="feat-card__body">Net rating, pace and plus/minus for every 5-man unit — identify your best combinations with ease.</div>
+            <div class="feat-card__body">Net rating, pace, plus/minus, and point differential for every 5-man unit that has shared the court. Identify your most effective lineup combinations instantly.</div>
+            <div class="feat-card__tags">
+                <span class="feat-tag">5-Man Units</span>
+                <span class="feat-tag">Net Rating</span>
+                <span class="feat-tag">Lineup +/−</span>
+            </div>
         </div>
-        <div class="feat-card">
+
+        <!-- Advanced Analytics -->
+        <div class="feat-card feat-card--teal">
+            <div class="feat-card__icon feat-card__icon--teal">
+                <i class="fas fa-brain"></i>
+            </div>
+            <div class="feat-card__title">Advanced Analytics</div>
+            <div class="feat-card__body">Deeper season-level insights: pace of play, team efficiency trends, quarter-by-quarter scoring patterns, and cross-game statistical evolution dashboards.</div>
+            <div class="feat-card__tags">
+                <span class="feat-tag">Pace</span>
+                <span class="feat-tag">Scoring Trends</span>
+                <span class="feat-tag">Quarter Splits</span>
+            </div>
+        </div>
+
+        <!-- Plays Management -->
+        <div class="feat-card feat-card--blue">
+            <div class="feat-card__icon feat-card__icon--blue">
+                <i class="fas fa-flag"></i>
+            </div>
+            <div class="feat-card__title">Plays Management</div>
+            <div class="feat-card__body">Build and manage your full playbook — Offense, Defense, and Special plays. Tag shots and turnovers with plays during live games, then analyse frequency and efficiency per play.</div>
+            <div class="feat-card__tags">
+                <span class="feat-tag">20 Sample Plays</span>
+                <span class="feat-tag">Type Filtering</span>
+                <span class="feat-tag">Playbook CRUD</span>
+            </div>
+        </div>
+
+        <!-- PDF Reports -->
+        <div class="feat-card feat-card--pink">
             <div class="feat-card__icon feat-card__icon--pink">
                 <i class="fas fa-file-pdf"></i>
             </div>
             <div class="feat-card__title">PDF Reports</div>
-            <div class="feat-card__body">One-click export of game summaries, player cards, halftime reports and advanced analytics PDFs.</div>
-        </div>
-        <div class="feat-card">
-            <div class="feat-card__icon feat-card__icon--blue">
-                <i class="fas fa-bolt"></i>
+            <div class="feat-card__body">One-click export of polished coaching documents. Reports are rendered server-side and ready to print or share immediately after saving a game.</div>
+            <div class="feat-card__tags">
+                <span class="feat-tag">Halftime Summary</span>
+                <span class="feat-tag">Game Summary</span>
+                <span class="feat-tag">Player Report</span>
+                <span class="feat-tag">Team Report</span>
+                <span class="feat-tag">Advanced Report</span>
+                <span class="feat-tag">Player Cards</span>
             </div>
-            <div class="feat-card__title">Live Game Mode</div>
-            <div class="feat-card__body">Real-time stat tracking during games with instant advanced metric updates as the action unfolds.</div>
         </div>
+
     </div>
 
     <!-- Metric pills -->
     <div class="metrics-showcase">
-        <div class="metrics-showcase__title">Metrics computed</div>
+        <div class="metrics-showcase__title">Metrics computed automatically</div>
         <div class="metrics-pills">
             <span class="mpill mpill--acc">Game Score</span>
-            <span class="mpill mpill--cool">True Shooting %</span>
-            <span class="mpill mpill--cool">eFG%</span>
+            <span class="mpill mpill--acc">True Shooting %</span>
+            <span class="mpill mpill--acc">eFG%</span>
             <span class="mpill mpill--gold">Offensive Rating</span>
             <span class="mpill mpill--gold">Defensive Rating</span>
             <span class="mpill mpill--win">Net Rating</span>
             <span class="mpill mpill--win">Pace</span>
-            <span class="mpill">Usage %</span>
-            <span class="mpill">AST/TOV</span>
-            <span class="mpill">OREB %</span>
-            <span class="mpill">FTA Rate</span>
-            <span class="mpill">Points per Possession</span>
+            <span class="mpill mpill--cool">Usage %</span>
+            <span class="mpill mpill--cool">AST/TOV Ratio</span>
+            <span class="mpill mpill--cool">OREB %</span>
+            <span class="mpill mpill--cool">DREB %</span>
+            <span class="mpill mpill--purple">FTA Rate</span>
+            <span class="mpill mpill--purple">Points per Possession</span>
             <span class="mpill">Per-100 Possessions</span>
             <span class="mpill">2PT / 3PT Splits</span>
             <span class="mpill">Plus / Minus</span>
             <span class="mpill">Lineup Net Rating</span>
+            <span class="mpill">Quarter Scoring</span>
+            <span class="mpill">Play Frequency</span>
         </div>
     </div>
 </section>
@@ -728,65 +1238,141 @@
 <div class="divider"></div>
 
 <!-- ══ SCOREBOARD PREVIEW ════════════════════════════════ -->
-<section class="section">
+<section class="section" id="preview">
     <div class="section__label">Preview</div>
     <h2 class="section__title">Your squad,<br>in full detail.</h2>
     <p class="section__sub">
-        Every player. Every game. Crystal-clear data at a glance.
+        Every player. Every game. Crystal-clear data displayed in clean, sortable tables.
     </p>
 
-    <div class="mock-card">
-        <div class="mock-header">
-            <span class="mock-header__title">Game Performers · 15/02/2026</span>
-            <span class="mock-header__badge">W · +15</span>
+    <div class="mock-wrapper">
+        <div class="mock-card">
+            <div class="mock-header">
+                <span class="mock-header__title">Game Performers · 15/02/2026</span>
+                <span class="mock-header__badge">W · +15</span>
+            </div>
+            <div class="mock-row mock-row--head">
+                <span>Player</span>
+                <span style="text-align:right">GmSc</span>
+                <span style="text-align:right">PTS</span>
+                <span style="text-align:right">REB</span>
+                <span style="text-align:right">AST</span>
+                <span style="text-align:right">TS%</span>
+            </div>
+            <div class="mock-row">
+                <span class="mock-row__name">Ardizzoia</span>
+                <span class="mock-row__val mock-row__val--pts">21.4</span>
+                <span class="mock-row__val mock-row__val--pts">24</span>
+                <span class="mock-row__val mock-row__val--reb">8</span>
+                <span class="mock-row__val mock-row__val--ast">3</span>
+                <span class="mock-row__val" style="color:var(--cool)">68.2%</span>
+            </div>
+            <div class="mock-row">
+                <span class="mock-row__name">Fernandez</span>
+                <span class="mock-row__val mock-row__val--pts">17.8</span>
+                <span class="mock-row__val mock-row__val--pts">18</span>
+                <span class="mock-row__val mock-row__val--reb">5</span>
+                <span class="mock-row__val mock-row__val--ast">6</span>
+                <span class="mock-row__val" style="color:var(--cool)">61.4%</span>
+            </div>
+            <div class="mock-row">
+                <span class="mock-row__name">Silva</span>
+                <span class="mock-row__val mock-row__val--pts">14.2</span>
+                <span class="mock-row__val mock-row__val--pts">15</span>
+                <span class="mock-row__val mock-row__val--reb">7</span>
+                <span class="mock-row__val mock-row__val--ast">2</span>
+                <span class="mock-row__val" style="color:var(--cool)">57.9%</span>
+            </div>
+            <div class="mock-row">
+                <span class="mock-row__name">Portaro</span>
+                <span class="mock-row__val mock-row__val--pts">11.6</span>
+                <span class="mock-row__val mock-row__val--pts">12</span>
+                <span class="mock-row__val mock-row__val--reb">4</span>
+                <span class="mock-row__val mock-row__val--ast">5</span>
+                <span class="mock-row__val" style="color:var(--cool)">54.1%</span>
+            </div>
+            <div class="mock-row">
+                <span class="mock-row__name">Cremona</span>
+                <span class="mock-row__val mock-row__val--pts">9.3</span>
+                <span class="mock-row__val mock-row__val--pts">10</span>
+                <span class="mock-row__val mock-row__val--reb">10</span>
+                <span class="mock-row__val mock-row__val--ast">1</span>
+                <span class="mock-row__val" style="color:var(--cool)">51.7%</span>
+            </div>
         </div>
-        <div class="mock-row mock-row--head">
-            <span>Player</span>
-            <span style="text-align:right">GmSc</span>
-            <span style="text-align:right">PTS</span>
-            <span style="text-align:right">REB</span>
-            <span style="text-align:right">AST</span>
-            <span style="text-align:right">TS%</span>
+    </div>
+
+    <!-- 3D glass stat cards -->
+    <div class="stat3d-row">
+        <div class="stat3d">
+            <div class="stat3d__val" style="color:var(--accent)">104.2</div>
+            <div class="stat3d__lbl">Team ORtg</div>
         </div>
-        <div class="mock-row">
-            <span class="mock-row__name">Ardizzoia</span>
-            <span class="mock-row__val mock-row__val--pts">21.4</span>
-            <span class="mock-row__val mock-row__val--pts">24</span>
-            <span class="mock-row__val mock-row__val--reb">8</span>
-            <span class="mock-row__val mock-row__val--ast">3</span>
-            <span class="mock-row__val" style="color:var(--cool)">68.2%</span>
+        <div class="stat3d">
+            <div class="stat3d__val" style="color:var(--cool)">97.8</div>
+            <div class="stat3d__lbl">Team DRtg</div>
         </div>
-        <div class="mock-row">
-            <span class="mock-row__name">Fernandez</span>
-            <span class="mock-row__val mock-row__val--pts">17.8</span>
-            <span class="mock-row__val mock-row__val--pts">18</span>
-            <span class="mock-row__val mock-row__val--reb">5</span>
-            <span class="mock-row__val mock-row__val--ast">6</span>
-            <span class="mock-row__val" style="color:var(--cool)">61.4%</span>
+        <div class="stat3d">
+            <div class="stat3d__val" style="color:var(--win)">+6.4</div>
+            <div class="stat3d__lbl">Net Rating</div>
         </div>
-        <div class="mock-row">
-            <span class="mock-row__name">Silva</span>
-            <span class="mock-row__val mock-row__val--pts">14.2</span>
-            <span class="mock-row__val mock-row__val--pts">15</span>
-            <span class="mock-row__val mock-row__val--reb">7</span>
-            <span class="mock-row__val mock-row__val--ast">2</span>
-            <span class="mock-row__val" style="color:var(--cool)">57.9%</span>
+        <div class="stat3d">
+            <div class="stat3d__val" style="color:var(--gold)">96.4</div>
+            <div class="stat3d__lbl">Pace</div>
         </div>
-        <div class="mock-row">
-            <span class="mock-row__name">Portaro</span>
-            <span class="mock-row__val mock-row__val--pts">11.6</span>
-            <span class="mock-row__val mock-row__val--pts">12</span>
-            <span class="mock-row__val mock-row__val--reb">4</span>
-            <span class="mock-row__val mock-row__val--ast">5</span>
-            <span class="mock-row__val" style="color:var(--cool)">54.1%</span>
+        <div class="stat3d">
+            <div class="stat3d__val" style="color:var(--purple)">58.3%</div>
+            <div class="stat3d__lbl">Team TS%</div>
         </div>
-        <div class="mock-row">
-            <span class="mock-row__name">Cremona</span>
-            <span class="mock-row__val mock-row__val--pts">9.3</span>
-            <span class="mock-row__val mock-row__val--pts">10</span>
-            <span class="mock-row__val mock-row__val--reb">10</span>
-            <span class="mock-row__val mock-row__val--ast">1</span>
-            <span class="mock-row__val" style="color:var(--cool)">51.7%</span>
+        <div class="stat3d">
+            <div class="stat3d__val" style="color:var(--blue)">2.1</div>
+            <div class="stat3d__lbl">AST/TOV</div>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ══ PDF REPORTS ══════════════════════════════════════ -->
+<section class="section">
+    <div class="section__label">Reports</div>
+    <h2 class="section__title">Professional reports,<br>one click away.</h2>
+    <p class="section__sub">
+        Every report is rendered server-side into a print-ready PDF — ready to share with staff or players in seconds.
+    </p>
+
+    <div class="pdf-grid">
+        <div class="pdf-item">
+            <div class="pdf-item__icon"><i class="fas fa-file-alt"></i></div>
+            <div class="pdf-item__name">Game Summary</div>
+        </div>
+        <div class="pdf-item">
+            <div class="pdf-item__icon"><i class="fas fa-file-alt"></i></div>
+            <div class="pdf-item__name">Halftime Summary</div>
+        </div>
+        <div class="pdf-item">
+            <div class="pdf-item__icon"><i class="fas fa-chart-line"></i></div>
+            <div class="pdf-item__name">Game Evolution</div>
+        </div>
+        <div class="pdf-item">
+            <div class="pdf-item__icon"><i class="fas fa-brain"></i></div>
+            <div class="pdf-item__name">Advanced Game Report</div>
+        </div>
+        <div class="pdf-item">
+            <div class="pdf-item__icon"><i class="fas fa-user"></i></div>
+            <div class="pdf-item__name">Player Report</div>
+        </div>
+        <div class="pdf-item">
+            <div class="pdf-item__icon"><i class="fas fa-id-card"></i></div>
+            <div class="pdf-item__name">Player Cards</div>
+        </div>
+        <div class="pdf-item">
+            <div class="pdf-item__icon"><i class="fas fa-users"></i></div>
+            <div class="pdf-item__name">Team Report</div>
+        </div>
+        <div class="pdf-item">
+            <div class="pdf-item__icon"><i class="fas fa-chart-bar"></i></div>
+            <div class="pdf-item__name">Advanced Summary</div>
         </div>
     </div>
 </section>
@@ -794,33 +1380,33 @@
 <div class="divider"></div>
 
 <!-- ══ HOW IT WORKS ══════════════════════════════════════ -->
-<section class="section">
+<section class="section" id="workflow">
     <div class="section__label">Workflow</div>
     <h2 class="section__title">Up and running<br>in minutes.</h2>
     <p class="section__sub">
-        No complex setup. Just upload, analyse, win.
+        No complex setup. Start a live game, track stats, export reports.
     </p>
 
     <div class="steps">
         <div class="step">
-            <div class="step__num">01</div>
-            <div class="step__title">Upload CSV</div>
-            <div class="step__body">Drop your game stat sheet in CSV format. The platform parses and validates every row instantly.</div>
+            <div class="step__num step__num--acc">01</div>
+            <div class="step__title">Start a Game</div>
+            <div class="step__body">Create a new game, configure rosters and your playbook, then open the live tracking interface from any device.</div>
         </div>
         <div class="step">
-            <div class="step__num">02</div>
-            <div class="step__title">Auto-compute</div>
-            <div class="step__body">Dozens of advanced metrics are calculated server-side in milliseconds — no formulas needed.</div>
+            <div class="step__num step__num--cool">02</div>
+            <div class="step__title">Track &amp; Tag</div>
+            <div class="step__body">Log shots, assists, rebounds, turnovers and fouls in real time. Tag each play with a named play from your custom playbook.</div>
         </div>
         <div class="step">
-            <div class="step__num">03</div>
+            <div class="step__num step__num--gold">03</div>
             <div class="step__title">Analyse</div>
-            <div class="step__body">Browse interactive dashboards, player profiles, opponent dossiers and lineup breakdowns.</div>
+            <div class="step__body">Browse interactive game dashboards, player profiles, opponent dossiers, lineup breakdowns, and advanced analytics pages.</div>
         </div>
         <div class="step">
-            <div class="step__num">04</div>
+            <div class="step__num step__num--win">04</div>
             <div class="step__title">Export &amp; Share</div>
-            <div class="step__body">Generate polished PDF reports for the whole team — from halftime summaries to full season reviews.</div>
+            <div class="step__body">Generate polished PDF reports — halftime summaries, full game reports, player cards — and share with your staff instantly.</div>
         </div>
     </div>
 </section>
@@ -829,6 +1415,9 @@
 
 <!-- ══ CTA ══════════════════════════════════════════════ -->
 <section class="cta-section">
+    <div class="cta-ring cta-ring--1"></div>
+    <div class="cta-ring cta-ring--2"></div>
+    <div class="cta-ring cta-ring--3"></div>
     <h2 class="cta-section__title">Ready to see the<br>full picture?</h2>
     <p class="cta-section__sub">
         Sign in and start turning raw game data into coaching intelligence.
