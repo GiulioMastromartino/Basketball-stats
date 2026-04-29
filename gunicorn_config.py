@@ -17,7 +17,7 @@ max_requests_jitter = 100
 
 # Memory limit in MB (Safe margin for 512MB container)
 # 380MB allows ~130MB overhead for OS and other processes
-MEMORY_LIMIT_MB = 380
+MEMORY_LIMIT_MB = 900
 
 
 def post_request(worker, req, environ, resp):
