@@ -15,6 +15,8 @@ from core.utils import (
     get_player_stats_averages,
     normalize_per_100_possessions,
     safe_percentage,
+    calculate_per_100_minutes,
+    calculate_pace,
 )
 
 
@@ -650,3 +652,295 @@ class AnalyticsService:
             }
             for p in data
         ]
+
+    @staticmethod
+    def build_game_detail(game_id):
+        """Build context dictionary for game detail template (extracted from route)"""
+        from core.models import Game, PlayerStat, ShotEvent, LineupSegment, GameEvent
+        from sqlalchemy import func
+        import json
+        from core.play_analytics import (
+            get_play_stats,
+            get_play_player_stats,
+            get_player_play_stats,
+            get_untracked_percentages,
+        )
+        from core.advanced_analytics import LineupAnalytics
+
+        game = Game.query.get_or_404(game_id)
+
+        stats = (
+            PlayerStat.query.filter_by(game_id=game.id)
+            .order_by(PlayerStat.points.desc())
+            .all()
+        )
+
+        shot_events = ShotEvent.query.filter_by(game_id=game.id).all()
+
+        plays_data = get_play_stats(game.id, play_type="Offense")
+        plays_players_data = get_play_player_stats(game.id, play_type="Offense")
+        players_plays_data = get_player_play_stats(game.id, play_type="Offense")
+        untracked = get_untracked_percentages(game.id)
+
+        team_possessions = sum(
+            calculate_possessions(p.fga, p.fta, p.oreb, p.tov) for p in stats
+        )
+
+        for p in stats:
+            p.min_decimal = parse_minutes(p.minutes)
+            p.possessions = calculate_possessions(p.fga, p.fta, p.oreb, p.tov)
+            p.ortg = calculate_ortg(p.points, p.possessions)
+            p.ppp = calculate_ppp(p.points, p.possessions)
+            p.poss_per_40 = (
+                p.possessions / (p.min_decimal / 40) if p.min_decimal > 0 else 0
+            )
+            p.usg_pct = safe_percentage(p.possessions, team_possessions)
+            p.ast_tov_ratio = (p.ast / p.tov) if p.tov > 0 else p.ast
+            p.eff = calculate_efficiency(
+                p.points, p.reb, p.ast, p.stl, p.blk, p.fgm, p.fga, p.ftm, p.fta, p.tov
+            )
+            p.ts_pct = calculate_ts_percent(p.points, p.fga, p.fta)
+            p.efg_pct = calculate_efg_percent(p.fgm, p.tpm, p.fga)
+
+            p.game_score = calculate_game_score(
+                p.points,
+                p.fgm,
+                p.fga,
+                p.ftm,
+                p.fta,
+                p.oreb,
+                p.dreb,
+                p.stl,
+                p.ast,
+                p.blk,
+                p.pf,
+                p.tov,
+            )
+
+            if p.min_decimal > 0:
+                p.pts_100 = calculate_per_100_minutes(p.points, p.min_decimal)
+                p.reb_100 = calculate_per_100_minutes(p.reb, p.min_decimal)
+                p.ast_100 = calculate_per_100_minutes(p.ast, p.min_decimal)
+                p.tov_100 = calculate_per_100_minutes(p.tov, p.min_decimal)
+                p.stl_100 = calculate_per_100_minutes(p.stl, p.min_decimal)
+                p.blk_100 = calculate_per_100_minutes(p.blk, p.min_decimal)
+                p.pf_100 = calculate_per_100_minutes(p.pf, p.min_decimal)
+            else:
+                p.pts_100 = p.reb_100 = p.ast_100 = p.tov_100 = p.stl_100 = (
+                    p.blk_100
+                ) = p.pf_100 = 0
+
+            two_pt_stats = calculate_two_point_stats(p.fgm, p.fga, p.tpm, p.tpa)
+            p.two_pt_att = two_pt_stats["two_pt_att"]
+            p.two_pt_made = two_pt_stats["two_pt_made"]
+            p.two_pt_pct = two_pt_stats["two_pt_pct"]
+
+            p.fta_pct = safe_percentage(p.fta, p.fga)
+            p.oreb_pct = safe_percentage(p.oreb, p.reb)
+            p.foul_trouble = p.pf >= 3
+
+        team_stats = {
+            "points": sum(p.points for p in stats),
+            "fgm": sum(p.fgm for p in stats),
+            "fga": sum(p.fga for p in stats),
+            "tpm": sum(p.tpm for p in stats),
+            "tpa": sum(p.tpa for p in stats),
+            "ftm": sum(p.ftm for p in stats),
+            "fta": sum(p.fta for p in stats),
+            "oreb": sum(p.oreb for p in stats),
+            "dreb": sum(p.dreb for p in stats),
+            "reb": sum(p.reb for p in stats),
+            "ast": sum(p.ast for p in stats),
+            "tov": sum(p.tov for p in stats),
+            "stl": sum(p.stl for p in stats),
+            "blk": sum(p.blk for p in stats),
+            "pf": sum(p.pf for p in stats),
+            "reb_conceded": sum(p.reb_conceded or 0 for p in stats),
+        }
+
+        team_poss = calculate_possessions(
+            team_stats["fga"], team_stats["fta"], team_stats["oreb"], team_stats["tov"]
+        )
+
+        segment_poss = (
+            db.session.query(func.sum(LineupSegment.possessions))
+            .filter_by(game_id=game.id)
+            .scalar()
+            or 0
+        )
+        if segment_poss > 0:
+            team_poss = float(segment_poss)
+        team_poss = max(team_poss, 1.0)
+
+        total_game_min = sum(p.min_decimal for p in stats) / 5.0
+        pace = calculate_pace(team_poss, total_game_min)
+
+        efg = calculate_efg_percent(
+            team_stats["fgm"], team_stats["tpm"], team_stats["fga"]
+        )
+        ortg = calculate_ortg(game.team_score, team_poss)
+        drtg = calculate_ortg(game.opponent_score, team_poss)
+
+        advanced = {
+            "possessions": round(team_poss, 1),
+            "pace": round(pace, 1),
+            "efg_pct": round(efg, 1),
+            "ts_pct": round(
+                calculate_ts_percent(
+                    team_stats["points"], team_stats["fga"], team_stats["fta"]
+                ),
+                1,
+            ),
+            "tov_pct": round(safe_percentage(team_stats["tov"], team_poss), 1),
+            "ft_rate": round(safe_percentage(team_stats["fta"], team_stats["fga"]), 1),
+            "oreb_pct": round(
+                safe_percentage(team_stats["oreb"], team_stats["reb"]), 1
+            ),
+            "ortg": round(ortg, 0),
+            "drtg": round(drtg, 0),
+        }
+
+        two_pt_att = max(team_stats["fga"] - team_stats["tpa"], 0)
+        two_pt_made = max(team_stats["fgm"] - team_stats["tpm"], 0)
+
+        shot_summary = {
+            "fgm": team_stats["fgm"],
+            "fga": team_stats["fga"],
+            "tpm": team_stats["tpm"],
+            "tpa": team_stats["tpa"],
+            "ftm": team_stats["ftm"],
+            "fta": team_stats["fta"],
+            "two_pt_made": two_pt_made,
+            "two_pt_att": two_pt_att,
+            "fg_pct": safe_percentage(team_stats["fgm"], team_stats["fga"]),
+            "two_pt_pct": safe_percentage(two_pt_made, two_pt_att),
+            "tp_pct": safe_percentage(team_stats["tpm"], team_stats["tpa"]),
+            "ft_pct": safe_percentage(team_stats["ftm"], team_stats["fta"]),
+            "efg_pct": calculate_efg_percent(
+                team_stats["fgm"], team_stats["tpm"], team_stats["fga"]
+            ),
+            "ts_pct": calculate_ts_percent(
+                team_stats["points"], team_stats["fga"], team_stats["fta"]
+            ),
+        }
+
+        opponent_shots = GameEvent.query.filter(
+            GameEvent.game_id == game.id,
+            GameEvent.event_type == "OPP_SCORE",
+            GameEvent.x_loc.isnot(None),
+        ).all()
+
+        opponent_shot_data = [
+            {
+                "x": s.x_loc,
+                "y": s.y_loc,
+                "result": "made",
+                "quarter": s.quarter,
+                "zone": s.zone if hasattr(s, "zone") else None,
+                "points": json.loads(s.detail).get("points", 0)
+                if s.detail and s.event_type == "OPP_SCORE"
+                else 0,
+            }
+            for s in opponent_shots
+            if s.x_loc is not None and s.y_loc is not None
+        ]
+
+        try:
+            top_game_lineups_off = LineupAnalytics.get_game_lineup_rankings(
+                game.id,
+                top_n=3,
+                rank_by="offensive",
+                min_possessions=10,
+                total_pts_scored_override=game.team_score,
+                total_pts_allowed_override=game.opponent_score,
+                total_possessions_override=team_poss,
+            )
+            top_game_lineups_def = LineupAnalytics.get_game_lineup_rankings(
+                game.id,
+                top_n=3,
+                rank_by="defensive",
+                min_possessions=10,
+                total_pts_scored_override=game.team_score,
+                total_pts_allowed_override=game.opponent_score,
+                total_possessions_override=team_poss,
+            )
+        except Exception as e:
+            print(f"[GameDetail] Error fetching lineups: {e}")
+            top_game_lineups_off = []
+            top_game_lineups_def = []
+
+        try:
+            top_game_duos_off = LineupAnalytics.get_combination_net_differentials(
+                combination_type="duo",
+                game_ids=[game.id],
+                min_possessions=10,
+                top_n=3,
+                require_positive=False,
+                total_pts_scored_override=game.team_score,
+                total_pts_allowed_override=game.opponent_score,
+                total_possessions_override=team_poss,
+                rank_by="offensive",
+            )
+            top_game_duos_def = LineupAnalytics.get_combination_net_differentials(
+                combination_type="duo",
+                game_ids=[game.id],
+                min_possessions=10,
+                top_n=3,
+                require_positive=False,
+                total_pts_scored_override=game.team_score,
+                total_pts_allowed_override=game.opponent_score,
+                total_possessions_override=team_poss,
+                rank_by="defensive",
+            )
+        except Exception as e:
+            print(f"[GameDetail] Error fetching duos: {e}")
+            top_game_duos_off = []
+            top_game_duos_def = []
+
+        try:
+            top_game_trios_off = LineupAnalytics.get_combination_net_differentials(
+                combination_type="trio",
+                game_ids=[game.id],
+                min_possessions=10,
+                top_n=3,
+                require_positive=False,
+                total_pts_scored_override=game.team_score,
+                total_pts_allowed_override=game.opponent_score,
+                total_possessions_override=team_poss,
+                rank_by="offensive",
+            )
+            top_game_trios_def = LineupAnalytics.get_combination_net_differentials(
+                combination_type="trio",
+                game_ids=[game.id],
+                min_possessions=10,
+                top_n=3,
+                require_positive=False,
+                total_pts_scored_override=game.team_score,
+                total_pts_allowed_override=game.opponent_score,
+                total_possessions_override=team_poss,
+                rank_by="defensive",
+            )
+        except Exception as e:
+            print(f"[GameDetail] Error fetching trios: {e}")
+            top_game_trios_off = []
+            top_game_trios_def = []
+
+        return {
+            "game": game,
+            "stats": stats,
+            "shot_events": shot_events,
+            "opponent_shots": opponent_shot_data,
+            "plays_data": plays_data,
+            "plays_players_data": plays_players_data,
+            "players_plays_data": players_plays_data,
+            "untracked": untracked,
+            "team_stats": team_stats,
+            "advanced": advanced,
+            "shot_summary": shot_summary,
+            "top_game_lineups_off": top_game_lineups_off,
+            "top_game_lineups_def": top_game_lineups_def,
+            "top_game_duos_off": top_game_duos_off,
+            "top_game_duos_def": top_game_duos_def,
+            "top_game_trios_off": top_game_trios_off,
+            "top_game_trios_def": top_game_trios_def,
+        }
