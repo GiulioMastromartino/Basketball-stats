@@ -49,11 +49,9 @@ services:
       - uploads_data:/app/uploads
     command: >
       sh -c "
-        if [ ! -d migrations ]; then
-          flask db init &&
-          flask db migrate -m 'initial schema';
-        fi &&
-        flask db upgrade &&
+        flask db init &&
+        flask db migrate -m 'initial schema' &&
+        flask db upgrade 2>/dev/null || flask db stamp head &&
         python scripts/promote_admin.py
       "
     networks:
