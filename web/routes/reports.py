@@ -72,10 +72,6 @@ MIN_TOP_LINEUP_MINUTES = 10
 MIN_TOP_LINEUP_SECONDS = MIN_TOP_LINEUP_MINUTES * 60
 
 
-def _safe_pct(made, attempts):
-    return round((made / attempts) * 100, 1) if attempts else 0.0
-
-
 def _safe_ppp(points, possessions):
     return round(points / possessions, 3) if possessions else 0.0
 
@@ -164,10 +160,10 @@ def _serialize_lineup_summary(item):
         "possessions": possessions,
         "points_scored": item["points_scored"],
         "points_allowed": item["points_allowed"],
-        "ortg": round((item["points_scored"] / possessions) * 100, 1)
+        "ortg": round(calculate_ortg(item["points_scored"], possessions), 1)
         if possessions
         else 0.0,
-        "drtg": round((item["points_allowed"] / possessions) * 100, 1)
+        "drtg": round(calculate_ortg(item["points_allowed"], possessions), 1)
         if possessions
         else 0.0,
         "net_rating": round(
@@ -180,13 +176,13 @@ def _serialize_lineup_summary(item):
         "is_starting": item["is_starting"],
         "fgm": item["fgm"],
         "fga": fga,
-        "fg_pct": _safe_pct(item["fgm"], fga),
+        "fg_pct": safe_percentage(item["fgm"], fga),
         "tpm": item["tpm"],
         "tpa": tpa,
-        "tp_pct": _safe_pct(item["tpm"], tpa),
+        "tp_pct": safe_percentage(item["tpm"], tpa),
         "ftm": item["ftm"],
         "fta": fta,
-        "ft_pct": _safe_pct(item["ftm"], fta),
+        "ft_pct": safe_percentage(item["ftm"], fta),
         "oreb": item["oreb"],
         "dreb": item["dreb"],
         "reb": item["oreb"] + item["dreb"],
@@ -226,7 +222,7 @@ def _build_zone_summary(shots):
                 "zone": zone,
                 "attempts": attempts,
                 "makes": makes,
-                "fg_pct": _safe_pct(makes, attempts),
+                "fg_pct": safe_percentage(makes, attempts),
                 "points": values["points"],
                 "actual_pps": actual_pps,
                 "expected_value": round(expected_value, 2)
@@ -343,7 +339,7 @@ def _build_play_summary(game_ids, player_name=None):
         rows.append(
             {
                 **record,
-                "fg_pct": _safe_pct(record["makes"], record["attempts"]),
+                "fg_pct": safe_percentage(record["makes"], record["attempts"]),
                 "ppp": _safe_ppp(record["points"], denominator),
             }
         )
@@ -381,7 +377,9 @@ def _build_player_box_detail(stats, games_played):
         reb_conceded_games = games_played
 
     pm_stats = [
-        s for s in stats if AnalyticsService.supports_plus_minus(getattr(s, "game", None))
+        s
+        for s in stats
+        if AnalyticsService.supports_plus_minus(getattr(s, "game", None))
     ]
     total_plus_minus = sum((s.plus_minus or 0) for s in pm_stats)
     pm_games = len(pm_stats)
@@ -620,7 +618,7 @@ def _build_possession_summary(game_ids, events, team_stats):
         if event.event_type == "TURNOVER":
             clutch["tov"] += 1
 
-    clutch["fg_pct"] = _safe_pct(clutch["fgm"], clutch["fga"])
+    clutch["fg_pct"] = safe_percentage(clutch["fgm"], clutch["fga"])
 
     return {
         "available": True,
@@ -659,7 +657,7 @@ def _build_player_possession_context(player_name, game_ids, stats):
                 clutch["fgm"] += 1
         if event.event_type == "TURNOVER":
             clutch["tov"] += 1
-    clutch["fg_pct"] = _safe_pct(clutch["fgm"], clutch["fga"])
+    clutch["fg_pct"] = safe_percentage(clutch["fgm"], clutch["fga"])
     summary["clutch"] = clutch
     return summary
 
@@ -1322,7 +1320,9 @@ def advanced_game_summary_pdf(game_id):
         tov=sum(s.tov for s in stats),
     )
 
-    team_poss = team_box.fga + 0.44 * team_box.fta - team_box.orb + team_box.tov
+    team_poss = calculate_possessions(
+        team_box.fga, team_box.fta, team_box.orb, team_box.tov
+    )
     opp_pts = game.opponent_score
 
     opp_box = _get_opponent_box_score_from_events(game_id)
@@ -2158,7 +2158,7 @@ def live_halftime_pdf():
         tp_pct = (tpm / tpa * 100) if tpa > 0 else 0
         ft_pct = (ftm / fta * 100) if fta > 0 else 0
         two_pt_pct = (two_pt_made / two_pt_att * 100) if two_pt_att > 0 else 0
-        efg_pct = ((fgm + 0.5 * tpm) / fga * 100) if fga > 0 else 0
+        efg_pct = calculate_efg_percent(fgm, tpm, fga)
 
         eff = (
             points + (oreb + dreb) + ast + stl + blk - ((fga - fgm) + (fta - ftm) + tov)

@@ -10,6 +10,7 @@ from core.utils import (
     calculate_ts_percent,
     calculate_efg_percent,
     calculate_two_point_stats,
+    calculate_game_score,
     parse_minutes,
     get_player_stats_averages,
     normalize_per_100_possessions,
@@ -21,7 +22,9 @@ class AnalyticsService:
     @staticmethod
     def supports_plus_minus(game):
         """Return True when a game source is expected to persist +/- values."""
-        return bool(game and getattr(game, "source", None) in {"LIVE", "IMPORT", "IMPORT_JSON"})
+        return bool(
+            game and getattr(game, "source", None) in {"LIVE", "IMPORT", "IMPORT_JSON"}
+        )
 
     @staticmethod
     def calculate_game_stats(stats):
@@ -43,18 +46,19 @@ class AnalyticsService:
             )
 
             # Game Score
-            s.game_score = (
-                s.points
-                + 0.4 * s.fgm
-                - 0.7 * s.fga
-                - 0.4 * (s.fta - s.ftm)
-                + 0.7 * s.oreb
-                + 0.3 * s.dreb
-                + s.stl
-                + 0.7 * s.ast
-                + 0.7 * s.blk
-                - 0.4 * s.pf
-                - s.tov
+            s.game_score = calculate_game_score(
+                s.points,
+                s.fgm,
+                s.fga,
+                s.ftm,
+                s.fta,
+                s.oreb,
+                s.dreb,
+                s.stl,
+                s.ast,
+                s.blk,
+                s.pf,
+                s.tov,
             )
 
             two_pt = calculate_two_point_stats(s.fgm, s.fga, s.tpm, s.tpa)
@@ -301,7 +305,9 @@ class AnalyticsService:
         avg_stats = get_player_stats_averages(stats)
 
         pm_game_stats = [
-            s for s in stats if AnalyticsService.supports_plus_minus(game_map.get(s.game_id))
+            s
+            for s in stats
+            if AnalyticsService.supports_plus_minus(game_map.get(s.game_id))
         ]
         if pm_game_stats:
             avg_plus_minus = sum((s.plus_minus or 0) for s in pm_game_stats) / len(
