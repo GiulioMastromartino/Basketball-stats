@@ -31,7 +31,7 @@ services:
    # ── One-shot migrator (runs, then exits) ─────────────────────────────────
   migrator:
     build: .
-    restart: no
+    restart: "no"
     depends_on:
       db:
         condition: service_healthy
