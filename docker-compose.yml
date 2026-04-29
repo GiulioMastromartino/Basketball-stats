@@ -1,20 +1,45 @@
+version: '3.8'
+
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: basketball_stats_db
+    environment:
+      POSTGRES_USER: basketball_user
+      POSTGRES_PASSWORD: basketball_pass
+      POSTGRES_DB: basketball_stats
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U basketball_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   web:
     build: .
-    image: giuliomastromartino/basketball-stats:latest
-    ports:
-      - "8080:8080"
-    env_file:
-      - .env
+    container_name: basketball_stats_app
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
-      - FLASK_ENV=development
-      - PORT=8080
+      FLASK_ENV: development
+      SECRET_KEY: dev-secret-key
+      DATABASE_URL: postgresql://basketball_user:basketball_pass@db/basketball_stats
+      GAMES_DIR: /app/Games
+      OUTPUT_DIR: /app/Output
+      UPLOAD_FOLDER: /app/uploads
+      LOG_LEVEL: DEBUG
     volumes:
       - .:/app
-      - ./instance:/app/instance
-    # Run migrations -> Seed DB (via Flask CLI) -> Start Server
-    command: >
-      sh -c "flask db upgrade &&
-             flask seed &&
-             exec gunicorn --config gunicorn_config.py run:app"
-    restart: unless-stopped
+      - ./Games:/app/Games
+      - ./Output:/app/Output
+      - ./uploads:/app/uploads
+    ports:
+      - "8080:8080"
+    command: ["./entrypoint.sh"]
+
+volumes:
+  postgres_data:

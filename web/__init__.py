@@ -435,6 +435,7 @@ def register_blueprints(app: Flask):
     from web.routes.plays import plays_bp
     from web.routes.reports import reports_bp
     from web.routes.advanced_analytics_api import advanced_api_bp
+    from web.routes.health import health_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(main_bp)
@@ -443,6 +444,7 @@ def register_blueprints(app: Flask):
     app.register_blueprint(plays_bp)
     app.register_blueprint(reports_bp, url_prefix="/reports")
     app.register_blueprint(advanced_api_bp)
+    app.register_blueprint(health_bp)
 
 
 def register_commands(app: Flask):
