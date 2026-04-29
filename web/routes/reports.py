@@ -337,7 +337,7 @@ def download_all_reports():
     team_avg = AnalyticsService.calculate_team_averages(game_ids, db.session)
     zip_path = None
 
-    process = psutil.Process(os.getpidid())
+    process = psutil.Process(os.getpid())
 
     def get_mem():
         return process.memory_info().rss / 1024 / 1024

@@ -66,18 +66,24 @@ from core.advanced_analytics import (
     parse_time_to_seconds,
 )
 
+from flask import render_template
+
 # Constants for lineup filtering
 MIN_TOP_LINEUP_MINUTES = 10
 MIN_TOP_LINEUP_SECONDS = MIN_TOP_LINEUP_MINUTES * 60
 
+
 def _safe_ppp(points, possessions):
     return round(points / possessions, 3) if possessions else 0.0
+
 
 def _seconds_to_minutes(seconds):
     return round((seconds or 0) / 60, 1)
 
+
 def _meets_top_lineup_minutes(item):
     return (item.get("total_seconds") or 0) >= MIN_TOP_LINEUP_SECONDS
+
 
 def _get_player_reb_conceded_summary(player_name, game_ids, session):
     lineup_total, tracked_games = (
@@ -95,6 +101,7 @@ def _get_player_reb_conceded_summary(player_name, game_ids, session):
         "tracked_games": int(tracked_games or 0),
     }
 
+
 def _get_team_reb_conceded_summary(game_ids, session):
     lineup_total, tracked_games = (
         session.query(
@@ -109,12 +116,14 @@ def _get_team_reb_conceded_summary(game_ids, session):
         "tracked_games": int(tracked_games or 0),
     }
 
+
 def _normalize_zone(zone, x_loc=None, y_loc=None, shot_type=None):
     if zone:
         return zone
     if x_loc is None or y_loc is None:
         return "Unknown"
     return classify_shot_zone(x_loc, y_loc, shot_type or "2pt") or "Unknown"
+
 
 def _team_event_points(event):
     if event.event_type in {"SHOT_2PT", "SHOT_3PT"} and event.shot_attempt == "made":
@@ -123,6 +132,7 @@ def _team_event_points(event):
         return 1
     return 0
 
+
 def _player_event_points(event):
     if event.event_type in {"SHOT_2PT", "SHOT_3PT"} and event.shot_attempt == "made":
         return 3 if event.event_type == "SHOT_3PT" else 2
@@ -130,10 +140,12 @@ def _player_event_points(event):
         return 1
     return _parse_detail_points(event.detail)
 
+
 def _opponent_event_points(event):
     if event.event_type == "OPP_SCORE":
         return _parse_detail_points(event.detail) or 2
     return 0
+
 
 def _serialize_lineup_summary(item):
     fga = item["fga"]
@@ -182,6 +194,7 @@ def _serialize_lineup_summary(item):
         "reb_conceded": item["reb_conceded"],
     }
 
+
 def _build_zone_summary(shots):
     if not shots:
         return {"available": False, "rows": [], "expected_available": False}
@@ -227,6 +240,7 @@ def _build_zone_summary(shots):
         "rows": rows,
         "expected_available": any(row["expected_value"] is not None for row in rows),
     }
+
 
 def _build_play_summary(game_ids, player_name=None):
     shot_query = ShotEvent.query.join(Play, ShotEvent.play_id == Play.id).filter(
@@ -347,6 +361,7 @@ def _build_play_summary(game_ids, player_name=None):
         "top_efficiency": efficient[:5],
     }
 
+
 def _build_player_box_detail(stats, games_played):
     session = db.session
     game_ids = [s.game_id for s in stats]
@@ -404,6 +419,7 @@ def _build_player_box_detail(stats, games_played):
         "tracked_reb_conceded_games": reb_conceded_games,
         "has_reb_conceded": bool(reb_conceded_games),
     }
+
 
 def _build_player_lineup_context(player_name, game_ids, session):
     rows = (
@@ -525,6 +541,7 @@ def _build_player_lineup_context(player_name, game_ids, session):
         "starting_units": starting[:3],
     }
 
+
 def _build_possession_summary(game_ids, events, team_stats):
     possessions = Possession.query.filter(Possession.game_id.in_(game_ids)).all()
     quarter_rows = []
@@ -615,6 +632,7 @@ def _build_possession_summary(game_ids, events, team_stats):
         "clutch": clutch,
     }
 
+
 def _build_player_possession_context(player_name, game_ids, stats):
     events = (
         GameEvent.query.filter(GameEvent.game_id.in_(game_ids))
@@ -644,6 +662,7 @@ def _build_player_possession_context(player_name, game_ids, stats):
     summary["clutch"] = clutch
     return summary
 
+
 def _build_player_shot_play_context(player_name, game_ids):
     shots = (
         ShotEvent.query.filter(ShotEvent.game_id.in_(game_ids))
@@ -654,6 +673,7 @@ def _build_player_shot_play_context(player_name, game_ids):
         "zone_summary": _build_zone_summary(shots),
         "play_summary": _build_play_summary(game_ids, player_name=player_name),
     }
+
 
 def _build_team_box_detail(game_ids, games):
     stats = PlayerStat.query.filter(PlayerStat.game_id.in_(game_ids)).all()
@@ -701,6 +721,7 @@ def _build_team_box_detail(game_ids, games):
             games, db.session
         ),
     }
+
 
 def _build_team_lineup_summary(game_ids, session):
     segment_rows = (
@@ -828,6 +849,7 @@ def _build_team_lineup_summary(game_ids, session):
         "starting_units": starting_units,
     }
 
+
 def _build_team_report_context(game_type, games, game_ids):
     team_data = AnalyticsService.calculate_enhanced_team_metrics(
         games, game_ids, db.session
@@ -853,6 +875,7 @@ def _build_team_report_context(game_type, games, game_ids):
         "zone_summary": _build_zone_summary(shots),
         "play_summary": _build_play_summary(game_ids),
     }
+
 
 def _parse_detail(detail):
     """Parse detail field which may be a digit string or dict-like string.
@@ -880,12 +903,14 @@ def _parse_detail(detail):
 
     return result
 
+
 def _parse_detail_points(detail):
     """Parse points from detail field."""
     parsed = _parse_detail(detail)
     if "points" in parsed:
         return int(parsed["points"])
     return 0
+
 
 def _build_quarter_map(events):
     """Build a mapping of event.id to quarter number by processing NEXT_QUARTER events."""
@@ -901,6 +926,7 @@ def _build_quarter_map(events):
                 current_quarter += 1
         quarter_map[event.id] = current_quarter
     return quarter_map
+
 
 def _get_shot_scoring_data(game_id):
     """Get scoring data using player_stats as authoritative source for totals.
@@ -973,6 +999,7 @@ def _get_shot_scoring_data(game_id):
         "ft_points": ft_points,
         "fg_points": fg_points,
     }
+
 
 def _get_opponent_box_score_from_events(game_id):
     """Build opponent box score from tracked OPP_SCORE and OPP_OREB events.
@@ -1048,6 +1075,7 @@ def _get_opponent_box_score_from_events(game_id):
         blk=0,
         tov=0,
     )
+
 
 def generate_game_pdf_bytes(game_id):
     """
@@ -1243,6 +1271,7 @@ def generate_game_pdf_bytes(game_id):
 
     return filename, pdf_bytes
 
+
 def _build_quarterly_stats(events, game):
     """Build quarterly scoring breakdown from GameEvent data."""
     quarterly = {
@@ -1267,6 +1296,7 @@ def _build_quarterly_stats(events, game):
 
     return quarterly
 
+
 def _parse_time_remaining(time_str):
     """Parse MM:SS format to total seconds remaining in quarter."""
     if not time_str:
@@ -1280,6 +1310,7 @@ def _parse_time_remaining(time_str):
         return minutes * 60 + seconds
     except (ValueError, IndexError):
         return 600
+
 
 def _event_team_points(event):
     """Return team points contributed by a single event, if any."""
@@ -1295,6 +1326,7 @@ def _event_team_points(event):
             return int(detail.get("ftm", 0) or 0)
         return 1 if event.shot_attempt == "made" else 0
     return 0
+
 
 def _get_starting_lineup_from_events(events):
     """Extract starting lineup from first 5 SUB_IN events in Q1 (by lowest timestamp)."""
@@ -1315,6 +1347,7 @@ def _get_starting_lineup_from_events(events):
     sub_ins.sort(key=lambda x: x[0])
     return [name for _, name in sub_ins[:5]]
 
+
 def _get_starting_lineup_from_segments(game_id):
     """Get starting lineup from first LineupSegment of the game."""
     from core.models import LineupSegment
@@ -1327,6 +1360,7 @@ def _get_starting_lineup_from_segments(game_id):
     if segment and segment.players:
         return segment.players
     return []
+
 
 def _build_time_progression(events, game):
     """Build time progression data structure for game summary.
@@ -1533,6 +1567,7 @@ def _build_time_progression(events, game):
         "starting_lineup": starting_lineup,
     }
 
+
 def _generate_player_report_data(
     player_name, games, game_ids, game_type, team_avg_override=None, db_session=None
 ):
@@ -1585,4 +1620,3 @@ def _generate_player_report_data(
         **report_data,
         **charts,
     }
-
