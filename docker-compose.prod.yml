@@ -35,9 +35,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    env_file: .env.prod
     environment:
       FLASK_ENV: production
-      SECRET_KEY: ${SECRET_KEY}
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
       LOG_FILE: /dev/stdout
       GAMES_DIR: /app/Games
@@ -47,7 +47,15 @@ services:
       - games_data:/app/Games
       - output_data:/app/Output
       - uploads_data:/app/uploads
-    command: ["sh", "-c", "flask db upgrade && python scripts/promote_admin.py"]
+    command: >
+      sh -c "
+        if [ ! -d migrations ]; then
+          flask db init &&
+          flask db migrate -m 'initial schema';
+        fi &&
+        flask db upgrade &&
+        python scripts/promote_admin.py
+      "
     networks:
       - backend
 
