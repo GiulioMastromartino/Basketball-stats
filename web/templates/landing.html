@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-        <title>CourtIQ · Basketball Analytics</title>
+        <title>HOOPSLAB · Basketball Analytics</title>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
@@ -186,7 +186,7 @@
                         rgba(155, 109, 255, 0.07) 0%,
                         transparent 55%
                     );
-                animation: mesh-shift 18s ease-in-out infinite alternate;
+                animation: none;
             }
             @keyframes mesh-shift {
                 0% {
@@ -229,6 +229,9 @@
                     black,
                     transparent
                 );
+                animation: none;
+            }
+            @keyframes dots-drift {
             }
             .hero__inner {
                 position: relative;
@@ -373,6 +376,108 @@
                 background: rgba(255, 255, 255, 0.06);
             }
 
+            .pain-pivot {
+                max-width: 560px;
+                color: rgba(255, 255, 255, 0.72);
+                line-height: 1.7;
+                margin: 0.9rem 0 1.6rem;
+                font-size: 0.98rem;
+            }
+            @media (max-width: 900px) {
+                .pain-pivot {
+                    margin-left: auto;
+                    margin-right: auto;
+                    text-align: center;
+                }
+            }
+
+            .trustbar {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 12px;
+                margin-top: 1.4rem;
+                max-width: 560px;
+            }
+            @media (max-width: 900px) {
+                .trustbar {
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+            }
+            @media (max-width: 560px) {
+                .trustbar {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .trustbar__item {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                border-radius: 14px;
+                padding: 12px 12px;
+            }
+            .trustbar__val {
+                font-family: var(--display);
+                font-weight: 900;
+                letter-spacing: 0.03em;
+                font-size: 1.15rem;
+            }
+            .trustbar__lbl {
+                margin-top: 4px;
+                font-size: 0.68rem;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.55);
+                font-weight: 800;
+            }
+
+            .btn-link {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                color: rgba(255, 255, 255, 0.72);
+                text-decoration: none;
+                font-weight: 700;
+                letter-spacing: 0.03em;
+                padding: 10px 4px;
+                transition: transform 0.18s, color 0.18s;
+            }
+            .btn-link:hover {
+                color: rgba(255, 255, 255, 0.92);
+                transform: translateY(-1px);
+            }
+
+            .demo-wrap {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.07);
+                border-radius: 18px;
+                overflow: hidden;
+                box-shadow:
+                    0 38px 90px rgba(0, 0, 0, 0.62),
+                    0 2px 12px rgba(0, 0, 0, 0.45);
+            }
+            .demo-video {
+                width: 100%;
+                height: 100%;
+                display: block;
+                aspect-ratio: 16 / 10;
+                object-fit: cover;
+                background: radial-gradient(
+                    circle at 35% 25%,
+                    rgba(255, 107, 43, 0.18),
+                    rgba(19, 28, 46, 0.96) 60%
+                );
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .btn-fire,
+                .btn-ghost,
+                .btn-link,
+                .nav__btn {
+                    transition: none !important;
+                    transform: none !important;
+                }
+            }
+
             .hero__stats {
                 display: flex;
                 gap: 2px;
@@ -410,63 +515,12 @@
                 margin-top: 2px;
             }
 
-            /* BALL */
+            /* HERO VISUAL (single autoplay element) */
             .hero__visual {
                 display: flex;
                 justify-content: center;
                 align-items: center;
                 position: relative;
-            }
-            .ball-wrap {
-                width: 280px;
-                height: 280px;
-                animation: ball-float 7s ease-in-out infinite;
-                filter: drop-shadow(0 45px 90px rgba(255, 107, 43, 0.32))
-                    drop-shadow(0 12px 35px rgba(0, 0, 0, 0.75));
-            }
-            @keyframes ball-float {
-                0%,
-                100% {
-                    transform: translateY(0) rotate(0deg);
-                }
-                25% {
-                    transform: translateY(-22px) rotate(4deg);
-                }
-                75% {
-                    transform: translateY(-10px) rotate(-3deg);
-                }
-            }
-            .ball-wrap svg {
-                width: 100%;
-                height: 100%;
-            }
-            .ball-shadow {
-                width: 170px;
-                height: 30px;
-                background: radial-gradient(
-                    ellipse,
-                    rgba(255, 107, 43, 0.22) 0%,
-                    transparent 70%
-                );
-                border-radius: 50%;
-                margin: -16px auto 0;
-                animation: shadow-pulse 7s ease-in-out infinite;
-                filter: blur(10px);
-            }
-            @keyframes shadow-pulse {
-                0%,
-                100% {
-                    transform: scaleX(1);
-                    opacity: 0.65;
-                }
-                25% {
-                    transform: scaleX(0.6);
-                    opacity: 0.25;
-                }
-                75% {
-                    transform: scaleX(0.78);
-                    opacity: 0.4;
-                }
             }
 
             /* SECTION */
@@ -475,6 +529,291 @@
                 padding: 100px 1.5rem;
                 max-width: 1180px;
                 margin: 0 auto;
+            }
+
+            /* Conversion landing: hide legacy sections */
+            #features,
+            #preview,
+            #reports,
+            #workflow {
+                display: none;
+            }
+
+            /* Pillars */
+            .pillars {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 18px;
+            }
+            @media (max-width: 980px) {
+                .pillars {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .pillar {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                border-radius: 18px;
+                padding: 20px 18px;
+                box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+            }
+            .pillar__head {
+                display: flex;
+                gap: 12px;
+                align-items: center;
+                margin-bottom: 12px;
+            }
+            .pillar__ico {
+                width: 44px;
+                height: 44px;
+                border-radius: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .pillar__ico--acc {
+                background: rgba(255, 107, 43, 0.12);
+                border-color: rgba(255, 107, 43, 0.22);
+            }
+            .pillar__ico--cool {
+                background: rgba(46, 196, 182, 0.11);
+                border-color: rgba(46, 196, 182, 0.22);
+            }
+            .pillar__ico--pink {
+                background: rgba(255, 89, 155, 0.1);
+                border-color: rgba(255, 89, 155, 0.22);
+            }
+            .pillar__k {
+                font-size: 0.65rem;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.55);
+                font-weight: 800;
+            }
+            .pillar__t {
+                font-family: var(--display);
+                font-weight: 900;
+                letter-spacing: 0.02em;
+                margin-top: 2px;
+                margin-bottom: 0;
+                font-size: 1.25rem;
+            }
+            .pillar__p {
+                color: rgba(255, 255, 255, 0.72);
+                line-height: 1.65;
+                margin: 0 0 14px;
+                font-size: 0.98rem;
+            }
+            .pillar__list {
+                margin: 0;
+                padding-left: 18px;
+                color: rgba(255, 255, 255, 0.68);
+                line-height: 1.7;
+            }
+
+            /* Social proof */
+            .proof {
+                display: grid;
+                grid-template-columns: 1.3fr 0.7fr;
+                gap: 18px;
+                align-items: start;
+            }
+            @media (max-width: 980px) {
+                .proof {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .quote {
+                position: relative;
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                border-radius: 18px;
+                padding: 22px 18px 18px;
+            }
+            .quote__mark {
+                position: absolute;
+                top: 14px;
+                left: 14px;
+                font-family: var(--display);
+                font-weight: 900;
+                font-size: 2.2rem;
+                color: rgba(255, 107, 43, 0.45);
+                line-height: 1;
+            }
+            .quote__text {
+                padding-top: 10px;
+                font-size: 1.08rem;
+                line-height: 1.7;
+                color: rgba(255, 255, 255, 0.8);
+            }
+            .quote__by {
+                margin-top: 10px;
+                font-size: 0.78rem;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.55);
+                font-weight: 800;
+            }
+            .logos {
+                display: grid;
+                gap: 10px;
+            }
+            .logo-pill {
+                height: 54px;
+                border-radius: 16px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(0, 0, 0, 0.18);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                color: rgba(255, 255, 255, 0.55);
+                font-weight: 900;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                font-size: 0.72rem;
+            }
+
+            /* Timeline */
+            .timeline {
+                position: relative;
+                max-width: 880px;
+            }
+            .timeline::before {
+                content: "";
+                position: absolute;
+                left: 14px;
+                top: 0;
+                bottom: 0;
+                width: 2px;
+                background: linear-gradient(
+                    180deg,
+                    rgba(255, 107, 43, 0.55),
+                    rgba(46, 196, 182, 0.35),
+                    rgba(255, 255, 255, 0)
+                );
+            }
+            .t-step {
+                position: relative;
+                padding-left: 48px;
+                margin: 0 0 16px;
+            }
+            .t-dot {
+                position: absolute;
+                left: 6px;
+                top: 18px;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: rgba(255, 107, 43, 0.22);
+                border: 1px solid rgba(255, 107, 43, 0.45);
+                box-shadow: 0 0 0 6px rgba(255, 107, 43, 0.08);
+            }
+            .t-card {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                border-radius: 18px;
+                padding: 18px 18px;
+            }
+            .t-k {
+                font-size: 0.65rem;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.55);
+                font-weight: 800;
+            }
+            .t-t {
+                font-family: var(--display);
+                font-weight: 900;
+                letter-spacing: 0.02em;
+                margin-top: 4px;
+                margin-bottom: 6px;
+                font-size: 1.18rem;
+            }
+            .t-p {
+                color: rgba(255, 255, 255, 0.72);
+                line-height: 1.6;
+                margin: 0 0 10px;
+            }
+            .t-ui {
+                border-radius: 14px;
+                padding: 12px 12px;
+                background: rgba(0, 0, 0, 0.18);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                color: rgba(255, 255, 255, 0.55);
+                font-weight: 800;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                font-size: 0.68rem;
+            }
+
+            /* Pricing */
+            .pricing {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 18px;
+                align-items: stretch;
+            }
+            @media (max-width: 980px) {
+                .pricing {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .price-card {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                border-radius: 18px;
+                padding: 22px 18px;
+            }
+            .price-card--pro {
+                background: linear-gradient(
+                    180deg,
+                    rgba(255, 255, 255, 0.035),
+                    rgba(0, 0, 0, 0.18)
+                );
+            }
+            .price-k {
+                font-size: 0.7rem;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.6);
+                font-weight: 900;
+            }
+            .price-v {
+                font-family: var(--display);
+                font-weight: 900;
+                font-size: 2.2rem;
+                letter-spacing: 0.03em;
+                margin: 8px 0 8px;
+            }
+            .price-p {
+                color: rgba(255, 255, 255, 0.7);
+                line-height: 1.6;
+                margin: 0 0 14px;
+            }
+            .price-list {
+                margin: 0 0 18px;
+                padding-left: 18px;
+                color: rgba(255, 255, 255, 0.68);
+                line-height: 1.7;
+            }
+
+            /* Scroll reveal */
+            [data-reveal] {
+                opacity: 0;
+                transform: translateY(14px);
+                transition: opacity 420ms ease, transform 420ms ease;
+            }
+            .is-revealed {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            @media (prefers-reduced-motion: reduce) {
+                [data-reveal] {
+                    opacity: 1;
+                    transform: none;
+                    transition: none;
+                }
             }
             .sec-label {
                 font-size: 0.65rem;
@@ -780,6 +1119,902 @@
                 box-shadow:
                     0 50px 110px rgba(0, 0, 0, 0.7),
                     8px 8px 40px rgba(0, 0, 0, 0.25);
+            }
+
+            /* PREVIEW SHOWCASE */
+            .preview-stage {
+                display: flex;
+                flex-direction: column;
+                gap: 26px;
+            }
+            .preview-legacy {
+                display: none;
+            }
+            .preview-hero {
+                display: grid;
+                grid-template-columns: 1.35fr 0.95fr;
+                gap: 24px;
+                align-items: stretch;
+            }
+            .preview-grid {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 22px;
+                align-items: start;
+            }
+            .preview-grid--dual {
+                grid-template-columns: 1.1fr 0.9fr;
+            }
+            @media (max-width: 980px) {
+                .preview-hero,
+                .preview-grid,
+                .preview-grid--dual {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .preview-copy {
+                padding: 1.1rem 0.25rem 0;
+            }
+            .preview-kicker {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 0.95rem;
+                padding: 5px 12px;
+                border-radius: 999px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                background: rgba(255, 255, 255, 0.03);
+                font-size: 0.65rem;
+                font-weight: 700;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: var(--cool);
+            }
+            .preview-kicker::before {
+                content: "";
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: var(--cool);
+                box-shadow: 0 0 18px rgba(46, 196, 182, 0.7);
+            }
+            .preview-copy h3 {
+                font-family: var(--display);
+                font-size: clamp(2.2rem, 4vw, 3.5rem);
+                line-height: 0.92;
+                letter-spacing: 0.02em;
+                margin-bottom: 0.9rem;
+            }
+            .preview-copy p {
+                font-size: 0.98rem;
+                line-height: 1.75;
+                color: var(--ink2);
+                max-width: 470px;
+                margin-bottom: 1.6rem;
+            }
+            .feature-rail {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .feature-rail .tag {
+                color: var(--ink2);
+                background: rgba(255, 255, 255, 0.03);
+            }
+
+            .surface {
+                background: rgba(255, 255, 255, 0.02);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                border-radius: 14px;
+                padding: 14px;
+            }
+            .surface__top {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                margin-bottom: 12px;
+            }
+            .surface__eyebrow {
+                font-size: 0.62rem;
+                font-weight: 800;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.62);
+            }
+            .status-pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 10px;
+                border-radius: 999px;
+                font-size: 0.62rem;
+                font-weight: 800;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: var(--ink);
+                background: rgba(255, 255, 255, 0.04);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .status-pill--live {
+                color: #ffd9c8;
+                background: rgba(255, 107, 43, 0.12);
+                border-color: rgba(255, 107, 43, 0.28);
+            }
+            .status-pill--cool {
+                color: #cafff7;
+                background: rgba(46, 196, 182, 0.11);
+                border-color: rgba(46, 196, 182, 0.24);
+            }
+            .status-pill--win {
+                color: #d2ffe3;
+                background: rgba(58, 170, 100, 0.12);
+                border-color: rgba(58, 170, 100, 0.26);
+            }
+
+            .scoreband {
+                display: grid;
+                grid-template-columns: 1fr auto 1fr;
+                gap: 10px;
+                align-items: center;
+                padding: 12px;
+                border-radius: 14px;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                background: linear-gradient(
+                    180deg,
+                    rgba(255, 255, 255, 0.03),
+                    rgba(255, 255, 255, 0.01)
+                );
+                margin-bottom: 12px;
+            }
+            .scoreband__label {
+                font-size: 0.6rem;
+                font-weight: 800;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.55);
+            }
+            .scoreband__name {
+                font-size: 0.92rem;
+                font-weight: 800;
+                letter-spacing: 0.02em;
+                margin-top: 2px;
+            }
+            .scoreband__score {
+                font-family: var(--display);
+                font-weight: 900;
+                font-size: 1.6rem;
+                letter-spacing: 0.04em;
+                padding: 6px 12px;
+                border-radius: 14px;
+                background: rgba(0, 0, 0, 0.22);
+                border: 1px solid rgba(255, 255, 255, 0.07);
+            }
+            .scoreband__team:last-child {
+                text-align: right;
+            }
+
+            .hero-panels {
+                display: grid;
+                grid-template-columns: 1.25fr 0.75fr;
+                gap: 12px;
+                align-items: start;
+            }
+            .action-grid {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 10px;
+            }
+            .action-chip {
+                padding: 10px 10px;
+                border-radius: 12px;
+                text-align: center;
+                font-size: 0.62rem;
+                font-weight: 900;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                background: rgba(255, 255, 255, 0.03);
+                color: var(--ink);
+            }
+            .action-chip--acc {
+                border-color: rgba(255, 107, 43, 0.22);
+                background: rgba(255, 107, 43, 0.08);
+            }
+            .action-chip--cool {
+                border-color: rgba(46, 196, 182, 0.22);
+                background: rgba(46, 196, 182, 0.08);
+            }
+            .action-chip--gold {
+                border-color: rgba(232, 184, 109, 0.22);
+                background: rgba(232, 184, 109, 0.08);
+            }
+            .action-chip--pink {
+                border-color: rgba(255, 89, 155, 0.22);
+                background: rgba(255, 89, 155, 0.08);
+            }
+
+            .playstack {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+            }
+            .playstack span {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 8px 10px;
+                border-radius: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                background: rgba(0, 0, 0, 0.18);
+                font-size: 0.78rem;
+                color: rgba(255, 255, 255, 0.88);
+            }
+
+            .quick-metrics {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+            .quick-metric {
+                padding: 12px 12px;
+                border-radius: 14px;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                background: rgba(0, 0, 0, 0.16);
+            }
+            .quick-metric__v {
+                font-family: var(--display);
+                font-weight: 900;
+                font-size: 1.4rem;
+                letter-spacing: 0.03em;
+                line-height: 1;
+            }
+            .quick-metric__l {
+                margin-top: 6px;
+                font-size: 0.62rem;
+                font-weight: 800;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.55);
+            }
+
+            .panel-caption {
+                position: relative;
+                z-index: 2;
+                padding: 12px 16px 4px;
+            }
+            .panel-caption__title {
+                font-weight: 900;
+                letter-spacing: 0.02em;
+                margin-bottom: 4px;
+            }
+            .panel-caption__body {
+                font-size: 0.92rem;
+                color: rgba(255, 255, 255, 0.68);
+                line-height: 1.55;
+            }
+
+            .micro-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+            .micro-card {
+                padding: 12px;
+                border-radius: 14px;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                background: rgba(0, 0, 0, 0.16);
+            }
+            .micro-card__title {
+                font-size: 0.62rem;
+                font-weight: 900;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.6);
+                margin-bottom: 8px;
+            }
+            .intel-list {
+                display: grid;
+                gap: 8px;
+            }
+            .intel-row {
+                display: flex;
+                align-items: baseline;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 10px 12px;
+                border-radius: 14px;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                background: rgba(0, 0, 0, 0.14);
+            }
+            .intel-row strong {
+                font-weight: 900;
+            }
+            .intel-row span {
+                font-size: 0.85rem;
+                color: rgba(255, 255, 255, 0.62);
+                white-space: nowrap;
+            }
+
+            .matrix-mini {
+                margin-top: 12px;
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+            }
+            .matrix-mini span {
+                padding: 10px 10px;
+                text-align: center;
+                border-radius: 12px;
+                font-weight: 900;
+                font-family: var(--display);
+                letter-spacing: 0.02em;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                background: rgba(0, 0, 0, 0.14);
+            }
+            .matrix-mini .pos {
+                color: #cafff7;
+                border-color: rgba(46, 196, 182, 0.2);
+                background: rgba(46, 196, 182, 0.09);
+            }
+            .matrix-mini .neg {
+                color: #ffd1e5;
+                border-color: rgba(255, 89, 155, 0.2);
+                background: rgba(255, 89, 155, 0.08);
+            }
+
+            .report-cluster {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+            .pdf-mini {
+                padding: 12px;
+                border-radius: 14px;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                background: rgba(0, 0, 0, 0.16);
+            }
+            .pdf-mini__type {
+                font-size: 0.62rem;
+                font-weight: 900;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.58);
+                margin-bottom: 6px;
+            }
+            .pdf-mini__name {
+                font-weight: 900;
+                margin-bottom: 4px;
+            }
+            .pdf-mini__meta {
+                font-size: 0.86rem;
+                color: rgba(255, 255, 255, 0.65);
+                line-height: 1.45;
+            }
+
+            .play-list {
+                display: grid;
+                gap: 8px;
+            }
+            .play-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                gap: 12px;
+                padding: 10px 12px;
+                border-radius: 14px;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                background: rgba(0, 0, 0, 0.14);
+            }
+            .play-row span {
+                font-size: 0.86rem;
+                color: rgba(255, 255, 255, 0.64);
+                white-space: nowrap;
+            }
+
+            .upload-flow {
+                display: grid;
+                gap: 12px;
+            }
+            .dropzone {
+                padding: 16px 14px;
+                border-radius: 16px;
+                border: 1px dashed rgba(255, 255, 255, 0.14);
+                background: rgba(0, 0, 0, 0.12);
+            }
+            .dropzone i {
+                color: rgba(255, 255, 255, 0.7);
+                margin-bottom: 8px;
+            }
+            .dropzone__title {
+                font-weight: 900;
+                letter-spacing: 0.02em;
+                margin-bottom: 4px;
+            }
+            .dropzone__meta {
+                color: rgba(255, 255, 255, 0.66);
+                font-size: 0.9rem;
+                line-height: 1.45;
+            }
+            .route-list {
+                display: grid;
+                gap: 8px;
+            }
+            .route-item {
+                display: flex;
+                justify-content: space-between;
+                gap: 10px;
+                align-items: center;
+                padding: 10px 12px;
+                border-radius: 14px;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                background: rgba(0, 0, 0, 0.14);
+            }
+            .route-item code {
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+                    "Liberation Mono", "Courier New", monospace;
+                font-size: 0.8rem;
+                color: rgba(255, 255, 255, 0.86);
+            }
+            .route-item span {
+                color: rgba(255, 255, 255, 0.6);
+                font-size: 0.86rem;
+                white-space: nowrap;
+            }
+            .stack3d {
+                position: relative;
+                perspective: 1600px;
+                min-height: 100%;
+                will-change: transform;
+                transition: transform 220ms ease;
+                isolation: isolate;
+            }
+            .stack3d::before,
+            .stack3d::after {
+                content: "";
+                position: absolute;
+                inset: 26px 20px -18px 20px;
+                border-radius: 20px;
+                background: linear-gradient(
+                    180deg,
+                    rgba(255, 255, 255, 0.04),
+                    rgba(255, 255, 255, 0.015)
+                );
+                border: 1px solid rgba(255, 255, 255, 0.04);
+                transform: translateZ(-40px) rotateX(10deg) rotateY(-7deg);
+                z-index: -1;
+                filter: blur(0.2px);
+                pointer-events: none;
+            }
+            .stack3d::after {
+                inset: 40px 34px -34px 34px;
+                transform: translateZ(-80px) rotateX(12deg) rotateY(-10deg);
+                opacity: 0.75;
+            }
+            .float-badge {
+                position: absolute;
+                z-index: 4;
+                padding: 8px 12px;
+                border-radius: 12px;
+                font-size: 0.64rem;
+                font-weight: 700;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--ink);
+                background: rgba(19, 28, 46, 0.88);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+                backdrop-filter: blur(12px);
+            }
+            .float-badge--tl {
+                top: 18px;
+                left: -12px;
+                transform: rotate(-8deg);
+            }
+            .float-badge--br {
+                right: -12px;
+                bottom: 18px;
+                transform: rotate(7deg);
+            }
+            .surface {
+                background: linear-gradient(
+                    180deg,
+                    rgba(255, 255, 255, 0.04),
+                    rgba(255, 255, 255, 0.02)
+                );
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                border-radius: 16px;
+                padding: 14px;
+                position: relative;
+                overflow: hidden;
+            }
+            .surface::before {
+                content: "";
+                position: absolute;
+                inset: -30% auto auto -10%;
+                width: 220px;
+                height: 220px;
+                background: radial-gradient(
+                    circle,
+                    rgba(255, 107, 43, 0.13),
+                    transparent 62%
+                );
+                pointer-events: none;
+            }
+            .surface__top {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                margin-bottom: 12px;
+            }
+            .surface__eyebrow {
+                font-size: 0.58rem;
+                text-transform: uppercase;
+                letter-spacing: 0.13em;
+                color: var(--ink-muted);
+                font-weight: 700;
+            }
+            .status-pill {
+                padding: 4px 9px;
+                border-radius: 999px;
+                font-size: 0.58rem;
+                font-weight: 700;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .status-pill--live {
+                background: rgba(255, 107, 43, 0.12);
+                color: var(--accent);
+                border-color: rgba(255, 107, 43, 0.2);
+            }
+            .status-pill--win {
+                background: rgba(58, 170, 100, 0.14);
+                color: var(--win);
+                border-color: rgba(58, 170, 100, 0.24);
+            }
+            .status-pill--cool {
+                background: rgba(46, 196, 182, 0.12);
+                color: var(--cool);
+                border-color: rgba(46, 196, 182, 0.2);
+            }
+            .hero-panels {
+                display: grid;
+                grid-template-columns: 1.2fr 0.8fr;
+                gap: 14px;
+            }
+            @media (max-width: 720px) {
+                .hero-panels {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .scoreband {
+                display: grid;
+                grid-template-columns: 1fr auto 1fr;
+                gap: 10px;
+                align-items: center;
+                margin-bottom: 12px;
+                padding: 14px;
+                border-radius: 14px;
+                background: linear-gradient(
+                    180deg,
+                    rgba(255, 107, 43, 0.1),
+                    rgba(255, 107, 43, 0.04)
+                );
+                border: 1px solid rgba(255, 107, 43, 0.16);
+            }
+            .scoreband__team {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .scoreband__team:last-child {
+                text-align: right;
+            }
+            .scoreband__label {
+                font-size: 0.58rem;
+                text-transform: uppercase;
+                letter-spacing: 0.16em;
+                color: var(--ink-muted);
+            }
+            .scoreband__name {
+                font-family: var(--display);
+                font-size: 1.28rem;
+                letter-spacing: 0.05em;
+            }
+            .scoreband__score {
+                font-family: var(--display);
+                font-size: 2.6rem;
+                line-height: 1;
+                color: var(--accent);
+            }
+            .scoreband__meta {
+                text-align: center;
+                font-size: 0.65rem;
+                color: var(--ink2);
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .action-grid {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+            .action-chip {
+                border-radius: 12px;
+                padding: 10px 6px;
+                text-align: center;
+                font-size: 0.6rem;
+                font-weight: 800;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .action-chip--acc {
+                background: rgba(255, 107, 43, 0.12);
+                color: var(--accent2);
+            }
+            .action-chip--cool {
+                background: rgba(46, 196, 182, 0.1);
+                color: var(--cool);
+            }
+            .action-chip--gold {
+                background: rgba(232, 184, 109, 0.11);
+                color: var(--gold);
+            }
+            .action-chip--pink {
+                background: rgba(255, 122, 162, 0.1);
+                color: var(--pink);
+            }
+            .playstack {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+            .playstack span {
+                padding: 4px 9px;
+                border-radius: 999px;
+                font-size: 0.62rem;
+                font-weight: 600;
+                color: var(--ink2);
+                background: rgba(255, 255, 255, 0.04);
+                border: 1px solid rgba(255, 255, 255, 0.07);
+            }
+            .quick-metrics {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+            .quick-metric {
+                padding: 12px 10px;
+                border-radius: 14px;
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+            }
+            .quick-metric__v {
+                font-family: var(--display);
+                font-size: 1.65rem;
+                line-height: 1;
+                margin-bottom: 4px;
+            }
+            .quick-metric__l {
+                font-size: 0.62rem;
+                text-transform: uppercase;
+                letter-spacing: 0.12em;
+                color: var(--ink-muted);
+            }
+            .preview-panel {
+                position: relative;
+                z-index: 1;
+            }
+            .panel-caption {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                margin-top: 10px;
+                padding: 0 6px;
+            }
+            .panel-caption__title {
+                font-family: var(--display);
+                font-size: 1.05rem;
+                letter-spacing: 0.04em;
+            }
+            .panel-caption__body {
+                font-size: 0.8rem;
+                color: var(--ink-muted);
+                max-width: 420px;
+                line-height: 1.55;
+            }
+            .micro-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            .micro-card {
+                padding: 12px;
+                border-radius: 14px;
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+            }
+            .micro-card__title {
+                font-size: 0.62rem;
+                text-transform: uppercase;
+                letter-spacing: 0.14em;
+                color: var(--ink-muted);
+                margin-bottom: 8px;
+                font-weight: 700;
+            }
+            .intel-list,
+            .report-list,
+            .play-list {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .intel-row,
+            .report-row,
+            .play-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 10px;
+                padding: 9px 10px;
+                border-radius: 12px;
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                font-size: 0.72rem;
+            }
+            .intel-row strong,
+            .report-row strong,
+            .play-row strong {
+                color: var(--ink);
+                font-weight: 700;
+            }
+            .matrix-mini {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 6px;
+                margin-top: 10px;
+            }
+            .matrix-mini span {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 36px;
+                border-radius: 10px;
+                font-size: 0.7rem;
+                font-weight: 800;
+                font-family: var(--display);
+                letter-spacing: 0.05em;
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+            }
+            .matrix-mini .pos {
+                color: #6dff8d;
+                background: rgba(58, 170, 100, 0.13);
+            }
+            .matrix-mini .neg {
+                color: #ff8ba9;
+                background: rgba(255, 122, 162, 0.12);
+            }
+            .report-cluster {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            .pdf-mini {
+                min-height: 128px;
+                padding: 14px;
+                border-radius: 16px;
+                background: linear-gradient(
+                    180deg,
+                    rgba(255,255,255,0.05),
+                    rgba(255,255,255,0.02)
+                );
+                border: 1px solid rgba(255,255,255,0.06);
+                position: relative;
+                overflow: hidden;
+            }
+            .pdf-mini::after {
+                content: "";
+                position: absolute;
+                inset: auto -20% -50% auto;
+                width: 120px;
+                height: 120px;
+                border-radius: 50%;
+                background: radial-gradient(circle, rgba(255,255,255,0.08), transparent 70%);
+            }
+            .pdf-mini__type {
+                font-size: 0.58rem;
+                text-transform: uppercase;
+                letter-spacing: 0.15em;
+                color: var(--ink-muted);
+                margin-bottom: 8px;
+            }
+            .pdf-mini__name {
+                font-family: var(--display);
+                font-size: 1.08rem;
+                line-height: 1.02;
+                letter-spacing: 0.04em;
+                margin-bottom: 10px;
+            }
+            .pdf-mini__meta {
+                font-size: 0.72rem;
+                color: var(--ink2);
+                line-height: 1.55;
+            }
+            .upload-flow {
+                display: grid;
+                grid-template-columns: 0.95fr 1.05fr;
+                gap: 12px;
+                align-items: stretch;
+            }
+            @media (max-width: 720px) {
+                .upload-flow,
+                .micro-grid,
+                .report-cluster {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .dropzone {
+                min-height: 168px;
+                border-radius: 18px;
+                border: 1px dashed rgba(255, 255, 255, 0.16);
+                background:
+                    linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015)),
+                    radial-gradient(circle at top, rgba(110, 168, 254, 0.11), transparent 55%);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                padding: 18px;
+                gap: 8px;
+            }
+            .dropzone i {
+                font-size: 1.7rem;
+                color: var(--blue);
+            }
+            .dropzone__title {
+                font-family: var(--display);
+                font-size: 1.15rem;
+                letter-spacing: 0.04em;
+            }
+            .dropzone__meta {
+                font-size: 0.76rem;
+                color: var(--ink-muted);
+                line-height: 1.55;
+                max-width: 220px;
+            }
+            .route-list {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .route-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 12px;
+                border-radius: 12px;
+                background: rgba(255,255,255,0.03);
+                border: 1px solid rgba(255,255,255,0.05);
+            }
+            .route-item code {
+                color: var(--ink);
+                font-size: 0.72rem;
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            }
+            .route-item span {
+                font-size: 0.68rem;
+                color: var(--ink-muted);
+                text-align: right;
             }
 
             /* LIVE SCREEN */
@@ -1486,16 +2721,18 @@
         <!-- NAV -->
         <nav class="nav">
             <a class="nav__logo" href="#"
-                ><span class="nav__orb"></span>CourtIQ</a
+                ><span class="nav__orb"></span>HOOPSLAB</a
             >
             <div class="nav__links">
-                <a class="nav__link" href="#features">Features</a>
-                <a class="nav__link" href="#preview">App Preview</a>
-                <a class="nav__link" href="#reports">Reports</a>
-                <a class="nav__link" href="#workflow">Workflow</a>
+                <a class="nav__link" href="#product">Product</a>
+                <a class="nav__link" href="#pricing">Pricing</a>
+                <a class="nav__link" href="{{ url_for('auth.login') }}"
+                    >Sign In</a
+                >
             </div>
-            <a class="nav__btn" href="{{ url_for('auth.login') }}"
-                ><i class="fas fa-sign-in-alt"></i> Sign in</a
+            <a class="nav__btn btn-primary" href="{{ url_for('auth.login') }}"
+                data-cta="primary"
+                ><i class="fas fa-bolt"></i> Start Tracking Free</a
             >
         </nav>
 
@@ -1664,35 +2901,68 @@
             <div class="hero__inner">
                 <div>
                     <div class="hero__badge">
-                        <span class="hero__badge-dot"></span>Basketball
-                        Analytics Platform
+                        <span class="hero__badge-dot"></span>Built for game day
                     </div>
                     <h1 class="hero__title">
-                        Every stat.<br /><span>Every edge.</span>
+                        Track the full game live.<br /><span>Print the halftime report in seconds.</span>
                     </h1>
                     <p class="hero__sub">
-                        Live game tracking with play tagging, advanced box
-                        scores, lineup analytics, opponent scouting, and PDF
-                        reports &mdash; all in one coaching tool built for
-                        serious teams.
+                        Stop rebuilding your game story after the buzzer. HOOPSLAB turns live tracking into
+                        instant intelligence and print-ready coaching documents.
                     </p>
+                    <div class="pain-pivot">
+                        Still doing stats in spreadsheets or multiple apps? You lose context, waste time, and the
+                        report comes too late. HOOPSLAB keeps everything in one flow — track → understand → share.
+                    </div>
                     <div class="hero__cta">
-                        <a href="{{ url_for('auth.login') }}" class="btn-fire"
-                            ><i class="fas fa-sign-in-alt"></i> Enter
-                            Dashboard</a
+                        <a
+                            href="{{ url_for('auth.login') }}"
+                            class="btn-fire btn-primary"
+                            data-cta="primary"
+                            ><i class="fas fa-bolt"></i> Start Tracking Free</a
                         >
-                        <a href="#features" class="btn-ghost"
-                            ><i class="fas fa-layer-group"></i> See Features</a
+                        <a href="#product" class="btn-link"
+                            ><i class="fas fa-arrow-down"></i> See how it works</a
                         >
+                    </div>
+                    <div class="trustbar" aria-label="Trust bar">
+                        <div class="trustbar__item">
+                            <div class="trustbar__val">&lt; 1s</div>
+                            <div class="trustbar__lbl">PDF render</div>
+                        </div>
+                        <div class="trustbar__item">
+                            <div class="trustbar__val">100%</div>
+                            <div class="trustbar__lbl">game-day flow</div>
+                        </div>
+                        <div class="trustbar__item">
+                            <div class="trustbar__val">1 tool</div>
+                            <div class="trustbar__lbl">track → share</div>
+                        </div>
                     </div>
                 </div>
                 <div class="hero__visual">
                     <div>
-                        <div class="ball-wrap">
+                        <div class="demo-wrap">
+                            <video
+                                class="demo-video"
+                                autoplay
+                                muted
+                                playsinline
+                                preload="metadata"
+                                loop
+                                data-autoplay-demo
+                            >
+                                <source
+                                    src="{{ url_for('static', filename='videos/hoopslab-demo.mp4') }}"
+                                    type="video/mp4"
+                                />
+                            </video>
                             <svg
                                 viewBox="0 0 300 300"
                                 fill="none"
                                 xmlns="http://www.w3.org/2000/svg"
+                                style="display:none"
+                                aria-hidden="true"
                             >
                                 <defs>
                                     <filter
@@ -1829,6 +3099,30 @@
                                     <clipPath id="c">
                                         <circle cx="150" cy="150" r="142" />
                                     </clipPath>
+                                    <linearGradient
+                                        id="spec"
+                                        x1="0"
+                                        y1="0"
+                                        x2="1"
+                                        y2="1"
+                                    >
+                                        <stop
+                                            offset="0%"
+                                            stop-color="rgba(255,255,255,0)"
+                                        />
+                                        <stop
+                                            offset="45%"
+                                            stop-color="rgba(255,255,255,0.78)"
+                                        />
+                                        <stop
+                                            offset="60%"
+                                            stop-color="rgba(255,255,255,0.18)"
+                                        />
+                                        <stop
+                                            offset="100%"
+                                            stop-color="rgba(255,255,255,0)"
+                                        />
+                                    </linearGradient>
                                 </defs>
                                 <circle
                                     cx="150"
@@ -1953,6 +3247,16 @@
                                     transform="rotate(22 200 208)"
                                     clip-path="url(#c)"
                                 />
+                                <ellipse
+                                    class="ball-spec"
+                                    cx="118"
+                                    cy="98"
+                                    rx="86"
+                                    ry="26"
+                                    fill="url(#spec)"
+                                    transform="rotate(-22 118 98)"
+                                    clip-path="url(#c)"
+                                />
                                 <circle
                                     cx="150"
                                     cy="150"
@@ -1973,8 +3277,193 @@
                                 />
                             </svg>
                         </div>
-                        <div class="ball-shadow"></div>
                     </div>
+                </div>
+            </div>
+        </section>
+        <div class="divider"></div>
+
+        <!-- PRODUCT (3 PILLARS) -->
+        <section class="section" id="product" data-reveal>
+            <div class="sec-label">Product</div>
+            <h2 class="sec-title">Three pillars for game day.</h2>
+            <p class="sec-sub">
+                HOOPSLAB replaces the messy stack of tools with one narrative: track the game live,
+                understand what’s happening, then print and share the story instantly.
+            </p>
+
+            <div class="pillars">
+                <article class="pillar">
+                    <div class="pillar__head">
+                        <div class="pillar__ico pillar__ico--acc">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <div>
+                            <div class="pillar__k">Pillar 1</div>
+                            <h3 class="pillar__t">Live Command Center</h3>
+                        </div>
+                    </div>
+                    <p class="pillar__p">
+                        Replace pen-and-paper tracking. Log events fast, tag plays in the moment, and keep score context
+                        accurate from tip-off to the final possession.
+                    </p>
+                    <ul class="pillar__list">
+                        <li>Event logging + possession context</li>
+                        <li>Play tagging (selectors, filters)</li>
+                        <li>Halftime-ready summaries</li>
+                    </ul>
+                </article>
+
+                <article class="pillar">
+                    <div class="pillar__head">
+                        <div class="pillar__ico pillar__ico--cool">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                        <div>
+                            <div class="pillar__k">Pillar 2</div>
+                            <h3 class="pillar__t">Automatic Intelligence</h3>
+                        </div>
+                    </div>
+                    <p class="pillar__p">
+                        Real-time TS%, eFG%, Net Rating and lineup impact — computed continuously so decisions happen during the game,
+                        not on Monday in a spreadsheet.
+                    </p>
+                    <ul class="pillar__list">
+                        <li>Advanced box score metrics</li>
+                        <li>Lineup + duo/trio combinations</li>
+                        <li>Player trends + scouting outputs</li>
+                    </ul>
+                </article>
+
+                <article class="pillar">
+                    <div class="pillar__head">
+                        <div class="pillar__ico pillar__ico--pink">
+                            <i class="fas fa-file-pdf"></i>
+                        </div>
+                        <div>
+                            <div class="pillar__k">Pillar 3</div>
+                            <h3 class="pillar__t">Print &amp; Share</h3>
+                        </div>
+                    </div>
+                    <p class="pillar__p">
+                        Server-side PDFs that look like coaching documents — not browser printouts. Export halftime,
+                        game, player, lineup, season and clutch reports in one click.
+                    </p>
+                    <ul class="pillar__list">
+                        <li>Halftime + game summaries</li>
+                        <li>Player reports + scouting cards</li>
+                        <li>Team bundles + ZIP exports</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+        <div class="divider"></div>
+
+        <!-- SOCIAL PROOF -->
+        <section class="section" id="proof" data-reveal>
+            <div class="sec-label">Trusted by coaches</div>
+            <h2 class="sec-title">Less admin. More decisions.</h2>
+            <p class="sec-sub">
+                Replace late reports with a game-day system. (Add real team logos + quotes as you collect them.)
+            </p>
+            <div class="proof">
+                <div class="quote">
+                    <div class="quote__mark">“</div>
+                    <div class="quote__text">
+                        We stopped chasing stats across apps. Now the halftime report is ready before we walk into the locker room.
+                    </div>
+                    <div class="quote__by">— Head Coach, Semi-Pro</div>
+                </div>
+                <div class="logos" aria-label="Team logos">
+                    <div class="logo-pill">TEAM LOGO</div>
+                    <div class="logo-pill">TEAM LOGO</div>
+                    <div class="logo-pill">TEAM LOGO</div>
+                </div>
+            </div>
+        </section>
+        <div class="divider"></div>
+
+        <!-- WORKFLOW TIMELINE -->
+        <section class="section" id="timeline" data-reveal>
+            <div class="sec-label">Workflow</div>
+            <h2 class="sec-title">From tip-off to PDF — in four steps.</h2>
+            <p class="sec-sub">
+                A single flow designed for game day: collect, track, analyze, and share.
+            </p>
+            <div class="timeline">
+                <div class="t-step">
+                    <div class="t-dot"></div>
+                    <div class="t-card">
+                        <div class="t-k">Step 1</div>
+                        <div class="t-t">Import / set up the game</div>
+                        <div class="t-p">Upload game data or start fresh. Keep seasons and rosters consistent.</div>
+                        <div class="t-ui">UI: upload + roster mapping</div>
+                    </div>
+                </div>
+                <div class="t-step">
+                    <div class="t-dot"></div>
+                    <div class="t-card">
+                        <div class="t-k">Step 2</div>
+                        <div class="t-t">Track live + tag plays</div>
+                        <div class="t-p">Fast event buttons, possession context, and optional play selector during scoring.</div>
+                        <div class="t-ui">UI: live command center</div>
+                    </div>
+                </div>
+                <div class="t-step">
+                    <div class="t-dot"></div>
+                    <div class="t-card">
+                        <div class="t-k">Step 3</div>
+                        <div class="t-t">Review intelligence</div>
+                        <div class="t-p">Box score, TS% / eFG%, lineups, matrices, player trends — ready immediately.</div>
+                        <div class="t-ui">UI: analytics + lineups</div>
+                    </div>
+                </div>
+                <div class="t-step">
+                    <div class="t-dot"></div>
+                    <div class="t-card">
+                        <div class="t-k">Step 4</div>
+                        <div class="t-t">Print &amp; share</div>
+                        <div class="t-p">Generate server-side PDFs and export bundles (including ZIPs) for staff and players.</div>
+                        <div class="t-ui">UI: reports studio</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <div class="divider"></div>
+
+        <!-- PRICING -->
+        <section class="section" id="pricing" data-reveal>
+            <div class="sec-label">Pricing</div>
+            <h2 class="sec-title">Start free. Upgrade when it sticks.</h2>
+            <p class="sec-sub">
+                Track your next game free. No credit card. No setup.
+            </p>
+            <div class="pricing">
+                <div class="price-card">
+                    <div class="price-k">Free</div>
+                    <div class="price-v">€0</div>
+                    <div class="price-p">For trying the workflow with your next game.</div>
+                    <ul class="price-list">
+                        <li>Live tracking</li>
+                        <li>Core box score</li>
+                        <li>Basic PDF export</li>
+                    </ul>
+                    <a href="{{ url_for('auth.login') }}" class="btn-fire btn-primary" data-cta="primary"
+                        ><i class="fas fa-bolt"></i> Start Tracking Free</a
+                    >
+                </div>
+                <div class="price-card price-card--pro">
+                    <div class="price-k">Team</div>
+                    <div class="price-v">Contact</div>
+                    <div class="price-p">For serious teams that want the full intelligence stack.</div>
+                    <ul class="price-list">
+                        <li>Advanced lineups + combinations</li>
+                        <li>Full PDF suite + bundles</li>
+                        <li>Season trends + clutch</li>
+                    </ul>
+                    <a href="{{ url_for('auth.login') }}" class="btn-ghost"
+                        ><i class="fas fa-envelope"></i> Talk to us</a
+                    >
                 </div>
             </div>
         </section>
@@ -2028,7 +3517,7 @@
                             <div class="browser__dot"></div>
                             <div class="browser__dot"></div>
                             <div class="browser__url">
-                                courtiq.app/game/live
+                                hoops.lab/game/live
                             </div>
                         </div>
                         <div class="live-screen">
@@ -2287,13 +3776,319 @@
 
         <!-- APP PREVIEW -->
         <section class="section" id="preview">
-            <div class="sec-label">App Preview</div>
-            <h2 class="sec-title">Your app,<br />in full detail.</h2>
+            <div class="sec-label">Product Tour</div>
+            <h2 class="sec-title">
+                A layered command center,<br />not a static mock wall.
+            </h2>
             <p class="sec-sub">
-                Real UI mocks from the app &mdash; every screen built for speed
-                and clarity.
+                This preview maps to what’s implemented: live tracking, post-game review,
+                player intel, lineups + combinations, reports, playbook analysis, and import/export workflows.
             </p>
 
+            <div class="preview-stage">
+                <div class="preview-hero">
+                    <div class="preview-copy">
+                        <div class="preview-kicker">3D Product Surface</div>
+                        <h3>Track live.<br />Review fast.<br />Print smarter.</h3>
+                        <p>
+                            HOOPSLAB follows the real rhythm of a game day: ingest data, track actions live,
+                            review advanced numbers, drill into players/lineups, and ship print-ready reports.
+                        </p>
+                        <div class="feature-rail">
+                            <span class="tag">Live Game</span>
+                            <span class="tag">Game Detail</span>
+                            <span class="tag">Player Detail</span>
+                            <span class="tag">Lineup Lab</span>
+                            <span class="tag">Playbook</span>
+                            <span class="tag">PDF Studio</span>
+                            <span class="tag">Import + ZIP Export</span>
+                        </div>
+                    </div>
+
+                    <div class="preview-panel stack3d">
+                        <div class="float-badge float-badge--tl">Live + Clutch</div>
+                        <div class="float-badge float-badge--br">Reports in 1 click</div>
+                        <div class="mock3d browser">
+                            <div class="browser__bar">
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__url">hoopslab.app/live-game</div>
+                            </div>
+                            <div class="surface" style="padding: 16px;">
+                                <div class="surface__top">
+                                    <div class="surface__eyebrow">Live game command center</div>
+                                    <div class="status-pill status-pill--live">Q4 · 01:12</div>
+                                </div>
+                                <div class="scoreband">
+                                    <div class="scoreband__team">
+                                        <div class="scoreband__label">Team</div>
+                                        <div class="scoreband__name">HOOPSLAB</div>
+                                    </div>
+                                    <div class="scoreband__score">84-79</div>
+                                    <div class="scoreband__team">
+                                        <div class="scoreband__label">Opponent</div>
+                                        <div class="scoreband__name">Falcons</div>
+                                    </div>
+                                </div>
+                                <div class="hero-panels">
+                                    <div>
+                                        <div class="action-grid">
+                                            <div class="action-chip action-chip--acc">2PT</div>
+                                            <div class="action-chip action-chip--acc">3PT</div>
+                                            <div class="action-chip action-chip--cool">REB</div>
+                                            <div class="action-chip action-chip--gold">AST</div>
+                                            <div class="action-chip action-chip--pink">TOV</div>
+                                            <div class="action-chip action-chip--cool">STL</div>
+                                            <div class="action-chip action-chip--gold">FT</div>
+                                            <div class="action-chip action-chip--pink">FOUL</div>
+                                        </div>
+                                        <div class="surface" style="padding: 12px;">
+                                            <div class="surface__top" style="margin-bottom: 8px;">
+                                                <div class="surface__eyebrow">Play selector</div>
+                                                <div class="status-pill status-pill--cool">On</div>
+                                            </div>
+                                            <div class="playstack">
+                                                <span>Horns Twist</span>
+                                                <span>Spain P&amp;R</span>
+                                                <span>Iverson</span>
+                                                <span>Delay</span>
+                                                <span>Zone Attack</span>
+                                                <span>ATO</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="quick-metrics">
+                                        <div class="quick-metric">
+                                            <div class="quick-metric__v" style="color: var(--accent);">1.18</div>
+                                            <div class="quick-metric__l">PPP</div>
+                                        </div>
+                                        <div class="quick-metric">
+                                            <div class="quick-metric__v" style="color: var(--cool);">58.6%</div>
+                                            <div class="quick-metric__l">eFG%</div>
+                                        </div>
+                                        <div class="quick-metric">
+                                            <div class="quick-metric__v" style="color: var(--gold);">+9</div>
+                                            <div class="quick-metric__l">Net run</div>
+                                        </div>
+                                        <div class="quick-metric">
+                                            <div class="quick-metric__v" style="color: var(--purple);">7</div>
+                                            <div class="quick-metric__l">Tagged plays</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-caption">
+                            <div>
+                                <div class="panel-caption__title">Live Command Center</div>
+                                <div class="panel-caption__body">
+                                    Track actions, score context, and play tags in real time, then move into halftime and post-game reporting.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="preview-grid">
+                    <div class="preview-panel stack3d">
+                        <div class="mock3d browser">
+                            <div class="browser__bar">
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__url">hoopslab.app/player/Ardizzoia</div>
+                            </div>
+                            <div class="surface">
+                                <div class="surface__top">
+                                    <div class="surface__eyebrow">Player detail + scouting</div>
+                                    <div class="status-pill status-pill--win">Season</div>
+                                </div>
+                                <div class="micro-grid">
+                                    <div class="micro-card">
+                                        <div class="micro-card__title">Scoring</div>
+                                        <div class="quick-metric__v" style="color: var(--accent); font-size: 2rem;">18.4</div>
+                                        <div class="quick-metric__l">PPG</div>
+                                    </div>
+                                    <div class="micro-card">
+                                        <div class="micro-card__title">Shot quality</div>
+                                        <div class="quick-metric__v" style="color: var(--cool); font-size: 2rem;">+0.14</div>
+                                        <div class="quick-metric__l">SQ delta</div>
+                                    </div>
+                                </div>
+                                <div class="intel-list" style="margin-top: 10px;">
+                                    <div class="intel-row"><strong>Player Report PDF</strong><span>lineups · possessions · plays</span></div>
+                                    <div class="intel-row"><strong>Scouting Card</strong><span>heatmap · PPS · zones</span></div>
+                                    <div class="intel-row"><strong>Season Trends</strong><span>rolling 5/10 · consistency</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-caption">
+                            <div>
+                                <div class="panel-caption__title">Player Intel</div>
+                                <div class="panel-caption__body">Detailed player pages with trends, shot context, and exportable scouting/report outputs.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="preview-panel stack3d">
+                        <div class="mock3d browser" style="transform: rotateX(5deg) rotateY(2deg) scale(0.97);">
+                            <div class="browser__bar">
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__url">hoopslab.app/lineups</div>
+                            </div>
+                            <div class="surface">
+                                <div class="surface__top">
+                                    <div class="surface__eyebrow">Lineup lab</div>
+                                    <div class="status-pill status-pill--cool">5-man + combos</div>
+                                </div>
+                                <div class="intel-list">
+                                    <div class="intel-row"><strong>Silva · Ardizzoia · Maffioli</strong><span style="color: var(--cool);">+14.8 NRtg</span></div>
+                                    <div class="intel-row"><strong>Fernandez · Maspero · Silva</strong><span style="color: var(--gold);">112.4 ORtg</span></div>
+                                    <div class="intel-row"><strong>Ardizzoia · Portaro · Cremona</strong><span style="color: var(--pink);">-4.6 DRtg</span></div>
+                                </div>
+                                <div class="matrix-mini">
+                                    <span class="pos">+7.2</span>
+                                    <span class="neg">-3.1</span>
+                                    <span class="pos">+4.9</span>
+                                    <span class="neg">-1.6</span>
+                                    <span class="neg">-5.2</span>
+                                    <span class="pos">+8.4</span>
+                                    <span class="neg">-2.0</span>
+                                    <span class="pos">+6.1</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-caption">
+                            <div>
+                                <div class="panel-caption__title">Lineups + Matrix</div>
+                                <div class="panel-caption__body">5-man rankings, duo/trio differentials, combination detail, and printable lineup reports.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="preview-panel stack3d">
+                        <div class="mock3d browser" style="transform: rotateX(5deg) rotateY(-5deg) scale(0.97);">
+                            <div class="browser__bar">
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__url">hoopslab.app/reports</div>
+                            </div>
+                            <div class="surface">
+                                <div class="surface__top">
+                                    <div class="surface__eyebrow">Reports studio</div>
+                                    <div class="status-pill status-pill--win">PDF</div>
+                                </div>
+                                <div class="report-cluster">
+                                    <div class="pdf-mini">
+                                        <div class="pdf-mini__type">Game</div>
+                                        <div class="pdf-mini__name">Summary + Visual</div>
+                                        <div class="pdf-mini__meta">Box score, score worm, quarter flow, shot chart.</div>
+                                    </div>
+                                    <div class="pdf-mini">
+                                        <div class="pdf-mini__type">Player</div>
+                                        <div class="pdf-mini__name">Report + Scouting</div>
+                                        <div class="pdf-mini__meta">Trends, lineups, possessions, zones, heatmap.</div>
+                                    </div>
+                                    <div class="pdf-mini">
+                                        <div class="pdf-mini__type">Season</div>
+                                        <div class="pdf-mini__name">Trend + Clutch</div>
+                                        <div class="pdf-mini__meta">Consistency board, rolling averages, clutch production.</div>
+                                    </div>
+                                    <div class="pdf-mini">
+                                        <div class="pdf-mini__type">Team</div>
+                                        <div class="pdf-mini__name">Team + Bundle</div>
+                                        <div class="pdf-mini__meta">Team report + bulk player ZIP export.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-caption">
+                            <div>
+                                <div class="panel-caption__title">PDF Studio</div>
+                                <div class="panel-caption__body">Halftime, game, evolution, visual, lineup, scouting, trend, clutch, team, and player reports.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="preview-grid preview-grid--dual">
+                    <div class="preview-panel stack3d">
+                        <div class="mock3d browser">
+                            <div class="browser__bar">
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__url">hoopslab.app/plays</div>
+                            </div>
+                            <div class="surface">
+                                <div class="surface__top">
+                                    <div class="surface__eyebrow">Playbook + efficiency</div>
+                                    <div class="status-pill status-pill--cool">Tag + Analyse</div>
+                                </div>
+                                <div class="play-list">
+                                    <div class="play-row"><strong>Horns Twist</strong><span>1.22 PPP · 18 uses</span></div>
+                                    <div class="play-row"><strong>Spain Pick &amp; Roll</strong><span>1.14 PPP · 14 uses</span></div>
+                                    <div class="play-row"><strong>Delay Chase</strong><span>0.96 PPP · 11 uses</span></div>
+                                    <div class="play-row"><strong>Baseline Out</strong><span>44% FG · 9 actions</span></div>
+                                </div>
+                                <div class="feature-rail" style="margin-top: 10px;">
+                                    <span class="tag">CRUD playbook</span>
+                                    <span class="tag">live tagging</span>
+                                    <span class="tag">PPP by play</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-caption">
+                            <div>
+                                <div class="panel-caption__title">Playbook Intelligence</div>
+                                <div class="panel-caption__body">Manage plays, tag live actions, and review frequency + efficiency by play and player.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="preview-panel stack3d">
+                        <div class="mock3d browser" style="transform: rotateX(4deg) rotateY(3deg) scale(0.97);">
+                            <div class="browser__bar">
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__dot"></div>
+                                <div class="browser__url">hoopslab.app/upload-game</div>
+                            </div>
+                            <div class="surface">
+                                <div class="surface__top">
+                                    <div class="surface__eyebrow">Import + distribution</div>
+                                    <div class="status-pill status-pill--cool">CSV / PDF / JSON</div>
+                                </div>
+                                <div class="upload-flow">
+                                    <div class="dropzone">
+                                        <i class="fas fa-cloud-upload-alt"></i>
+                                        <div class="dropzone__title">Drop game files</div>
+                                        <div class="dropzone__meta">Import historical games, rebuild archives, or create matches from source files.</div>
+                                    </div>
+                                    <div class="route-list">
+                                        <div class="route-item"><code>/upload-game</code><span>multi-format ingestion</span></div>
+                                        <div class="route-item"><code>/players/cards.pdf</code><span>cards export</span></div>
+                                        <div class="route-item"><code>/players/pages.zip</code><span>batch pages ZIP</span></div>
+                                        <div class="route-item"><code>/download-all</code><span>team + player bundle</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-caption">
+                            <div>
+                                <div class="panel-caption__title">Import &amp; Bulk Export</div>
+                                <div class="panel-caption__body">Bring data in, then distribute PDFs at scale: team report + player reports ZIP.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="preview-legacy" aria-hidden="true">
             <!-- ROW 1: Box Score + Player Profile -->
             <div
                 style="
@@ -2311,7 +4106,7 @@
                             <div class="browser__dot"></div>
                             <div class="browser__dot"></div>
                             <div class="browser__url">
-                                courtiq.app/game/42/boxscore
+                                hoopslab.app/game/42/boxscore
                             </div>
                         </div>
                         <div style="padding: 12px 0">
@@ -2432,7 +4227,7 @@
                             <div class="browser__dot"></div>
                             <div class="browser__dot"></div>
                             <div class="browser__dot"></div>
-                            <div class="browser__url">courtiq.app/player/3</div>
+                            <div class="browser__url">hoopslab.app/player/3</div>
                         </div>
                         <div class="pp-header">
                             <div class="pp-avatar">A</div>
@@ -2661,7 +4456,7 @@
                             <div class="browser__dot"></div>
                             <div class="browser__dot"></div>
                             <div class="browser__dot"></div>
-                            <div class="browser__url">courtiq.app/lineups</div>
+                            <div class="browser__url">hoopslab.app/lineups</div>
                         </div>
                         <div style="padding: 8px 0 4px">
                             <div
@@ -2743,7 +4538,7 @@
                             <div class="browser__dot"></div>
                             <div class="browser__dot"></div>
                             <div class="browser__url">
-                                courtiq.app/analytics
+                                hoopslab.app/analytics
                             </div>
                         </div>
                         <div class="chart-wrap">
@@ -3200,6 +4995,7 @@
                     </div>
                 </div>
             </div>
+            </div>
         </section>
         <div class="divider"></div>
 
@@ -3363,7 +5159,7 @@
 
         <!-- FOOTER -->
         <footer>
-            <div class="footer-logo">CourtIQ</div>
+            <div class="footer-logo">HOOPSLAB</div>
             <p>Built for serious teams &middot; 2026</p>
         </footer>
 
@@ -3383,6 +5179,58 @@
                 cards.forEach((card) => {
                     card.addEventListener("mousemove", (e) => update(e, card));
                 });
+            }
+
+            // Scroll-triggered reveals (transform + opacity only)
+            const reduceMotion = window.matchMedia(
+                "(prefers-reduced-motion: reduce)"
+            ).matches;
+            if (!reduceMotion && "IntersectionObserver" in window) {
+                const els = document.querySelectorAll("[data-reveal]");
+                const io = new IntersectionObserver(
+                    (entries) => {
+                        entries.forEach((entry) => {
+                            if (entry.isIntersecting) {
+                                entry.target.classList.add("is-revealed");
+                                io.unobserve(entry.target);
+                            }
+                        });
+                    },
+                    { rootMargin: "0px 0px -10% 0px", threshold: 0.12 }
+                );
+                els.forEach((el) => io.observe(el));
+            } else {
+                document
+                    .querySelectorAll("[data-reveal]")
+                    .forEach((el) => el.classList.add("is-revealed"));
+            }
+
+            // Conversion tracking hook (uses gtag if present)
+            document.querySelectorAll("[data-cta='primary']").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    if (typeof window.gtag === "function") {
+                        window.gtag("event", "cta_click", {
+                            event_category: "engagement",
+                            event_label: "start_tracking_free",
+                        });
+                    }
+                });
+            });
+
+            // Autoplay demo: stop if user prefers reduced motion or if it fails
+            const demo = document.querySelector("[data-autoplay-demo]");
+            if (demo) {
+                if (reduceMotion) {
+                    demo.pause?.();
+                    demo.removeAttribute("autoplay");
+                } else {
+                    const p = demo.play?.();
+                    if (p && typeof p.catch === "function") {
+                        p.catch(() => {
+                            demo.pause?.();
+                        });
+                    }
+                }
             }
         </script>
     </body>
