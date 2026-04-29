@@ -110,8 +110,11 @@ class TestingConfig(Config):
 
 
 class ProductionConfig(Config):
+    SECRET_KEY = os.getenv("SECRET_KEY")
+    if not SECRET_KEY:
+        raise RuntimeError("SECRET_KEY environment variable must be set in production")
     DEBUG = False
-    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True  # Already True for secure cookies in production
     LOG_LEVEL = "INFO"
     # In production, WORKOS_REDIRECT_URI must be set via environment variable
     # No default - will raise error if not configured
