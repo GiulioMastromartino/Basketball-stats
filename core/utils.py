@@ -1,6 +1,7 @@
 """
 Shared utility functions for basketball statistics calculations
 """
+
 from statistics import mean
 from core import rust_analytics
 
@@ -83,11 +84,13 @@ def calculate_efficiency(points, reb, ast, stl, blk, fgm, fga, ftm, fta, tov):
     return points + reb + ast + stl + blk - (fga - fgm) - (fta - ftm) - tov
 
 
-def calculate_game_score(points, fgm, fga, ftm, fta, oreb, dreb, stl, ast, blk, pf, tov):
+def calculate_game_score(
+    points, fgm, fga, ftm, fta, oreb, dreb, stl, ast, blk, pf, tov
+):
     """
     Calculate Hollinger's Game Score
-    Formula: PTS + 0.4*FGM - 0.7*FGA - 0.4*(FTA-FTM) + 0.7*OREB + 0.3*DREB 
-             + STL + 0.7*AST + 0.7*BLK - 0.4*PF - TOV
+    Formula: PTS + 0.4*FGM - 0.7*FGA - 0.4*(FTA-FTM) + 0.7*OREB + 0.3*DREB
+              + STL + 0.7*AST + 0.7*BLK - 0.4*PF - TOV
     """
     game_score = (
         points
@@ -149,7 +152,7 @@ def normalize_date_to_display(date_str: str) -> str:
     parts = date_str.split("/")
     if len(parts) != 3:
         return ""
-    
+
     # Detect if it's YYYY-MM-DD or DD-MM-YYYY
     if len(parts[0]) == 4:
         # YYYY/MM/DD
@@ -157,10 +160,11 @@ def normalize_date_to_display(date_str: str) -> str:
     else:
         # DD/MM/YYYY
         day, month, year = parts
-        
+
     if len(year) == 2:
         year = f"20{year}"
     return f"{int(day):02d}/{int(month):02d}/{int(year):04d}"
+
 
 def get_player_stats_averages(stats):
     """
@@ -169,19 +173,39 @@ def get_player_stats_averages(stats):
     """
     if not stats:
         return {
-            "points": 0, "ppg": 0, "minutes": 0, "mpg": 0,
-            "reb": 0, "rpg": 0, "ast": 0, "apg": 0,
-            "fgm": 0, "fga": 0, "fg_percent": 0,
-            "tpm": 0, "tpa": 0, "tp_percent": 0,
-            "ftm": 0, "fta": 0, "ft_percent": 0,
-            "oreb": 0, "dreb": 0,
-            "stl": 0, "spg": 0, "blk": 0, "bpg": 0, 
-            "tov": 0, "topg": 0, "pf": 0, "pfpg": 0,
-            "pm": 0, "games_played": 0
+            "points": 0,
+            "ppg": 0,
+            "minutes": 0,
+            "mpg": 0,
+            "reb": 0,
+            "rpg": 0,
+            "ast": 0,
+            "apg": 0,
+            "fgm": 0,
+            "fga": 0,
+            "fg_percent": 0,
+            "tpm": 0,
+            "tpa": 0,
+            "tp_percent": 0,
+            "ftm": 0,
+            "fta": 0,
+            "ft_percent": 0,
+            "oreb": 0,
+            "dreb": 0,
+            "stl": 0,
+            "spg": 0,
+            "blk": 0,
+            "bpg": 0,
+            "tov": 0,
+            "topg": 0,
+            "pf": 0,
+            "pfpg": 0,
+            "pm": 0,
+            "games_played": 0,
         }
-    
+
     count = len(stats)
-    
+
     # Calculate simple totals
     total_points = sum(s.points for s in stats)
     total_minutes = sum(parse_minutes(s.minutes) for s in stats)
@@ -200,7 +224,7 @@ def get_player_stats_averages(stats):
     total_tov = sum(s.tov for s in stats)
     total_pf = sum(s.pf for s in stats)
     # Handle potentially missing plus_minus attribute safely
-    total_pm = sum(getattr(s, 'plus_minus', 0) for s in stats)
+    total_pm = sum(getattr(s, "plus_minus", 0) for s in stats)
 
     avg_points = round(total_points / count, 1)
     avg_minutes = round(total_minutes / count, 1)
@@ -234,7 +258,6 @@ def get_player_stats_averages(stats):
         "tov": avg_tov,
         "pf": avg_pf,
         "pm": avg_pm,
-        
         # Per-game aliases (for template compatibility)
         "ppg": avg_points,
         "mpg": avg_minutes,
@@ -244,6 +267,55 @@ def get_player_stats_averages(stats):
         "bpg": avg_blk,
         "topg": avg_tov,
         "pfpg": avg_pf,
-        
-        "games_played": count
+        "games_played": count,
     }
+
+
+def normalize_shot_events(shot_events):
+    """
+    Normalize shot event coordinates for detail views.
+    Converts court coordinates (0-500, 0-470) to percentages (0-100) and
+    normalizes already-normalized values. Returns a list of SimpleNamespace
+    objects with attributes: game, x_loc, y_loc, result, shot_type, points.
+    """
+    from types import SimpleNamespace
+
+    normalized = []
+    for s in shot_events:
+        x = s.x_loc
+        y = s.y_loc
+        if s.x_loc is not None and s.y_loc is not None:
+            x = float(s.x_loc)
+            y = float(s.y_loc)
+            if x > 100 or y > 100:
+                x = (x / 500.0) * 100.0
+                y = (y / 470.0) * 100.0
+            elif 0 <= x <= 1 and 0 <= y <= 1:
+                x *= 100.0
+                y *= 100.0
+            x = max(0.0, min(100.0, x))
+            y = max(0.0, min(100.0, y))
+        normalized.append(
+            SimpleNamespace(
+                game=s.game,
+                x_loc=x,
+                y_loc=y,
+                result=s.result,
+                shot_type=s.shot_type,
+                points=s.points,
+            )
+        )
+    return normalized
+
+
+def format_total_minutes(total_minutes):
+    """
+    Format total minutes (float) as MM:SS string.
+    Example: 65.5 minutes -> "65:30"
+    """
+    whole_minutes = int(total_minutes)
+    seconds = int(round((total_minutes - whole_minutes) * 60))
+    if seconds == 60:
+        whole_minutes += 1
+        seconds = 0
+    return f"{whole_minutes:02d}:{seconds:02d}"

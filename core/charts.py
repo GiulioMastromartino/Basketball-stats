@@ -401,3 +401,43 @@ def generate_team_scoring_trend(games):
     except Exception:
         plt.close("all")
         return ""
+
+
+def generate_shooting_trend_base64(chart_data, title):
+    """
+    Generate a base64-encoded PNG of a shooting trend line chart.
+    chart_data: dict with keys 'labels', 'points', 'rebounds', 'assists', 'efficiency', 'fg_pct', 'tp_pct'.
+    title: chart title string.
+    Returns base64-encoded PNG as string, or empty string on error.
+    """
+    try:
+        labels = chart_data.get("labels", [])
+        if not labels:
+            return ""
+
+        fg_pct = chart_data.get("fg_pct", [])
+        tp_pct = chart_data.get("tp_pct", [])
+
+        fig, ax = plt.subplots(figsize=(8, 3.2))
+        ax.plot(labels, fg_pct, color="#28a745", linewidth=2, marker="o", label="FG%")
+        ax.plot(labels, tp_pct, color="#f5576c", linewidth=2, marker="o", label="3PT%")
+        ax.set_ylim(0, 100)
+        ax.set_title(title, fontsize=11, fontweight="bold")
+        ax.grid(True, alpha=0.25)
+        ax.legend(loc="best", fontsize=8)
+        plt.xticks(rotation=35, ha="right", fontsize=8)
+        plt.yticks(fontsize=8)
+        plt.tight_layout()
+
+        img_io = BytesIO()
+        plt.savefig(img_io, format="png", dpi=100, bbox_inches="tight")
+        img_io.seek(0)
+        data = base64.b64encode(img_io.read()).decode()
+        plt.close(fig)
+        return data
+    except Exception:
+        try:
+            plt.close("all")
+        except Exception:
+            pass
+        return ""

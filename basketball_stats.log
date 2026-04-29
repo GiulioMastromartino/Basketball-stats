@@ -1,1 +1,1 @@
-2026-04-26 22:39:47,045 INFO [web]: Game 25 saved with schema_version=4, features=none, has_shot_zones=True, has_play_tracking=True
+2026-04-29 18:13:37,653 WARNING [web]: WorkOS auth URL unavailable: WorkOS API key must be provided when instantiating the client or via the WORKOS_API_KEY environment variable.
