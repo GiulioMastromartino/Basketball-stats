@@ -2,7 +2,8 @@ import statistics
 from collections import defaultdict
 from itertools import groupby
 from sqlalchemy import func, desc
-from core.models import PlayerStat, db, Game, ShotEvent
+from types import SimpleNamespace
+from core.models import PlayerStat, db, Game, ShotEvent, LineupSegment
 from core.utils import (
     calculate_possessions,
     calculate_efficiency,
@@ -13,6 +14,7 @@ from core.utils import (
     calculate_two_point_stats,
     calculate_game_score,
     parse_minutes,
+    format_total_minutes,
     get_player_stats_averages,
     normalize_per_100_possessions,
     safe_percentage,
@@ -25,6 +27,8 @@ from core.charts import (
     generate_player_charts,
     generate_shot_chart,
     generate_shooting_trend_base64,
+    generate_team_scoring_trend,
+    generate_team_shot_chart,
 )
 
 
@@ -76,52 +80,6 @@ class AnalyticsService:
             s.two_pt_att = two_pt["two_pt_att"]
             s.two_pt_pct = two_pt["two_pt_pct"]
         return stats
-
-    @staticmethod
-    def get_game_top_performers(stats):
-        """Top 3 performers by efficiency"""
-        valid_stats = [s for s in stats if hasattr(s, "eff") and s.eff is not None]
-        sorted_by_eff = sorted(valid_stats, key=lambda x: x.eff, reverse=True)
-        sorted_by_pts = sorted(stats, key=lambda x: x.points, reverse=True)
-        sorted_by_reb = sorted(stats, key=lambda x: x.reb, reverse=True)
-
-        return {
-            "efficiency": sorted_by_eff[0] if sorted_by_eff else None,
-            "points": sorted_by_pts[0] if sorted_by_pts else None,
-            "rebounds": sorted_by_reb[0] if sorted_by_reb else None,
-        }
-
-    @staticmethod
-    def get_game_alerts(stats):
-        """Extract fouls and low efficiency alerts"""
-        return {
-            "foul_trouble": [s for s in stats if s.pf >= 4],
-            "inefficient": [
-                s for s in stats if s.fga > 5 and hasattr(s, "ppp") and s.ppp < 0.8
-            ],
-        }
-
-    @staticmethod
-    def get_team_aggregates(stats):
-        """Team-level shooting and efficiency"""
-        total_fgm = sum(s.fgm for s in stats)
-        total_fga = sum(s.fga for s in stats)
-        total_tpm = sum(s.tpm for s in stats)
-        total_tpa = sum(s.tpa for s in stats)
-        total_ftm = sum(s.ftm for s in stats)
-        total_fta = sum(s.fta for s in stats)
-        total_pts = sum(s.points for s in stats)
-
-        total_2pm = total_fgm - total_tpm
-        total_2pa = total_fga - total_tpa
-
-        return {
-            "fg_pct": safe_percentage(total_fgm, total_fga),
-            "tp_pct": safe_percentage(total_tpm, total_tpa),
-            "ft_pct": safe_percentage(total_ftm, total_fta),
-            "two_pt_pct": safe_percentage(total_2pm, total_2pa),
-            "ts_pct": calculate_ts_percent(total_pts, total_fga, total_fta),
-        }
 
     @staticmethod
     def calculate_team_averages(game_ids, db_session=None):
@@ -753,14 +711,20 @@ class AnalyticsService:
             / gp,
             "ortg": calculate_ortg(totals["points"], total_poss),
             "ppp": calculate_ppp(totals["points"], total_poss),
-            "poss_per_40": (total_poss / (total_minutes / 40)) if total_minutes > 0 else 0,
+            "poss_per_40": (total_poss / (total_minutes / 40))
+            if total_minutes > 0
+            else 0,
             "usg_pct": total_poss / gp,
-            "fg_pct": (totals["fgm"] / totals["fga"] * 100) if totals["fga"] > 0 else 0,
+            "fg_pct": safe_percentage(totals["fgm"], totals["fga"]),
             "two_pt_pct": two_pt_stats["two_pt_pct"],
-            "tp_pct": (totals["tpm"] / totals["tpa"] * 100) if totals["tpa"] > 0 else 0,
-            "ft_pct": (totals["ftm"] / totals["fta"] * 100) if totals["fta"] > 0 else 0,
-            "ts_pct": calculate_ts_percent(totals["points"], totals["fga"], totals["fta"]),
-            "efg_pct": calculate_efg_percent(totals["fgm"], totals["tpm"], totals["fga"]),
+            "tp_pct": safe_percentage(totals["tpm"], totals["tpa"]),
+            "ft_pct": safe_percentage(totals["ftm"], totals["fta"]),
+            "ts_pct": calculate_ts_percent(
+                totals["points"], totals["fga"], totals["fta"]
+            ),
+            "efg_pct": calculate_efg_percent(
+                totals["fgm"], totals["tpm"], totals["fga"]
+            ),
             "ast_tov": totals["ast"] / totals["tov"]
             if totals["tov"] > 0
             else totals["ast"],
@@ -809,12 +773,10 @@ class AnalyticsService:
             "assists": [g["stat"].ast for g in recent_games],
             "efficiency": [g["eff"] for g in recent_games],
             "fg_pct": [
-                (g["stat"].fgm / g["stat"].fga * 100) if g["stat"].fga > 0 else 0
-                for g in recent_games
+                safe_percentage(g["stat"].fgm, g["stat"].fga) for g in recent_games
             ],
             "tp_pct": [
-                (g["stat"].tpm / g["stat"].tpa * 100) if g["stat"].tpa > 0 else 0
-                for g in recent_games
+                safe_percentage(g["stat"].tpm, g["stat"].tpa) for g in recent_games
             ],
         }
         game_map = {g.id: g for g in all_filtered_games}
@@ -838,6 +800,697 @@ class AnalyticsService:
             ),
             "pdf_shot_chart": generate_shot_chart(player_name, target_game_ids),
         }
+
+    @staticmethod
+    def build_team_detail_context(game_type: str, excluded_player: str = None) -> dict:
+        game_query = Game.query.order_by(Game.sort_date.desc())
+        if game_type == "Season":
+            game_query = game_query.filter(Game.game_type == "Season")
+        elif game_type == "Friendly":
+            game_query = game_query.filter(Game.game_type == "Friendly")
+        elif game_type == "Playoff":
+            game_query = game_query.filter(Game.game_type == "Playoff")
+
+        games = game_query.all()
+        game_ids = [g.id for g in games]
+        if not game_ids:
+            raise ValueError("No team games found")
+
+        stats_query = (
+            PlayerStat.query.filter(PlayerStat.game_id.in_(game_ids))
+            .filter(PlayerStat.minutes != "00:00")
+            .filter(PlayerStat.minutes != "0")
+        )
+        if excluded_player:
+            stats_query = stats_query.filter(PlayerStat.player_name != excluded_player)
+        team_stats = stats_query.all()
+        shot_query = ShotEvent.query.filter(ShotEvent.game_id.in_(game_ids))
+        if excluded_player:
+            shot_query = shot_query.filter(ShotEvent.player_name != excluded_player)
+        shot_events = shot_query.all()
+        shot_events = normalize_shot_events(shot_events)
+
+        games_played = len(games)
+        total_point_diff = sum(
+            (game.team_score or 0) - (game.opponent_score or 0) for game in games
+        )
+        total_minutes = sum(parse_minutes(s.minutes) for s in team_stats)
+        totals = {
+            "points": sum((s.points or 0) for s in team_stats),
+            "reb": sum((s.reb or 0) for s in team_stats),
+            "oreb": sum((s.oreb or 0) for s in team_stats),
+            "dreb": sum((s.dreb or 0) for s in team_stats),
+            "ast": sum((s.ast or 0) for s in team_stats),
+            "stl": sum((s.stl or 0) for s in team_stats),
+            "blk": sum((s.blk or 0) for s in team_stats),
+            "tov": sum((s.tov or 0) for s in team_stats),
+            "pf": sum((s.pf or 0) for s in team_stats),
+            "fgm": sum((s.fgm or 0) for s in team_stats),
+            "fga": sum((s.fga or 0) for s in team_stats),
+            "tpm": sum((s.tpm or 0) for s in team_stats),
+            "tpa": sum((s.tpa or 0) for s in team_stats),
+            "ftm": sum((s.ftm or 0) for s in team_stats),
+            "fta": sum((s.fta or 0) for s in team_stats),
+            "plus_minus": total_point_diff,
+        }
+        total_poss = sum(
+            calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in team_stats
+        )
+        two_pt_stats = calculate_two_point_stats(
+            totals["fgm"], totals["fga"], totals["tpm"], totals["tpa"]
+        )
+        game_logs = []
+        for game in games:
+            game_player_stats = [s for s in team_stats if s.game_id == game.id]
+            if not game_player_stats:
+                continue
+            game_minutes = sum(parse_minutes(s.minutes) for s in game_player_stats)
+            poss = sum(
+                calculate_possessions(s.fga, s.fta, s.oreb, s.tov)
+                for s in game_player_stats
+            )
+            aggregate_stat = SimpleNamespace(
+                minutes=format_total_minutes(game_minutes),
+                points=sum((s.points or 0) for s in game_player_stats),
+                reb=sum((s.reb or 0) for s in game_player_stats),
+                oreb=sum((s.oreb or 0) for s in game_player_stats),
+                dreb=sum((s.dreb or 0) for s in game_player_stats),
+                ast=sum((s.ast or 0) for s in game_player_stats),
+                stl=sum((s.stl or 0) for s in game_player_stats),
+                blk=sum((s.blk or 0) for s in game_player_stats),
+                tov=sum((s.tov or 0) for s in game_player_stats),
+                pf=sum((s.pf or 0) for s in game_player_stats),
+                fgm=sum((s.fgm or 0) for s in game_player_stats),
+                fga=sum((s.fga or 0) for s in game_player_stats),
+                tpm=sum((s.tpm or 0) for s in game_player_stats),
+                tpa=sum((s.tpa or 0) for s in game_player_stats),
+                ftm=sum((s.ftm or 0) for s in game_player_stats),
+                fta=sum((s.fta or 0) for s in game_player_stats),
+                plus_minus=(game.team_score or 0) - (game.opponent_score or 0),
+            )
+            game_logs.append(
+                {
+                    "game": game,
+                    "stat": aggregate_stat,
+                    "ortg": calculate_ortg(aggregate_stat.points, poss),
+                    "ppp": calculate_ppp(aggregate_stat.points, poss),
+                    "poss_per_40": (poss / (game_minutes / 40))
+                    if game_minutes > 0
+                    else 0,
+                    "eff": calculate_efficiency(
+                        aggregate_stat.points,
+                        aggregate_stat.reb,
+                        aggregate_stat.ast,
+                        aggregate_stat.stl,
+                        aggregate_stat.blk,
+                        aggregate_stat.fgm,
+                        aggregate_stat.fga,
+                        aggregate_stat.ftm,
+                        aggregate_stat.fta,
+                        aggregate_stat.tov,
+                    ),
+                }
+            )
+
+        game_ppgs = [item["stat"].points for item in game_logs]
+        consistency_value = 0
+        if len(game_ppgs) > 1 and statistics.mean(game_ppgs) > 0:
+            consistency_value = statistics.stdev(game_ppgs) / statistics.mean(game_ppgs)
+        fg_pct_val = safe_percentage(totals["fgm"], totals["fga"])
+        tp_pct_val = safe_percentage(totals["tpm"], totals["tpa"])
+        averages = {
+            "mpg": total_minutes / games_played if games_played > 0 else 0,
+            "ppg": totals["points"] / games_played if games_played > 0 else 0,
+            "rpg": totals["reb"] / games_played if games_played > 0 else 0,
+            "orebpg": totals["oreb"] / games_played if games_played > 0 else 0,
+            "drebpg": totals["dreb"] / games_played if games_played > 0 else 0,
+            "apg": totals["ast"] / games_played if games_played > 0 else 0,
+            "spg": totals["stl"] / games_played if games_played > 0 else 0,
+            "bpg": totals["blk"] / games_played if games_played > 0 else 0,
+            "topg": totals["tov"] / games_played if games_played > 0 else 0,
+            "pfpg": totals["pf"] / games_played if games_played > 0 else 0,
+            "pm": total_point_diff / games_played if games_played > 0 else 0,
+            "eff": calculate_efficiency(
+                totals["points"],
+                totals["reb"],
+                totals["ast"],
+                totals["stl"],
+                totals["blk"],
+                totals["fgm"],
+                totals["fga"],
+                totals["ftm"],
+                totals["fta"],
+                totals["tov"],
+            )
+            / games_played
+            if games_played > 0
+            else 0,
+            "ortg": calculate_ortg(totals["points"], total_poss),
+            "ppp": calculate_ppp(totals["points"], total_poss),
+            "poss_per_40": (total_poss / (total_minutes / 40))
+            if total_minutes > 0
+            else 0,
+            "usg_pct": total_poss / games_played if games_played > 0 else 0,
+            "fg_pct": fg_pct_val,
+            "two_pt_pct": two_pt_stats["two_pt_pct"],
+            "tp_pct": tp_pct_val,
+            "ft_pct": safe_percentage(totals["ftm"], totals["fta"]),
+            "ts_pct": calculate_ts_percent(
+                totals["points"], totals["fga"], totals["fta"]
+            ),
+            "efg_pct": calculate_efg_percent(
+                totals["fgm"], totals["tpm"], totals["fga"]
+            ),
+            "ast_tov": totals["ast"] / totals["tov"]
+            if totals["tov"] > 0
+            else totals["ast"],
+            "fta_pct": safe_percentage(totals["fta"], totals["fga"]),
+            "oreb_pct": safe_percentage(totals["oreb"], totals["reb"]),
+            "consistency": consistency_value,
+        }
+        career_highs = {
+            "points": max((item["stat"].points for item in game_logs), default=0),
+            "reb": max((item["stat"].reb for item in game_logs), default=0),
+            "ast": max((item["stat"].ast for item in game_logs), default=0),
+            "stl": max((item["stat"].stl for item in game_logs), default=0),
+            "blk": max((item["stat"].blk for item in game_logs), default=0),
+        }
+        recent_games = game_logs[:10][::-1]
+        chart_data = {
+            "labels": [g["game"].opponent[:10] for g in recent_games],
+            "points": [g["stat"].points for g in recent_games],
+            "rebounds": [g["stat"].reb for g in recent_games],
+            "assists": [g["stat"].ast for g in recent_games],
+            "efficiency": [g["eff"] for g in recent_games],
+            "fg_pct": [
+                safe_percentage(g["stat"].fgm, g["stat"].fga) for g in recent_games
+            ],
+            "tp_pct": [
+                safe_percentage(g["stat"].tpm, g["stat"].tpa) for g in recent_games
+            ],
+        }
+        team_name = "Team Total"
+        if excluded_player:
+            team_name = f"Team Total (without {excluded_player})"
+        return {
+            "player_name": team_name,
+            "games_played": games_played,
+            "totals": totals,
+            "averages": averages,
+            "career_highs": career_highs,
+            "consistency_cv": consistency_value * 100,
+            "game_logs": game_logs,
+            "chart_data": chart_data,
+            "game_type": game_type,
+            "two_pt_made": two_pt_stats["two_pt_made"],
+            "two_pt_att": two_pt_stats["two_pt_att"],
+            "shot_events": shot_events,
+            "pdf_chart_scoring": generate_team_scoring_trend(games),
+            "pdf_chart_shooting": generate_shooting_trend_base64(
+                chart_data, "Team Shooting Efficiency"
+            ),
+            "pdf_shot_chart": generate_team_shot_chart(game_ids),
+        }
+
+    @staticmethod
+    def sum_team_stat_rows(stat_rows):
+        totals = {
+            "points": 0,
+            "fgm": 0,
+            "fga": 0,
+            "tpm": 0,
+            "tpa": 0,
+            "ftm": 0,
+            "fta": 0,
+            "oreb": 0,
+            "dreb": 0,
+            "reb": 0,
+            "ast": 0,
+            "tov": 0,
+            "stl": 0,
+            "blk": 0,
+            "pf": 0,
+            "reb_conceded": 0,
+        }
+        for stat in stat_rows:
+            for key in totals:
+                totals[key] += getattr(stat, key, 0) or 0
+        totals["fg_pct"] = safe_percentage(totals["fgm"], totals["fga"])
+        totals["tp_pct"] = safe_percentage(totals["tpm"], totals["tpa"])
+        totals["ft_pct"] = safe_percentage(totals["ftm"], totals["fta"])
+        totals["two_pt_made"] = max(totals["fgm"] - totals["tpm"], 0)
+        totals["two_pt_att"] = max(totals["fga"] - totals["tpa"], 0)
+        totals["two_pt_pct"] = safe_percentage(
+            totals["two_pt_made"], totals["two_pt_att"]
+        )
+        return totals
+
+    @staticmethod
+    def get_stat_leader(stat_rows, field):
+        if not stat_rows:
+            return None
+        leader = max(
+            stat_rows, key=lambda s: (getattr(s, field, 0) or 0, s.player_name or "")
+        )
+        value = getattr(leader, field, 0) or 0
+        if value <= 0:
+            return None
+        return {"player": leader.player_name, "value": value}
+
+    @staticmethod
+    def get_top_players_by_gamescore(stat_rows, limit=10):
+        ranked_players = []
+        for stat in stat_rows:
+            possessions = calculate_possessions(
+                stat.fga or 0,
+                stat.fta or 0,
+                stat.oreb or 0,
+                stat.tov or 0,
+            )
+            game_score = calculate_game_score(
+                stat.points or 0,
+                stat.fgm or 0,
+                stat.fga or 0,
+                stat.ftm or 0,
+                stat.fta or 0,
+                stat.oreb or 0,
+                stat.dreb or 0,
+                stat.stl or 0,
+                stat.ast or 0,
+                stat.blk or 0,
+                stat.pf or 0,
+                stat.tov or 0,
+            )
+            ts_pct = calculate_ts_percent(
+                stat.points or 0, stat.fga or 0, stat.fta or 0
+            )
+            ortg = calculate_ortg(stat.points or 0, possessions)
+            ranked_players.append(
+                {
+                    "player": stat.player_name,
+                    "game_score": round(game_score, 1),
+                    "points": stat.points or 0,
+                    "reb": stat.reb or 0,
+                    "ast": stat.ast or 0,
+                    "minutes": stat.minutes or "00:00",
+                    "fgm": stat.fgm or 0,
+                    "fga": stat.fga or 0,
+                    "tpm": stat.tpm or 0,
+                    "tpa": stat.tpa or 0,
+                    "ftm": stat.ftm or 0,
+                    "fta": stat.fta or 0,
+                    "oreb": stat.oreb or 0,
+                    "dreb": stat.dreb or 0,
+                    "stl": stat.stl or 0,
+                    "blk": stat.blk or 0,
+                    "tov": stat.tov or 0,
+                    "pf": stat.pf or 0,
+                    "ts_pct": ts_pct,
+                    "ortg": ortg,
+                }
+            )
+        ranked_players.sort(key=lambda x: x["game_score"], reverse=True)
+        return ranked_players[:limit]
+
+    @staticmethod
+    def calculate_team_advanced_from_stats(game, stat_rows):
+        if not stat_rows:
+            return None
+        team_totals = AnalyticsService.sum_team_stat_rows(stat_rows)
+        team_poss = calculate_possessions(
+            team_totals["fga"],
+            team_totals["fta"],
+            team_totals["oreb"],
+            team_totals["tov"],
+        )
+        segment_poss = (
+            db.session.query(func.sum(LineupSegment.possessions))
+            .filter_by(game_id=game.id)
+            .scalar()
+            or 0
+        )
+        if segment_poss > 0:
+            team_poss = float(segment_poss)
+        if team_poss <= 0:
+            return None
+        total_minutes = sum(parse_minutes(s.minutes) for s in stat_rows)
+        total_game_min = total_minutes / 5.0 if total_minutes > 0 else 0
+        pace = calculate_pace(team_poss, total_game_min) if total_game_min > 0 else 0
+        ortg = calculate_ortg(game.team_score or 0, team_poss)
+        drtg = calculate_ortg(game.opponent_score or 0, team_poss)
+        net_rating = ortg - drtg
+        return {
+            "possessions": round(team_poss, 1),
+            "pace": round(pace, 1) if total_game_min > 0 else None,
+            "efg_pct": round(
+                calculate_efg_percent(
+                    team_totals["fgm"], team_totals["tpm"], team_totals["fga"]
+                ),
+                1,
+            ),
+            "ts_pct": round(
+                calculate_ts_percent(
+                    team_totals["points"], team_totals["fga"], team_totals["fta"]
+                ),
+                1,
+            ),
+            "tov_pct": round(safe_percentage(team_totals["tov"], team_poss), 1),
+            "ft_rate": round(
+                safe_percentage(team_totals["fta"], team_totals["fga"]), 1
+            ),
+            "oreb_pct": round(
+                safe_percentage(team_totals["oreb"], team_totals["reb"]), 1
+            ),
+            "ortg": round(ortg, 1),
+            "drtg": round(drtg, 1),
+            "net_rating": round(net_rating, 1),
+        }
+
+    @staticmethod
+    def build_opponent_game_card(game):
+        stat_rows = list(game.stats or [])
+        team_totals = (
+            AnalyticsService.sum_team_stat_rows(stat_rows) if stat_rows else None
+        )
+        advanced = AnalyticsService.calculate_team_advanced_from_stats(game, stat_rows)
+        margin = (game.team_score or 0) - (game.opponent_score or 0)
+        return {
+            "id": game.id,
+            "date": game.date,
+            "sort_date": game.sort_date,
+            "game_type": game.game_type,
+            "result": game.result,
+            "team_score": game.team_score,
+            "opponent_score": game.opponent_score,
+            "margin": margin,
+            "has_stats": bool(stat_rows),
+            "team_stats": team_totals,
+            "advanced": advanced,
+            "top_players_by_gamescore": AnalyticsService.get_top_players_by_gamescore(
+                stat_rows
+            ),
+            "leaders": {
+                "points": AnalyticsService.get_stat_leader(stat_rows, "points"),
+                "reb": AnalyticsService.get_stat_leader(stat_rows, "reb"),
+                "ast": AnalyticsService.get_stat_leader(stat_rows, "ast"),
+            },
+        }
+
+    @staticmethod
+    def build_opponent_detail_context(opponent_name, games):
+        wins = sum(1 for game in games if game.result == "W")
+        losses = len(games) - wins
+        avg_team_score = (
+            round(sum((g.team_score or 0) for g in games) / len(games), 1)
+            if games
+            else 0
+        )
+        avg_opponent_score = (
+            round(sum((g.opponent_score or 0) for g in games) / len(games), 1)
+            if games
+            else 0
+        )
+        avg_margin = (
+            round(
+                sum(((g.team_score or 0) - (g.opponent_score or 0)) for g in games)
+                / len(games),
+                1,
+            )
+            if games
+            else 0
+        )
+        all_stat_rows = [stat for game in games for stat in (game.stats or [])]
+        aggregate_totals = (
+            AnalyticsService.sum_team_stat_rows(all_stat_rows)
+            if all_stat_rows
+            else None
+        )
+        aggregate_advanced = None
+        if games and all_stat_rows:
+            aggregate_game = SimpleNamespace(
+                id=-1,
+                team_score=sum((g.team_score or 0) for g in games),
+                opponent_score=sum((g.opponent_score or 0) for g in games),
+            )
+            aggregate_advanced = AnalyticsService.calculate_team_advanced_from_stats(
+                aggregate_game, all_stat_rows
+            )
+        matchup_cards = [AnalyticsService.build_opponent_game_card(g) for g in games]
+        trend_data = {
+            "labels": [game.date for game in reversed(games)],
+            "team_scores": [game.team_score or 0 for game in reversed(games)],
+            "opponent_scores": [game.opponent_score or 0 for game in reversed(games)],
+            "margins": [
+                (game.team_score or 0) - (game.opponent_score or 0)
+                for game in reversed(games)
+            ],
+            "fg_pct": [
+                (
+                    card["team_stats"]["fg_pct"]
+                    if card["team_stats"] is not None
+                    else None
+                )
+                for card in reversed(matchup_cards)
+            ],
+            "ortg": [
+                card["advanced"]["ortg"] if card["advanced"] else None
+                for card in reversed(matchup_cards)
+            ],
+            "drtg": [
+                card["advanced"]["drtg"] if card["advanced"] else None
+                for card in reversed(matchup_cards)
+            ],
+        }
+        return {
+            "opponent_name": opponent_name,
+            "games": games,
+            "summary": {
+                "games": len(games),
+                "wins": wins,
+                "losses": losses,
+                "win_rate": round((wins / len(games)) * 100, 1) if games else 0,
+                "avg_team_score": avg_team_score,
+                "avg_opponent_score": avg_opponent_score,
+                "avg_margin": avg_margin,
+                "record": f"{wins}-{losses}",
+            },
+            "aggregate_totals": aggregate_totals,
+            "aggregate_advanced": aggregate_advanced,
+            "trend_data": trend_data,
+            "matchup_cards": matchup_cards,
+        }
+
+    @staticmethod
+    def build_player_summary_dict(
+        player_name, gp, stat_totals, total_minutes, game_ppgs, total_plus_minus
+    ):
+        total_poss = sum(
+            calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in stat_totals
+        )
+
+        total_points = sum((s.points or 0) for s in stat_totals)
+        total_reb = sum((s.reb or 0) for s in stat_totals)
+        total_oreb = sum((s.oreb or 0) for s in stat_totals)
+        total_dreb = sum((s.dreb or 0) for s in stat_totals)
+        total_ast = sum((s.ast or 0) for s in stat_totals)
+        total_stl = sum((s.stl or 0) for s in stat_totals)
+        total_blk = sum((s.blk or 0) for s in stat_totals)
+        total_tov = sum((s.tov or 0) for s in stat_totals)
+        total_pf = sum((s.pf or 0) for s in stat_totals)
+        total_fgm = sum((s.fgm or 0) for s in stat_totals)
+        total_fga = sum((s.fga or 0) for s in stat_totals)
+        total_tpm = sum((s.tpm or 0) for s in stat_totals)
+        total_tpa = sum((s.tpa or 0) for s in stat_totals)
+        total_ftm = sum((s.ftm or 0) for s in stat_totals)
+        total_fta = sum((s.fta or 0) for s in stat_totals)
+
+        ortg = calculate_ortg(total_points, total_poss)
+        ppp = calculate_ppp(total_points, total_poss)
+        poss_per_40 = (total_poss / (total_minutes / 40)) if total_minutes > 0 else 0
+
+        eff = calculate_efficiency(
+            total_points,
+            total_reb,
+            total_ast,
+            total_stl,
+            total_blk,
+            total_fgm,
+            total_fga,
+            total_ftm,
+            total_fta,
+            total_tov,
+        )
+
+        ts_pct = calculate_ts_percent(total_points, total_fga, total_fta)
+        efg_pct = calculate_efg_percent(total_fgm, total_tpm, total_fga)
+        two_pt_stats = calculate_two_point_stats(
+            total_fgm, total_fga, total_tpm, total_tpa
+        )
+
+        consistency = 0
+        if len(game_ppgs) > 1:
+            std_dev = statistics.stdev(game_ppgs)
+            mean_ppg = statistics.mean(game_ppgs)
+            consistency = (std_dev / mean_ppg) if mean_ppg > 0 else 0
+
+        return {
+            "player_name": player_name,
+            "games_played": gp,
+            "mpg": total_minutes / gp if gp > 0 else 0,
+            "ppg": total_points / gp if gp > 0 else 0,
+            "plus_minus_avg": (total_plus_minus / gp) if gp > 0 else 0,
+            "plus_minus_total": total_plus_minus,
+            "rpg": total_reb / gp if gp > 0 else 0,
+            "orebpg": total_oreb / gp if gp > 0 else 0,
+            "drebpg": total_dreb / gp if gp > 0 else 0,
+            "apg": total_ast / gp if gp > 0 else 0,
+            "spg": total_stl / gp if gp > 0 else 0,
+            "bpg": total_blk / gp if gp > 0 else 0,
+            "topg": total_tov / gp if gp > 0 else 0,
+            "pfpg": total_pf / gp if gp > 0 else 0,
+            "eff": eff / gp if gp > 0 else 0,
+            "ortg": ortg,
+            "ppp": ppp,
+            "poss_per_40": poss_per_40,
+            "usg_pct": (total_poss / gp) if gp > 0 else 0,
+            "fg_pct": total_fgm / total_fga if total_fga > 0 else 0,
+            "two_pt_pct": two_pt_stats["two_pt_pct"],
+            "tp_pct": total_tpm / total_tpa if total_tpa > 0 else 0,
+            "ft_pct": total_ftm / total_fta if total_fta > 0 else 0,
+            "ts_pct": ts_pct,
+            "efg_pct": efg_pct,
+            "ast_tov": total_ast / total_tov if total_tov > 0 else total_ast,
+            "fta_pct": safe_percentage(total_fta, total_fga),
+            "oreb_pct": safe_percentage(total_oreb, total_reb),
+            "consistency": consistency,
+            "fgm": total_fgm,
+            "fga": total_fga,
+            "two_pt_made": two_pt_stats["two_pt_made"],
+            "two_pt_att": two_pt_stats["two_pt_att"],
+            "tpm": total_tpm,
+            "tpa": total_tpa,
+            "ftm": total_ftm,
+            "fta": total_fta,
+        }
+
+    @staticmethod
+    def build_players_listing_context(
+        game_type, limit, sort_by, order, excluded_player
+    ):
+        game_query = Game.query.order_by(Game.sort_date.desc())
+        if game_type == "Season":
+            game_query = game_query.filter(Game.game_type == "Season")
+        elif game_type == "Friendly":
+            game_query = game_query.filter(Game.game_type == "Friendly")
+        elif game_type == "Playoff":
+            game_query = game_query.filter(Game.game_type == "Playoff")
+
+        all_filtered_games = game_query.all()
+        target_games = all_filtered_games[:limit] if limit > 0 else all_filtered_games
+        target_game_ids = [g.id for g in target_games]
+
+        if not target_game_ids:
+            return {
+                "stats": [],
+                "total_row": None,
+                "all_player_names": [],
+                "filters": {
+                    "type": game_type,
+                    "limit": limit,
+                    "sort": sort_by,
+                    "order": order,
+                    "exclude_player": excluded_player,
+                },
+            }
+
+        stats_query = (
+            db.session.query(
+                PlayerStat.player_name,
+                func.count(PlayerStat.id).label("games_played"),
+                func.sum(PlayerStat.plus_minus).label("total_plus_minus"),
+            )
+            .filter(PlayerStat.game_id.in_(target_game_ids))
+            .filter(PlayerStat.minutes != "00:00")
+            .filter(PlayerStat.minutes != "0")
+            .group_by(PlayerStat.player_name)
+            .all()
+        )
+
+        players_data = []
+        all_player_names = []
+
+        for row in stats_query:
+            gp = row.games_played
+            all_player_names.append(row.player_name)
+            player_stats = (
+                PlayerStat.query.filter(PlayerStat.player_name == row.player_name)
+                .filter(PlayerStat.game_id.in_(target_game_ids))
+                .filter(PlayerStat.minutes != "00:00")
+                .filter(PlayerStat.minutes != "0")
+                .all()
+            )
+
+            players_data.append(
+                AnalyticsService.build_player_summary_dict(
+                    row.player_name,
+                    gp,
+                    player_stats,
+                    sum(parse_minutes(s.minutes) for s in player_stats),
+                    [s.points for s in player_stats],
+                    row.total_plus_minus or 0,
+                )
+            )
+
+        all_player_names.sort()
+        excluded_player = excluded_player if excluded_player in all_player_names else ""
+
+        included_team_stats = (
+            PlayerStat.query.filter(PlayerStat.game_id.in_(target_game_ids))
+            .filter(PlayerStat.minutes != "00:00")
+            .filter(PlayerStat.minutes != "0")
+            .filter(PlayerStat.player_name != excluded_player)
+            .all()
+            if excluded_player
+            else PlayerStat.query.filter(PlayerStat.game_id.in_(target_game_ids))
+            .filter(PlayerStat.minutes != "00:00")
+            .filter(PlayerStat.minutes != "0")
+            .all()
+        )
+
+        team_game_points = {}
+        for stat in included_team_stats:
+            team_game_points.setdefault(stat.game_id, 0)
+            team_game_points[stat.game_id] += stat.points or 0
+
+        team_point_diff_total = sum(
+            (game.team_score or 0) - (game.opponent_score or 0) for game in target_games
+        )
+        team_row = AnalyticsService.build_player_summary_dict(
+            "TEAM TOTAL",
+            len(target_games),
+            included_team_stats,
+            sum(parse_minutes(s.minutes) for s in included_team_stats),
+            list(team_game_points.values()),
+            team_point_diff_total,
+        )
+        team_row["excluded_player"] = excluded_player
+
+        reverse = order == "desc"
+        players_data.sort(key=lambda x: x.get(sort_by, 0), reverse=reverse)
+
+        return {
+            "stats": players_data,
+            "total_row": team_row,
+            "all_player_names": all_player_names,
+            "filters": {
+                "type": game_type,
+                "limit": limit,
+                "sort": sort_by,
+                "order": order,
+                "exclude_player": excluded_player,
+            },
+        }
+
     @staticmethod
     def build_game_detail(game_id):
         """Build context dictionary for game detail template (extracted from route)"""
@@ -1129,3 +1782,85 @@ class AnalyticsService:
             "top_game_trios_off": top_game_trios_off,
             "top_game_trios_def": top_game_trios_def,
         }
+
+    @staticmethod
+    def get_game_top_performers(stats_with_metrics):
+        """Return top performers for points, efficiency, and rebounds as dicts."""
+        if not stats_with_metrics:
+            return {
+                "points": {"player": None, "value": 0},
+                "efficiency": {"player": None, "value": 0},
+                "rebounds": {"player": None, "value": 0},
+            }
+        points_leader = max(stats_with_metrics, key=lambda s: getattr(s, "points", 0))
+        eff_leader = max(stats_with_metrics, key=lambda s: getattr(s, "eff", 0))
+        reb_leader = max(stats_with_metrics, key=lambda s: getattr(s, "reb", 0))
+        return {
+            "points": {
+                "player": points_leader.player_name,
+                "value": points_leader.points,
+            },
+            "efficiency": {"player": eff_leader.player_name, "value": eff_leader.eff},
+            "rebounds": {"player": reb_leader.player_name, "value": reb_leader.reb},
+        }
+
+    @staticmethod
+    def get_team_aggregates(stats_with_metrics):
+        """Compute team-level aggregates and advanced metrics."""
+        if not stats_with_metrics:
+            return {}
+        total_fgm = sum(getattr(s, "fgm", 0) or 0 for s in stats_with_metrics)
+        total_fga = sum(getattr(s, "fga", 0) or 0 for s in stats_with_metrics)
+        total_tpm = sum(getattr(s, "tpm", 0) or 0 for s in stats_with_metrics)
+        total_tpa = sum(getattr(s, "tpa", 0) or 0 for s in stats_with_metrics)
+        total_ftm = sum(getattr(s, "ftm", 0) or 0 for s in stats_with_metrics)
+        total_fta = sum(getattr(s, "fta", 0) or 0 for s in stats_with_metrics)
+        total_pts = sum(getattr(s, "points", 0) or 0 for s in stats_with_metrics)
+        total_oreb = sum(getattr(s, "oreb", 0) or 0 for s in stats_with_metrics)
+        total_dreb = sum(getattr(s, "dreb", 0) or 0 for s in stats_with_metrics)
+        total_reb = sum(getattr(s, "reb", 0) or 0 for s in stats_with_metrics)
+        total_ast = sum(getattr(s, "ast", 0) or 0 for s in stats_with_metrics)
+        total_tov = sum(getattr(s, "tov", 0) or 0 for s in stats_with_metrics)
+        total_pf = sum(getattr(s, "pf", 0) or 0 for s in stats_with_metrics)
+        total_blk = sum(getattr(s, "blk", 0) or 0 for s in stats_with_metrics)
+        total_stl = sum(getattr(s, "stl", 0) or 0 for s in stats_with_metrics)
+
+        two_pt_made = total_fgm - total_tpm
+        two_pt_att = total_fga - total_tpa
+        fg_pct = safe_percentage(total_fgm, total_fga)
+        tp_pct = safe_percentage(total_tpm, total_tpa)
+        ft_pct = safe_percentage(total_ftm, total_fta)
+        two_pt_pct = safe_percentage(two_pt_made, two_pt_att)
+        ts_pct = calculate_ts_percent(total_pts, total_fga, total_fta)
+        efg_pct = calculate_efg_percent(total_fgm, total_tpm, total_fga)
+        ast_tov = (total_ast / total_tov) if total_tov > 0 else total_ast
+
+        return {
+            "fgm": total_fgm,
+            "fga": total_fga,
+            "tpm": total_tpm,
+            "tpa": total_tpa,
+            "ftm": total_ftm,
+            "fta": total_fta,
+            "points": total_pts,
+            "oreb": total_oreb,
+            "dreb": total_dreb,
+            "reb": total_reb,
+            "ast": total_ast,
+            "tov": total_tov,
+            "pf": total_pf,
+            "blk": total_blk,
+            "stl": total_stl,
+            "fg_pct": fg_pct,
+            "tp_pct": tp_pct,
+            "ft_pct": ft_pct,
+            "two_pt_pct": two_pt_pct,
+            "ts_pct": ts_pct,
+            "efg_pct": efg_pct,
+            "ast_tov": ast_tov,
+        }
+
+    @staticmethod
+    def get_game_alerts(stats_with_metrics):
+        """Placeholder for game alerts."""
+        return []

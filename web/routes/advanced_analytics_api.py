@@ -30,6 +30,11 @@ from core.advanced_analytics import (
     classify_shot_zone,
     get_expected_value,
 )
+from core.utils import (
+    calculate_ortg,
+    safe_percentage,
+    calculate_efg_percent,
+)
 
 advanced_api_bp = Blueprint("advanced_api", __name__, url_prefix="/api/advanced")
 
@@ -280,11 +285,9 @@ def get_season_clutch_stats():
                 {
                     "player": player,
                     **stats,
-                    "clutch_fg_pct": round(
-                        stats["clutch_fgm"] / stats["clutch_fga"] * 100, 1
-                    )
-                    if stats["clutch_fga"] > 0
-                    else 0,
+                    "clutch_fg_pct": safe_percentage(
+                        stats["clutch_fgm"], stats["clutch_fga"]
+                    ),
                 }
             )
 
@@ -467,7 +470,7 @@ def get_lineup_combinations():
             min_possessions=max(min_possessions, 0),
             top_n=10,
             require_positive=True,
-            rank_by=rank_by
+            rank_by=rank_by,
         ),
         fallback_result=[],
         error_message="lineup_segments table missing",
@@ -502,7 +505,9 @@ def get_lineup_combination_detail():
     expected_count = 2 if combo_type == "duo" else 3
     if len(players) != expected_count:
         return (
-            jsonify({"error": f"Expected {expected_count} players for type '{combo_type}'."}),
+            jsonify(
+                {"error": f"Expected {expected_count} players for type '{combo_type}'."}
+            ),
             400,
         )
 
@@ -526,10 +531,14 @@ def get_lineup_combination_detail():
     )
 
     if not combo:
-        return jsonify({"error": "Combination not found for the selected filters."}), 404
+        return jsonify(
+            {"error": "Combination not found for the selected filters."}
+        ), 404
 
     sorted_players = sorted(players)
-    with_segments = _get_segments_for_combination(sorted_players, game_ids, with_combo=True)
+    with_segments = _get_segments_for_combination(
+        sorted_players, game_ids, with_combo=True
+    )
     without_segments = _get_segments_for_combination(
         sorted_players, game_ids, with_combo=False
     )
@@ -700,7 +709,7 @@ def get_shots_by_play(play_id):
             "play_id": play_id,
             "total_shots": total,
             "makes": makes,
-            "fg_pct": round(makes / total * 100, 1) if total > 0 else 0,
+            "fg_pct": safe_percentage(makes, total),
             "total_points": points,
             "shots": shots,
         }
@@ -1008,15 +1017,9 @@ def get_advanced_game_report(game_id):
             player_rows[i]["dreb"] = s.dreb or 0
             player_rows[i]["stl"] = s.stl or 0
             player_rows[i]["blk"] = s.blk or 0
-            player_rows[i]["fg_pct"] = (
-                round((s.fgm / s.fga * 100), 1) if s.fga and s.fgm else 0
-            )
-            player_rows[i]["tp_pct"] = (
-                round((s.tpm / s.tpa * 100), 1) if s.tpa and s.tpm else 0
-            )
-            player_rows[i]["ft_pct"] = (
-                round((s.ftm / s.fta * 100), 1) if s.fta and s.ftm else 0
-            )
+            player_rows[i]["fg_pct"] = safe_percentage(s.fgm, s.fga)
+            player_rows[i]["tp_pct"] = safe_percentage(s.tpm, s.tpa)
+            player_rows[i]["ft_pct"] = safe_percentage(s.ftm, s.fta)
 
     # Shot chart data
     shot_data = [
@@ -1044,10 +1047,8 @@ def get_advanced_game_report(game_id):
             zones[zone]["makes"] += 1
 
     for zone in zones:
-        zones[zone]["fg_pct"] = (
-            round(zones[zone]["makes"] / zones[zone]["attempts"] * 100, 1)
-            if zones[zone]["attempts"] > 0
-            else 0
+        zones[zone]["fg_pct"] = safe_percentage(
+            zones[zone]["makes"], zones[zone]["attempts"]
         )
         zones[zone]["pps"] = (
             round(zones[zone]["points"] / zones[zone]["attempts"], 2)
@@ -1270,9 +1271,9 @@ def get_lineup_card(lineup_id):
         games_data.values(), key=lambda x: x["date"] or "", reverse=True
     )
 
-    fg_pct = round((lineup.fgm / lineup.fga) * 100, 1) if lineup.fga > 0 else 0
-    tp_pct = round((lineup.tpm / lineup.tpa) * 100, 1) if lineup.tpa > 0 else 0
-    ft_pct = round((lineup.ftm / lineup.fta) * 100, 1) if lineup.fta > 0 else 0
+    fg_pct = safe_percentage(lineup.fgm, lineup.fga)
+    tp_pct = safe_percentage(lineup.tpm, lineup.tpa)
+    ft_pct = safe_percentage(lineup.ftm, lineup.fta)
 
     return jsonify(
         {
@@ -1347,11 +1348,11 @@ def get_lineup_card(lineup_id):
 def get_opponent_shots_for_lineup(lineup_id):
     """Get opponent shot locations for all segments in a lineup."""
     from core.models import GameEvent
-    
+
     segments = LineupSegment.query.filter_by(lineup_id=lineup_id).all()
     if not segments:
         return []
-    
+
     shots = []
     for segment in segments:
         # Get OPP_SCORE events during this segment with shot locations
@@ -1359,77 +1360,83 @@ def get_opponent_shots_for_lineup(lineup_id):
             GameEvent.game_id == segment.game_id,
             GameEvent.event_type == "OPP_SCORE",
             GameEvent.timestamp >= segment.start_timestamp,
-            GameEvent.timestamp <= (segment.end_timestamp or 9999999999999)
+            GameEvent.timestamp <= (segment.end_timestamp or 9999999999999),
         ).all()
-        
+
         for shot in segment_shots:
-            x = shot.x_loc if hasattr(shot, 'x_loc') else None
-            y = shot.y_loc if hasattr(shot, 'y_loc') else None
+            x = shot.x_loc if hasattr(shot, "x_loc") else None
+            y = shot.y_loc if hasattr(shot, "y_loc") else None
             # Parse detail to get result
             import json
+
             detail = json.loads(shot.detail) if shot.detail else {}
-            result = detail.get('result', 'made')
-            
+            result = detail.get("result", "made")
+
             if x is not None and y is not None or shot.zone:
-                shots.append({
-                    "x": x,
-                    "y": y,
-                    "result": result,
-                    "quarter": shot.quarter,
-                    "game_id": segment.game_id,
-                    "zone": shot.zone,
-                })
-    
+                shots.append(
+                    {
+                        "x": x,
+                        "y": y,
+                        "result": result,
+                        "quarter": shot.quarter,
+                        "game_id": segment.game_id,
+                        "zone": shot.zone,
+                    }
+                )
+
     return shots
 
 
 def get_player_shots_for_lineup(lineup_id):
     """Get individual shot locations for all players in a lineup during its segments."""
     from core.models import ShotEvent, Lineup
-    
+
     lineup = Lineup.query.get(lineup_id)
     if not lineup or not lineup.players:
         return {}
-        
+
     segments = LineupSegment.query.filter_by(lineup_id=lineup_id).all()
     if not segments:
         return {p: [] for p in lineup.players}
-    
+
     player_shots = {p: [] for p in lineup.players}
-    
+
     for segment in segments:
         # Fetch shots for all players in the lineup during this segment's window
         shots = ShotEvent.query.filter(
             ShotEvent.game_id == segment.game_id,
             ShotEvent.player_name.in_(lineup.players),
             ShotEvent.x_loc.isnot(None),
-            ShotEvent.y_loc.isnot(None)
+            ShotEvent.y_loc.isnot(None),
         ).all()
-        
+
         # We need to filter shots that happened during this specific segment
         # Since ShotEvent doesn't have lineup_segment_id, we use timestamp from GameEvent if possible
         # or just use the Game ID if we assume segments cover the whole time they were on.
-        # Actually, for a specific 5-man lineup, if they are on court, any shot by them 
+        # Actually, for a specific 5-man lineup, if they are on court, any shot by them
         # in that game should ideally be attributed to that lineup segment if we had the link.
-        
+
         # To be precise, we'll look for GameEvents of type SHOT_2PT/SHOT_3PT linked to this segment
         from core.models import GameEvent
+
         linked_shots = GameEvent.query.filter(
             GameEvent.lineup_segment_id == segment.id,
-            GameEvent.event_type.in_(["SHOT_2PT", "SHOT_3PT"])
+            GameEvent.event_type.in_(["SHOT_2PT", "SHOT_3PT"]),
         ).all()
-        
+
         for ls in linked_shots:
             if ls.player_name in player_shots:
-                player_shots[ls.player_name].append({
-                    "x": ls.x_loc,
-                    "y": ls.y_loc,
-                    "result": "made" if ls.shot_attempt == "made" else "missed",
-                    "type": "3pt" if ls.event_type == "SHOT_3PT" else "2pt",
-                    "quarter": ls.quarter,
-                    "game_id": segment.game_id
-                })
-                
+                player_shots[ls.player_name].append(
+                    {
+                        "x": ls.x_loc,
+                        "y": ls.y_loc,
+                        "result": "made" if ls.shot_attempt == "made" else "missed",
+                        "type": "3pt" if ls.event_type == "SHOT_3PT" else "2pt",
+                        "quarter": ls.quarter,
+                        "game_id": segment.game_id,
+                    }
+                )
+
     return player_shots
 
 
@@ -1484,6 +1491,7 @@ def _get_team_shots_for_segments(segments, player_filter=None):
         )
 
     from core.models import GameEvent
+
     linked_shots = GameEvent.query.filter(
         GameEvent.lineup_segment_id.in_(segment_ids),
         GameEvent.event_type.in_(["SHOT_2PT", "SHOT_3PT"]),
@@ -1535,23 +1543,17 @@ def _summarize_shots(shots):
     points = sum(int(s.get("points", 0) or 0) for s in shots)
     two_att = sum(1 for s in shots if s.get("shot_type") == "2pt")
     two_made = sum(
-        1
-        for s in shots
-        if s.get("shot_type") == "2pt" and s.get("result") == "made"
+        1 for s in shots if s.get("shot_type") == "2pt" and s.get("result") == "made"
     )
     three_att = sum(1 for s in shots if s.get("shot_type") == "3pt")
     three_made = sum(
-        1
-        for s in shots
-        if s.get("shot_type") == "3pt" and s.get("result") == "made"
+        1 for s in shots if s.get("shot_type") == "3pt" and s.get("result") == "made"
     )
 
-    fg_pct = round((makes / attempts) * 100, 1) if attempts > 0 else 0.0
-    two_pct = round((two_made / two_att) * 100, 1) if two_att > 0 else 0.0
-    three_pct = round((three_made / three_att) * 100, 1) if three_att > 0 else 0.0
-    efg_pct = (
-        round(((makes + 0.5 * three_made) / attempts) * 100, 1) if attempts > 0 else 0.0
-    )
+    fg_pct = safe_percentage(makes, attempts)
+    two_pct = safe_percentage(two_made, two_att)
+    three_pct = safe_percentage(three_made, three_att)
+    efg_pct = round(calculate_efg_percent(makes, three_made, attempts), 1)
 
     return {
         "attempts": attempts,
@@ -1570,40 +1572,50 @@ def _summarize_combination_by_game(segments):
     from collections import defaultdict
     from core.models import Game
 
-    game_stats = defaultdict(lambda: {
-        "points_scored": 0, "points_allowed": 0, "possessions": 0, "duration_seconds": 0
-    })
-    
+    game_stats = defaultdict(
+        lambda: {
+            "points_scored": 0,
+            "points_allowed": 0,
+            "possessions": 0,
+            "duration_seconds": 0,
+        }
+    )
+
     for s in segments:
         gs = game_stats[s.game_id]
-        gs["points_scored"] += (s.points_scored or 0)
-        gs["points_allowed"] += (s.points_allowed or 0)
-        gs["possessions"] += (s.possessions or 0)
-        gs["duration_seconds"] += (s.duration_seconds or 0)
-        
+        gs["points_scored"] += s.points_scored or 0
+        gs["points_allowed"] += s.points_allowed or 0
+        gs["possessions"] += s.possessions or 0
+        gs["duration_seconds"] += s.duration_seconds or 0
+
     result = []
     for game_id, stats in game_stats.items():
         game = Game.query.get(game_id)
-        if not game: continue
-        
+        if not game:
+            continue
+
         # Calculate ratings
         poss = stats["possessions"]
-        ortg = round((stats["points_scored"] / poss * 100), 1) if poss > 0 else 0
-        drtg = round((stats["points_allowed"] / poss * 100), 1) if poss > 0 else 0
-        
-        result.append({
-            "game_id": game_id,
-            "date": game.date,
-            "opponent": game.opponent,
-            "result": game.result,
-            "team_score": game.team_score,
-            "opponent_score": game.opponent_score,
-            **stats,
-            "ortg": ortg,
-            "drtg": drtg,
-            "net": round(ortg - drtg, 1)
-        })
-        
+        ortg = round(calculate_ortg(stats["points_scored"], poss), 1) if poss > 0 else 0
+        drtg = (
+            round(calculate_ortg(stats["points_allowed"], poss), 1) if poss > 0 else 0
+        )
+
+        result.append(
+            {
+                "game_id": game_id,
+                "date": game.date,
+                "opponent": game.opponent,
+                "result": game.result,
+                "team_score": game.team_score,
+                "opponent_score": game.opponent_score,
+                **stats,
+                "ortg": ortg,
+                "drtg": drtg,
+                "net": round(ortg - drtg, 1),
+            }
+        )
+
     return sorted(result, key=lambda x: x["date"] or "", reverse=True)
 
 

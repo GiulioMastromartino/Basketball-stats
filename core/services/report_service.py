@@ -250,6 +250,7 @@ def _build_play_summary(game_ids, player_name=None):
     event_query = GameEvent.query.join(Play, GameEvent.play_id == Play.id).filter(
         GameEvent.game_id.in_(game_ids),
         GameEvent.play_id.isnot(None),
+        GameEvent.event_type.in_(("SHOT_2PT", "SHOT_3PT", "TURNOVER")),
     )
     possession_query = Possession.query.join(
         Play, Possession.play_id == Play.id
