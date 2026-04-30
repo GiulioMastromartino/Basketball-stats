@@ -137,12 +137,16 @@ services:
       proxy:
 
    # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
+  # NOTE: IPv4 egress to Cloudflare edge (198.41.x.x:7844) is blocked on this
+  # host. The proxy network has enable_ipv6 so cloudflared can reach Cloudflare
+  # via IPv6. Protocol forced to http2 (port 443) as fallback for any IPv6
+  # edge IPs that still use 7844.
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
     depends_on:
       - nginx
-    command: tunnel --no-autoupdate run
+    command: tunnel --no-autoupdate --edge-ip-version 6 --protocol http2 run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
@@ -159,3 +163,4 @@ networks:
     driver: bridge
   proxy:
     driver: bridge
+    enable_ipv6: true
