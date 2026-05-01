@@ -129,26 +129,20 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d/basketball.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
-      backend:
-        aliases:
-          - nginx
-      proxy:
+      - backend
 
    # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
-  # NOTE: IPv4 egress to Cloudflare edge (198.41.x.x:7844) is blocked on this
-  # host. The proxy network has enable_ipv6 so cloudflared can reach Cloudflare
-  # via IPv6. Protocol forced to http2 (port 443) as fallback for any IPv6
-  # edge IPs that still use 7844.
+  # NOTE: IPv6 egress to Cloudflare edge port 7844 is blocked on this host.
+  # Using host network + IPv4 so cloudflared reaches 198.41.x.x:7844 directly.
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
     depends_on:
       - nginx
-    command: tunnel --no-autoupdate --edge-ip-version 6 --protocol http2 run
+    command: tunnel --no-autoupdate --edge-ip-version 4 run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-    networks:
-      - proxy
+    network_mode: host
 
 volumes:
   postgres_data:
@@ -162,10 +156,3 @@ networks:
     ipam:
       config:
         - subnet: 192.168.10.0/24
-  proxy:
-    driver: bridge
-    enable_ipv6: true
-    ipam:
-      config:
-        - subnet: 192.168.11.0/24
-        - subnet: "fd00:dead:beef::/48"
