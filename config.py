@@ -114,7 +114,11 @@ class ProductionConfig(Config):
     if not SECRET_KEY:
         raise RuntimeError("SECRET_KEY environment variable must be set in production")
     DEBUG = False
-    SESSION_COOKIE_SECURE = True
+    # TLS is terminated externally by Tailscale Funnel; nginx receives plain HTTP
+    # internally. Setting Secure=True would cause the browser to drop the session
+    # cookie on HTTP requests, breaking CSRF. Transport security is guaranteed
+    # by Tailscale at the network layer.
+    SESSION_COOKIE_SECURE = False
     # Tailscale Funnel terminates TLS externally and proxies HTTP internally,
     # which causes the Referer header to not match the expected HTTPS origin.
     # Disabling SSL strict mode allows CSRF to validate via token only.
