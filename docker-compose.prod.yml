@@ -47,8 +47,10 @@ services:
       - uploads_data:/app/uploads
     command: >
       sh -c "
-        flask db init &&
-        flask db migrate -m 'initial schema' &&
+        if [ ! -f migrations/alembic.ini ]; then
+          flask db init;
+        fi &&
+        flask db migrate -m 'auto' 2>/dev/null || true &&
         flask db upgrade 2>/dev/null || flask db stamp head &&
         python scripts/promote_admin.py
       "
