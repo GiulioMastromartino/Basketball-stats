@@ -114,7 +114,11 @@ class ProductionConfig(Config):
     if not SECRET_KEY:
         raise RuntimeError("SECRET_KEY environment variable must be set in production")
     DEBUG = False
-    SESSION_COOKIE_SECURE = True  # Already True for secure cookies in production
+    SESSION_COOKIE_SECURE = True
+    # Tailscale Funnel terminates TLS externally and proxies HTTP internally,
+    # which causes the Referer header to not match the expected HTTPS origin.
+    # Disabling SSL strict mode allows CSRF to validate via token only.
+    WTF_CSRF_SSL_STRICT = False
     LOG_LEVEL = "INFO"
     # In production, WORKOS_REDIRECT_URI must be set via environment variable
     # No default - will raise error if not configured
