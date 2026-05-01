@@ -131,19 +131,6 @@ services:
     networks:
       - backend
 
-   # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
-  # NOTE: IPv6 egress to Cloudflare edge port 7844 is blocked on this host.
-  # Using host network + IPv4 so cloudflared reaches 198.41.x.x:7844 directly.
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    depends_on:
-      - nginx
-    command: tunnel --no-autoupdate --edge-ip-version 4 run
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-    network_mode: host
-
 volumes:
   postgres_data:
   games_data:
