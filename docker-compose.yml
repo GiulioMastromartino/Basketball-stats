@@ -42,17 +42,6 @@ services:
       - "8080:8080"
     command: ["./entrypoint.sh"]
 
-  nginx:
-    image: nginx:alpine
-    container_name: basketball_stats_nginx
-    restart: unless-stopped
-    depends_on:
-      - web
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    ports:
-      - "80:80"
-
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: basketball_stats_cloudflared
@@ -60,8 +49,7 @@ services:
     command: tunnel --no-autoupdate --edge-ip-version 4 run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      - nginx
+    network_mode: host
 
 volumes:
   postgres_data:
