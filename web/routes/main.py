@@ -65,6 +65,8 @@ from core.services.email_service import send_game_notification
 from core.services import create_game_from_live_data
 from core.services.analytics_service import AnalyticsService
 from web.decorators import admin_required
+from flask_mail import Message
+from core import mail
 
 main_bp = Blueprint("main", __name__)
 
@@ -255,9 +257,11 @@ def _notify_users_game_saved(game: Game):
                 if attach_pdf == "true":
                     try:
                         # Local import to avoid heavy dependency on route module at import-time
-                        from web.routes.reports import generate_game_pdf_bytes
+                        from core.services.report_service import (
+                            generate_simple_game_pdf_bytes,
+                        )
 
-                        filename, pdf_bytes = generate_game_pdf_bytes(game.id)
+                        filename, pdf_bytes = generate_simple_game_pdf_bytes(game.id)
                         if filename and pdf_bytes:
                             pdf_attachment = (filename, pdf_bytes)
                     except Exception as e:
@@ -267,18 +271,18 @@ def _notify_users_game_saved(game: Game):
 
                 send_game_notification(recipients, game, pdf_attachment=pdf_attachment)
 
-        # Send player performance reports
+        # Send player performance reports as PDF attachments
         send_player_reports = SystemSetting.get_value(
             "send_player_reports", default="true"
         )
         if send_player_reports == "true":
-            # Get all active players with emails
+            from core.services.report_service import generate_player_quarter_pdf_bytes
+
             players = Player.query.filter_by(active=True).all()
             for player in players:
                 if not player.email:
                     continue
 
-                # Get player's stats for this game
                 game_stat = PlayerStat.query.filter_by(
                     game_id=game.id, player_name=player.name
                 ).first()
@@ -286,36 +290,47 @@ def _notify_users_game_saved(game: Game):
                 if not game_stat:
                     continue
 
-                # Calculate season averages for this player
-                season_stats = _calculate_player_season_averages(player.name, game.id)
-
-                # Prepare game stats dict
-                game_stats = {
-                    "points": game_stat.points,
-                    "reb": game_stat.reb,
-                    "oreb": game_stat.oreb,
-                    "dreb": game_stat.dreb,
-                    "ast": game_stat.ast,
-                    "stl": game_stat.stl,
-                    "blk": game_stat.blk,
-                    "tov": game_stat.tov,
-                    "fgm": game_stat.fgm,
-                    "fga": game_stat.fga,
-                    "fg_percent": game_stat.fg_percent,
-                    "tpm": game_stat.tpm,
-                    "tpa": game_stat.tpa,
-                    "tp_percent": game_stat.tp_percent,
-                    "ftm": game_stat.ftm,
-                    "fta": game_stat.fta,
-                    "ft_percent": game_stat.ft_percent,
-                }
-
-                # Send performance email
-                from core.services.email_service import send_player_performance_email
-
-                send_player_performance_email(
-                    player.email, player.name, game, game_stats, season_stats
+                # Generate the quarter detail PDF for this player
+                filename, pdf_bytes = generate_player_quarter_pdf_bytes(
+                    player.name, game.game_type
                 )
+                if not pdf_bytes:
+                    current_app.logger.warning(
+                        f"Failed to generate quarter PDF for {player.name}"
+                    )
+                    continue
+
+                # Send email with PDF attachment
+                subject = f"Your Performance Report: {player.name} vs {game.opponent} ({game.date})"
+                body = f"""Hi {player.name},
+
+Your performance report for the game against {game.opponent} on {game.date} is attached.
+
+Result: {game.result} ({game.team_score}-{game.opponent_score})
+Game Type: {game.game_type}
+
+The report includes your per-quarter breakdown and shooting efficiency.
+
+Keep up the great work!
+"""
+
+                msg = Message(
+                    subject,
+                    sender=current_app.config.get("MAIL_DEFAULT_SENDER"),
+                    recipients=[player.email],
+                )
+                msg.body = body
+                msg.attach(filename, "application/pdf", pdf_bytes)
+
+                try:
+                    mail.send(msg)
+                    current_app.logger.info(
+                        f"Player quarter report sent to {player.email}"
+                    )
+                except Exception as e:
+                    current_app.logger.error(
+                        f"Failed to send quarter report to {player.email}: {e}"
+                    )
 
     except Exception as e:
         current_app.logger.error(
@@ -993,6 +1008,29 @@ def player_detail(player_name):
     )
 
 
+@main_bp.route("/player/<player_name>/game-detail")
+@login_required
+def player_game_detail(player_name):
+    """Player game detail with comprehensive stats and charts"""
+    game_type = request.args.get("game_type", "ALL")
+    if game_type not in VALID_GAME_TYPES:
+        game_type = "ALL"
+    try:
+        context = AnalyticsService.build_player_game_detail(player_name, game_type)
+    except ValueError:
+        flash("No stats available for this player", "warning")
+        return redirect(url_for("main.players", game_type=game_type))
+    return render_template(
+        "player_game_detail.html",
+        **context,
+        report_url=url_for(
+            "reports.player_report_pdf", player_name=player_name, game_type=game_type
+        ),
+        back_url=url_for("main.players", game_type=game_type),
+        back_label="Back to Players",
+    )
+
+
 @main_bp.route("/team-detail")
 @login_required
 def team_detail():
@@ -1349,3 +1387,34 @@ def create_test_game():
         current_app.logger.error(f"Failed to create test game: {e}", exc_info=True)
         flash(f"Error creating test game: {str(e)}", "danger")
         return redirect(url_for("main.upload_game"))
+
+
+# =============================================================================
+# ADMIN PANEL
+# =============================================================================
+
+VALID_SECTIONS = {"users", "players", "settings"}
+
+
+@main_bp.route("/admin")
+@main_bp.route("/admin/<section>")
+@login_required
+@admin_required
+def admin_panel(section="users"):
+    """Admin panel - manage users, players and settings"""
+    if section not in VALID_SECTIONS:
+        section = "users"
+
+    users = User.query.order_by(User.username).all()
+    players = Player.query.order_by(Player.name).all()
+
+    settings_data = db.session.query(SystemSetting).all()
+    settings = {s.key: s.value for s in settings_data}
+
+    return render_template(
+        "auth/admin.html",
+        users=users,
+        players=players,
+        settings=settings,
+        section=section,
+    )

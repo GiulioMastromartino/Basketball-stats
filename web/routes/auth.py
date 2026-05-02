@@ -191,19 +191,6 @@ def verify_otp():
     return render_template("auth/verify_otp.html")
 
 
-@auth_bp.route("/users")
-@login_required
-@admin_required
-def manage_users():
-    """List all users for management"""
-    users = User.query.order_by(User.username).all()
-
-    settings_data = SystemSetting.query.all()
-    settings = {s.key: s.value for s in settings_data}
-
-    return render_template("auth/manage_users.html", users=users, settings=settings)
-
-
 @auth_bp.route("/settings/update", methods=["POST"])
 @login_required
 @admin_required
@@ -235,7 +222,7 @@ def update_settings():
     except Exception as e:
         flash(f"Error updating settings: {e}", "danger")
 
-    return redirect(url_for("auth.manage_users"))
+    return redirect(url_for("main.admin_panel", section="settings"))
 
 
 @auth_bp.route("/users/create", methods=["GET", "POST"])
@@ -277,7 +264,7 @@ def create_user():
             db.session.commit()
 
             flash(f"User {email} created. An invitation has been sent.", "success")
-            return redirect(url_for("auth.manage_users"))
+            return redirect(url_for("main.admin_panel", section="users"))
 
         except Exception as e:
             current_app.logger.error(f"Failed to create WorkOS user: {e}")
@@ -294,13 +281,13 @@ def delete_user(user_id):
     """Delete a user account"""
     if user_id == current_user.id:
         flash("You cannot delete your own account.", "danger")
-        return redirect(url_for("auth.manage_users"))
+        return redirect(url_for("main.admin_panel", section="users"))
 
     user = User.query.get_or_404(user_id)
     db.session.delete(user)
     db.session.commit()
     flash(f"User {user.username} deleted.", "success")
-    return redirect(url_for("auth.manage_users"))
+    return redirect(url_for("main.admin_panel", section="users"))
 
 
 @auth_bp.route("/users/<int:user_id>/role", methods=["POST"])
@@ -310,30 +297,29 @@ def change_role(user_id):
     """Change a user's role"""
     if user_id == current_user.id:
         flash("You cannot change your own role.", "danger")
-        return redirect(url_for("auth.manage_users"))
+        return redirect(url_for("main.admin_panel", section="users"))
 
     user = User.query.get_or_404(user_id)
     new_role = request.form.get("role")
 
     if new_role not in ["admin", "editor", "viewer"]:
         flash("Invalid role.", "danger")
-        return redirect(url_for("auth.manage_users"))
+        return redirect(url_for("main.admin_panel", section="users"))
 
     user.role = new_role
     user.is_admin = new_role == "admin"
     db.session.commit()
 
     flash(f"Role for {user.username} updated to {new_role}.", "success")
-    return redirect(url_for("auth.manage_users"))
+    return redirect(url_for("main.admin_panel", section="users"))
 
 
 @auth_bp.route("/players")
 @login_required
 @admin_required
 def manage_players():
-    """List all players for management"""
-    players = Player.query.order_by(Player.name).all()
-    return render_template("auth/manage_players.html", players=players)
+    """Redirect to admin panel players tab"""
+    return redirect(url_for("main.admin_panel", section="players"))
 
 
 @auth_bp.route("/players/create", methods=["GET", "POST"])
@@ -347,22 +333,22 @@ def create_player():
 
         if not name or not email:
             flash("Name and email are required.", "danger")
-            return redirect(url_for("auth.manage_players"))
+            return redirect(url_for("main.admin_panel", section="players"))
 
         existing = Player.query.filter(
             (Player.name == name) | (Player.email == email)
         ).first()
         if existing:
             flash("A player with this name or email already exists.", "warning")
-            return redirect(url_for("auth.manage_players"))
+            return redirect(url_for("main.admin_panel", section="players"))
 
         player = Player(name=name, email=email, active=True)
         db.session.add(player)
         db.session.commit()
         flash(f"Player {name} added.", "success")
-        return redirect(url_for("auth.manage_players"))
+        return redirect(url_for("main.admin_panel", section="players"))
 
-    return redirect(url_for("auth.manage_players"))
+    return redirect(url_for("main.admin_panel", section="players"))
 
 
 @auth_bp.route("/players/<int:player_id>/delete", methods=["POST"])
@@ -374,16 +360,32 @@ def delete_player(player_id):
     db.session.delete(player)
     db.session.commit()
     flash(f"Player {player.name} deleted.", "success")
-    return redirect(url_for("auth.manage_players"))
+    return redirect(url_for("main.admin_panel", section="players"))
 
 
 @auth_bp.route("/players/<int:player_id>/update", methods=["POST"])
 @login_required
 @admin_required
 def update_player(player_id):
-    """Update player active status"""
+    """Update player email and/or active status"""
     player = Player.query.get_or_404(player_id)
-    player.active = request.form.get("active") == "on"
-    db.session.commit()
-    flash(f"Player {player.name} updated.", "success")
-    return redirect(url_for("auth.manage_players"))
+
+    if request.form.get("update_email") == "true":
+        new_email = request.form.get("email", "").strip()
+        if new_email and new_email != player.email:
+            existing = Player.query.filter(
+                Player.email == new_email, Player.id != player_id
+            ).first()
+            if existing:
+                flash("Email already in use by another player.", "danger")
+            else:
+                player.email = new_email
+                db.session.commit()
+                flash(f"Player {player.name} email updated.", "success")
+
+    if request.form.get("update_active") == "true":
+        player.active = request.form.get("active") == "on"
+        db.session.commit()
+        flash(f"Player {player.name} updated.", "success")
+
+    return redirect(url_for("main.admin_panel", section="players"))

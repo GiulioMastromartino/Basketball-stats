@@ -244,7 +244,7 @@ def _create_court_plot(shots, is_team=False):
         plt.close(fig)
 
         return img_base64
-    except Exception as e:
+    except Exception:
         plt.close("all")
         return ""
 
@@ -274,7 +274,7 @@ def generate_player_charts(stats, game_map, player_name, db_session=None):
                 else:
                     plus_minus_vals.append(None)
 
-        # Scoring Chart with +/
+        # Scoring Chart with +/-
         fig, ax1 = plt.subplots(figsize=(10, 4))
         ax1.bar(dates, points, color="#007bff", alpha=0.6, label="Points")
         ax1.set_ylabel("Points", color="#007bff")
@@ -400,6 +400,72 @@ def generate_team_scoring_trend(games):
         return img_base64
     except Exception:
         plt.close("all")
+        return ""
+
+
+def generate_quarter_scoring_base64(chart_data, title):
+    """
+    Generate a base64-encoded PNG of a quarter scoring bar chart.
+    chart_data: dict with keys 'labels' (['Q1','Q2','Q3','Q4']), 'points' (list of 4 per-game averages),
+    optionally 'fg_pct' and 'tp_pct' (each list of 4 percentages).
+    title: chart title string.
+    Returns base64-encoded PNG as string, or empty string on error.
+    """
+    try:
+        labels = chart_data.get("labels", [])
+        points = chart_data.get("points", [])
+        fg_pct = chart_data.get("fg_pct", [])
+        tp_pct = chart_data.get("tp_pct", [])
+        if not labels or not points:
+            return ""
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+
+        # Points bar chart
+        colors = ["#28a745", "#007bff", "#ffc107", "#dc3545"]
+        bars = ax1.bar(
+            labels, points, color=colors, alpha=0.7, edgecolor="black", linewidth=1.5
+        )
+        ax1.set_ylabel("PPG", fontsize=10)
+        ax1.set_title(title, fontsize=11, fontweight="bold")
+        ax1.grid(True, alpha=0.25, axis="y")
+        for bar, val in zip(bars, points):
+            ax1.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + max(points) * 0.01,
+                f"{val:.1f}",
+                ha="center",
+                va="bottom",
+                fontsize=9,
+            )
+
+        # FG% and 3PT% line chart
+        x = range(len(labels))
+        if fg_pct:
+            ax2.plot(x, fg_pct, color="#28a745", linewidth=2, marker="o", label="FG%")
+        if tp_pct:
+            ax2.plot(x, tp_pct, color="#f5576c", linewidth=2, marker="s", label="3PT%")
+        ax2.set_ylim(0, 100)
+        ax2.set_ylabel("Percentage (%)", fontsize=10)
+        ax2.set_xlabel("Quarter", fontsize=10)
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(labels)
+        ax2.grid(True, alpha=0.25)
+        ax2.legend(loc="best", fontsize=9)
+
+        plt.tight_layout()
+
+        img_io = BytesIO()
+        plt.savefig(img_io, format="png", dpi=100, bbox_inches="tight")
+        img_io.seek(0)
+        data = base64.b64encode(img_io.read()).decode()
+        plt.close(fig)
+        return data
+    except Exception:
+        try:
+            plt.close("all")
+        except Exception:
+            pass
         return ""
 
 

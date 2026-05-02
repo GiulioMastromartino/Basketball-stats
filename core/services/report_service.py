@@ -66,7 +66,7 @@ from core.advanced_analytics import (
     parse_time_to_seconds,
 )
 
-from flask import render_template
+from flask import render_template, current_app
 
 # Constants for lineup filtering
 MIN_TOP_LINEUP_MINUTES = 10
@@ -1271,6 +1271,97 @@ def generate_game_pdf_bytes(game_id):
     filename = f"game_{game.opponent}_{game.date}.pdf"
 
     return filename, pdf_bytes
+
+
+def generate_simple_game_pdf_bytes(game_id):
+    """
+    Generate a simple game stats PDF containing only game info,
+    basic team stats, and player stats tables (no extra analysis).
+    Returns (filename, pdf_bytes).
+    """
+    game = db.session.get(Game, game_id)
+    if not game:
+        return None, None
+
+    stats = PlayerStat.query.filter_by(game_id=game_id).all()
+    if not stats:
+        return None, None
+
+    stats_with_metrics = AnalyticsService.calculate_game_stats(stats)
+
+    team_stats = {
+        "points": sum(s.points for s in stats),
+        "reb": sum(s.reb for s in stats),
+        "ast": sum(s.ast for s in stats),
+        "stl": sum(s.stl for s in stats),
+        "blk": sum(s.blk for s in stats),
+        "tov": sum(s.tov for s in stats),
+        "pf": sum(s.pf for s in stats),
+        "fgm": sum(s.fgm for s in stats),
+        "fga": sum(s.fga for s in stats),
+        "tpm": sum(s.tpm for s in stats),
+        "tpa": sum(s.tpa for s in stats),
+        "ftm": sum(s.ftm for s in stats),
+        "fta": sum(s.fta for s in stats),
+        "oreb": sum(s.oreb for s in stats),
+        "dreb": sum(s.dreb for s in stats),
+        "two_pt_made": sum(s.fgm for s in stats) - sum(s.tpm for s in stats),
+        "two_pt_att": sum(s.fga for s in stats) - sum(s.tpa for s in stats),
+    }
+
+    team_aggregates = {
+        "fg_pct": calculate_efg_percent(
+            team_stats["fgm"], team_stats["tpm"], team_stats["fga"]
+        ),
+        "tp_pct": safe_percentage(team_stats["tpm"], team_stats["tpa"]),
+        "ft_pct": safe_percentage(team_stats["ftm"], team_stats["fta"]),
+        "two_pt_pct": safe_percentage(
+            team_stats["two_pt_made"], team_stats["two_pt_att"]
+        ),
+        "reb": team_stats["reb"],
+        "ast": team_stats["ast"],
+    }
+
+    html = render_template(
+        "simple_game_stats_pdf.html",
+        game=game,
+        stats=stats_with_metrics,
+        team_stats=team_aggregates,
+        generated_date=datetime.now().strftime("%B %d, %Y"),
+    )
+
+    pdf_doc = HTML(string=html)
+    pdf_bytes = pdf_doc.write_pdf()
+    filename = f"game_simple_{game.opponent}_{game.date}.pdf"
+
+    return filename, pdf_bytes
+
+
+def generate_player_quarter_pdf_bytes(player_name: str, game_type: str = "ALL"):
+    """
+    Generates PDF bytes for the player quarter-by-quarter detail page.
+    Returns (filename, pdf_bytes) or (None, None) on failure.
+    """
+    try:
+        context = AnalyticsService.build_player_game_detail(player_name, game_type)
+
+        html = render_template(
+            "player_game_detail.html",
+            **context,
+            pdf_mode=True,
+            report_url="",
+            back_url="",
+        )
+
+        pdf_bytes = HTML(string=html).write_pdf()
+
+        filename = f"{player_name.replace(' ', '_')}_quarter_detail_{game_type}.pdf"
+        return filename, pdf_bytes
+    except Exception as e:
+        current_app.logger.error(
+            f"Failed to generate player quarter PDF for {player_name}: {e}"
+        )
+        return None, None
 
 
 def _build_quarterly_stats(events, game):

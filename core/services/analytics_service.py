@@ -3,7 +3,7 @@ from collections import defaultdict
 from itertools import groupby
 from sqlalchemy import func, desc
 from types import SimpleNamespace
-from core.models import PlayerStat, db, Game, ShotEvent, LineupSegment
+from core.models import PlayerStat, db, Game, ShotEvent, LineupSegment, GameEvent
 from core.utils import (
     calculate_possessions,
     calculate_efficiency,
@@ -29,6 +29,7 @@ from core.charts import (
     generate_shooting_trend_base64,
     generate_team_scoring_trend,
     generate_team_shot_chart,
+    generate_quarter_scoring_base64,
 )
 
 
@@ -799,6 +800,374 @@ class AnalyticsService:
                 chart_data, f"{player_name} - Shooting Efficiency"
             ),
             "pdf_shot_chart": generate_shot_chart(player_name, target_game_ids),
+        }
+
+    @staticmethod
+    def build_player_game_detail(
+        player_name: str, game_type: str = "ALL", game_id: int = None
+    ) -> dict:
+        game_query = Game.query.order_by(Game.sort_date.desc())
+        if game_type == "Season":
+            game_query = game_query.filter(Game.game_type == "Season")
+        elif game_type == "Friendly":
+            game_query = game_query.filter(Game.game_type == "Friendly")
+        elif game_type == "Playoff":
+            game_query = game_query.filter(Game.game_type == "Playoff")
+
+        all_filtered_games = game_query.all()
+        target_game_ids = [g.id for g in all_filtered_games]
+        if not target_game_ids:
+            raise ValueError("No games found")
+
+        # Single-game mode
+        if game_id is not None:
+            if game_id not in target_game_ids:
+                raise ValueError("Game not in filtered set")
+            target_game_ids = [game_id]
+            game = Game.query.get(game_id)
+            if not game:
+                raise ValueError("Game not found")
+            is_single_game = True
+        else:
+            game = None
+            is_single_game = False
+
+        player_stats = (
+            PlayerStat.query.filter(PlayerStat.player_name == player_name)
+            .filter(PlayerStat.game_id.in_(target_game_ids))
+            .filter(PlayerStat.minutes != "00:00")
+            .filter(PlayerStat.minutes != "0")
+            .join(Game)
+            .order_by(Game.sort_date.desc())
+            .all()
+        )
+        if not player_stats:
+            raise ValueError("No stats found")
+
+        shot_events = (
+            ShotEvent.query.filter(ShotEvent.player_name == player_name)
+            .filter(ShotEvent.game_id.in_(target_game_ids))
+            .all()
+        )
+        shot_events = normalize_shot_events(shot_events)
+
+        gp = len(player_stats)
+        if is_single_game:
+            gp = 1  # Force 1 for display
+        total_minutes = sum(parse_minutes(s.minutes) for s in player_stats)
+        totals = {
+            "points": sum(s.points for s in player_stats),
+            "reb": sum(s.reb for s in player_stats),
+            "oreb": sum(s.oreb for s in player_stats),
+            "dreb": sum(s.dreb for s in player_stats),
+            "ast": sum(s.ast for s in player_stats),
+            "stl": sum(s.stl for s in player_stats),
+            "blk": sum(s.blk for s in player_stats),
+            "tov": sum(s.tov for s in player_stats),
+            "pf": sum(s.pf for s in player_stats),
+            "fgm": sum(s.fgm for s in player_stats),
+            "fga": sum(s.fga for s in player_stats),
+            "tpm": sum(s.tpm for s in player_stats),
+            "tpa": sum(s.tpa for s in player_stats),
+            "ftm": sum(s.ftm for s in player_stats),
+            "fta": sum(s.fta for s in player_stats),
+            "plus_minus": sum((s.plus_minus or 0) for s in player_stats),
+        }
+        total_poss = sum(
+            calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in player_stats
+        )
+        two_pt_stats = calculate_two_point_stats(
+            totals["fgm"], totals["fga"], totals["tpm"], totals["tpa"]
+        )
+
+        averages = {
+            "mpg": total_minutes / gp,
+            "ppg": totals["points"] / gp,
+            "rpg": totals["reb"] / gp,
+            "orebpg": totals["oreb"] / gp,
+            "drebpg": totals["dreb"] / gp,
+            "apg": totals["ast"] / gp,
+            "spg": totals["stl"] / gp,
+            "bpg": totals["blk"] / gp,
+            "topg": totals["tov"] / gp,
+            "pfpg": totals["pf"] / gp,
+            "pm": totals["plus_minus"] / gp if gp > 0 else 0,
+            "eff": calculate_efficiency(
+                totals["points"],
+                totals["reb"],
+                totals["ast"],
+                totals["stl"],
+                totals["blk"],
+                totals["fgm"],
+                totals["fga"],
+                totals["ftm"],
+                totals["fta"],
+                totals["tov"],
+            )
+            / gp,
+            "ortg": calculate_ortg(totals["points"], total_poss),
+            "ppp": calculate_ppp(totals["points"], total_poss),
+            "poss_per_40": (total_poss / (total_minutes / 40))
+            if total_minutes > 0
+            else 0,
+            "usg_pct": total_poss / gp,
+            "fg_pct": safe_percentage(totals["fgm"], totals["fga"]),
+            "two_pt_pct": two_pt_stats["two_pt_pct"],
+            "tp_pct": safe_percentage(totals["tpm"], totals["tpa"]),
+            "ft_pct": safe_percentage(totals["ftm"], totals["fta"]),
+            "ts_pct": calculate_ts_percent(
+                totals["points"], totals["fga"], totals["fta"]
+            ),
+            "efg_pct": calculate_efg_percent(
+                totals["fgm"], totals["tpm"], totals["fga"]
+            ),
+            "ast_tov": totals["ast"] / totals["tov"]
+            if totals["tov"] > 0
+            else totals["ast"],
+            "fta_pct": safe_percentage(totals["fta"], totals["fga"]),
+            "oreb_pct": safe_percentage(totals["oreb"], totals["reb"]),
+            "consistency": 0,
+        }
+
+        # Compute quarterly stats
+        quarterly_stats = {
+            "Q1": {
+                "pts": 0,
+                "fgm": 0,
+                "fga": 0,
+                "tpm": 0,
+                "tpa": 0,
+                "ftm": 0,
+                "fta": 0,
+                "oreb": 0,
+                "dreb": 0,
+                "ast": 0,
+                "stl": 0,
+                "blk": 0,
+                "tov": 0,
+                "pf": 0,
+            },
+            "Q2": {
+                "pts": 0,
+                "fgm": 0,
+                "fga": 0,
+                "tpm": 0,
+                "tpa": 0,
+                "ftm": 0,
+                "fta": 0,
+                "oreb": 0,
+                "dreb": 0,
+                "ast": 0,
+                "stl": 0,
+                "blk": 0,
+                "tov": 0,
+                "pf": 0,
+            },
+            "Q3": {
+                "pts": 0,
+                "fgm": 0,
+                "fga": 0,
+                "tpm": 0,
+                "tpa": 0,
+                "ftm": 0,
+                "fta": 0,
+                "oreb": 0,
+                "dreb": 0,
+                "ast": 0,
+                "stl": 0,
+                "blk": 0,
+                "tov": 0,
+                "pf": 0,
+            },
+            "Q4": {
+                "pts": 0,
+                "fgm": 0,
+                "fga": 0,
+                "tpm": 0,
+                "tpa": 0,
+                "ftm": 0,
+                "fta": 0,
+                "oreb": 0,
+                "dreb": 0,
+                "ast": 0,
+                "stl": 0,
+                "blk": 0,
+                "tov": 0,
+                "pf": 0,
+            },
+        }
+
+        # ShotEvent contributions
+        player_shots = ShotEvent.query.filter(
+            ShotEvent.player_name == player_name,
+            ShotEvent.game_id.in_(target_game_ids),
+            ShotEvent.quarter.isnot(None),
+            ShotEvent.quarter.between(1, 4),
+        ).all()
+
+        for shot in player_shots:
+            qkey = f"Q{shot.quarter}"
+            if qkey not in quarterly_stats:
+                continue
+            qs = quarterly_stats[qkey]
+            qs["fga"] += 1
+            if shot.result == "made":
+                qs["fgm"] += 1
+                qs["pts"] += shot.points
+                if shot.shot_type == "2pt":
+                    qs["tpm"] += 0
+                elif shot.shot_type == "3pt":
+                    qs["tpm"] += 1
+                    qs["tpa"] += 1
+                else:
+                    qs["ftm"] += 1
+                    qs["fta"] += 1
+            else:
+                if shot.shot_type == "3pt":
+                    qs["tpa"] += 1
+                elif shot.shot_type == "ft":
+                    qs["fta"] += 1
+
+        # GameEvent contributions (non-shot events)
+        player_events = GameEvent.query.filter(
+            GameEvent.player_name == player_name,
+            GameEvent.game_id.in_(target_game_ids),
+            GameEvent.quarter.isnot(None),
+            GameEvent.quarter.between(1, 4),
+        ).all()
+
+        for event in player_events:
+            qkey = f"Q{event.quarter}"
+            if qkey not in quarterly_stats:
+                continue
+            qs = quarterly_stats[qkey]
+            etype = event.event_type
+            if etype in ("AST",):
+                qs["ast"] += 1
+            elif etype in ("STL", "BLK"):
+                if etype == "STL":
+                    qs["stl"] += 1
+                else:
+                    qs["blk"] += 1
+            elif etype == "TURNOVER":
+                qs["tov"] += 1
+            elif etype in ("OREB", "DREB"):
+                if etype == "OREB":
+                    qs["oreb"] += 1
+                else:
+                    qs["dreb"] += 1
+            elif etype == "FOUL":
+                qs["pf"] += 1
+
+        # Calculate per-game averages for quarterly stats
+        quarter_chart_data = {
+            "labels": ["Q1", "Q2", "Q3", "Q4"],
+            "points": [],
+            "fg_pct": [],
+            "tp_pct": [],
+        }
+        for qkey in ["Q1", "Q2", "Q3", "Q4"]:
+            qs = quarterly_stats[qkey]
+            q_pts_avg = qs["pts"] / gp if gp > 0 else 0
+            quarter_chart_data["points"].append(round(q_pts_avg, 1))
+            quarter_chart_data["fg_pct"].append(safe_percentage(qs["fgm"], qs["fga"]))
+            quarter_chart_data["tp_pct"].append(safe_percentage(qs["tpm"], qs["tpa"]))
+
+        # Generate PDF charts
+        pdf_chart_scoring = generate_quarter_scoring_base64(
+            quarter_chart_data, f"{player_name} - Quarter Scoring"
+        )
+        pdf_chart_shooting = generate_shooting_trend_base64(
+            quarter_chart_data, f"{player_name} - Quarter Shooting"
+        )
+        pdf_shot_chart = generate_shot_chart(player_name, target_game_ids)
+
+        # Game logs
+        game_logs = []
+        game_map = {g.id: g for g in all_filtered_games}
+        for stat in player_stats:
+            poss = calculate_possessions(stat.fga, stat.fta, stat.oreb, stat.tov)
+            game_logs.append(
+                {
+                    "game": stat.game,
+                    "stat": stat,
+                    "ortg": calculate_ortg(stat.points, poss),
+                    "ppp": calculate_ppp(stat.points, poss),
+                    "poss_per_40": (poss / (parse_minutes(stat.minutes) / 40))
+                    if parse_minutes(stat.minutes) > 0
+                    else 0,
+                    "eff": calculate_efficiency(
+                        stat.points,
+                        stat.reb,
+                        stat.ast,
+                        stat.stl,
+                        stat.blk,
+                        stat.fgm,
+                        stat.fga,
+                        stat.ftm,
+                        stat.fta,
+                        stat.tov,
+                    ),
+                }
+            )
+
+        # Consistency
+        game_ppgs = [s.points for s in player_stats]
+        consistency_value = 0
+        if is_single_game:
+            consistency_value = 0
+        else:
+            if len(game_ppgs) > 1 and statistics.mean(game_ppgs) > 0:
+                consistency_value = statistics.stdev(game_ppgs) / statistics.mean(
+                    game_ppgs
+                )
+        averages["consistency"] = consistency_value
+
+        # Career highs
+        if is_single_game:
+            career_highs = {
+                k: totals[k] for k in ["points", "reb", "ast", "stl", "blk"]
+            }
+        else:
+            career_highs = {
+                "points": max(s.points for s in player_stats),
+                "reb": max(s.reb for s in player_stats),
+                "ast": max(s.ast for s in player_stats),
+                "stl": max(s.stl for s in player_stats),
+                "blk": max(s.blk for s in player_stats),
+            }
+
+        # Chart data for last 10 games
+        chart_data = {
+            "labels": [],
+            "points": [],
+            "rebounds": [],
+            "assists": [],
+            "efficiency": [],
+            "fg_pct": [],
+            "tp_pct": [],
+        }
+
+        return {
+            "player_name": player_name,
+            "games_played": gp,
+            "totals": totals,
+            "averages": averages,
+            "career_highs": career_highs,
+            "consistency_cv": consistency_value * 100,
+            "game_logs": game_logs,
+            "chart_data": chart_data,
+            "game_type": game_type,
+            "two_pt_made": two_pt_stats["two_pt_made"],
+            "two_pt_att": two_pt_stats["two_pt_att"],
+            "shot_events": shot_events,
+            "quarterly_stats": quarterly_stats,
+            "quarter_chart_data": quarter_chart_data,
+            "pdf_chart_scoring": pdf_chart_scoring,
+            "pdf_chart_shooting": pdf_chart_shooting,
+            "pdf_shot_chart": pdf_shot_chart,
+            "is_single_game": is_single_game,
+            "game": game,
         }
 
     @staticmethod

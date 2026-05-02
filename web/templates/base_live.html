@@ -245,10 +245,10 @@
                 {% if current_user.is_authenticated and current_user.is_manager %}
                 <li class="nav-item">
                     <a
-                        href="{{ url_for('auth.manage_users') }}"
-                        class="{% if 'users' in request.endpoint %}active{% endif %}"
+                        href="{{ url_for('main.admin_panel') }}"
+                        class="{% if 'admin' in request.endpoint %}active{% endif %}"
                     >
-                        <i class="fas fa-user-cog"></i> Users
+                        <i class="fas fa-user-cog"></i> Admin Panel
                     </a>
                 </li>
                 {% endif %}

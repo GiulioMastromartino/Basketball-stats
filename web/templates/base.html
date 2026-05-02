@@ -93,8 +93,8 @@
                     </li>
                     {% if current_user.is_authenticated and current_user.is_manager %}
                     <li>
-                        <a href="{{ url_for('auth.manage_users') }}" class="app-nav__link {% if request.endpoint and 'users' in request.endpoint %}is-active{% endif %}">
-                            <i class="fas fa-user-gear" aria-hidden="true"></i><span>Users</span>
+                        <a href="{{ url_for('main.admin_panel') }}" class="app-nav__link {% if request.endpoint and request.endpoint == 'main.admin_panel' %}is-active{% endif %}">
+                            <i class="fas fa-user-gear" aria-hidden="true"></i><span>Admin Panel</span>
                         </a>
                     </li>
                     {% endif %}
