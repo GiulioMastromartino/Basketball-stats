@@ -183,7 +183,9 @@ class ShotEvent(db.Model):
     points = db.Column(db.Integer, default=0)
     x_loc = db.Column(db.Float, nullable=True)  # Normalized 0-500
     y_loc = db.Column(db.Float, nullable=True)  # Normalized 0-470
-    zone = db.Column(db.String(50), nullable=True)  # Shot zone: Rim, Paint, Midrange, Above_Break_3, Corner_3
+    zone = db.Column(
+        db.String(50), nullable=True
+    )  # Shot zone: Rim, Paint, Midrange, Above_Break_3, Corner_3
     quarter = db.Column(db.Integer)
     play_id = db.Column(
         db.Integer, db.ForeignKey("plays.id"), nullable=True
@@ -222,7 +224,9 @@ class GameEvent(db.Model):
     game_seconds = db.Column(db.Integer, nullable=True)  # Absolute game time in seconds
     x_loc = db.Column(db.Float, nullable=True)  # Shot location X (normalized 0-500)
     y_loc = db.Column(db.Float, nullable=True)  # Shot location Y (normalized 0-470)
-    zone = db.Column(db.String(50), nullable=True)  # Shot zone: Rim, Paint, Midrange, Above_Break_3, Corner_3
+    zone = db.Column(
+        db.String(50), nullable=True
+    )  # Shot zone: Rim, Paint, Midrange, Above_Break_3, Corner_3
     lineup_segment_id = db.Column(
         db.Integer, db.ForeignKey("lineup_segments.id"), nullable=True
     )  # Link to active lineup during this event
@@ -393,3 +397,17 @@ class PlayerLineupStats(db.Model):
     lineup_segment = db.relationship(
         "LineupSegment", backref=db.backref("player_stats", lazy=True)
     )
+
+
+class Player(db.Model):
+    """Player model for managing player information and performance reports"""
+
+    __tablename__ = "players"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<Player {self.name}>"

@@ -97,6 +97,15 @@
                                 <div class="text-muted small">Include summary PDF in notification email.</div>
                             </label>
                         </div>
+
+                        <div class="form-check form-switch mb-4">
+                            <input class="form-check-input" type="checkbox" id="send_player_reports" name="send_player_reports"
+                                {% if settings.get('send_player_reports') == 'true' %}checked{% endif %}>
+                            <label class="form-check-label" for="send_player_reports">
+                                Send Player Performance Reports
+                                <div class="text-muted small">Email performance reports to players after games.</div>
+                            </label>
+                        </div>
                         
                         <hr>
                         <h6 class="mb-2">Futures</h6>

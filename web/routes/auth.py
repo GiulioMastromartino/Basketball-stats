@@ -16,7 +16,7 @@ from flask_wtf import FlaskForm
 from wtforms import BooleanField, PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired, Email
 
-from core.models import User, SystemSetting, db, bcrypt
+from core.models import User, SystemSetting, db, bcrypt, Player
 from core.services.email_service import send_otp_email
 from core.services.workos_service import (
     get_auth_url,
@@ -224,6 +224,13 @@ def update_settings():
             "Attach PDF to game email",
         )
 
+        send_player_reports = request.form.get("send_player_reports") == "on"
+        SystemSetting.set_value(
+            "send_player_reports",
+            "true" if send_player_reports else "false",
+            "Send player performance reports",
+        )
+
         flash("System settings updated.", "success")
     except Exception as e:
         flash(f"Error updating settings: {e}", "danger")
@@ -318,3 +325,65 @@ def change_role(user_id):
 
     flash(f"Role for {user.username} updated to {new_role}.", "success")
     return redirect(url_for("auth.manage_users"))
+
+
+@auth_bp.route("/players")
+@login_required
+@admin_required
+def manage_players():
+    """List all players for management"""
+    players = Player.query.order_by(Player.name).all()
+    return render_template("auth/manage_players.html", players=players)
+
+
+@auth_bp.route("/players/create", methods=["GET", "POST"])
+@login_required
+@admin_required
+def create_player():
+    """Create a new player"""
+    if request.method == "POST":
+        name = request.form.get("name")
+        email = request.form.get("email")
+
+        if not name or not email:
+            flash("Name and email are required.", "danger")
+            return redirect(url_for("auth.manage_players"))
+
+        existing = Player.query.filter(
+            (Player.name == name) | (Player.email == email)
+        ).first()
+        if existing:
+            flash("A player with this name or email already exists.", "warning")
+            return redirect(url_for("auth.manage_players"))
+
+        player = Player(name=name, email=email, active=True)
+        db.session.add(player)
+        db.session.commit()
+        flash(f"Player {name} added.", "success")
+        return redirect(url_for("auth.manage_players"))
+
+    return redirect(url_for("auth.manage_players"))
+
+
+@auth_bp.route("/players/<int:player_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def delete_player(player_id):
+    """Delete a player"""
+    player = Player.query.get_or_404(player_id)
+    db.session.delete(player)
+    db.session.commit()
+    flash(f"Player {player.name} deleted.", "success")
+    return redirect(url_for("auth.manage_players"))
+
+
+@auth_bp.route("/players/<int:player_id>/update", methods=["POST"])
+@login_required
+@admin_required
+def update_player(player_id):
+    """Update player active status"""
+    player = Player.query.get_or_404(player_id)
+    player.active = request.form.get("active") == "on"
+    db.session.commit()
+    flash(f"Player {player.name} updated.", "success")
+    return redirect(url_for("auth.manage_players"))

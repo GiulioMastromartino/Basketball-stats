@@ -29,6 +29,7 @@ from core.models import (
     PlayerStat,
     ShotEvent,
     GameEvent,
+    Player,
     db,
     Play,
     User,
@@ -114,39 +115,207 @@ def coerce_json_game_dates(game_data: dict) -> tuple[str, str]:
     return date_display, sort_date
 
 
+def _calculate_player_season_averages(player_name: str, current_game_id: int) -> dict:
+    """Calculate season averages for a player up to but not including the current game."""
+    # Get all games before the current game
+    prior_games = (
+        db.session.query(Game.id)
+        .filter(Game.id < current_game_id)
+        .order_by(Game.sort_date)
+        .all()
+    )
+
+    prior_game_ids = [g.id for g in prior_games]
+
+    if not prior_game_ids:
+        # Return zeros if no prior games
+        return {
+            "points": 0.0,
+            "reb": 0.0,
+            "oreb": 0.0,
+            "dreb": 0.0,
+            "ast": 0.0,
+            "stl": 0.0,
+            "blk": 0.0,
+            "tov": 0.0,
+            "fgm": 0.0,
+            "fga": 0.0,
+            "fg_percent": 0.0,
+            "tpm": 0.0,
+            "tpa": 0.0,
+            "tp_percent": 0.0,
+            "ftm": 0.0,
+            "fta": 0.0,
+            "ft_percent": 0.0,
+        }
+
+    # Get player stats for prior games
+    prior_stats = PlayerStat.query.filter(
+        PlayerStat.player_name == player_name, PlayerStat.game_id.in_(prior_game_ids)
+    ).all()
+
+    if not prior_stats:
+        return {
+            "points": 0.0,
+            "reb": 0.0,
+            "oreb": 0.0,
+            "dreb": 0.0,
+            "ast": 0.0,
+            "stl": 0.0,
+            "blk": 0.0,
+            "tov": 0.0,
+            "fgm": 0.0,
+            "fga": 0.0,
+            "fg_percent": 0.0,
+            "tpm": 0.0,
+            "tpa": 0.0,
+            "tp_percent": 0.0,
+            "ftm": 0.0,
+            "fta": 0.0,
+            "ft_percent": 0.0,
+        }
+
+    # Calculate averages
+    count = len(prior_stats)
+    totals = {
+        "points": 0,
+        "reb": 0,
+        "oreb": 0,
+        "dreb": 0,
+        "ast": 0,
+        "stl": 0,
+        "blk": 0,
+        "tov": 0,
+        "fgm": 0,
+        "fga": 0,
+        "ftm": 0,
+        "fta": 0,
+        "tpm": 0,
+        "tpa": 0,
+    }
+
+    for stat in prior_stats:
+        totals["points"] += stat.points
+        totals["reb"] += stat.reb
+        totals["oreb"] += stat.oreb
+        totals["dreb"] += stat.dreb
+        totals["ast"] += stat.ast
+        totals["stl"] += stat.stl
+        totals["blk"] += stat.blk
+        totals["tov"] += stat.tov
+        totals["fgm"] += stat.fgm
+        totals["fga"] += stat.fga
+        totals["ftm"] += stat.ftm
+        totals["fta"] += stat.fta
+        totals["tpm"] += stat.tpm
+        totals["tpa"] += stat.tpa
+
+    # Calculate percentages
+    fg_percent = (totals["fgm"] / totals["fga"] * 100) if totals["fga"] > 0 else 0.0
+    tp_percent = (totals["tpm"] / totals["tpa"] * 100) if totals["tpa"] > 0 else 0.0
+    ft_percent = (totals["ftm"] / totals["fta"] * 100) if totals["fta"] > 0 else 0.0
+
+    return {
+        "points": totals["points"] / count,
+        "reb": totals["reb"] / count,
+        "oreb": totals["oreb"] / count,
+        "dreb": totals["dreb"] / count,
+        "ast": totals["ast"] / count,
+        "stl": totals["stl"] / count,
+        "blk": totals["blk"] / count,
+        "tov": totals["tov"] / count,
+        "fgm": totals["fgm"] / count,
+        "fga": totals["fga"] / count,
+        "fg_percent": fg_percent,
+        "tpm": totals["tpm"] / count,
+        "tpa": totals["tpa"] / count,
+        "tp_percent": tp_percent,
+        "ftm": totals["ftm"] / count,
+        "fta": totals["fta"] / count,
+        "ft_percent": ft_percent,
+    }
+
+
 def _notify_users_game_saved(game: Game):
     """Notify non-admin users that a game was saved (optional PDF attachment)."""
     try:
+        # Send notifications to users
         enabled = SystemSetting.get_value("notify_game_added", default="false")
-        if enabled != "true":
-            return
+        if enabled == "true":
+            recipients = [
+                u.email
+                for u in User.query.filter(
+                    User.role != "admin", User.is_admin.is_(False)
+                ).all()
+                if u.email
+            ]
+            if recipients:
+                pdf_attachment = None
+                attach_pdf = SystemSetting.get_value("attach_game_pdf", default="false")
+                if attach_pdf == "true":
+                    try:
+                        # Local import to avoid heavy dependency on route module at import-time
+                        from web.routes.reports import generate_game_pdf_bytes
 
-        recipients = [
-            u.email
-            for u in User.query.filter(
-                User.role != "admin", User.is_admin.is_(False)
-            ).all()
-            if u.email
-        ]
-        if not recipients:
-            return
+                        filename, pdf_bytes = generate_game_pdf_bytes(game.id)
+                        if filename and pdf_bytes:
+                            pdf_attachment = (filename, pdf_bytes)
+                    except Exception as e:
+                        current_app.logger.error(
+                            f"Failed to generate game PDF for email (Game ID {game.id}): {e}"
+                        )
 
-        pdf_attachment = None
-        attach_pdf = SystemSetting.get_value("attach_game_pdf", default="false")
-        if attach_pdf == "true":
-            try:
-                # Local import to avoid heavy dependency on route module at import-time
-                from web.routes.reports import generate_game_pdf_bytes
+                send_game_notification(recipients, game, pdf_attachment=pdf_attachment)
 
-                filename, pdf_bytes = generate_game_pdf_bytes(game.id)
-                if filename and pdf_bytes:
-                    pdf_attachment = (filename, pdf_bytes)
-            except Exception as e:
-                current_app.logger.error(
-                    f"Failed to generate game PDF for email (Game ID {game.id}): {e}"
+        # Send player performance reports
+        send_player_reports = SystemSetting.get_value(
+            "send_player_reports", default="true"
+        )
+        if send_player_reports == "true":
+            # Get all active players with emails
+            players = Player.query.filter_by(active=True).all()
+            for player in players:
+                if not player.email:
+                    continue
+
+                # Get player's stats for this game
+                game_stat = PlayerStat.query.filter_by(
+                    game_id=game.id, player_name=player.name
+                ).first()
+
+                if not game_stat:
+                    continue
+
+                # Calculate season averages for this player
+                season_stats = _calculate_player_season_averages(player.name, game.id)
+
+                # Prepare game stats dict
+                game_stats = {
+                    "points": game_stat.points,
+                    "reb": game_stat.reb,
+                    "oreb": game_stat.oreb,
+                    "dreb": game_stat.dreb,
+                    "ast": game_stat.ast,
+                    "stl": game_stat.stl,
+                    "blk": game_stat.blk,
+                    "tov": game_stat.tov,
+                    "fgm": game_stat.fgm,
+                    "fga": game_stat.fga,
+                    "fg_percent": game_stat.fg_percent,
+                    "tpm": game_stat.tpm,
+                    "tpa": game_stat.tpa,
+                    "tp_percent": game_stat.tp_percent,
+                    "ftm": game_stat.ftm,
+                    "fta": game_stat.fta,
+                    "ft_percent": game_stat.ft_percent,
+                }
+
+                # Send performance email
+                from core.services.email_service import send_player_performance_email
+
+                send_player_performance_email(
+                    player.email, player.name, game, game_stats, season_stats
                 )
-
-        send_game_notification(recipients, game, pdf_attachment=pdf_attachment)
 
     except Exception as e:
         current_app.logger.error(
