@@ -256,17 +256,19 @@ def _notify_users_game_saved(game: Game):
                 attach_pdf = SystemSetting.get_value("attach_game_pdf", default="false")
                 if attach_pdf == "true":
                     try:
-                        # Local import to avoid heavy dependency on route module at import-time
-                        from core.services.report_service import (
-                            generate_simple_game_pdf_bytes,
-                        )
-
-                        filename, pdf_bytes = generate_simple_game_pdf_bytes(game.id)
-                        if filename and pdf_bytes:
+                        # Use the professional ReportLab-based generator
+                        from core.pdf_exports import PlaysBasedPDFGenerator
+                        generator = PlaysBasedPDFGenerator()
+                        pdf_buffer = generator.generate_game_report_pdf(game.id)
+                        
+                        pdf_bytes = pdf_buffer.getvalue()
+                        filename = f"Game_Report_{game.opponent.replace(' ', '_')}_{game.date}.pdf"
+                        
+                        if pdf_bytes:
                             pdf_attachment = (filename, pdf_bytes)
                     except Exception as e:
                         current_app.logger.error(
-                            f"Failed to generate game PDF for email (Game ID {game.id}): {e}"
+                            f"Failed to generate professional game PDF for email (Game ID {game.id}): {e}"
                         )
 
                 send_game_notification(recipients, game, pdf_attachment=pdf_attachment)
@@ -290,9 +292,9 @@ def _notify_users_game_saved(game: Game):
                 if not game_stat:
                     continue
 
-                # Generate the quarter detail PDF for this player
+                # Generate the quarter detail PDF for this player (FIX: pass game.id)
                 filename, pdf_bytes = generate_player_quarter_pdf_bytes(
-                    player.name, game.game_type
+                    player.name, game.game_type, game_id=game.id
                 )
                 if not pdf_bytes:
                     current_app.logger.warning(

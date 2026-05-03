@@ -1,352 +1,127 @@
-{% extends "base.html" %}
+{% extends "base.html" %} {% block content %} {# ── Macros ── #} {% macro
+fmt_pm(val) -%} {% if val is not none %}
+<span
+    class="pm-badge {% if val > 0 %}pm-pos{% elif val < 0 %}pm-neg{% endif %}"
+>
+    {% if val > 0 %}+{% endif %}{{ val }}
+</span>
+{% else %}N/A{% endif %} {%- endmacro %} {% macro per40(val, mpg) -%} {% if mpg
+and mpg > 0 %}{{ (val * 40 / mpg)|round(1) }}{% else %}0.0{% endif %} {%-
+endmacro %} {% macro gmsc(s) -%} {% set fta = s.fta|default(0) %} {% set ftm =
+s.ftm|default(0) %} {% set oreb = s.oreb|default(0) %} {% set dreb =
+s.dreb|default(0) %} {{ (s.points + 0.4*s.fgm - 0.7*s.fga - 0.4*(fta - ftm) +
+0.7*oreb + 0.3*dreb + s.stl + 0.7*s.ast + 0.7*s.blk - 0.4*s.pf - s.tov)|round(1)
+}} {%- endmacro %} {% set is_pdf = pdf_mode|default(false) %} {% set report_id =
+player_name[:3]|upper ~ '-' ~ range(1000, 9999)|random %} {% set back_target =
+back_url|default(url_for('main.players', game_type=game_type)) %} {% set
+pdf_target = report_url|default(url_for('analytics.player_report_pdf',
+player_name=player_name, game_type=game_type)) %}
 
-{% block content %}
 <style>
-    {% if pdf_mode %}
-    @page {
-        size: A4 portrait;
-        margin: 6mm;
-    }
-    {% endif %}
-
-    /* Prevent layout jump while charts initialize */
-    .page-loading-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(255, 255, 255, 0.92);
-        backdrop-filter: blur(6px);
-        z-index: 9999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: opacity 200ms ease;
+    :root {
+        --bg-pure: #000000;
+        --bg-dark: #0a0a0c;
+        --bg-module: #141417;
+        --bg-card: #1c1c1f;
+        --accent-primary: #00f2ff;
+        --accent-hot: #00ff41;
+        --accent-cold: #ff003c;
+        --accent-gold: #fbbf24;
+        --text-main: #e2e8f0;
+        --text-dim: #94a3b8;
+        --border-color: #2d2d33;
+        --font-display: 'Archivo Black', sans-serif;
+        --font-mono: 'Space Mono', monospace;
+        --font-body: 'Work Sans', sans-serif;
     }
 
-    .page-loading-overlay.hidden {
-        opacity: 0;
-        pointer-events: none;
+    * { box-sizing: border-box; }
+
+    /* ── Web defaults ── */
+    body {
+        background: var(--bg-pure);
+        color: var(--text-main);
+        padding: 20px 0;
     }
 
-    .page-loading-card {
-        background: white;
-        border: 1px solid #e9ecef;
-        border-radius: 14px;
-        padding: 18px 22px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        color: #333;
-        font-weight: 600;
-    }
-
-    .spinner {
-        width: 18px;
-        height: 18px;
-        border: 3px solid #e9ecef;
-        border-top-color: #667eea;
-        border-radius: 50%;
-        animation: spin 0.9s linear infinite;
-    }
-
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
-    .page-hidden {
-        visibility: hidden;
-    }
-
-    .player-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+    .page-container {
+        max-width: 1200px;
+        margin: 0 auto;
         padding: 40px;
-        border-radius: 12px;
-        margin-bottom: 30px;
-        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        background: var(--bg-dark);
+        border-radius: 20px;
+        border: 1px solid var(--border-color);
+        position: relative;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
     }
 
-    .player-avatar-lg {
-        width: 120px;
-        height: 120px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.2);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 48px;
-        font-weight: 700;
-        border: 4px solid white;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    .page-container::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.05) 2px, rgba(0, 0, 0, 0.05) 4px);
+        pointer-events: none;
+        z-index: 1000;
+        border-radius: 20px;
     }
 
-    .stat-grid {
+    .pdf-grid-2 {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 18px;
-        margin-top: 20px;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 20px;
+    }
+    .pdf-full-row { grid-column: 1 / -1; }
+
+    /* ── PDF overrides ── */
+    {% if is_pdf %}
+    @page { size: A4 portrait; margin: 0; }
+
+    body {
+        background: var(--bg-pure) !important;
+        color: var(--text-main) !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        font-size: 10px;
     }
 
-    .stat-card {
-        background: white;
-        padding: 20px 16px;
-        border-radius: 10px;
-        text-align: center;
-        border: 1px solid #e0e0e0;
-        transition: all 0.3s ease;
+    .page-container { /* neutral wrapper in PDF */ }
+
+    .pdf-page {
+        width: 210mm;
+        min-height: 297mm;
+        padding: 15mm;
+        background: var(--bg-dark);
         position: relative;
-        min-height: 85px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-
-    .stat-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
-    }
-
-    .stat-card-value {
-        font-size: 26px;
-        font-weight: 700;
-        color: #333;
-        margin-bottom: 4px;
-        line-height: 1.2;
-    }
-
-    .stat-card-subvalue {
-        font-size: 11px;
-        color: #999;
-        margin-bottom: 6px;
-        line-height: 1.3;
-    }
-
-    .stat-card-label {
-        font-size: 11px;
-        color: #666;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        font-weight: 600;
-        line-height: 1.2;
-    }
-
-    .section-title {
-        font-size: 18px;
-        font-weight: 700;
-        margin: 35px 0 15px;
-        color: #2d3748;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        border-bottom: 2px solid #e2e8f0;
-        padding-bottom: 10px;
-    }
-
-    .chart-container {
-        background: white;
-        padding: 20px;
-        border-radius: 12px;
-        margin-bottom: 20px;
-        border: 1px solid #e0e0e0;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        overflow: hidden;
-    }
-
-    .chart-box {
-        position: relative;
-        width: 100%;
-        height: 280px;
-    }
-
-    .chart-box.chart-box--md {
-        height: 240px;
-    }
-
-    .chart-box.chart-box--sm {
-        height: 220px;
-    }
-
-    .chart-box canvas {
-        width: 100% !important;
-        height: 100% !important;
+        margin: 0 auto;
         display: block;
     }
 
-    .game-log-table {
-        width: 100%;
-        background: white;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    }
-
-    .game-log-table thead {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-    }
-
-    .game-log-table th {
-        padding: 12px 8px;
-        font-weight: 600;
-        font-size: 12px;
-        text-align: center;
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .game-log-table td {
-        padding: 10px 8px;
-        text-align: center;
-        border-bottom: 1px solid #f0f0f0;
-        font-size: 13px;
-    }
-
-    .game-log-table tbody tr:hover {
-        background: #f8f9fa;
-    }
-
-    .result-badge {
-        display: inline-block;
-        padding: 3px 8px;
-        border-radius: 4px;
-        font-weight: 600;
-        font-size: 11px;
-    }
-
-    .result-w { background: #d4edda; color: #155724; }
-    .result-l { background: #f8d7da; color: #721c24; }
-
-    /* Tooltip styling */
-    .stat-tooltip-icon {
+    .pdf-page::after {
+        content: '';
         position: absolute;
-        top: 6px;
-        right: 6px;
-        font-size: 10px;
-        color: #cbd5e0;
-        cursor: help;
-    }
-    .stat-card:hover .stat-tooltip-icon {
-        color: #a0aec0;
-    }
-
-    /* Per 40 section styling */
-    .per40-section {
-        margin-top: 15px;
-        padding-top: 15px;
-        border-top: 1px solid #e2e8f0;
-    }
-
-    .per40-title {
-        font-size: 11px;
-        text-transform: uppercase;
-        color: #718096;
-        margin-bottom: 10px;
-        font-weight: 600;
-        letter-spacing: 0.5px;
-    }
-
-    .per40-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 12px;
-        text-align: center;
-    }
-
-    .per40-item {
-        background: #f7fafc;
-        padding: 10px 8px;
-        border-radius: 6px;
-    }
-
-    .per40-value {
-        font-weight: 700;
-        font-size: 18px;
-        color: #2d3748;
-        line-height: 1.2;
-    }
-
-    .per40-label {
-        font-size: 10px;
-        color: #718096;
-        margin-top: 2px;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-    }
-
-    /* Shot Chart Styles */
-    .shot-chart-container {
-        position: relative;
-        width: 100%;
-        max-width: 500px;
-        margin: 0 auto;
-        background: #fff;
-        border-radius: 12px;
-        overflow: hidden;
-    }
-    .shot-point {
-        position: absolute;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-        border: 1px solid rgba(0,0,0,0.2);
-        cursor: pointer;
-        transition: transform 0.2s;
-        z-index: 10;
-        opacity: 0.8;
-    }
-    .shot-point:hover {
-        transform: translate(-50%, -50%) scale(1.5);
-        z-index: 20;
-        opacity: 1;
-    }
-    .shot-made {
-        background-color: #28a745; /* Green */
-    }
-    .shot-missed {
-        background-color: #dc3545; /* Red */
-    }
-    .shot-tooltip {
-        position: absolute;
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
+        inset: 0;
+        background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.15) 2px, rgba(0, 0, 0, 0.15) 4px);
         pointer-events: none;
-        display: none;
-        z-index: 100;
-        white-space: nowrap;
+        z-index: 1000;
     }
 
-    .pm-badge {
-        font-weight: 700;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 0.85rem;
-    }
-    .pm-pos { color: #15803d; background: #dcfce7; }
-    .pm-neg { color: #b91c1c; background: #fee2e2; }
-    .pm-neu { color: #6b7280; background: #f3f4f6; }
+    .section-title { margin: 20px 0 10px !important; font-size: 11px !important; }
+    .stat-card { padding: 8px 10px !important; }
+    .stat-card-value { font-size: 18px !important; }
+    .stat-card-label { font-size: 7px !important; }
+    .chart-container { padding: 10px !important; margin-bottom: 10px !important; }
+    .chart-box { height: 160px !important; }
+    .game-log-table th, .game-log-table td { padding: 5px 3px !important; font-size: 7.5px !important; }
 
-    {% if pdf_mode %}
-    body {
-        background: #fff !important;
-        margin: 0 !important;
-    }
+    .pdf-grid-2 { grid-template-columns: 1fr 1fr; gap: 10px; }
 
-    body.app-body--authed {
-        display: block !important;
-        background: #fff !important;
-    }
+    .pdf-page-break { break-before: page; page-break-before: always; }
+    .no-split { break-inside: avoid; page-break-inside: avoid; }
+    .game-log-table tr { break-inside: avoid; page-break-inside: avoid; }
 
-    .app-sidebar,
-    .app-menu-toggle,
-    .app-sidebar-backdrop,
-    .app-flashes {
-        display: none !important;
-    }
+    .app-sidebar, .app-menu-toggle, .app-sidebar-backdrop, .app-flashes { display: none !important; }
 
     .app-main {
         margin-left: 0 !important;
@@ -355,378 +130,409 @@
         max-width: none !important;
         padding: 0 !important;
     }
+    {% endif %}
 
-    #playerPage {
-        padding: 0 !important;
-        width: 100% !important;
-        max-width: none !important;
+    /* ── Loading overlay (web only) ── */
+    .page-loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: var(--bg-pure);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 300ms ease;
     }
-
-    .container-fluid {
-        width: 100% !important;
-        max-width: none !important;
-        margin: 0 !important;
+    .page-loading-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
     }
-
-    .pdf-page-one {
-        page-break-after: always;
+    .page-loading-card {
+        background: var(--bg-module);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 30px 40px;
+        box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        color: var(--text-main);
     }
-
-    .pdf-table-page {
-        page-break-before: always;
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid var(--border-color);
+        border-top-color: var(--accent-primary);
+        border-radius: 50%;
+        animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    #playerPage {
-        font-size: 11px;
-    }
-
-    #playerPage .d-flex {
-        gap: 10px !important;
-    }
-
-    #playerPage .row {
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        gap: 10px;
-        margin: 0 !important;
-    }
-
-    #playerPage .row > [class*="col-"] {
-        flex: 1 1 0;
-        width: auto !important;
-        max-width: none !important;
-        padding: 0 !important;
-    }
-
-    #playerPage .col-lg-8 {
-        flex: 0 0 68% !important;
-        width: 68% !important;
-    }
-
-    #playerPage .col-lg-4 {
-        flex: 0 0 32% !important;
-        width: 32% !important;
-    }
-
-    #playerPage .row.g-3,
-    #playerPage .row .row {
-        gap: 8px;
-    }
-
-    #playerPage .row.g-3 > .col-md-6,
-    #playerPage .row > .col-md-6 {
-        flex: 0 0 calc(50% - 4px) !important;
-        width: calc(50% - 4px) !important;
-    }
-
+    /* ── Header ── */
     .player-header {
-        padding: 14px 16px;
-        margin-bottom: 10px;
-        box-shadow: none;
-        border-radius: 10px;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 35px;
+        border-bottom: 2px solid var(--text-main);
+        padding-bottom: 20px;
+        margin-bottom: 25px;
+        align-items: center;
+        position: relative;
     }
-
-    .player-header h1 {
-        font-size: 24px !important;
-    }
-
-    .player-header span {
-        font-size: 12px !important;
-    }
-
     .player-avatar-lg {
-        width: 58px;
-        height: 58px;
-        font-size: 22px;
-        border-width: 2px;
+        width: 100px;
+        height: 100px;
+        border-radius: 6px;
+        background: var(--bg-module);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 42px;
+        font-family: var(--font-display);
+        color: var(--accent-primary);
+        border: 1px solid var(--border-color);
     }
-
-    .stat-grid {
-        gap: 6px;
+    .player-info h1 {
+        font-family: var(--font-display);
+        font-size: 32px;
+        text-transform: uppercase;
+        margin: 0;
+        letter-spacing: -1px;
+        color: var(--text-main);
+    }
+    .player-info .subtitle {
+        font-family: var(--font-mono);
+        color: var(--accent-primary);
+        font-size: 11px;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 20px;
         margin-top: 8px;
     }
 
-    .quick-overview-grid {
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        align-items: stretch;
-        margin-bottom: 10px;
+    /* ── Stats ── */
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+        margin-top: 15px;
     }
-
-    .quick-overview-grid > .stat-card {
-        flex: 1 1 0 !important;
-        min-width: 0 !important;
-        min-height: 54px !important;
-    }
-
-    .advanced-layout {
-        align-items: flex-start !important;
-    }
-
-    .advanced-top-row {
-        align-items: stretch !important;
-        margin-top: 2px !important;
-    }
-
-    .metrics-grid-compact,
-    .metrics-grid-splits {
-        display: grid !important;
-        margin-top: 0 !important;
-    }
-
-    .metrics-grid-compact {
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        gap: 6px !important;
-    }
-
-    .metrics-grid-splits {
-        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-        gap: 5px !important;
-    }
-
-    .metrics-grid-compact .stat-card,
-    .metrics-grid-splits .stat-card {
-        padding: 6px 5px !important;
-        min-height: 36px !important;
-    }
-
-    .metrics-grid-splits .stat-card-value {
-        font-size: 12px !important;
-    }
-
     .stat-card {
-        padding: 8px 6px !important;
-        min-height: 42px !important;
-        box-shadow: none;
-        break-inside: avoid;
+        background: var(--bg-module);
+        padding: 15px;
+        border-radius: 6px;
+        text-align: left;
+        border: 1px solid var(--border-color);
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
-
     .stat-card-value {
-        font-size: 14px;
-        margin-bottom: 2px;
+        font-family: var(--font-mono);
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--text-main);
+    }
+    .stat-card-label {
+        font-family: var(--font-mono);
+        font-size: 8px;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 
-    .stat-card-subvalue,
-    .stat-card-label,
-    .per40-title,
-    .per40-label {
-        font-size: 6.5px;
-    }
-
+    /* ── Section titles ── */
     .section-title {
-        font-size: 10px;
-        margin: 8px 0 5px;
-        padding-bottom: 4px;
-        gap: 6px;
+        font-family: var(--font-display);
+        font-size: 13px;
+        text-transform: uppercase;
+        margin: 30px 0 12px;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .section-title::after {
+        content: '';
+        flex-grow: 1;
+        height: 1px;
+        background: var(--border-color);
     }
 
+    /* ── Charts ── */
     .chart-container {
-        padding: 6px;
-        margin-bottom: 4px;
-        box-shadow: none;
-        break-inside: avoid;
-        border-radius: 8px;
+        background: var(--bg-module);
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        border: 1px solid var(--border-color);
     }
-
-    .chart-container h5,
-    .chart-container h6 {
-        font-size: 7px !important;
-        margin-bottom: 4px !important;
-    }
-
-    .chart-box.chart-box--md {
-        height: 72px;
-    }
-
-    .chart-box img,
-    .shot-chart-container img {
+    .chart-box {
+        position: relative;
         width: 100%;
-        height: 100%;
-        object-fit: contain;
+        height: 240px;
+    }
+    .chart-box img {
+        max-width: 100%;
+        height: auto;
+        display: block;
     }
 
-    .shot-chart-container {
-        max-width: 145px;
+    /* ── Tables ── */
+    .game-log-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--bg-module);
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid var(--border-color);
     }
-
-    .per40-section {
-        margin-top: 6px;
-        padding-top: 6px;
+    .game-log-table thead { background: var(--bg-card); }
+    .game-log-table th {
+        padding: 10px 8px;
+        font-family: var(--font-mono);
+        font-size: 9px;
+        color: var(--accent-primary);
+        text-transform: uppercase;
+        text-align: center;
+        border-bottom: 2px solid var(--border-color);
     }
-
-    .per40-grid {
-        gap: 4px;
-    }
-
-    .per40-item {
-        padding: 5px 4px;
-    }
-
-    .per40-value {
+    .game-log-table td {
+        padding: 10px 8px;
+        text-align: center;
+        border-bottom: 1px solid var(--border-color);
+        font-family: var(--font-mono);
         font-size: 10px;
     }
 
-    .col-lg-4 .stat-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 4px;
+    .result-badge {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: var(--font-mono);
+        font-weight: 700;
+        font-size: 9px;
+    }
+    .result-w { color: var(--accent-hot); border: 1px solid var(--accent-hot); }
+    .result-l { color: var(--accent-cold); border: 1px solid var(--accent-cold); }
+
+    .pm-badge { font-family: var(--font-mono); font-weight: 700; }
+    .pm-pos { color: var(--accent-hot); }
+    .pm-neg { color: var(--accent-cold); }
+
+    /* ── Per 40 ── */
+    .per40-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color); }
+    .per40-title { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); margin-bottom: 8px; }
+    .per40-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .per40-item { background: var(--bg-card); padding: 8px; border-radius: 6px; text-align: center; border: 1px solid var(--border-color); }
+    .per40-value { font-family: var(--font-mono); color: var(--accent-primary); font-size: 14px; font-weight: 700; }
+    .per40-label { font-family: var(--font-mono); color: var(--text-dim); font-size: 7px; }
+
+    /* ── Shot chart helpers ── */
+    .shot-point {
+        position: absolute; width: 10px; height: 10px; border-radius: 50%;
+        transform: translate(-50%, -50%);
+        border: 1px solid rgba(255,255,255,0.2); z-index: 10;
+    }
+    .shot-made { background-color: var(--accent-hot); box-shadow: 0 0 8px var(--accent-hot); }
+    .shot-missed { background-color: var(--accent-cold); box-shadow: 0 0 8px var(--accent-cold); }
+    .shot-tooltip {
+        position: absolute; display: none; background: rgba(0,0,0,0.9);
+        border: 1px solid var(--accent-primary); color: var(--text-main);
+        padding: 8px 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 10px;
+        z-index: 1000; pointer-events: none;
     }
 
-    .col-lg-4 .stat-card {
-        min-height: 34px !important;
-        padding: 5px 4px !important;
-    }
-
-    .col-lg-4 .fa-2x {
-        font-size: 1rem !important;
-    }
-
-    .col-lg-4 .px-4 {
-        padding-left: 8px !important;
-        padding-right: 8px !important;
-    }
-
-    .game-log-table {
-        box-shadow: none;
-        border-radius: 0;
-    }
-
-    .game-log-table th {
-        padding: 4px 3px;
-        font-size: 7px;
-    }
-
-    .game-log-table td {
-        padding: 4px 3px;
-        font-size: 7px;
-    }
-
-    .result-badge,
-    .pm-badge {
-        font-size: 6px !important;
-        padding: 2px 4px !important;
-    }
-
-    .pdf-hide {
-        display: none !important;
-    }
-    {% endif %}
+    .no-split { break-inside: avoid; page-break-inside: avoid; }
+    .pdf-hide { display: none !important; }
+    .page-hidden { visibility: hidden; }
 </style>
 
-{% if not pdf_mode %}
-<!-- Loading overlay -->
-<div id="pageLoader" class="page-loading-overlay">
+{# ── Web loader ── #} {% if not is_pdf %}
+<div
+    id="pageLoader"
+    class="page-loading-overlay"
+    role="status"
+    aria-label="Loading player analytics"
+>
     <div class="page-loading-card">
-        <span class="spinner"></span>
-        Loading player analytics…
+        <span class="spinner" aria-hidden="true"></span>
+        <span
+            style="
+                font-family: var(--font-mono);
+                font-size: 14px;
+                color: var(--accent-primary);
+            "
+            >INITIALIZING PLAYER_ANALYTICS...</span
+        >
     </div>
 </div>
-{% endif %}
+{% endif %} {# ── Root ── #}
+<div
+    id="playerPage"
+    class="container-fluid {% if not is_pdf %}page-hidden{% endif %}"
+>
+    {# ── Page 1: Core Performance ── #} {% if is_pdf %}
+    <div class="pdf-page">
+        {% else %}
+        <div class="page-container">
+            {% endif %}
 
-<div id="playerPage" class="container-fluid {% if not pdf_mode %}page-hidden{% endif %}">
-    {% if pdf_mode %}<div class="pdf-page-one">{% endif %}
-    <!-- Player Header -->
-    <div class="player-header">
-        <div class="d-flex align-items-center gap-4">
-            <div class="player-avatar-lg">{{ player_name[:2]|upper }}</div>
-            <div style="flex: 1;">
-                <h1 style="font-size: 36px; margin: 0;">{{ player_name }}</h1>
-                <div class="d-flex align-items-center gap-3 mt-2" style="opacity: 0.9;">
-                    <span style="font-size: 18px;"><i class="fas fa-basketball-ball"></i> {{ games_played }} Games</span>
-                    <span style="font-size: 18px;"><i class="fas fa-clock"></i> {{ averages.mpg|round(1) }} MIN</span>
+            <!-- Header -->
+            <div class="player-header">
+                <div class="player-avatar-lg" aria-hidden="true">
+                    {{ player_name[:2]|upper }}
+                </div>
+                <div class="player-info">
+                    <h1>{{ player_name }}</h1>
+                    <div class="subtitle">
+                        <span
+                            ><i
+                                class="fas fa-basketball-ball"
+                                aria-hidden="true"
+                            ></i>
+                            {{ games_played|default(0) }} GAMES_PLAYED</span
+                        >
+                        <span
+                            ><i class="fas fa-clock" aria-hidden="true"></i> {{
+                            averages.mpg|default(0)|round(1) }} MPG_ACTIVE</span
+                        >
+                    </div>
+                </div>
+                <div class="d-flex flex-column align-items-end gap-2">
+                    <div
+                        style="
+                            font-family: var(--font-mono);
+                            font-size: 8px;
+                            color: var(--text-dim);
+                            text-transform: uppercase;
+                        "
+                    >
+                        REPORT_REF_ID: <strong>{{ report_id }}</strong>
+                    </div>
+                    <div
+                        class="d-flex gap-2 {% if is_pdf %}pdf-hide{% endif %}"
+                    >
+                        <a
+                            href="{{ pdf_target }}"
+                            class="btn btn-outline-info btn-sm"
+                        >
+                            <i
+                                class="fas fa-file-download"
+                                aria-hidden="true"
+                            ></i>
+                            PDF
+                        </a>
+                        <a
+                            href="{{ back_target }}"
+                            class="btn btn-outline-secondary btn-sm"
+                        >
+                            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                            BACK
+                        </a>
+                    </div>
                 </div>
             </div>
-            <div class="d-flex gap-2 {% if pdf_mode %}pdf-hide{% endif %}">
-                <a href="{{ report_url if report_url is defined else url_for('analytics.player_report_pdf', player_name=player_name, game_type=game_type) }}" class="btn btn-outline-light">
-                    <i class="fas fa-file-download"></i> Download Report
-                </a>
-                <a href="{{ back_url if back_url is defined else url_for('main.players', game_type=game_type) }}" class="btn btn-light">
-                    <i class="fas fa-arrow-left"></i> Back to Players
-                </a>
-            </div>
-        </div>
-    </div>
 
-    <!-- Quick Overview (Key Stats) -->
-    <div class="stat-grid quick-overview-grid">
-        <div class="stat-card">
-            <div class="stat-card-value">{{ averages.ppg|round(1) }}</div>
-            <div class="stat-card-label">Points</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-card-value">{{ averages.rpg|round(1) }}</div>
-            <div class="stat-card-subvalue">{{ averages.orebpg|round(1) }} Off · {{ averages.drebpg|round(1) }} Def</div>
-            <div class="stat-card-label">Rebounds</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-card-value">{{ averages.apg|round(1) }}</div>
-            <div class="stat-card-label">Assists</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-card-value">
-                {% if averages.pm is not none %}
-                    {% if averages.pm > 0 %}+{% endif %}{{ averages.pm|round(1) }}
-                {% else %}
-                    <span style="color: #999; font-size: 22px;">N/A</span>
-                {% endif %}
-            </div>
-            <div class="stat-card-label">Plus/Minus</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-card-value">{{ averages.ortg|round(0) }}</div>
-            <div class="stat-card-label">Off Rating</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-card-value">{{ averages.ts_pct|round(1) }}%</div>
-            <div class="stat-card-label">True Shooting</div>
-        </div>
-    </div>
-
-    <div class="row advanced-layout">
-        <!-- Advanced Metrics Panel -->
-        <div class="col-lg-8">
-            <div class="section-title">
-                <i class="fas fa-calculator" style="color: #667eea;"></i>
-                Advanced Metrics Breakdown
-            </div>
-
-            <div class="row g-3 advanced-top-row">
-                <!-- Scoring Efficiency -->
-                <div class="col-md-6">
-                    <div class="chart-container h-100">
-                        <h6 style="color: #4a5568; font-weight: 700; text-transform: uppercase; font-size: 12px; margin-bottom: 15px;">Scoring & Efficiency</h6>
-                        <div class="stat-grid metrics-grid-compact">
-                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
-                                <div class="stat-card-value">{{ averages.ppp|round(2) }}</div>
-                                <div class="stat-card-label">PPP (Pts/Poss)</div>
+            <div class="pdf-grid-2">
+                <!-- Full-row overview -->
+                <div class="pdf-full-row no-split">
+                    <div class="stat-grid">
+                        <div class="stat-card">
+                            <div class="stat-card-value">
+                                {{ averages.ppg|default(0)|round(1) }}
                             </div>
-                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
-                                <div class="stat-card-value">{{ averages.poss_per_40|round(1) }}</div>
-                                <div class="stat-card-label">Poss/40</div>
+                            <div class="stat-card-label">POINTS_PER_GAME</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-value">
+                                {{ averages.rpg|default(0)|round(1) }}
                             </div>
-                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
-                                <div class="stat-card-value">{{ averages.efg_pct|round(1) }}%</div>
+                            <div class="stat-card-label">REBOUNDS_TOTAL</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-value">
+                                {{ averages.apg|default(0)|round(1) }}
+                            </div>
+                            <div class="stat-card-label">ASSISTS_AVERAGE</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-value">
+                                {% if averages.pm is not none %} {% if
+                                averages.pm > 0 %}+{% endif %}{{
+                                averages.pm|round(1) }} {% else %}N/A{% endif %}
+                            </div>
+                            <div class="stat-card-label">PLUS_MINUS_EFF</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-value">
+                                {{ averages.ortg|default(0)|round(0) }}
+                            </div>
+                            <div class="stat-card-label">OFFENSIVE_RATING</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-value">
+                                {{ averages.ts_pct|default(0)|round(1) }}%
+                            </div>
+                            <div class="stat-card-label">TRUE_SHOOTING_PCT</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced Metrics -->
+                <div class="no-split">
+                    <div class="section-title">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        ADVANCED_METRICS
+                    </div>
+                    <div class="chart-container">
+                        <div
+                            class="stat-grid"
+                            style="
+                                grid-template-columns: 1fr 1fr;
+                                margin-top: 0;
+                            "
+                        >
+                            <div class="stat-card">
+                                <div class="stat-card-value">
+                                    {{ averages.ppp|default(0)|round(2) }}
+                                </div>
+                                <div class="stat-card-label">PPP</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-card-value">
+                                    {{ averages.efg_pct|default(0)|round(1) }}%
+                                </div>
                                 <div class="stat-card-label">eFG%</div>
                             </div>
-                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
-                                <div class="stat-card-value">{{ (averages.consistency * 100)|round(1) }}%</div>
-                                <div class="stat-card-label">CV (Consistency)</div>
-                            </div>
                         </div>
-
-                        <!-- Per 40 Estimate -->
                         <div class="per40-section">
-                            <h6 class="per40-title">Per 40 Minutes Estimate</h6>
+                            <div class="per40-title">
+                                PER_40_MINUTES_PROJECTION
+                            </div>
                             <div class="per40-grid">
                                 <div class="per40-item">
-                                    <div class="per40-value">{{ (averages.ppg * (40 / averages.mpg))|round(1) }}</div>
+                                    <div class="per40-value">
+                                        {{ per40(averages.ppg|default(0),
+                                        averages.mpg) }}
+                                    </div>
                                     <div class="per40-label">PTS</div>
                                 </div>
                                 <div class="per40-item">
-                                    <div class="per40-value">{{ (averages.rpg * (40 / averages.mpg))|round(1) }}</div>
+                                    <div class="per40-value">
+                                        {{ per40(averages.rpg|default(0),
+                                        averages.mpg) }}
+                                    </div>
                                     <div class="per40-label">REB</div>
                                 </div>
                                 <div class="per40-item">
-                                    <div class="per40-value">{{ (averages.apg * (40 / averages.mpg))|round(1) }}</div>
+                                    <div class="per40-value">
+                                        {{ per40(averages.apg|default(0),
+                                        averages.mpg) }}
+                                    </div>
                                     <div class="per40-label">AST</div>
                                 </div>
                             </div>
@@ -734,252 +540,296 @@
                     </div>
                 </div>
 
-                <!-- Ball Handling & Shooting Splits -->
-                <div class="col-md-6">
-                    <div class="chart-container h-100">
-                        <h6 style="color: #4a5568; font-weight: 700; text-transform: uppercase; font-size: 12px; margin-bottom: 15px;">Handling & Shooting Splits</h6>
-                         <div class="stat-grid metrics-grid-splits">
-                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
-                                <div class="stat-card-value">{{ averages.ast_tov|round(2) }}</div>
-                                <div class="stat-card-label">AST / TOV</div>
+                <!-- Defense & Splits -->
+                <div class="no-split">
+                    <div class="section-title">
+                        <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                        DEFENSE_&_SPLITS
+                    </div>
+                    <div class="chart-container">
+                        <div
+                            class="stat-grid"
+                            style="
+                                grid-template-columns: 1fr 1fr 1fr;
+                                margin-top: 0;
+                            "
+                        >
+                            <div class="stat-card">
+                                <div class="stat-card-value">
+                                    {{ averages.spg|default(0)|round(1) }}
+                                </div>
+                                <div class="stat-card-label">STL</div>
                             </div>
-                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
-                                <div class="stat-card-value">{{ averages.fta_pct|round(1) }}%</div>
-                                <div class="stat-card-label">Free Throw Rate</div>
+                            <div class="stat-card">
+                                <div class="stat-card-value">
+                                    {{ averages.bpg|default(0)|round(1) }}
+                                </div>
+                                <div class="stat-card-label">BLK</div>
                             </div>
-                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
-                                <div class="stat-card-value">{{ averages.two_pt_pct|round(1) }}%</div>
-                                <div class="stat-card-label">2PT FG%</div>
+                            <div class="stat-card">
+                                <div class="stat-card-value">
+                                    {{ averages.pfpg|default(0)|round(1) }}
+                                </div>
+                                <div class="stat-card-label">PF</div>
                             </div>
-                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
-                                <div class="stat-card-value">{{ averages.tp_pct|round(1) }}%</div>
-                                <div class="stat-card-label">3PT FG%</div>
+                        </div>
+                        <div
+                            class="stat-grid"
+                            style="
+                                grid-template-columns: 1fr 1fr;
+                                margin-top: 10px;
+                            "
+                        >
+                            <div class="stat-card">
+                                <div class="stat-card-value">
+                                    {{ averages.two_pt_pct|default(0)|round(1)
+                                    }}%
+                                </div>
+                                <div class="stat-card-label">2PT%</div>
                             </div>
-                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
-                                <div class="stat-card-value">{{ averages.ft_pct|round(1) }}%</div>
-                                <div class="stat-card-label">FT%</div>
+                            <div class="stat-card">
+                                <div class="stat-card-value">
+                                    {{ averages.tp_pct|default(0)|round(1) }}%
+                                </div>
+                                <div class="stat-card-label">3PT%</div>
                             </div>
-                            <div class="stat-card" style="padding: 12px; min-height: 75px;">
-                                <div class="stat-card-value">{{ averages.oreb_pct|round(1) }}%</div>
-                                <div class="stat-card-label">Off. Reb %</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="pdf-full-row no-split">
+                    <div class="section-title">
+                        <i class="fas fa-chart-line" aria-hidden="true"></i>
+                        PERFORMANCE_ANALYSIS
+                    </div>
+                    <div class="pdf-grid-2">
+                        <div class="chart-container">
+                            <div class="stat-card-label mb-2">
+                                POINTS_BY_QUARTER
+                            </div>
+                            <div class="chart-box">
+                                {% if is_pdf and pdf_chart_scoring %}
+                                <img
+                                    src="data:image/png;base64,{{ pdf_chart_scoring }}"
+                                    alt="Quarter scoring chart"
+                                    style="
+                                        max-height: 100%;
+                                        object-fit: contain;
+                                    "
+                                />
+                                {% else %}
+                                <canvas
+                                    id="quarterScoringChart"
+                                    aria-label="Points by quarter bar chart"
+                                ></canvas>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <div class="stat-card-label mb-2">
+                                SHOOTING_TRENDS
+                            </div>
+                            <div class="chart-box">
+                                {% if is_pdf and pdf_chart_shooting %}
+                                <img
+                                    src="data:image/png;base64,{{ pdf_chart_shooting }}"
+                                    alt="Shooting trends chart"
+                                    style="
+                                        max-height: 100%;
+                                        object-fit: contain;
+                                    "
+                                />
+                                {% else %}
+                                <canvas
+                                    id="quarterShootingChart"
+                                    aria-label="Shooting percentage line chart"
+                                ></canvas>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Season Bests -->
+                <div class="pdf-full-row no-split">
+                    <div class="section-title">
+                        <i
+                            class="fas fa-trophy"
+                            style="color: var(--accent-gold)"
+                            aria-hidden="true"
+                        ></i>
+                        SEASON_BESTS
+                    </div>
+                    <div
+                        class="stat-grid"
+                        style="grid-template-columns: repeat(3, 1fr)"
+                    >
+                        <div class="stat-card">
+                            <div class="stat-card-label">MAX_POINTS</div>
+                            <div
+                                class="stat-card-value"
+                                style="color: var(--accent-gold)"
+                            >
+                                {{ career_highs.points|default(0) }}
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-label">MAX_REBOUNDS</div>
+                            <div
+                                class="stat-card-value"
+                                style="color: var(--accent-gold)"
+                            >
+                                {{ career_highs.reb|default(0) }}
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-label">MAX_ASSISTS</div>
+                            <div
+                                class="stat-card-value"
+                                style="color: var(--accent-gold)"
+                            >
+                                {{ career_highs.ast|default(0) }}
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Charts Section -->
-              <div class="section-title">
-                 <i class="fas fa-chart-line" style="color: #f5576c;"></i>
-                 Quarter-by-Quarter Performance
-             </div>
-             <div class="row">
-                 <div class="col-md-6">
-                     <div class="chart-container">
-                         <h5>Points Per Quarter</h5>
-                         <div class="chart-box chart-box--md">
-                             {% if pdf_mode and pdf_chart_scoring %}
-                             <img src="data:image/png;base64,{{ pdf_chart_scoring }}" alt="Quarter Scoring" style="width:100%; height:100%; object-fit:contain;">
-                             {% else %}
-                             <canvas id="quarterScoringChart"></canvas>
-                             {% endif %}
-                         </div>
-                     </div>
-                 </div>
-                 <div class="col-md-6">
-                     <div class="chart-container">
-                         <h5>Shooting Efficiency by Quarter</h5>
-                         <div class="chart-box chart-box--md">
-                             {% if pdf_mode and pdf_chart_shooting %}
-                             <img src="data:image/png;base64,{{ pdf_chart_shooting }}" alt="Quarter Shooting" style="width:100%; height:100%; object-fit:contain;">
-                             {% else %}
-                             <canvas id="quarterShootingChart"></canvas>
-                             {% endif %}
-                         </div>
-                     </div>
-                 </div>
-             </div>
-
-            <!-- Shot Chart Section -->
-            {% if shot_events %}
-            <div class="section-title">
-                <i class="fas fa-crosshairs" style="color: #e53e3e;"></i>
-                Shot Distribution
-            </div>
-            <div class="row">
-                <div class="col-md-12">
-                     <div class="chart-container text-center">
-                         <h6 style="color: #4a5568; font-weight: 700; text-transform: uppercase; font-size: 12px; margin-bottom: 15px;">Field Goal Locations</h6>
-                         <div class="shot-chart-container" id="shotChartContainer">
-                            {% if pdf_mode and pdf_shot_chart %}
-                            <img src="data:image/png;base64,{{ pdf_shot_chart }}" alt="Shot Chart" style="width:100%; height:auto; display:block;">
-                            {% else %}
-                            <!-- Half Court SVG -->
-                             <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; background-color: #d2b48c; display: block;">
-                        <!-- Court Floor -->
-                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
-
-                        <!-- 3-Point Arc (Approximate) -->
-                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
-
-                        <!-- Key / Paint Area -->
-                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
-
-                        <!-- Free Throw Circle -->
-                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
-
-                        <!-- Hoop / Backboard -->
-                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
-                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
-
-                        <!-- Baseline -->
-                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
-                    </svg>
-                            <div id="shotLayer"></div>
-                            {% endif %}
-                         </div>
-                     </div>
-                </div>
-            </div>
+            {% if is_pdf %}
+        </div>
+        {% else %}
+    </div>
+    {% endif %} {# ── Page 2: Shot Chart ── #} {% if is_pdf %}
+    <div class="pdf-page pdf-page-break">
+        {% else %}
+        <div class="mt-4 page-container">
             {% endif %}
-
+            <div class="section-title no-split">
+                <i class="fas fa-crosshairs" aria-hidden="true"></i>
+                SHOT_LOCATIONS
+            </div>
+            <div
+                class="chart-container no-split"
+                style="text-align: center; padding: 20px"
+            >
+                {% if is_pdf %} {% if pdf_shot_chart %}
+                <img
+                    src="data:image/png;base64,{{ pdf_shot_chart }}"
+                    alt="Player shot chart"
+                    style="
+                        max-height: 230mm;
+                        max-width: 100%;
+                        margin: 0 auto;
+                        display: block;
+                    "
+                />
+                {% else %}
+                <div
+                    style="
+                        padding: 50px;
+                        color: var(--text-dim);
+                        font-family: var(--font-mono);
+                    "
+                >
+                    NO SHOT DATA RECORDED
+                </div>
+                {% endif %} {% else %}
+                <div
+                    style="
+                        position: relative;
+                        width: 100%;
+                        max-width: 500px;
+                        margin: 0 auto;
+                        background-color: #dfd0b8;
+                        border: 2px solid var(--border-color);
+                        border-radius: 8px;
+                        overflow: hidden;
+                    "
+                >
+                    <div
+                        style="width: 100%; padding-bottom: 94%"
+                        aria-hidden="true"
+                    ></div>
+                    <div
+                        id="shotLayer"
+                        style="position: absolute; inset: 0"
+                        aria-label="Shot locations overlay"
+                    ></div>
+                </div>
+                {% endif %}
+            </div>
+            {% if is_pdf %}
         </div>
-
-        <!-- Season Bests & Defense Panel -->
-        <div class="col-lg-4">
-             <div class="section-title">
-                <i class="fas fa-trophy" style="color: #fbbf24;"></i>
-                Season Bests
+        {% else %}
+    </div>
+    {% endif %} {# ── Page 3: Game History ── #} {% if is_pdf %}
+    <div class="pdf-page pdf-page-break">
+        {% else %}
+        <div class="mt-4 page-container">
+            {% endif %}
+            <div class="section-title">
+                <i class="fas fa-list" aria-hidden="true"></i>
+                COMPLETE_GAME_HISTORY
             </div>
-            <div class="stat-grid" style="grid-template-columns: 1fr; gap: 12px;">
-                <div class="stat-card d-flex align-items-center justify-content-between px-4" style="min-height: 70px;">
-                    <div class="text-start">
-                        <div class="stat-card-label">Points</div>
-                        <div class="stat-card-value">{{ career_highs.points }}</div>
-                    </div>
-                    <i class="fas fa-basketball-ball text-muted opacity-25 fa-2x"></i>
-                </div>
-                <div class="stat-card d-flex align-items-center justify-content-between px-4" style="min-height: 70px;">
-                    <div class="text-start">
-                        <div class="stat-card-label">Rebounds</div>
-                        <div class="stat-card-value">{{ career_highs.reb }}</div>
-                    </div>
-                    <i class="fas fa-hand-holding text-muted opacity-25 fa-2x"></i>
-                </div>
-                <div class="stat-card d-flex align-items-center justify-content-between px-4" style="min-height: 70px;">
-                    <div class="text-start">
-                        <div class="stat-card-label">Assists</div>
-                        <div class="stat-card-value">{{ career_highs.ast }}</div>
-                    </div>
-                    <i class="fas fa-share text-muted opacity-25 fa-2x"></i>
-                </div>
+            <div style="overflow-x: auto">
+                <table class="game-log-table">
+                    <thead>
+                        <tr>
+                            <th>DATE</th>
+                            <th style="text-align: left">OPPONENT</th>
+                            <th>RESULT</th>
+                            <th>MIN</th>
+                            <th>PTS</th>
+                            <th>+/-</th>
+                            <th>REB</th>
+                            <th>AST</th>
+                            <th>STL</th>
+                            <th>BLK</th>
+                            <th>FG</th>
+                            <th>3PT</th>
+                            <th>TOV</th>
+                            <th>GmSc</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in game_logs %}
+                        <tr>
+                            <td>{{ log.game.date }}</td>
+                            <td style="text-align: left">
+                                <strong>{{ log.game.opponent }}</strong>
+                            </td>
+                            <td>
+                                <span
+                                    class="result-badge result-{{ log.game.result|lower }}"
+                                    >{{ log.game.result }}</span
+                                >
+                            </td>
+                            <td>{{ log.stat.minutes }}</td>
+                            <td><strong>{{ log.stat.points }}</strong></td>
+                            <td>{{ fmt_pm(log.stat.plus_minus) }}</td>
+                            <td>{{ log.stat.reb }}</td>
+                            <td>{{ log.stat.ast }}</td>
+                            <td>{{ log.stat.stl }}</td>
+                            <td>{{ log.stat.blk }}</td>
+                            <td>{{ log.stat.fgm }}-{{ log.stat.fga }}</td>
+                            <td>{{ log.stat.tpm }}-{{ log.stat.tpa }}</td>
+                            <td>{{ log.stat.tov }}</td>
+                            <td>{{ gmsc(log.stat) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
-
-            <div class="section-title mt-4">
-                <i class="fas fa-shield-alt" style="color: #2f855a;"></i>
-                Defense
-            </div>
-            <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr);">
-                <div class="stat-card" style="min-height: 75px;">
-                    <div class="stat-card-value">{{ averages.spg|round(1) }}</div>
-                    <div class="stat-card-label">Steals</div>
-                </div>
-                <div class="stat-card" style="min-height: 75px;">
-                    <div class="stat-card-value">{{ averages.bpg|round(1) }}</div>
-                    <div class="stat-card-label">Blocks</div>
-                </div>
-                <div class="stat-card" style="min-height: 75px;">
-                    <div class="stat-card-value">{{ averages.drebpg|round(1) }}</div>
-                    <div class="stat-card-label">Def Rebs</div>
-                </div>
-                <div class="stat-card" style="min-height: 75px;">
-                    <div class="stat-card-value">{{ averages.pfpg|round(1) }}</div>
-                    <div class="stat-card-label">Fouls</div>
-                </div>
-            </div>
+            {% if is_pdf %}
         </div>
+        {% else %}
     </div>
-    {% if pdf_mode %}</div>{% endif %}
-
-    <!-- Game Log -->
-    <div class="{% if pdf_mode %}pdf-table-page{% endif %}">
-    <div class="section-title">
-        <i class="fas fa-list" style="color: #20c997;"></i>
-        Game Log
-    </div>
-
-    <div style="overflow-x: auto;">
-        <table class="game-log-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Opponent</th>
-                    <th>Result</th>
-                    <th>MIN</th>
-                    <th>PTS</th>
-                    <th>+/-</th>
-                    <th>REB</th>
-                    <th>AST</th>
-                    <th>STL</th>
-                    <th>BLK</th>
-                    <th>FG</th>
-                    <th>3PT</th>
-                    <th>FT</th>
-                    <th>TOV</th>
-                    <th>EFF</th>
-                    <th>ORtg</th>
-                    <th>GmSc</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for log in game_logs %}
-                <tr>
-                    <td><a href="{{ url_for('main.game_detail', game_id=log.game.id) }}" style="text-decoration: none; color: #667eea; font-weight: 600;">{{ log.game.date }}</a></td>
-                    <td><strong>{{ log.game.opponent }}</strong></td>
-                    <td>
-                        <span class="result-badge result-{{ log.game.result|lower }}">
-                            {{ log.game.result }} {{ log.game.team_score }}-{{ log.game.opponent_score }}
-                        </span>
-                    </td>
-                    <td>{{ log.stat.minutes }}</td>
-                    <td><strong>{{ log.stat.points }}</strong></td>
-                    <td>
-                        {% if log.stat.plus_minus is not none %}
-                            {% if log.stat.plus_minus > 0 %}
-                            <span class="pm-badge pm-pos">+{{ log.stat.plus_minus }}</span>
-                            {% elif log.stat.plus_minus < 0 %}
-                            <span class="pm-badge pm-neg">{{ log.stat.plus_minus }}</span>
-                            {% else %}
-                            <span class="pm-badge pm-neu">0</span>
-                            {% endif %}
-                        {% else %}
-                            <span class="pm-badge pm-neu">N/A</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ log.stat.reb }}</td>
-                    <td>{{ log.stat.ast }}</td>
-                    <td>{{ log.stat.stl }}</td>
-                    <td>{{ log.stat.blk }}</td>
-                    <td>{{ log.stat.fgm }}-{{ log.stat.fga }}</td>
-                    <td>{{ log.stat.tpm }}-{{ log.stat.tpa }}</td>
-                    <td>{{ log.stat.ftm }}-{{ log.stat.fta }}</td>
-                    <td>{{ log.stat.tov }}</td>
-                    <td>{{ log.eff|round(1) }}</td>
-                    <td>{{ log.ortg|round(0) }}</td>
-                    <td>{{ (log.stat.points + 0.4 * log.stat.fgm - 0.7 * log.stat.fga - 0.4*(log.stat.fta - log.stat.ftm) + 0.7 * log.stat.oreb + 0.3 * log.stat.dreb + log.stat.stl + 0.7 * log.stat.ast + 0.7 * log.stat.blk - 0.4 * log.stat.pf - log.stat.tov)|round(1) }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    </div>
+    {% endif %}
 </div>
+<!-- /#playerPage -->
 
-{% if not pdf_mode %}
-<div id="shot-tooltip" class="shot-tooltip"></div>
-{% endif %}
-
-{% if not pdf_mode %}
+{% if not is_pdf %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     window.quarterChartData = {{ quarter_chart_data|tojson }};
@@ -1001,7 +851,9 @@
 
             if (!scoringEl || !shootingEl || typeof Chart === 'undefined') return;
 
-            /* Bar chart: Points Per Quarter */
+            Chart.defaults.color = '#94a3b8';
+            Chart.defaults.font.family = "'Space Mono', monospace";
+
             new Chart(scoringEl, {
                 type: 'bar',
                 data: {
@@ -1009,108 +861,48 @@
                     datasets: [{
                         label: 'Points',
                         data: window.quarterChartData.points,
-                        backgroundColor: '#667eea',
-                        borderColor: '#667eea',
+                        backgroundColor: '#00f2ff',
+                        borderColor: '#00f2ff',
                         borderWidth: 1
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { backgroundColor: 'rgba(0,0,0,0.8)' }
-                    },
+                    plugins: { legend: { display: false } },
                     scales: {
-                        y: { beginAtZero: true }
+                        y: { grid: { color: '#2d2d33' }, beginAtZero: true },
+                        x: { grid: { display: false } }
                     }
                 }
             });
 
-            /* Line chart: Shooting Efficiency by Quarter */
             new Chart(shootingEl, {
                 type: 'line',
                 data: {
                     labels: window.quarterChartData.labels,
                     datasets: [
-                        {
-                            label: 'FG%',
-                            data: window.quarterChartData.fg_pct,
-                            borderColor: '#28a745',
-                            backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                            tension: 0.4
-                        },
-                        {
-                            label: '3PT%',
-                            data: window.quarterChartData.tp_pct,
-                            borderColor: '#f5576c',
-                            backgroundColor: 'rgba(245, 87, 108, 0.1)',
-                            tension: 0.4
-                        }
+                        { label: 'FG%', data: window.quarterChartData.fg_pct, borderColor: '#00ff41', backgroundColor: 'rgba(0, 255, 65, 0.1)', tension: 0.4 },
+                        { label: '3PT%', data: window.quarterChartData.tp_pct, borderColor: '#ff003c', backgroundColor: 'rgba(245, 87, 108, 0.1)', tension: 0.4 }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { tooltip: { backgroundColor: 'rgba(0,0,0,0.8)' } },
-                    scales: { y: { beginAtZero: true, max: 100 } }
+                    plugins: { legend: { labels: { usePointStyle: true } } },
+                    scales: {
+                        y: { grid: { color: '#2d2d33' }, beginAtZero: true, max: 100 },
+                        x: { grid: { display: false } }
+                    }
                 }
             });
-
-            /* Render Shot Chart */
-            {% if shot_events %}
-            const shots = [
-                {% for s in shot_events %}
-                {
-                    game: {{ s.game.opponent|tojson }},
-                    x: {{ s.x_loc|tojson }},
-                    y: {{ s.y_loc|tojson }},
-                    result: {{ s.result|tojson }},
-                    type: {{ s.shot_type|tojson }},
-                    points: {{ s.points|tojson }}
-                },
-                {% endfor %}
-            ];
-
-            const shotLayer = document.getElementById('shotLayer');
-            const shotTooltip = document.getElementById('shot-tooltip');
-
-            if (shotLayer && shotTooltip) {
-                shots.forEach(shot => {
-                    if (shot.x === null || shot.y === null) return;
-
-                    const dot = document.createElement('div');
-                    dot.classList.add('shot-point');
-                    dot.classList.add(shot.result === 'made' ? 'shot-made' : 'shot-missed');
-
-                    dot.style.left = shot.x + '%';
-                    dot.style.top = shot.y + '%';
-
-                    dot.addEventListener('mouseenter', (e) => {
-                        shotTooltip.innerHTML = `<strong>vs ${shot.game}</strong><br>${shot.type} (${shot.points} pts)<br>${shot.result.toUpperCase()}`;
-                        shotTooltip.style.display = 'block';
-                        shotTooltip.style.left = e.pageX + 10 + 'px';
-                        shotTooltip.style.top = e.pageY + 10 + 'px';
-                    });
-
-                    dot.addEventListener('mouseleave', () => {
-                        shotTooltip.style.display = 'none';
-                    });
-
-                    shotLayer.appendChild(dot);
-                });
-            }
-            {% endif %}
         } catch (error) {
-            console.error('Failed to initialize player detail charts', error);
+            console.error('Failed to initialize charts', error);
         } finally {
             revealPlayerPage();
         }
     }
 
-    window.addEventListener('load', () => {
-        requestAnimationFrame(() => requestAnimationFrame(buildCharts));
-    });
+    window.addEventListener('load', buildCharts);
 </script>
-{% endif %}
-{% endblock %}
+{% endif %} {% endblock %}

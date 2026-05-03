@@ -83,7 +83,7 @@ class PlaysBasedPDFGenerator:
 
         # Normal body text
         self.styles.add(self.ParagraphStyle(
-            name='BodyText',
+            name='CustomBodyText',
             parent=self.styles['Normal'],
             fontSize=10,
             spaceAfter=8
@@ -326,7 +326,7 @@ class PlaysBasedPDFGenerator:
         plays_stats = self._calculate_game_plays_stats(game.id)
 
         if not plays_stats:
-            story.append(Paragraph("No plays recorded for this game.", self.styles['BodyText']))
+            story.append(Paragraph("No plays recorded for this game.", self.styles['CustomBodyText']))
             return story
 
         # Create plays statistics table
@@ -366,7 +366,7 @@ class PlaysBasedPDFGenerator:
         shot_events = ShotEvent.query.filter_by(game_id=game.id).all()
 
         if not shot_events:
-            story.append(Paragraph("No shot events recorded for this game.", self.styles['BodyText']))
+            story.append(Paragraph("No shot events recorded for this game.", self.styles['CustomBodyText']))
             return story
 
         total_shots = len(shot_events)
@@ -406,7 +406,7 @@ class PlaysBasedPDFGenerator:
         ).all()
         
         if not player_stats:
-            story.append(Paragraph("No player statistics recorded for this game.", self.styles['BodyText']))
+            story.append(Paragraph("No player statistics recorded for this game.", self.styles['CustomBodyText']))
             return story
         
         # Create a card for each player
@@ -435,7 +435,7 @@ class PlaysBasedPDFGenerator:
         
         # Main stats line (scoring focus)
         main_stats_text = f"{player_stat.fgm} points | {player_stat.dreb} defensive rebounds | {player_stat.fga} attempts | {player_stat.oreb} offensive rebounds"
-        story.append(Paragraph(main_stats_text, self.styles['BodyText']))
+        story.append(Paragraph(main_stats_text, self.styles['CustomBodyText']))
         
         # Shooting stats table (FG, T3, T2, FT)
         shooting_data = [
@@ -500,7 +500,7 @@ class PlaysBasedPDFGenerator:
         game_events = GameEvent.query.filter_by(game_id=game.id).limit(20).all()
 
         if not game_events:
-            story.append(Paragraph("No game events recorded.", self.styles['BodyText']))
+            story.append(Paragraph("No game events recorded.", self.styles['CustomBodyText']))
             return story
 
         events_data = [['Player', 'Event Type', 'Quarter', 'Play']]
@@ -647,7 +647,7 @@ class PlaysBasedPDFGenerator:
                     plays_performance[play_name]['points'] += shot.points
 
         if not plays_performance:
-            story.append(Paragraph("No play data available.", self.styles['BodyText']))
+            story.append(Paragraph("No play data available.", self.styles['CustomBodyText']))
             return story
 
         plays_data = [['Play', 'Shots', 'Made', 'FG%', 'Points']]
@@ -825,7 +825,7 @@ class PlaysBasedPDFGenerator:
                     plays_stats[play_name]['made'] += 1
 
         if not plays_stats:
-            story.append(Paragraph("No play data available.", self.styles['BodyText']))
+            story.append(Paragraph("No play data available.", self.styles['CustomBodyText']))
             return story
 
         # Sort by attempts

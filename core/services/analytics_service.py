@@ -781,9 +781,14 @@ class AnalyticsService:
             ],
         }
         game_map = {g.id: g for g in all_filtered_games}
-        chart_images = generate_player_charts(player_stats, game_map, player_name)
+        # Fetch the Player model instance to get the ID
+        from core.models import Player
+        player = Player.query.filter_by(name=player_name).first()
+        player_id = player.id if player else None
+
         return {
             "player_name": player_name,
+            "player_id": player_id,
             "games_played": gp,
             "totals": totals,
             "averages": averages,
@@ -1123,19 +1128,38 @@ class AnalyticsService:
                 )
         averages["consistency"] = consistency_value
 
-        # Career highs
-        if is_single_game:
-            career_highs = {
-                k: totals[k] for k in ["points", "reb", "ast", "stl", "blk"]
-            }
-        else:
-            career_highs = {
-                "points": max(s.points for s in player_stats),
-                "reb": max(s.reb for s in player_stats),
-                "ast": max(s.ast for s in player_stats),
-                "stl": max(s.stl for s in player_stats),
-                "blk": max(s.blk for s in player_stats),
-            }
+        # Career highs (True season/all-time bests)
+        # We query the database for true maximums across all games (optionally filtered by game_type)
+        career_highs_query = (
+            db.session.query(
+                func.max(PlayerStat.points).label("points"),
+                func.max(PlayerStat.reb).label("reb"),
+                func.max(PlayerStat.ast).label("ast"),
+                func.max(PlayerStat.stl).label("stl"),
+                func.max(PlayerStat.blk).label("blk"),
+            )
+            .filter(PlayerStat.player_name == player_name)
+            .filter(PlayerStat.minutes != "00:00")
+            .filter(PlayerStat.minutes != "0")
+            .join(Game)
+        )
+        
+        if game_type == "Season":
+            career_highs_query = career_highs_query.filter(Game.game_type == "Season")
+        elif game_type == "Friendly":
+            career_highs_query = career_highs_query.filter(Game.game_type == "Friendly")
+        elif game_type == "Playoff":
+            career_highs_query = career_highs_query.filter(Game.game_type == "Playoff")
+            
+        highs_result = career_highs_query.first()
+        
+        career_highs = {
+            "points": highs_result.points or 0,
+            "reb": highs_result.reb or 0,
+            "ast": highs_result.ast or 0,
+            "stl": highs_result.stl or 0,
+            "blk": highs_result.blk or 0,
+        }
 
         # Chart data for last 10 games
         chart_data = {

@@ -25,4 +25,5 @@ psycopg2-binary==2.9.9
 psutil==5.9.8
 Flask-Mail
 python-dotenv
+reportlab>=4.0.0
 workos==5.45.0

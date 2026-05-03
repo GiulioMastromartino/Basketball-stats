@@ -223,8 +223,31 @@
                     onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.15)'"
                     onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)'"
                 >
-                    <i class="fas fa-users"></i> Team Report
+                    <i class="fas fa-users"></i> Team Summary
                 </button>
+
+                <!-- Professional Team PDF Report Button -->
+                <a href="{{ url_for('pdf_export.export_team_pdf') }}" 
+                   target="_blank"
+                   style="
+                        background: linear-gradient(135deg, #4dabf7 0%, #1c7ed6 100%);
+                        color: white;
+                        text-decoration: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        transition: all 0.3s ease;
+                    "
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.15)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)'"
+                >
+                    <i class="fas fa-file-pdf"></i> Professional Team Report
+                </a>
 
                 <button
                     onclick="openLineupReport()"

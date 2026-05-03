@@ -378,6 +378,10 @@
 
         <!-- Action Buttons -->
         <div class="d-flex gap-2">
+            <a href="{{ url_for('pdf_export.export_game_pdf', game_id=game.id) }}" class="btn btn-primary shadow-sm" target="_blank">
+                <i class="fas fa-file-pdf me-2"></i>Professional Report
+            </a>
+
             <a href="{{ url_for('analytics.game_summary_pdf', game_id=game.id) }}" class="btn btn-outline-primary shadow-sm">
                 <i class="fas fa-file-alt me-2"></i>Summary Report
             </a>
