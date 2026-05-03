@@ -341,10 +341,13 @@
     .chart-wrap img {
       width: 100%;
       height: auto;
-      max-height: 14cm;
+      max-height: 20cm;   /* was 14cm — give the scoring chart room to breathe */
       object-fit: contain;
       display: block;
     }
+    /* Tighter cap for compact charts (shot chart, quarter chart) */
+    .chart-wrap.chart-compact img { max-height: 14cm; }
+
     .chart-cap {
       font-family: var(--font-mono);
       font-size: 7px;
@@ -665,7 +668,7 @@
 
   {% if shot_chart %}
   <div class="sec"><span class="sec-icon">&#127919;</span> Shot Chart</div>
-  <div class="chart-wrap ns">
+  <div class="chart-wrap chart-compact ns">
     <img src="data:image/png;base64,{{ shot_chart }}" alt="Shot Chart">
     <div class="chart-cap">Made shots (&#9679; green) &nbsp;|&nbsp; Missed shots (&#x2715; red) &nbsp;|&nbsp; Half-court view</div>
   </div>
@@ -766,7 +769,7 @@
   {% if chart_scoring %}
   <div class="chart-wrap ns">
     <img src="data:image/png;base64,{{ chart_scoring }}" alt="Scoring chart">
-    <div class="chart-cap">Bars = points per game &nbsp;|&nbsp; Line = +/- trend &nbsp;|&nbsp; Dashed = 3-game moving average</div>
+    <div class="chart-cap">Cyan area = points per game &nbsp;|&nbsp; Gold dashed = 3-game MA &nbsp;|&nbsp; Green/red shading = +/- trend (LIVE games only)</div>
   </div>
   {% else %}
   <div class="info-box"><p style="color:var(--dim);">Chart data not available.</p></div>
