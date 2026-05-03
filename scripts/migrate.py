@@ -7,10 +7,10 @@ chain that broke whenever the container was rebuilt (missing revision history).
 
 Strategy:
   1. db.create_all()        - creates any missing tables, never drops existing ones
-  2. Activate inactive players - fixes players seeded with active=0
-  3. alembic stamp head     - marks schema as current baseline so future
-                              `flask db migrate` / `flask db upgrade` work
-  4. promote_admin          - elevate ADMIN_EMAIL user if present
+  2. Seed players           - populate players from distinct player_stats names (idempotent)
+  3. Activate inactive      - fix any players seeded with active=0
+  4. alembic stamp head     - baseline for future flask db migrate / upgrade
+  5. promote_admin          - elevate ADMIN_EMAIL user if present
 
 Safe to re-run on every deploy.
 """
@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from web import create_app
-from core.models import db, Player, User
+from core.models import db, Player, PlayerStat, User
 
 
 def run():
@@ -33,7 +33,30 @@ def run():
         db.create_all()
         print("[migrate] db.create_all() complete.")
 
-        # ── 2. Activate any players that ended up with active=0 ────────────
+        # ── 2. Seed players from player_stats (idempotent) ─────────────────
+        try:
+            rows = db.session.query(PlayerStat.player_name).distinct().all()
+            names_in_stats = [r[0] for r in rows if r[0]]
+            print(f"[migrate] Found {len(names_in_stats)} unique player name(s) in player_stats.")
+
+            existing = {p.name for p in Player.query.all()}
+            added = 0
+            for name in sorted(names_in_stats):
+                if name not in existing:
+                    db.session.add(Player(name=name, email=None, active=True))
+                    added += 1
+                    print(f"[migrate]   + {name}")
+
+            if added:
+                db.session.commit()
+                print(f"[migrate] Seeded {added} new player(s).")
+            else:
+                print("[migrate] Players table already up-to-date.")
+        except Exception as e:
+            print(f"[migrate] Warning: player seeding failed: {e}")
+            db.session.rollback()
+
+        # ── 3. Activate any players that ended up with active=0 ────────────
         try:
             inactive = Player.query.filter_by(active=False).count()
             if inactive > 0:
@@ -51,12 +74,11 @@ def run():
             print(f"[migrate] Warning: could not check players table: {e}")
             db.session.rollback()
 
-        # ── 3. Stamp alembic head so flask db migrate works on next deploy ──
+        # ── 4. Stamp alembic head so flask db migrate works on next deploy ──
         try:
             from alembic.config import Config
             from alembic import command as alembic_command
 
-            # Ensure migrations folder exists (flask-migrate needs it)
             migrations_dir = Path(app.root_path).parent / "migrations"
             if not migrations_dir.exists():
                 print("[migrate] Initialising migrations folder...")
@@ -64,9 +86,7 @@ def run():
                 migrate_init(str(migrations_dir))
 
             alembic_cfg = Config(str(migrations_dir / "alembic.ini"))
-            alembic_cfg.set_main_option(
-                "script_location", str(migrations_dir)
-            )
+            alembic_cfg.set_main_option("script_location", str(migrations_dir))
             alembic_cfg.set_main_option(
                 "sqlalchemy.url",
                 app.config["SQLALCHEMY_DATABASE_URI"],
@@ -76,10 +96,9 @@ def run():
             alembic_command.stamp(alembic_cfg, "head")
             print("[migrate] Alembic stamp complete.")
         except Exception as e:
-            # Non-fatal: app works fine without alembic tracking
             print(f"[migrate] Warning: alembic stamp failed (non-fatal): {e}")
 
-        # ── 4. Promote ADMIN_EMAIL user ────────────────────────────────────
+        # ── 5. Promote ADMIN_EMAIL user ─────────────────────────────────────
         admin_email = os.getenv("ADMIN_EMAIL")
         if not admin_email:
             print("[migrate] No ADMIN_EMAIL set, skipping admin promotion.")
