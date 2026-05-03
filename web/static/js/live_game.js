@@ -2978,6 +2978,7 @@ class GameTracker {
             opp_score: this.opponentScore,
             player_stats: this.stats,
             game_events: this.gameEvents.filter(e => e.quarter === 1 || e.quarter === 2),
+            shot_locations: this.shotLocations.filter(s => s.quarter === 1 || s.quarter === 2),
             schema_version: this.SCHEMA_VERSION
         };
         
