@@ -220,6 +220,12 @@ class GameTracker {
     }
 
 
+    // --- TOOLS & SETTINGS ---
+    showSettingsModal() {
+        $('#settingsModal').modal('show');
+    }
+
+
     // --- PLAYS LOADING ---
     loadPlays() {
         // Always attempt fetch from API first to get fresh data (IDs)

@@ -895,6 +895,11 @@
                                 <button class="btn btn-info btn-sm" id="btn-play-selector" onclick="gameTracker.togglePlaySelector()">
                                     <span class="d-none d-md-inline">Play Selector: </span><span id="play-selector-status" style="color: #28a745;">ON</span>
                                 </button>
+                                
+                                <!-- Settings / Mid-game Tools -->
+                                <button class="btn btn-secondary btn-sm" onclick="gameTracker.showSettingsModal()" title="Live Game Tools">
+                                    <i class="fas fa-cog"></i>
+                                </button>
 
                                 <!-- Shot Position Toggle -->
                                 <button class="btn btn-info btn-sm" id="btn-shot-position" onclick="gameTracker.toggleShotPosition()">
@@ -1300,6 +1305,25 @@
         </div>
     </div>
 </div>
+</div>
+
+<!-- Settings / Tools Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white py-2">
+                <h5 class="modal-title h6">Live Game Tools</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close" style="opacity: 1; padding: 1rem; margin: -1rem -1rem -1rem auto; background: transparent; border: 0; font-size: 1.5rem; line-height: 1;">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <button class="btn btn-primary btn-block mb-3" onclick="gameTracker.generateHalftimePDF(); $('#settingsModal').modal('hide');">
+                    <i class="fas fa-file-pdf mr-2"></i>Download Mid-Game PDF Summary
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- CSRF Token -->
