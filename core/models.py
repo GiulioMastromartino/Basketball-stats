@@ -406,7 +406,9 @@ class Player(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=True)
-    active = db.Column(db.Boolean, default=True, nullable=False)
+    # server_default='1' ensures SQL-level DEFAULT so db.create_all() and
+    # raw schema copies always default to active rather than 0.
+    active = db.Column(db.Boolean, default=True, server_default="1", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     def __repr__(self):
