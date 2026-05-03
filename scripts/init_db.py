@@ -7,7 +7,8 @@ This script:
 1. Creates all tables from models (db.create_all)
 2. Detects and adds missing columns to existing tables
 3. Backfills lineup data to link segments to lineups
-4. Seeds default data
+4. Backfills players table from player_stats
+5. Seeds default data
 
 Usage:
     python scripts/init_db.py
@@ -25,7 +26,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from web import create_app
-from core.models import db, User, SystemSetting, Game, PlayerStat
+from core.models import db, User, SystemSetting, Game, PlayerStat, Player
 from core.models import Play, PlaySequence, PlayType, ShotEvent, GameEvent
 from core.models import LineupSegment, Lineup, Possession, ShotZone, PlayerLineupStats
 from core.models import bcrypt
@@ -115,6 +116,11 @@ def add_missing_columns(app):
             # Player stats table
             "player_stats": {
                 "reb_conceded": "INTEGER DEFAULT 0",
+            },
+            # Players table columns (handles DBs created before email/active were added)
+            "players": {
+                "email": "VARCHAR(120)",
+                "active": "BOOLEAN DEFAULT 1",
             },
         }
 
@@ -314,6 +320,43 @@ def add_indexes_if_missing(app):
             print("  ✓ All indexes up to date")
 
 
+def backfill_players(app):
+    """Ensure all player names from player_stats exist in the players table.
+
+    This is idempotent: safe to run on fresh DBs (no-op) and on existing DBs
+    that pre-date the Player model (populates the table from player_stats names).
+    analytics_service.build_player_detail() depends on Player rows existing.
+    """
+    with app.app_context():
+        print("\n[Players] Syncing players table from player_stats...")
+
+        inspector = inspect(db.engine)
+        if not inspector.has_table("players"):
+            print("  ! players table missing — will be created by db.create_all()")
+            return
+
+        # Collect unique names already in players
+        existing_names = {p.name for p in Player.query.all()}
+
+        # Pull distinct names from player_stats
+        distinct = db.session.query(PlayerStat.player_name).distinct().all()
+        names_to_add = [
+            row[0] for row in distinct if row[0] and row[0] not in existing_names
+        ]
+
+        if not names_to_add:
+            print("  ✓ Players table already in sync")
+            return
+
+        for name in sorted(names_to_add):
+            db.session.add(Player(name=name, email=None, active=True))
+
+        db.session.commit()
+        print(
+            f"  ✓ Added {len(names_to_add)} players: {', '.join(sorted(names_to_add))}"
+        )
+
+
 def seed_default_data(app):
     """Seed default data if not exists."""
     with app.app_context():
@@ -449,7 +492,7 @@ def init_database():
         print("=" * 60)
 
         # Step 1: Create all tables from models
-        print("\n[1/5] Creating tables from models...")
+        print("\n[1/6] Creating tables from models...")
         db.create_all()
         print("  ✓ All tables created")
 
@@ -462,7 +505,10 @@ def init_database():
         # Step 4: Backfill lineup data
         backfill_lineups(app)
 
-        # Step 5: Seed default data
+        # Step 5: Backfill players table from player_stats
+        backfill_players(app)
+
+        # Step 6: Seed default data
         seed_default_data(app)
 
         print("\n" + "=" * 60)
