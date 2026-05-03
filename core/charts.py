@@ -6,11 +6,17 @@ import matplotlib.patches as patches
 import matplotlib.ticker as mticker
 from matplotlib.lines import Line2D
 import numpy as np
-from scipy.interpolate import make_interp_spline
 import base64
 from io import BytesIO
 from core.models import ShotEvent, PlayerStat, Game, db
 from core.utils import calculate_possessions, calculate_ortg, parse_minutes
+
+# Optional scipy for smooth spline interpolation
+try:
+    from scipy.interpolate import make_interp_spline as _make_spline
+    _SCIPY = True
+except ImportError:
+    _SCIPY = False
 
 MAX_SHOTS_PER_CHART = 5000
 
@@ -53,13 +59,13 @@ def _savefig_b64(fig, dpi=120):
 
 
 def _smooth(x, y, resolution=300):
-    """Return smoothed xs, ys via cubic B-spline. Falls back to raw if < 4 pts."""
+    """Cubic B-spline interpolation. Falls back to raw arrays if scipy missing or < 4 pts."""
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
-    if len(x) < 4:
+    if not _SCIPY or len(x) < 4:
         return x, y
     k = min(3, len(x) - 1)
-    spl = make_interp_spline(x, y, k=k)
+    spl = _make_spline(x, y, k=k)
     xs = np.linspace(x[0], x[-1], resolution)
     return xs, spl(xs)
 
@@ -194,21 +200,17 @@ def generate_player_charts(stats, game_map, player_name, db_session=None):
 
         x = np.arange(n, dtype=float)
 
-        # ── figure: tall single chart ──
         fig, ax1 = plt.subplots(figsize=(13, 5))
         _apply_dark_style(fig, [ax1])
 
         # ── smooth points curve + filled area ──
         xs, ys = _smooth(x, points)
-        # clamp negatives introduced by spline at edges
         ys = np.clip(ys, 0, None)
 
         ax1.fill_between(xs, ys, alpha=0.18, color=CYAN, zorder=2)
         ax1.plot(xs, ys, color=CYAN, linewidth=2.2, zorder=3, label="Points (smooth)")
-        # actual data dots
         ax1.scatter(x, points, color=CYAN, s=30, zorder=4, edgecolors=BG_CARD,
                     linewidth=0.8)
-        # value labels above dots
         for xi, val in zip(x, points):
             ax1.text(xi, val + max(points) * 0.04, str(val),
                      ha="center", va="bottom", fontsize=6.5,
@@ -241,17 +243,13 @@ def generate_player_charts(stats, game_map, player_name, db_session=None):
 
         if len(live_pm) >= 2:
             xs_pm, ys_pm = _smooth(live_x, live_pm)
-            # split into positive / negative segments
             pos_mask = ys_pm >= 0
             neg_mask = ~pos_mask
-            # plot as two layers with fill
             ax2.fill_between(xs_pm, ys_pm, 0,
                              where=pos_mask, color=GREEN, alpha=0.15, zorder=1)
             ax2.fill_between(xs_pm, ys_pm, 0,
                              where=neg_mask, color=RED, alpha=0.15, zorder=1)
-            # single coloured line
             ax2.plot(xs_pm, ys_pm, color=WHITE, linewidth=1.4, alpha=0.6, zorder=2)
-            # original dots coloured
             ax2.scatter(live_x, live_pm,
                         c=[GREEN if v >= 0 else RED for v in live_pm],
                         s=24, zorder=3, edgecolors="none")
@@ -266,7 +264,7 @@ def generate_player_charts(stats, game_map, player_name, db_session=None):
                         s=24, zorder=3, edgecolors="none")
 
         # ── x-axis labels ──
-        step = max(1, n // 20)   # never crowd more than ~20 labels
+        step = max(1, n // 20)
         shown = list(range(0, n, step))
         ax1.set_xticks(shown)
         ax1.set_xticklabels(
