@@ -603,50 +603,26 @@ player_name=player_name, game_type=game_type)) %}
                         <i class="fas fa-chart-line" aria-hidden="true"></i>
                         PERFORMANCE_ANALYSIS
                     </div>
-                    <div class="pdf-grid-2">
-                        <div class="chart-container">
-                            <div class="stat-card-label mb-2">
-                                POINTS_BY_QUARTER
-                            </div>
-                            <div class="chart-box">
-                                {% if is_pdf and pdf_chart_scoring %}
-                                <img
-                                    src="data:image/png;base64,{{ pdf_chart_scoring }}"
-                                    alt="Quarter scoring chart"
-                                    style="
-                                        max-height: 100%;
-                                        object-fit: contain;
-                                    "
-                                />
-                                {% else %}
-                                <canvas
-                                    id="quarterScoringChart"
-                                    aria-label="Points by quarter bar chart"
-                                ></canvas>
-                                {% endif %}
-                            </div>
+                    <div class="chart-container">
+                        <div class="stat-card-label mb-2">
+                            POINTS_BY_QUARTER
                         </div>
-                        <div class="chart-container">
-                            <div class="stat-card-label mb-2">
-                                SHOOTING_TRENDS
-                            </div>
-                            <div class="chart-box">
-                                {% if is_pdf and pdf_chart_shooting %}
-                                <img
-                                    src="data:image/png;base64,{{ pdf_chart_shooting }}"
-                                    alt="Shooting trends chart"
-                                    style="
-                                        max-height: 100%;
-                                        object-fit: contain;
-                                    "
-                                />
-                                {% else %}
-                                <canvas
-                                    id="quarterShootingChart"
-                                    aria-label="Shooting percentage line chart"
-                                ></canvas>
-                                {% endif %}
-                            </div>
+                        <div class="chart-box" style="height: 320px;">
+                            {% if is_pdf and pdf_chart_scoring %}
+                            <img
+                                src="data:image/png;base64,{{ pdf_chart_scoring }}"
+                                alt="Quarter scoring chart"
+                                style="
+                                    max-height: 100%;
+                                    object-fit: contain;
+                                "
+                            />
+                            {% else %}
+                            <canvas
+                                id="quarterScoringChart"
+                                aria-label="Points by quarter bar chart"
+                            ></canvas>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -847,9 +823,8 @@ player_name=player_name, game_type=game_type)) %}
     function buildCharts() {
         try {
             const scoringEl = document.getElementById('quarterScoringChart');
-            const shootingEl = document.getElementById('quarterShootingChart');
 
-            if (!scoringEl || !shootingEl || typeof Chart === 'undefined') return;
+            if (!scoringEl || typeof Chart === 'undefined') return;
 
             Chart.defaults.color = '#94a3b8';
             Chart.defaults.font.family = "'Space Mono', monospace";
@@ -872,26 +847,6 @@ player_name=player_name, game_type=game_type)) %}
                     plugins: { legend: { display: false } },
                     scales: {
                         y: { grid: { color: '#2d2d33' }, beginAtZero: true },
-                        x: { grid: { display: false } }
-                    }
-                }
-            });
-
-            new Chart(shootingEl, {
-                type: 'line',
-                data: {
-                    labels: window.quarterChartData.labels,
-                    datasets: [
-                        { label: 'FG%', data: window.quarterChartData.fg_pct, borderColor: '#00ff41', backgroundColor: 'rgba(0, 255, 65, 0.1)', tension: 0.4 },
-                        { label: '3PT%', data: window.quarterChartData.tp_pct, borderColor: '#ff003c', backgroundColor: 'rgba(245, 87, 108, 0.1)', tension: 0.4 }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { labels: { usePointStyle: true } } },
-                    scales: {
-                        y: { grid: { color: '#2d2d33' }, beginAtZero: true, max: 100 },
                         x: { grid: { display: false } }
                     }
                 }
