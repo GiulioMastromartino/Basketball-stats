@@ -1,6 +1,6 @@
 services:
 
-   # ── Database ──────────────────────────────────────────────────────────────
+   # ── Database ──────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -18,7 +18,7 @@ services:
     networks:
       - backend
 
-   # ── Redis ─────────────────────────────────────────────────────────────────
+   # ── Redis ───────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -26,7 +26,7 @@ services:
     networks:
       - backend
 
-   # ── One-shot migrator (runs, then exits) ─────────────────────────────────
+   # ── One-shot migrator (runs, then exits) ───────────────────────────
   migrator:
     build: .
     restart: "no"
@@ -45,15 +45,7 @@ services:
       - games_data:/app/Games
       - output_data:/app/Output
       - uploads_data:/app/uploads
-    command: >
-      sh -c "
-        if [ ! -f migrations/alembic.ini ]; then
-          flask db init;
-        fi &&
-        flask db migrate -m 'auto' 2>/dev/null || true &&
-        flask db upgrade 2>/dev/null || flask db stamp head &&
-        python scripts/promote_admin.py
-      "
+    command: ["python", "scripts/migrate.py"]
     networks:
       - backend
 
@@ -117,7 +109,7 @@ services:
     networks:
       - backend
 
-   # ── Nginx load balancer ───────────────────────────────────────────────────
+   # ── Nginx load balancer ───────────────────────────────────────────────
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
