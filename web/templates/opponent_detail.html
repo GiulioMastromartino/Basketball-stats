@@ -1457,8 +1457,8 @@
                                         {{ p.ftm }}-{{ p.fta }}
                                     </td>
                                     <td>{{ p.stl }}</td>
-                                    <td class="c-cool">{{ p.ts_pct }}%</td>
-                                    <td class="c-pos">{{ p.ortg }}</td>
+                                     <td class="c-cool">{{ p.ts_pct|round(1) }}%</td>
+                                     <td class="c-pos">{{ p.ortg|round(1) }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -1992,18 +1992,18 @@
                                     <td
                                         class="{{ 'c-pos' if (p.ts_pct - (prev.ts_pct if prev else 0)) >= 0 else 'c-neg' }}"
                                     >
-                                        {% if prev %}{% set ts_delta = p.ts_pct
-                                        - prev.ts_pct %}{% if ts_delta > 0 %}+{%
-                                        endif %}{{ ts_delta|round(1) }}%{% else
-                                        %}+{{ p.ts_pct }}%{% endif %}
+                                         {% if prev %}{% set ts_delta = p.ts_pct
+                                         - prev.ts_pct %}{% if ts_delta > 0 %}+{%
+                                         endif %}{{ ts_delta|round(1) }}%{% else
+                                         %}+{{ p.ts_pct|round(1) }}%{% endif %}
                                     </td>
                                     <td
                                         class="{{ 'c-pos' if (p.ortg - (prev.ortg if prev else 0)) >= 0 else 'c-neg' }}"
                                     >
-                                        {% if prev %}{% set ortg_delta = p.ortg
-                                        - prev.ortg %}{% if ortg_delta > 0 %}+{%
-                                        endif %}{{ ortg_delta|round(1) }}{% else
-                                        %}+{{ p.ortg }}{% endif %}
+                                         {% if prev %}{% set ortg_delta = p.ortg
+                                         - prev.ortg %}{% if ortg_delta > 0 %}+{%
+                                         endif %}{{ ortg_delta|round(1) }}{% else
+                                         %}+{{ p.ortg|round(1) }}{% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
