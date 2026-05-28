@@ -139,12 +139,6 @@ services:
       - "3100:3100"
     networks:
       - backend
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:3100/ready"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 15s
 
    # ── Promtail ────────────────────────────────────────────────────────────
   promtail:
@@ -157,8 +151,7 @@ services:
     command:
       - "-config.file=/etc/promtail/config.yml"
     depends_on:
-      loki:
-        condition: service_healthy
+      - loki
     networks:
       - backend
 
