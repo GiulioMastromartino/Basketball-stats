@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
 """
 Enhanced Flask Application Factory
-Includes authentication, CSRF, rate limiting, and caching
+Includes authentication, CSRF, rate limiting, caching, structured logging,
+Prometheus metrics, and request diagnostics.
 """
 
 import logging
 import os
+import time
+import uuid
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask
+from flask import Flask, g, request
 from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, AnonymousUserMixin
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
+from prometheus_flask_exporter import PrometheusMetrics
 from sqlalchemy import inspect, text
 from config import get_config
 from core.models import User, bcrypt, db, PlayType
 from core.db_migrations import add_missing_columns as auto_add_missing_columns
 from core import mail
+from core.logger import configure_root_logger, get_logger
 
 
 # Initialize extensions
@@ -31,6 +36,11 @@ limiter = Limiter(
 )
 cache = Cache()
 migrate = Migrate()
+metrics = PrometheusMetrics.for_app_factory(
+    group_by="endpoint",
+    path="/metrics",
+    default_labels={"app": "basketball-stats"},
+)
 
 
 class NoAuthUser(AnonymousUserMixin):
@@ -80,12 +90,48 @@ def create_app(config_name: str = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     bcrypt.init_app(app)
-    mail.init_app(app)  # <--- Initialize Mail
+    mail.init_app(app)
     if not disable_auth:
         csrf.init_app(app)
     cache.init_app(app)
     if not disable_auth:
         limiter.init_app(app)
+
+    # Initialize Prometheus metrics
+    if config.METRICS_ENABLED:
+        metrics.init_app(app)
+
+    # Request diagnostics middleware
+    @app.before_request
+    def _assign_request_id():
+        g.request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        g.start_time = time.time()
+
+        request_logger = get_logger("access")
+        request_logger.info(
+            "Request started",
+            extra={"extra_fields": {"method": request.method, "path": request.path}},
+        )
+
+    @app.after_request
+    def _log_response(response):
+        duration_ms = round((time.time() - g.get("start_time", time.time())) * 1000, 2)
+        response.headers["X-Request-ID"] = g.get("request_id", "")
+        response.headers["X-Request-Duration-Ms"] = str(duration_ms)
+
+        request_logger = get_logger("access")
+        request_logger.info(
+            "Request completed",
+            extra={
+                "extra_fields": {
+                    "method": request.method,
+                    "path": request.path,
+                    "status_code": response.status_code,
+                    "duration_ms": duration_ms,
+                }
+            },
+        )
+        return response
 
     # Configure login manager
     login_manager.init_app(app)
@@ -113,21 +159,20 @@ def create_app(config_name: str = None) -> Flask:
 
 
 def setup_logging(app: Flask, config):
-    """Configure application logging with rotation"""
+    """Configure structured logging with rotation and optional JSON output"""
     log_level = getattr(logging, config.LOG_LEVEL)
+    log_file = config.LOG_FILE
+    if log_file == "/dev/stdout":
+        log_file = None
 
-    # File handler
-    file_handler = RotatingFileHandler(
-        config.LOG_FILE,
-        maxBytes=config.LOG_BACKUP_COUNT,
-        backupCount=config.LOG_BACKUP_COUNT,
-    )
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s [%(name)s]: %(message)s")
+    configure_root_logger(
+        level=log_level,
+        fmt=config.LOG_FORMAT,
+        log_file=log_file,
+        max_bytes=config.LOG_MAX_BYTES,
+        backup_count=config.LOG_BACKUP_COUNT,
     )
 
-    app.logger.addHandler(file_handler)
     app.logger.setLevel(log_level)
 
 

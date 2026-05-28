@@ -1533,6 +1533,11 @@ class AnalyticsService:
         ortg = calculate_ortg(game.team_score or 0, team_poss)
         drtg = calculate_ortg(game.opponent_score or 0, team_poss)
         net_rating = ortg - drtg
+
+        # NBA-standard formulas
+        # TOV% = TOV / (FGA + 0.44*FTA + TOV) (not Dean Oliver possessions)
+        plays = team_totals["fga"] + 0.44 * team_totals["fta"] + team_totals["tov"]
+
         return {
             "possessions": round(team_poss, 1),
             "pace": round(pace, 1) if total_game_min > 0 else None,
@@ -1548,9 +1553,9 @@ class AnalyticsService:
                 ),
                 1,
             ),
-            "tov_pct": round(safe_percentage(team_totals["tov"], team_poss), 1),
+            "tov_pct": round(safe_percentage(team_totals["tov"], plays), 1),
             "ft_rate": round(
-                safe_percentage(team_totals["fta"], team_totals["fga"]), 1
+                safe_divide(team_totals["fta"], team_totals["fga"]), 2
             ),
             "oreb_pct": round(
                 safe_percentage(team_totals["oreb"], team_totals["reb"]), 1

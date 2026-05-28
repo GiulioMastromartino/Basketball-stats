@@ -1,52 +1,47 @@
 """
-Shared utility functions for basketball statistics calculations
+Shared utility functions for basketball statistics calculations.
+
+Re-exports from core.stat_formulas (the single source of truth for NBA-standard formulas).
+New code should import directly from core.stat_formulas.
 """
 
 from statistics import mean
 from core import rust_analytics
-
-FT_ATTEMPT_WEIGHT = 0.44
-THREE_POINT_WEIGHT = 0.5
-
-
-def safe_divide(numerator, denominator, default=0.0):
-    """Safe division with zero-check"""
-    return numerator / denominator if denominator != 0 else default
-
-
-def safe_percentage(numerator, denominator, decimals=1):
-    """Calculate percentage safely using Rust (returns 0-100 range)"""
-    result = rust_analytics.safe_percentage(int(numerator), int(denominator))
-    return round(result, decimals)
+from core.stat_formulas import (
+    FT_ATTEMPT_WEIGHT,
+    THREE_POINT_WEIGHT,
+    safe_divide,
+    safe_percentage,
+    parse_minutes as _parse_minutes,
+    possessions as _possessions,
+    offensive_rating as _offensive_rating,
+    true_shooting_percent as _true_shooting_percent,
+    effective_field_goal_percent as _effective_field_goal_percent,
+    usage_percent as _usage_percent,
+    ast_tov_ratio as _ast_tov_ratio,
+    player_efficiency_rating as _player_efficiency_rating,
+    game_score as _game_score,
+    two_point_stats as _two_point_stats,
+    fta_rate as _fta_rate,
+    per_100_possessions as _per_100_possessions,
+    per_100_minutes as _per_100_minutes,
+    pace as _pace,
+)
 
 
 def parse_minutes(minutes_str):
     """Convert MM:SS string to decimal minutes"""
-    if not minutes_str or minutes_str in ["00:00", "0", "0:00"]:
-        return 0.0
-
-    try:
-        if ":" in minutes_str:
-            parts = minutes_str.split(":")
-            if len(parts) != 2:
-                return 0.0
-            minutes, seconds = map(int, parts)
-            if not (0 <= seconds < 60):
-                return 0.0
-            return float(minutes) + (seconds / 60.0)
-        return float(minutes_str)
-    except (ValueError, AttributeError):
-        return 0.0
+    return _parse_minutes(minutes_str)
 
 
 def calculate_possessions(fga, fta, oreb, tov):
     """Calculate possessions used by a player using Rust."""
-    return rust_analytics.calculate_possessions(int(fga), int(fta), int(oreb), int(tov))
+    return _possessions(fga, fta, oreb, tov)
 
 
 def calculate_ortg(points, possessions):
     """Calculate offensive rating (points per 100 possessions) using Rust."""
-    return rust_analytics.calculate_offensive_rating(int(points), int(possessions))
+    return _offensive_rating(points, possessions)
 
 
 def calculate_ppp(points, possessions):
@@ -56,91 +51,74 @@ def calculate_ppp(points, possessions):
 
 def calculate_ts_percent(points, fga, fta):
     """Calculate True Shooting Percentage using Rust (returns 0-100)"""
-    return rust_analytics.calculate_true_shooting_pct(int(points), int(fga), int(fta))
+    return _true_shooting_percent(points, fga, fta)
 
 
 def calculate_efg_percent(fgm, tpm, fga):
     """Calculate Effective Field Goal Percentage using Rust (returns 0-100)"""
-    return rust_analytics.calculate_efg_pct(int(fgm), int(tpm), int(fga))
+    return _effective_field_goal_percent(fgm, tpm, fga)
 
 
 def calculate_usg_percent(possessions, team_possessions):
-    """Calculate usage percentage (returns 0-100)"""
+    """Calculate usage percentage (returns 0-100).
+
+    Note: This is a simplified version that does not account for minutes.
+    For the NBA-standard formula (Dean Oliver with minutes scaling),
+    use stat_formulas.usage_percent() instead.
+    """
     return safe_percentage(possessions, team_possessions)
 
 
 def calculate_ast_tov_ratio(ast, tov):
     """Calculate assist-to-turnover ratio"""
-    return safe_divide(ast, tov, default=ast)
+    return _ast_tov_ratio(ast, tov)
 
 
 def calculate_oreb_percent(oreb, total_reb):
-    """Calculate offensive rebound percentage (returns 0-100)"""
+    """Calculate offensive rebound percentage (returns 0-100).
+
+    Note: This computes OREB / TotalRebounds, which differs from the
+    NBA-standard ORB% formula (OREB / (OREB + OppDREB)). Use
+    stat_formulas.orb_pct() when opponent DREB is available.
+    """
     return safe_percentage(oreb, total_reb)
 
 
 def calculate_efficiency(points, reb, ast, stl, blk, fgm, fga, ftm, fta, tov):
     """Calculate player efficiency rating"""
-    return points + reb + ast + stl + blk - (fga - fgm) - (fta - ftm) - tov
+    return _player_efficiency_rating(points, reb, ast, stl, blk, fgm, fga, ftm, fta, tov)
 
 
 def calculate_game_score(
     points, fgm, fga, ftm, fta, oreb, dreb, stl, ast, blk, pf, tov
 ):
-    """
-    Calculate Hollinger's Game Score
-    Formula: PTS + 0.4*FGM - 0.7*FGA - 0.4*(FTA-FTM) + 0.7*OREB + 0.3*DREB
-              + STL + 0.7*AST + 0.7*BLK - 0.4*PF - TOV
-    """
-    game_score = (
-        points
-        + 0.4 * fgm
-        - 0.7 * fga
-        - 0.4 * (fta - ftm)
-        + 0.7 * oreb
-        + 0.3 * dreb
-        + stl
-        + 0.7 * ast
-        + 0.7 * blk
-        - 0.4 * pf
-        - tov
-    )
-    return game_score
+    """Calculate Hollinger's Game Score"""
+    return _game_score(points, fgm, fga, ftm, fta, oreb, dreb, stl, ast, blk, pf, tov)
 
 
 def calculate_two_point_stats(fgm, fga, tpm, tpa):
     """Calculate 2-point makes, attempts, and percentage (returns percentage 0-100)"""
-    two_pt_made = fgm - tpm
-    two_pt_att = fga - tpa
-    two_pt_pct = safe_percentage(two_pt_made, two_pt_att)
-
-    return {
-        "two_pt_made": two_pt_made,
-        "two_pt_att": two_pt_att,
-        "two_pt_pct": two_pt_pct,
-    }
+    return _two_point_stats(fgm, fga, tpm, tpa)
 
 
 def calculate_fta_rate(fta, fga):
     """Calculate free throw attempt rate (returns 0-100)"""
-    return safe_percentage(fta, fga)
+    return _fta_rate(fta, fga)
 
 
 def normalize_per_100_possessions(value, possessions):
     """Normalize a counting stat to per 100 possessions"""
-    return safe_divide(value * 100, possessions)
+    return _per_100_possessions(value, possessions)
 
 
 def calculate_per_100_minutes(value, minutes):
     """Normalize stat to per 100 minutes"""
-    return safe_divide(value * 100, minutes)
+    return _per_100_minutes(value, minutes)
 
 
 def calculate_pace(possessions, minutes, standard_game_minutes=40.0):
     """Calculate pace (possessions per standard game length)"""
-    if minutes <= 0:
-        return 0.0
-    return (possessions / minutes) * standard_game_minutes
+    return _pace(possessions, minutes, standard_game_minutes)
 
 
 def normalize_date_to_display(date_str: str) -> str:

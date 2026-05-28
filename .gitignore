@@ -30,6 +30,7 @@ instance/
 # Logs
 *.log
 *.log.*
+basketball_stats.log
 
 # OS files
 .DS_Store

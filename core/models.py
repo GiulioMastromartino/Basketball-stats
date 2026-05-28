@@ -201,7 +201,7 @@ class GameEvent(db.Model):
     game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=False)
     event_type = db.Column(
         db.String(50)
-    )  # SHOT_2PT, SHOT_3PT, TURNOVER, SUB_IN, SUB_OUT, OPP_SCORE, FT, OPP_OREB, FT_MADE, FT_MISS
+    )  # SHOT_2PT, SHOT_3PT, TURNOVER, SUB_IN, SUB_OUT, OPP_SCORE, FT, OPP_OREB, FT_MADE, FT_MISS, STEAL, BLOCK, REBOUND_DEFENSIVE, REBOUND_OFFENSIVE, FOUL_PERSONAL, TECHNICAL_FOUL, FLAGRANT_FOUL, NEXT_QUARTER, TIMEOUT, OPP_TURNOVER, OPP_MISS
     player_name = db.Column(db.String(100), nullable=True)
     detail = db.Column(
         db.String(255), nullable=True

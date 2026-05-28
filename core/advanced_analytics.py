@@ -1237,14 +1237,18 @@ class AnalyticsEngine:
         fta = result.fta or 0
         points = result.points or 0
 
-        # Calculate possessions for TOV%
+        # Possessions for pace/ratings (Dean Oliver formula)
         possessions = fga + (FT_ATTEMPT_WEIGHT * fta) - oreb + tov
+
+        # TOV% denominator: total play attempts (NBA standard)
+        # TOV% = TOV / (FGA + 0.44*FTA + TOV) * 100
+        plays = fga + (FT_ATTEMPT_WEIGHT * fta) + tov
 
         return {
             "efg_pct": safe_percentage(fgm + 0.5 * tpm, fga),
-            "tov_pct": safe_percentage(tov, possessions),
-            "orb_pct": safe_percentage(oreb, result.reb or 1),
-            "ft_rate": safe_percentage(ftm, fga),
+            "tov_pct": safe_percentage(tov, plays),
+            "orb_pct": safe_percentage(oreb, (oreb + result.dreb or 1)),
+            "ft_rate": safe_divide(fta, fga),
             "ts_pct": calculate_ts_percent(points, fga, fta),
         }
 

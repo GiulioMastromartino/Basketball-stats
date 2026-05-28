@@ -263,9 +263,11 @@ def team_advanced(team: TeamBox, opp: TeamBox) -> Dict[str, Any]:
     der = 100.0 * _safe_div(opp.pts, opp_poss)
     net = oer - der
 
-    # Four Factors
+    # Four Factors (NBA standard)
     efg = _safe_div(team.fgm + 0.5 * team.tpm, team.fga)
-    tov_pct = _pct(team.tov, team_poss)
+    # TOV% = TOV / (FGA + 0.44*FTA + TOV) — total play attempts, not net possessions
+    plays = team.fga + 0.44 * team.fta + team.tov
+    tov_pct = _pct(team.tov, plays)
     orb_pct = _pct(team.orb, (team.orb + opp.drb))
     ftr = _safe_div(team.fta, team.fga)
 
@@ -320,7 +322,7 @@ def team_advanced(team: TeamBox, opp: TeamBox) -> Dict[str, Any]:
 
 
 def player_advanced(
-    p: PlayerBox, team: TeamBox, team_minutes_total: float
+    p: PlayerBox, team: TeamBox, team_minutes_total: float, opp: Optional[TeamBox] = None
 ) -> Dict[str, Any]:
     """Compute advanced metrics for a player.
 
@@ -329,27 +331,75 @@ def player_advanced(
         team: Team box score (for usage rate calculation)
         team_minutes_total: Total team minutes (5 * game_minutes)
                           e.g., 200 for 40-minute games, 240 for 48-minute games
+        opp: Opponent box score (for STL%, BLK%, REB% calculations).
+             If None, those percentages are omitted.
 
     Returns:
         Dictionary with player name and advanced metrics:
-        - Basic: MIN, PTS, REB, AST
-        - Advanced: TS%, eFG%, USG%, TOV%
+        - Shooting efficiency: TS%, eFG%
+        - Usage: USG%, TOV%
+        - Playmaking: AST%
+        - Defense: STL%, BLK%
+        - Rebounding: ORB%, DRB%, REB%
     """
     # True shooting and effective field goal percentage
     ts = _safe_div(p.pts, 2.0 * (p.fga + 0.44 * p.fta))
     efg = _safe_div(p.fgm + 0.5 * p.tpm, p.fga)
 
-    # Turnover percentage
+    # Turnover percentage (NBA standard: plays denominator)
     tov_denom = p.fga + 0.44 * p.fta + p.tov
     tov_pct = _pct(p.tov, tov_denom)
 
-    # Usage percentage (Dean Oliver formula)
-    # What % of team plays the player used while on court
+    # Usage percentage (Dean Oliver formula with minutes scaling)
     team_denom = team.fga + 0.44 * team.fta + team.tov
     player_plays = p.fga + 0.44 * p.fta + p.tov
     usg = 100.0 * _safe_div(
         player_plays * (team_minutes_total / 5.0), p.minutes * team_denom
     )
+
+    # Assist Percentage (NBA standard)
+    team_min_per_five = team_minutes_total / 5.0
+    teammate_fgm = max(0, (p.minutes / team_min_per_five) * team.fgm - p.fgm)
+    ast_pct = _pct(p.ast, teammate_fgm) if teammate_fgm > 0 else 0.0
+
+    team_poss = possessions(team)
+
+    # Steal Percentage (requires opp possessions)
+    stl_pct = 0.0
+    if opp is not None:
+        opp_poss = possessions(opp)
+        stl_pct = 100.0 * _safe_div(
+            p.stl * team_min_per_five, p.minutes * opp_poss
+        ) if p.minutes > 0 and opp_poss > 0 else 0.0
+
+    # Block Percentage (requires opp 2PA)
+    blk_pct = 0.0
+    if opp is not None:
+        opp_2pa = max(0, opp.fga - opp.tpa)
+        blk_pct = 100.0 * _safe_div(
+            p.blk * team_min_per_five, p.minutes * opp_2pa
+        ) if p.minutes > 0 and opp_2pa > 0 else 0.0
+
+    # Rebound Percentages (NBA standard, requires opp)
+    drb_pct = 0.0
+    orb_pct = 0.0
+    reb_pct = 0.0
+    if opp is not None:
+        total_reb_available = team.trb + opp.trb
+        def_reb_available = team.drb + opp.orb
+        off_reb_available = team.orb + opp.drb
+
+        drb_pct = 100.0 * _safe_div(
+            p.drb * team_min_per_five, p.minutes * def_reb_available
+        ) if p.minutes > 0 and def_reb_available > 0 else 0.0
+
+        orb_pct = 100.0 * _safe_div(
+            p.orb * team_min_per_five, p.minutes * off_reb_available
+        ) if p.minutes > 0 and off_reb_available > 0 else 0.0
+
+        reb_pct = 100.0 * _safe_div(
+            p.trb * team_min_per_five, p.minutes * total_reb_available
+        ) if p.minutes > 0 and total_reb_available > 0 else 0.0
 
     return {
         "name": p.name,
@@ -357,10 +407,20 @@ def player_advanced(
         "pts": p.pts,
         "reb": p.trb,
         "ast": p.ast,
+        # Shooting efficiency
         "ts_pct": _round(100.0 * ts, 1),
         "efg_pct": _round(100.0 * efg, 1),
+        # Usage & turnovers
         "usg_pct": _round(usg, 1),
         "tov_pct": _round(tov_pct, 1),
+        # Playmaking & defense
+        "ast_pct": _round(ast_pct, 1),
+        "stl_pct": _round(stl_pct, 1),
+        "blk_pct": _round(blk_pct, 1),
+        # Rebounding
+        "orb_pct": _round(orb_pct, 1),
+        "drb_pct": _round(drb_pct, 1),
+        "reb_pct": _round(reb_pct, 1),
     }
 
 
@@ -814,7 +874,7 @@ def build_advanced_game_report(
         opp_adv["shots"] = opp_shots
 
     # Compute player metrics and sort by minutes then points
-    player_rows = [player_advanced(p, team_box, team_minutes_total) for p in players]
+    player_rows = [player_advanced(p, team_box, team_minutes_total, opp_box) for p in players]
     player_rows.sort(key=lambda r: (r["min"], r["pts"]), reverse=True)
 
     # Calculate zone stats from team_shots if not provided

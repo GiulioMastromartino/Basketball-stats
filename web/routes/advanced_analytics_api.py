@@ -1001,7 +1001,7 @@ def get_advanced_game_report(game_id):
 
     # Calculate player advanced metrics
     team_minutes_total = 200.0  # 40-minute game
-    player_rows = [player_advanced(p, team_box, team_minutes_total) for p in players]
+    player_rows = [player_advanced(p, team_box, team_minutes_total, opp_box) for p in players]
     player_rows.sort(key=lambda r: r["pts"], reverse=True)
 
     # Add basic stats to player rows

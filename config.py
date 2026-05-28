@@ -41,6 +41,8 @@ class Config:
     LOG_FILE = os.getenv("LOG_FILE", str(BASE_DIR / "basketball_stats.log"))
     LOG_MAX_BYTES = 10 * 1024 * 1024
     LOG_BACKUP_COUNT = 5
+    LOG_FORMAT = os.getenv("LOG_FORMAT", "json")
+    METRICS_ENABLED = os.getenv("METRICS_ENABLED", "True").lower() in ("true", "1", "yes")
     FILENAME_PATTERN = r"^([^_]+)_(\d+)-(\d+)_(\d{2})-(\d{2})-(\d{4})_([FSP])$"
     GAME_TYPE_MAP = {"F": "Friendly", "S": "Season", "P": "Playoff"}
     REQUIRED_CSV_COLUMNS = [
@@ -110,9 +112,11 @@ class TestingConfig(Config):
 
 
 class ProductionConfig(Config):
-    SECRET_KEY = os.getenv("SECRET_KEY")
-    if not SECRET_KEY:
-        raise RuntimeError("SECRET_KEY environment variable must be set in production")
+    _secret_key = os.getenv("SECRET_KEY")
+    if not _secret_key:
+        import warnings
+        warnings.warn("SECRET_KEY not set; will raise on first use")
+    SECRET_KEY = _secret_key or ""
     DEBUG = False
     SESSION_COOKIE_SECURE = True
     # Tailscale Funnel terminates TLS externally and proxies HTTP internally,

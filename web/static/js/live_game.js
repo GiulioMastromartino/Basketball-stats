@@ -19,7 +19,8 @@ class GameTracker {
         //   v2 - Added lineup tracking (lineupHistory, startingLineup, event.active_lineup)
         //   v3 - Added opponent shot location tracking, remove action feature
         //   v4 - Added lineup_segment_id linking, full court tracking
-        this.SCHEMA_VERSION = 4;
+        //   v5 - Added TECHNICAL_FOUL and FLAGRANT_FOUL event types
+        this.SCHEMA_VERSION = 5;
 
         // Feature flags - indicate which features are enabled/tracked
         this.FEATURES = {
@@ -29,7 +30,8 @@ class GameTracker {
             EVENT_INDEXING: true,           // Events have event_index field
             SEGMENT_LINKING: true,          // Events can be linked to lineup segments
             POSSESSION_TRACKING: true,      // Tracks possession_number on events
-            TIMELINE_FIELDS: true           // Events have quarter, time_remaining, game_seconds, score_margin
+            TIMELINE_FIELDS: true,          // Events have quarter, time_remaining, game_seconds, score_margin
+            FOUL_TYPES: true                // Tracks TECHNICAL_FOUL and FLAGRANT_FOUL event types
         };
         // ===========================================
 
@@ -550,6 +552,20 @@ class GameTracker {
             this.finalizePlaySelection(null);
         }
 
+    }
+
+
+    recordTechFoul(player) {
+        this.updateStat(player, 'pf', 1);
+        this.logEvent('TECHNICAL_FOUL', player);
+        this.saveState();
+    }
+
+
+    recordFlagrantFoul(player) {
+        this.updateStat(player, 'pf', 1);
+        this.logEvent('FLAGRANT_FOUL', player);
+        this.saveState();
     }
 
 
@@ -1153,6 +1169,20 @@ class GameTracker {
                             </div>
                             <div class="row no-gutters text-center mt-1">
                                 ${this.renderStatBox(p, 'PF', 'pf', s.pf, 'text-danger')}
+                            </div>
+                            <div class="row no-gutters text-center mt-1">
+                                <div class="col-6 px-1">
+                                    <div class="bg-light rounded p-1 border">
+                                        <div class="small text-muted font-weight-bold mb-1">TECH</div>
+                                        <button class="btn btn-sm btn-warning py-1 px-2 mx-1 font-weight-bold" onclick="gameTracker.recordTechFoul('${p}')">T</button>
+                                    </div>
+                                </div>
+                                <div class="col-6 px-1">
+                                    <div class="bg-light rounded p-1 border">
+                                        <div class="small text-muted font-weight-bold mb-1">FLAGRANT</div>
+                                        <button class="btn btn-sm btn-danger py-1 px-2 mx-1 font-weight-bold" onclick="gameTracker.recordFlagrantFoul('${p}')">F</button>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- MINUTES DISPLAY -->

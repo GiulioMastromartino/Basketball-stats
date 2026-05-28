@@ -224,10 +224,30 @@ class TestPlayerAdvanced:
             ast=15, stl=8, blk=4, tov=12
         )
         team_minutes = 200.0  # 5 players * 40 min
-        
-        result = player_advanced(player, team, team_minutes)
-        
+
+        opp = TeamBox(
+            pts=70, fgm=26, fga=58, tpm=6, tpa=18,
+            ftm=12, fta=16, orb=8, drb=22, trb=30,
+            ast=14, stl=6, blk=3, tov=14
+        )
+
+        result = player_advanced(player, team, team_minutes, opp)
+
         assert isinstance(result, dict)
+        assert result["name"] == "Test Player"
+        # Core efficiency
+        assert result["ts_pct"] == 58.7  # 18/(2*(14+0.44*3))*100
+        assert result["efg_pct"] == 57.1  # (7+0.5*2)/14*100
+        assert result["usg_pct"] == 36.7  # Dean Oliver with minutes
+        assert result["tov_pct"] == 11.5  # 2/(14+0.44*3+2)*100
+        # Playmaking & defense
+        assert result["ast_pct"] == 30.6  # 3/((24/40)*28-7)*100
+        assert result["stl_pct"] == 4.7   # 2*40/(24*71.04)*100
+        assert result["blk_pct"] == 4.2   # 1*40/(24*(58-18))*100
+        # Rebounding
+        assert result["orb_pct"] == 5.2   # 1*40/(24*(10+22))*100
+        assert result["drb_pct"] == 20.2  # 4*40/(24*(25+8))*100
+        assert result["reb_pct"] == 12.8  # 5*40/(24*(35+30))*100
 
 
 # =============================================================================
