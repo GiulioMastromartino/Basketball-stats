@@ -4,7 +4,7 @@
 set -euo pipefail
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="${BACKUP_DIR:-/backups}"
+BACKUP_DIR="${BACKUP_DIR:-/var/jenkins_home/backups}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 
 echo "=========================================="
@@ -28,7 +28,8 @@ echo "[STEP] Backing up PostgreSQL database..."
 mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="${BACKUP_DIR}/pre_deploy_${TIMESTAMP}.sql"
 
-if docker exec basketball_stats_db pg_dump -U "${DB_USER}" "${DB_NAME}" > "$BACKUP_FILE" 2>/dev/null; then
+DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep db | head -1)"
+if docker exec "$DB_CONTAINER" pg_dump -U "${DB_USER}" "${DB_NAME}" > "$BACKUP_FILE" 2>/dev/null; then
     echo "[OK] Backup saved: $BACKUP_FILE ($(wc -c < "$BACKUP_FILE") bytes)"
 else
     echo "[WARN] Database backup failed — continuing anyway"
