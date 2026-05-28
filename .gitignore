@@ -52,3 +52,6 @@ dist/
 build/
 *.egg-info/
 /.kilo
+
+# Rust build artifacts
+basketball_stats_rust/target/
