@@ -1312,16 +1312,16 @@
     <body>
         <!-- NAV -->
         <nav class="nav">
-            <a class="nav__logo" href="#"
+            <a class="nav__logo" href="{{ url_for('main.landing') }}"
                 ><span class="nav__orb"></span>HOOPSLAB</a
             >
             <div class="nav__links">
                 <a class="nav__link" href="#product">Product</a>
                 <a class="nav__link" href="#pricing">Pricing</a>
                 <a class="nav__link" href="#timeline">Workflow</a>
-                <a class="nav__link" href="#">Sign In</a>
+                <a class="nav__link" href="{{ url_for('auth.login') }}">Sign In</a>
             </div>
-            <a class="nav__btn" href="#"
+            <a class="nav__btn" href="{{ url_for('auth.login') }}"
                 ><i class="fas fa-bolt"></i> Start Tracking Free</a
             >
         </nav>
@@ -1510,7 +1510,7 @@
                         understand → share.
                     </div>
                     <div class="hero__cta">
-                        <a href="#" class="btn-fire"
+                        <a href="{{ url_for('auth.login') }}" class="btn-fire"
                             ><i class="fas fa-bolt"></i> Start Tracking Free</a
                         >
                         <a href="#product" class="btn-link"
@@ -2033,7 +2033,7 @@
                         <li>Core box score</li>
                         <li>Basic PDF export</li>
                     </ul>
-                    <a href="#" class="btn-fire"
+                    <a href="{{ url_for('auth.login') }}" class="btn-fire"
                         ><i class="fas fa-bolt"></i> Start Tracking Free</a
                     >
                 </div>
@@ -2074,7 +2074,7 @@
                 Start logging stats in under a minute. No setup, no
                 spreadsheets, no friction.
             </p>
-            <a href="#" class="btn-fire" style="position: relative"
+            <a href="{{ url_for('auth.login') }}" class="btn-fire" style="position: relative"
                 ><i class="fas fa-sign-in-alt"></i> Enter Dashboard</a
             >
         </section>
