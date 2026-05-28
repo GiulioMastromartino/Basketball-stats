@@ -3,14 +3,18 @@ pipeline {
 
     environment {
         COMPOSE_FILE = 'docker-compose.prod.yml'
-        BACKUP_DIR = '/backups'
         APP_DIR = "${WORKSPACE}"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/Demo']],
+                    extensions: [[$class: 'CloneOption', depth: 1, noTags: true, shallow: true]],
+                    userRemoteConfigs: [[url: 'https://github.com/GiulioMastromartino/Basketball-stats.git']]
+                ])
             }
         }
 
