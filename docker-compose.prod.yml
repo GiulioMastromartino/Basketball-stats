@@ -122,8 +122,6 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
-    ports:
-      # Internal only — Grafana accesses via Docker network at prometheus:9090
     networks:
       - backend
 
