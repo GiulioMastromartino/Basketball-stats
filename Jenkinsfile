@@ -17,7 +17,7 @@ pipeline {
         stage('Lint') {
             steps {
                 sh '''
-                    pip install ruff --quiet
+                    pip install ruff --quiet --break-system-packages
                     ruff check . || true
                 '''
             }
@@ -26,7 +26,7 @@ pipeline {
         stage('Test') {
             steps {
                 sh '''
-                    pip install -r requirements.txt --quiet
+                    pip install -r requirements.txt --quiet --break-system-packages
                     pytest tests/ --tb=short -x || true
                 '''
             }
