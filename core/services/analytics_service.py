@@ -786,26 +786,27 @@ class AnalyticsService:
         player = Player.query.filter_by(name=player_name).first()
         player_id = player.id if player else None
 
+        chart_images = {"chart_scoring": ""}
         return {
-            "player_name": player_name,
-            "player_id": player_id,
-            "games_played": gp,
-            "totals": totals,
-            "averages": averages,
-            "career_highs": career_highs,
-            "consistency_cv": consistency_value * 100,
-            "game_logs": game_logs,
-            "chart_data": chart_data,
-            "game_type": game_type,
-            "two_pt_made": two_pt_stats["two_pt_made"],
-            "two_pt_att": two_pt_stats["two_pt_att"],
-            "shot_events": shot_events,
-            "pdf_chart_scoring": chart_images.get("chart_scoring", ""),
-            "pdf_chart_shooting": generate_shooting_trend_base64(
-                chart_data, f"{player_name} - Shooting Efficiency"
-            ),
-            "pdf_shot_chart": generate_shot_chart(player_name, target_game_ids),
-        }
+             "player_name": player_name,
+             "player_id": player_id,
+             "games_played": gp,
+             "totals": totals,
+             "averages": averages,
+             "career_highs": career_highs,
+             "consistency_cv": consistency_value * 100,
+             "game_logs": game_logs,
+             "chart_data": chart_data,
+             "game_type": game_type,
+             "two_pt_made": two_pt_stats["two_pt_made"],
+             "two_pt_att": two_pt_stats["two_pt_att"],
+             "shot_events": shot_events,
+             "pdf_chart_scoring": chart_images.get("chart_scoring", ""),
+             "pdf_chart_shooting": generate_shooting_trend_base64(
+                 chart_data, f"{player_name} - Shooting Efficiency"
+             ),
+             "pdf_shot_chart": generate_shot_chart(player_name, target_game_ids),
+         }
 
     @staticmethod
     def build_player_game_detail(
