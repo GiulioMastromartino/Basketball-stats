@@ -45,11 +45,20 @@ def login():
     redirect_uri = current_app.config.get(
         "WORKOS_REDIRECT_URI", "http://localhost:5000/auth/callback"
     )
+    workos_configured = bool(
+        current_app.config.get("WORKOS_API_KEY")
+        and current_app.config.get("WORKOS_CLIENT_ID")
+    )
     auth_url = "#"
-    try:
-        auth_url = get_auth_url(redirect_uri)
-    except Exception as e:
-        current_app.logger.warning(f"WorkOS auth URL unavailable: {e}")
+    workos_error = None
+    if workos_configured:
+        try:
+            auth_url = get_auth_url(redirect_uri)
+        except Exception as e:
+            current_app.logger.warning(f"WorkOS auth URL unavailable: {e}")
+            workos_error = str(e)
+    else:
+        workos_error = "WorkOS not configured"
 
     if request.method == "POST":
         username = request.form.get("username")
@@ -72,7 +81,7 @@ def login():
                 return redirect(url_for("main.index"))
 
             flash("Invalid username or password", "danger")
-            return render_template("auth/login.html", auth_url=auth_url)
+            return render_template("auth/login.html", auth_url=auth_url, workos_configured=workos_configured, workos_error=workos_error)
 
         email = request.form.get("email")
         if email:
@@ -84,7 +93,7 @@ def login():
                 current_app.logger.warning(f"Magic link unavailable: {e}")
                 flash("Magic link service unavailable. Try again later.", "danger")
 
-    return render_template("auth/login.html", auth_url=auth_url)
+    return render_template("auth/login.html", auth_url=auth_url, workos_configured=workos_configured, workos_error=workos_error)
 
 
 @auth_bp.route("/callback")
