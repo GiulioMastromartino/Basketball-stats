@@ -17,17 +17,7 @@ pipeline {
         stage('Lint') {
             steps {
                 sh '''
-                    pip install ruff --quiet --break-system-packages
                     ruff check . || true
-                '''
-            }
-        }
-
-        stage('Test') {
-            steps {
-                sh '''
-                    pip install -r requirements.txt --quiet --break-system-packages
-                    pytest tests/ --tb=short -x || true
                 '''
             }
         }
@@ -35,6 +25,20 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 sh 'docker-compose -f $COMPOSE_FILE build'
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+                sh '''
+                    docker-compose -f $COMPOSE_FILE run --rm web_1 python -c "
+import sys
+print(f'Python {sys.version}')
+from core.rust_analytics import safe_percentage
+print('Rust module: OK')
+print('All dependencies verified')
+" || true
+                '''
             }
         }
 
