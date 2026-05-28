@@ -41,6 +41,9 @@ services:
       GAMES_DIR: /app/Games
       OUTPUT_DIR: /app/Output
       UPLOAD_FOLDER: /app/uploads
+      WORKOS_API_KEY: ${WORKOS_API_KEY}
+      WORKOS_CLIENT_ID: ${WORKOS_CLIENT_ID}
+      WORKOS_REDIRECT_URI: ${WORKOS_REDIRECT_URI}
     volumes:
       - games_data:/app/Games
       - output_data:/app/Output
@@ -61,6 +64,9 @@ services:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
       LOG_FILE: /dev/stdout
       RATELIMIT_STORAGE_URL: redis://redis:6379/0
+      WORKOS_API_KEY: ${WORKOS_API_KEY}
+      WORKOS_CLIENT_ID: ${WORKOS_CLIENT_ID}
+      WORKOS_REDIRECT_URI: ${WORKOS_REDIRECT_URI}
     volumes:
       - games_data:/app/Games
       - output_data:/app/Output
@@ -81,6 +87,9 @@ services:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
       LOG_FILE: /dev/stdout
       RATELIMIT_STORAGE_URL: redis://redis:6379/0
+      WORKOS_API_KEY: ${WORKOS_API_KEY}
+      WORKOS_CLIENT_ID: ${WORKOS_CLIENT_ID}
+      WORKOS_REDIRECT_URI: ${WORKOS_REDIRECT_URI}
     volumes:
       - games_data:/app/Games
       - output_data:/app/Output
@@ -101,6 +110,9 @@ services:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
       LOG_FILE: /dev/stdout
       RATELIMIT_STORAGE_URL: redis://redis:6379/0
+      WORKOS_API_KEY: ${WORKOS_API_KEY}
+      WORKOS_CLIENT_ID: ${WORKOS_CLIENT_ID}
+      WORKOS_REDIRECT_URI: ${WORKOS_REDIRECT_URI}
     volumes:
       - games_data:/app/Games
       - output_data:/app/Output
