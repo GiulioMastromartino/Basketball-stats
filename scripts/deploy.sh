@@ -38,11 +38,11 @@ fi
 # ── 3. Build & deploy ───────────────────────────────────────────────────
 echo ""
 echo "[STEP] Building images..."
-docker compose -f "$COMPOSE_FILE" build
+docker-compose -f "$COMPOSE_FILE" build
 
 echo ""
 echo "[STEP] Deploying services..."
-docker compose -f "$COMPOSE_FILE" up -d
+docker-compose -f "$COMPOSE_FILE" up -d
 
 # ── 4. Wait for health ──────────────────────────────────────────────────
 echo ""
@@ -51,10 +51,10 @@ sleep 15
 
 echo ""
 echo "[STEP] Service status:"
-docker compose -f "$COMPOSE_FILE" ps
+docker-compose -f "$COMPOSE_FILE" ps
 
 # Check all 3 web replicas + nginx are running
-RUNNING_COUNT=$(docker compose -f "$COMPOSE_FILE" ps --services --filter "status=running" 2>/dev/null | wc -l)
+RUNNING_COUNT=$(docker-compose -f "$COMPOSE_FILE" ps --services --filter "status=running" 2>/dev/null | wc -l)
 echo "  Running services: $RUNNING_COUNT"
 
 if [ "$RUNNING_COUNT" -lt 3 ]; then
