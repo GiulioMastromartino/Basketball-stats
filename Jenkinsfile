@@ -9,9 +9,12 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'Demo',
-                    url: 'https://github.com/GiulioMastromartino/Basketball-stats.git',
-                    depth: 1
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/Demo']],
+                    extensions: [[$class: 'CloneOption', depth: 1, noTags: true, shallow: true]],
+                    userRemoteConfigs: [[url: 'https://github.com/GiulioMastromartino/Basketball-stats.git']]
+                ])
             }
         }
 
