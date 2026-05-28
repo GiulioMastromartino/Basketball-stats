@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         COMPOSE_FILE = 'docker-compose.prod.yml'
+        ENV_FILE = '/app/.env.prod'
         BACKUP_DIR = '/backups'
         APP_DIR = "${WORKSPACE}"
     }
@@ -24,14 +25,14 @@ pipeline {
 
         stage('Build Docker Images') {
             steps {
-                sh 'docker-compose -f $COMPOSE_FILE build'
+                sh 'docker-compose -f $COMPOSE_FILE --env-file $ENV_FILE build'
             }
         }
 
         stage('Smoke Test') {
             steps {
                 sh '''
-                    docker-compose -f $COMPOSE_FILE run --rm web_1 python -c "
+                    docker-compose -f $COMPOSE_FILE --env-file $ENV_FILE run --rm web_1 python -c "
 import sys
 print(f'Python {sys.version}')
 from core.rust_analytics import safe_percentage

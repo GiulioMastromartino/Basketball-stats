@@ -13,6 +13,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # Mount the real .env.prod so deploy.sh has access to production secrets
       - /app/basketball-stats/.env.prod:/app/.env.prod:ro
+    group_add:
+      # Docker socket GID — adjust to match host: getent group docker | cut -d: -f3
+      - "999"
     environment:
       - TZ=Europe/Rome
       - JENKINS_OPTS=--httpPort=8081
