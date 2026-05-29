@@ -6,11 +6,13 @@ Replaces the fragile `flask db init && flask db migrate && flask db upgrade`
 chain that broke whenever the container was rebuilt (missing revision history).
 
 Strategy:
-  1. db.create_all()        - creates any missing tables, never drops existing ones
-  2. Seed players           - populate players from distinct player_stats names (idempotent)
-  3. Activate inactive      - fix any players seeded with active=0
-  4. alembic stamp head     - baseline for future flask db migrate / upgrade
-  5. promote_admin          - elevate ADMIN_EMAIL user if present
+   1.  db.create_all()        - creates any missing tables, never drops existing ones
+   1b. add_missing_columns    - adds new columns (team_id, organization_id) to existing tables
+   2.  Seed players           - populate players from distinct player_stats names (idempotent)
+   3.  Activate inactive      - fix any players seeded with active=0
+   4.  alembic stamp head     - baseline for future flask db migrate / upgrade
+   5.  promote_admin          - elevate ADMIN_EMAIL user if present
+   6.  multi-tenant migrate   - ensure default org/team, assign existing data
 
 Safe to re-run on every deploy.
 """
@@ -21,7 +23,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from web import create_app
-from core.models import db, Organization, Team, OrganizationMembership, TeamAssignment, Player, PlayerStat, User
+from core.models import (
+    db, Organization, Team, OrganizationMembership, TeamAssignment,
+    Player, PlayerStat, User, Game, Play, PlayType, Lineup,
+    SystemSetting,
+)
+from init_db import add_missing_columns
 
 
 def run():
@@ -32,6 +39,17 @@ def run():
         print("[migrate] Running db.create_all()...")
         db.create_all()
         print("[migrate] db.create_all() complete.")
+
+        # ── 1b. Add missing columns to existing tables ─────────────────────
+        # db.create_all() only creates new tables, it doesn't add columns
+        # to tables that already exist. This handles the multi-tenant migration
+        # where existing tables need team_id, organization_id, etc.
+        print("[migrate] Adding missing columns to existing tables...")
+        try:
+            add_missing_columns(app)
+            print("[migrate] Missing columns added successfully.")
+        except Exception as e:
+            print(f"[migrate] Warning: add_missing_columns failed: {e}")
 
         # ── 2. Seed players from player_stats (idempotent) ─────────────────
         try:
@@ -111,7 +129,7 @@ def run():
                     # Ensure a default org exists
                     org = Organization.query.first()
                     if not org:
-                        org = Organization(name="Default Organization")
+                        org = Organization(name="Default Organization", slug="default")
                         db.session.add(org)
                         db.session.flush()
                         print("[migrate] Created default organization.")
@@ -152,6 +170,91 @@ def run():
             except Exception as e:
                 print(f"[migrate] Warning: admin promotion failed: {e}")
                 db.session.rollback()
+
+        # ── 6. Multi-tenant: ensure default org/team and migrate existing data ──
+        try:
+            org = Organization.query.first()
+            if not org:
+                org = Organization(name="Default Organization", slug="default")
+                db.session.add(org)
+                db.session.flush()
+                print("[migrate] Created default organization.")
+            else:
+                print(f"[migrate] Using existing organization: {org.name}")
+
+            team = Team.query.filter_by(organization_id=org.id).first()
+            if not team:
+                team = Team(name="Default Team", organization_id=org.id, slug="default-team")
+                db.session.add(team)
+                db.session.flush()
+                print("[migrate] Created default team.")
+            else:
+                print(f"[migrate] Using existing team: {team.name}")
+
+            # Assign unassigned users to default org
+            unassigned_users = User.query.filter(User.organization_id.is_(None)).all()
+            for u in unassigned_users:
+                u.organization_id = org.id
+                membership = OrganizationMembership.query.filter_by(
+                    user_id=u.id, organization_id=org.id
+                ).first()
+                if not membership:
+                    db.session.add(OrganizationMembership(
+                        user_id=u.id, organization_id=org.id, is_gm=False
+                    ))
+                ta = TeamAssignment.query.filter_by(user_id=u.id, team_id=team.id).first()
+                if not ta:
+                    db.session.add(TeamAssignment(user_id=u.id, team_id=team.id, is_coach=False))
+            if unassigned_users:
+                print(f"[migrate] Assigned {len(unassigned_users)} user(s) to default org.")
+
+            # Assign unassigned games to default team
+            unassigned_games = Game.query.filter(Game.team_id.is_(None)).all()
+            for g in unassigned_games:
+                g.team_id = team.id
+            if unassigned_games:
+                print(f"[migrate] Assigned {len(unassigned_games)} game(s) to default team.")
+
+            # Assign unassigned plays
+            unassigned_plays = Play.query.filter(Play.team_id.is_(None)).all()
+            for p in unassigned_plays:
+                p.team_id = team.id
+            if unassigned_plays:
+                print(f"[migrate] Assigned {len(unassigned_plays)} play(s) to default team.")
+
+            # Assign unassigned play types
+            unassigned_play_types = PlayType.query.filter(PlayType.team_id.is_(None)).all()
+            for pt in unassigned_play_types:
+                pt.team_id = team.id
+            if unassigned_play_types:
+                print(f"[migrate] Assigned {len(unassigned_play_types)} play type(s) to default team.")
+
+            # Assign unassigned lineups
+            unassigned_lineups = Lineup.query.filter(Lineup.team_id.is_(None)).all()
+            for l in unassigned_lineups:
+                l.team_id = team.id
+            if unassigned_lineups:
+                print(f"[migrate] Assigned {len(unassigned_lineups)} lineup(s) to default team.")
+
+            # Assign unassigned players
+            unassigned_players = Player.query.filter(Player.team_id.is_(None)).all()
+            for p in unassigned_players:
+                p.team_id = team.id
+            if unassigned_players:
+                print(f"[migrate] Assigned {len(unassigned_players)} player(s) to default team.")
+
+            # Assign unassigned system settings
+            unassigned_settings = SystemSetting.query.filter(SystemSetting.organization_id.is_(None)).all()
+            for s in unassigned_settings:
+                s.organization_id = org.id
+            if unassigned_settings:
+                print(f"[migrate] Assigned {len(unassigned_settings)} setting(s) to default org.")
+
+            db.session.commit()
+            print("[migrate] Multi-tenant migration complete.")
+        except Exception as e:
+            print(f"[migrate] Warning: multi-tenant migration failed: {e}")
+            db.session.rollback()
 
         print("[migrate] Done.")
 
