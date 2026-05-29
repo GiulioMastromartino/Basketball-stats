@@ -15,7 +15,7 @@ import os
 import sys
 import pytest
 from datetime import datetime
-from sqlalchemy import inspect, MetaData, Table, Column, String, Integer, Boolean, Float, DateTime, JSON, Text, BigInteger
+from sqlalchemy import inspect, MetaData, Table, Column, String, Integer, Boolean, Float, DateTime, JSON, Text, BigInteger, text
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -350,13 +350,13 @@ class TestProductionMigration:
 
         app, _ = pre_migration_db
         with app.app_context():
-            _db.session.execute(
+            _db.session.execute(text(
                 "INSERT INTO games (date, opponent, team_score, opponent_score, "
                 "result, game_type, sort_date) "
                 "VALUES ('01-01-2024', 'Old Opponent', 70, 60, 'W', 'Season', '2024-01-01')"
-            )
+            ))
             _db.session.commit()
-            game_id = _db.session.execute("SELECT id FROM games LIMIT 1").scalar()
+            game_id = _db.session.execute(text("SELECT id FROM games LIMIT 1")).scalar()
 
             run_migration(app)
 
@@ -371,11 +371,11 @@ class TestProductionMigration:
 
         app, _ = pre_migration_db
         with app.app_context():
-            _db.session.execute(
+            _db.session.execute(text(
                 "INSERT INTO games (date, opponent, team_score, opponent_score, "
                 "result, game_type, sort_date) "
                 "VALUES ('01-01-2024', 'Old Opponent', 70, 60, 'W', 'Season', '2024-01-01')"
-            )
+            ))
             _db.session.commit()
 
             run_migration(app)

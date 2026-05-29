@@ -34,6 +34,7 @@ from core.models import (
     SystemSetting,
 )
 from init_db import add_missing_columns
+from sqlalchemy import text
 
 
 def run(app=None):
@@ -207,16 +208,30 @@ def run(app=None):
             unassigned_users = User.query.filter(User.organization_id.is_(None)).all()
             for u in unassigned_users:
                 u.organization_id = org.id
+
+                was_admin = False
+                try:
+                    row = db.session.execute(
+                        text("SELECT is_admin FROM users WHERE id = :uid"),
+                        {"uid": u.id},
+                    ).fetchone()
+                    was_admin = bool(row[0]) if row else False
+                except Exception:
+                    pass
+
                 membership = OrganizationMembership.query.filter_by(
                     user_id=u.id, organization_id=org.id
                 ).first()
                 if not membership:
                     db.session.add(OrganizationMembership(
-                        user_id=u.id, organization_id=org.id, is_gm=False
+                        user_id=u.id, organization_id=org.id, is_gm=was_admin
                     ))
+                elif was_admin:
+                    membership.is_gm = True
+
                 ta = TeamAssignment.query.filter_by(user_id=u.id, team_id=team.id).first()
                 if not ta:
-                    db.session.add(TeamAssignment(user_id=u.id, team_id=team.id, is_coach=False))
+                    db.session.add(TeamAssignment(user_id=u.id, team_id=team.id, is_coach=was_admin))
             if unassigned_users:
                 print(f"[migrate] Assigned {len(unassigned_users)} user(s) to default org.")
 

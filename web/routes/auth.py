@@ -81,6 +81,11 @@ def login():
                     return redirect(url_for("auth.verify_otp"))
 
                 login_user(user, remember=True)
+
+                if not user.organization_id:
+                    flash("Welcome! Please set up your organization to get started.", "info")
+                    return redirect(url_for("auth.onboarding"))
+
                 flash(f"Welcome back, {user.username}!", "success")
                 return redirect(url_for("main.index"))
 
