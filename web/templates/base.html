@@ -42,6 +42,15 @@
                     <span class="app-sidebar__word">Hoops<span class="app-sidebar__word-accent">Lab</span></span>
                 </a>
                 <p class="app-sidebar__tagline">Stats that feel like film session</p>
+                {% if current_user.is_authenticated and assigned_teams and assigned_teams|length > 1 %}
+                <form action="{{ url_for('main.switch_team') }}" method="POST" style="padding:0 16px;margin-bottom:8px;">
+                    <select name="team_id" onchange="this.form.submit()" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--surface);color:var(--ink);font-size:13px;font-family:var(--body);cursor:pointer;">
+                        {% for t in assigned_teams %}
+                        <option value="{{ t.id }}" {% if t.id == current_team_id %}selected{% endif %}>{{ t.name }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% endif %}
             </div>
 
             <nav class="app-nav">
@@ -92,6 +101,11 @@
                         </a>
                     </li>
                     {% if current_user.is_authenticated and current_user.is_manager %}
+                    <li>
+                        <a href="{{ url_for('main.gm_dashboard') }}" class="app-nav__link {% if request.endpoint == 'main.gm_dashboard' %}is-active{% endif %}">
+                            <i class="fas fa-building" aria-hidden="true"></i><span>GM Dashboard</span>
+                        </a>
+                    </li>
                     <li>
                         <a href="{{ url_for('main.admin_panel') }}" class="app-nav__link {% if request.endpoint and request.endpoint == 'main.admin_panel' %}is-active{% endif %}">
                             <i class="fas fa-user-gear" aria-hidden="true"></i><span>Admin Panel</span>

@@ -143,10 +143,16 @@ def create_app(config_name: str = None) -> Flask:
 
     @app.context_processor
     def _inject_team_context():
-        return {
+        ctx = {
             "current_team_id": session.get("current_team_id"),
             "current_team_name": session.get("current_team_name"),
         }
+        try:
+            if current_user.is_authenticated:
+                ctx["assigned_teams"] = current_user.assigned_teams
+        except Exception:
+            ctx["assigned_teams"] = []
+        return ctx
 
     @app.after_request
     def _log_response(response):

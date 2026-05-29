@@ -39,6 +39,8 @@ from core.models import (
     LineupSegment,
     PlayerLineupStats,
     OrganizationMembership,
+    Organization,
+    Team,
 )
 from core.csv_processor import CSVProcessor
 from core.charts import (
@@ -1441,6 +1443,67 @@ def create_test_game():
         current_app.logger.error(f"Failed to create test game: {e}", exc_info=True)
         flash(f"Error creating test game: {str(e)}", "danger")
         return redirect(url_for("main.upload_game"))
+
+
+# =============================================================================
+# GM DASHBOARD
+# =============================================================================
+
+
+@main_bp.route("/gm/dashboard")
+@login_required
+@gm_required
+def gm_dashboard():
+    """GM dashboard showing org-wide overview with all teams."""
+    org = Organization.query.get(current_user.organization_id)
+    teams = current_user.assigned_teams
+    team_data = []
+    for team in teams:
+        games_q = Game.query.filter_by(team_id=team.id)
+        total = games_q.count()
+        wins = games_q.filter_by(result="W").count()
+        losses = games_q.filter_by(result="L").count()
+        pts = db.session.query(func.sum(Game.team_score)).filter_by(team_id=team.id).scalar() or 0
+        opp_pts = db.session.query(func.sum(Game.opponent_score)).filter_by(team_id=team.id).scalar() or 0
+        players = Player.query.filter_by(team_id=team.id, active=True).count()
+        team_data.append({
+            "id": team.id,
+            "name": team.name,
+            "slug": team.slug,
+            "games": total,
+            "wins": wins,
+            "losses": losses,
+            "points": pts,
+            "opp_points": opp_pts,
+            "avg_ppg": round(pts / total, 1) if total else 0,
+            "avg_opp_ppg": round(opp_pts / total, 1) if total else 0,
+            "players": players,
+        })
+    members = OrganizationMembership.query.filter_by(organization_id=org.id).count()
+    return render_template(
+        "gm/dashboard.html",
+        org=org,
+        team_data=team_data,
+        members=members,
+    )
+
+
+@main_bp.route("/switch-team", methods=["POST"])
+@login_required
+def switch_team():
+    """Switch the current team context in the session."""
+    team_id = request.form.get("team_id", type=int)
+    if not team_id:
+        flash("No team selected.", "warning")
+        return redirect(request.referrer or url_for("main.index"))
+    team = Team.query.get(team_id)
+    if not team or team not in current_user.assigned_teams:
+        flash("You do not have access to that team.", "danger")
+        return redirect(request.referrer or url_for("main.index"))
+    session["current_team_id"] = team.id
+    session["current_team_name"] = team.name
+    flash(f"Switched to {team.name}.", "success")
+    return redirect(request.referrer or url_for("main.index"))
 
 
 # =============================================================================
