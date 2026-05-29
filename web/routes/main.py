@@ -17,6 +17,7 @@ from flask import (
     jsonify,
     make_response,
     send_file,
+    session,
 )
 from io import BytesIO
 from urllib.parse import unquote
@@ -37,6 +38,7 @@ from core.models import (
     Lineup,
     LineupSegment,
     PlayerLineupStats,
+    OrganizationMembership,
 )
 from core.csv_processor import CSVProcessor
 from core.charts import (
@@ -64,7 +66,7 @@ from core.utils import (
 from core.services.email_service import send_game_notification
 from core.services import create_game_from_live_data
 from core.services.analytics_service import AnalyticsService
-from web.decorators import admin_required
+from web.decorators import gm_required, team_access_required
 from flask_mail import Message
 from core import mail
 
@@ -244,13 +246,10 @@ def _notify_users_game_saved(game: Game):
         # Send notifications to users
         enabled = SystemSetting.get_value("notify_game_added", default="false")
         if enabled == "true":
-            recipients = [
-                u.email
-                for u in User.query.filter(
-                    User.role != "admin", User.is_admin.is_(False)
-                ).all()
-                if u.email
-            ]
+            non_gm_users = User.query.filter(User.id.notin_(
+                db.session.query(OrganizationMembership.user_id).filter_by(is_gm=True)
+            )).all()
+            recipients = [u.email for u in non_gm_users if u.email]
             if recipients:
                 pdf_attachment = None
                 attach_pdf = SystemSetting.get_value("attach_game_pdf", default="false")
@@ -349,11 +348,13 @@ def landing():
 
 
 @main_bp.route("/")
+@team_access_required
 def index():
     """Dashboard home page"""
     if not current_user.is_authenticated:
         return redirect(url_for("main.landing"))
-    games = Game.query.order_by(Game.sort_date.desc()).all()
+    team_id = session.get("current_team_id")
+    games = Game.query.filter_by(team_id=team_id).order_by(Game.sort_date.desc()).all()
     total_games = len(games)
     total_players = db.session.query(PlayerStat.player_name).distinct().count()
     wins = sum(1 for g in games if g.result == "W")
@@ -380,17 +381,21 @@ def glossary():
 
 @main_bp.route("/live-game")
 @login_required
+@team_access_required
 def live_game():
     """Interface for live game stat tracking"""
+    team_id = session.get("current_team_id")
     existing_players = [
         r[0]
         for r in db.session.query(PlayerStat.player_name)
+        .join(Game)
+        .filter(Game.team_id == team_id)
         .distinct()
         .order_by(PlayerStat.player_name)
         .all()
     ]
 
-    plays_query = Play.query.order_by(Play.play_type, Play.name).all()
+    plays_query = Play.query.filter_by(team_id=team_id).order_by(Play.play_type, Play.name).all()
     plays_list = [
         {
             "id": p.id,
@@ -412,9 +417,11 @@ def live_game():
 
 @main_bp.route("/api/plays")
 @login_required
+@team_access_required
 def api_plays():
     """API endpoint to get list of plays for live game selector"""
-    plays = Play.query.order_by(Play.play_type, Play.name).all()
+    team_id = session.get("current_team_id")
+    plays = Play.query.filter_by(team_id=team_id).order_by(Play.play_type, Play.name).all()
     return jsonify(
         [
             {
@@ -430,6 +437,7 @@ def api_plays():
 
 @main_bp.route("/live-game/save", methods=["POST"])
 @login_required
+@team_access_required
 def save_live_game():
     """Receive JSON data from live tracker and save to DB."""
     data = request.get_json()
@@ -446,7 +454,8 @@ def save_live_game():
         )
 
     try:
-        game = create_game_from_live_data(data)
+        team_id = session.get("current_team_id")
+        game = create_game_from_live_data(data, team_id=team_id)
         current_app.logger.info(f"Live game saved successfully: Game ID {game.id}")
 
         # Notify non-admin users (optional PDF attachment)
@@ -491,9 +500,11 @@ def save_live_game():
 
 @main_bp.route("/upload-game", methods=["GET", "POST"])
 @login_required
+@team_access_required
 def upload_game():
     """Upload a CSV, PDF, or JSON file to add a game"""
     if request.method == "POST":
+        team_id = session.get("current_team_id")
         import_type = request.form.get("import_type", "csv").lower().strip()
         if import_type not in {"csv", "pdf", "json"}:
             import_type = "csv"
@@ -536,7 +547,7 @@ def upload_game():
                             continue
 
                         existing = Game.query.filter_by(
-                            sort_date=info["sort_date"], opponent=info["opponent"]
+                            sort_date=info["sort_date"], opponent=info["opponent"], team_id=team_id
                         ).first()
                         if existing:
                             errors.append(
@@ -712,7 +723,7 @@ def upload_game():
 
                     # Duplicate check
                     existing = Game.query.filter_by(
-                        sort_date=sort_date, opponent=opponent
+                        sort_date=sort_date, opponent=opponent, team_id=team_id
                     ).first()
                     if existing:
                         flash(
@@ -836,7 +847,7 @@ def upload_game():
                             continue
 
                         existing = Game.query.filter_by(
-                            sort_date=sort_date, opponent=opponent
+                            sort_date=sort_date, opponent=opponent, team_id=team_id
                         ).first()
                         if existing:
                             errors.append(
@@ -845,7 +856,7 @@ def upload_game():
                             continue
 
                         # Use service to handle the heavy lifting (supports Schema 4, lineups, plays, etc.)
-                        create_game_from_live_data(data)
+                        create_game_from_live_data(data, team_id=session.get("current_team_id"))
                         success_count += 1
 
                     except Exception as e:
@@ -889,9 +900,13 @@ def serialize_model_instance(instance):
 
 @main_bp.route("/game/<int:game_id>/export-raw")
 @login_required
+@team_access_required
 def export_game_raw(game_id):
     """Export raw DB data for a specific game as JSON"""
-    game = Game.query.get_or_404(game_id)
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if not game:
+        abort(404)
 
     stats = PlayerStat.query.filter_by(game_id=game.id).all()
     shot_events = ShotEvent.query.filter_by(game_id=game.id).all()
@@ -929,18 +944,27 @@ def export_game_raw(game_id):
 
 @main_bp.route("/game/<int:game_id>")
 @login_required
+@team_access_required
 def game_detail(game_id):
     """Detailed stats for a specific game with Advanced Metrics"""
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if not game:
+        abort(404)
     context = AnalyticsService.build_game_detail(game_id)
     return render_template("game_detail.html", **context)
 
 
 @main_bp.route("/game/<int:game_id>/delete", methods=["POST"])
 @login_required
-@admin_required
+@team_access_required
+@gm_required
 def delete_game(game_id):
     """Delete a game and all associated stats/events."""
-    game = Game.query.get_or_404(game_id)
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if not game:
+        abort(404)
 
     try:
         PlayerStat.query.filter_by(game_id=game.id).delete()
@@ -989,6 +1013,7 @@ def delete_game(game_id):
 
 @main_bp.route("/player/<player_name>")
 @login_required
+@team_access_required
 def player_detail(player_name):
     """Detailed player profile with comprehensive stats and charts"""
     game_type = request.args.get("game_type", "ALL")
@@ -1012,6 +1037,7 @@ def player_detail(player_name):
 
 @main_bp.route("/player/<player_name>/game-detail")
 @login_required
+@team_access_required
 def player_game_detail(player_name):
     """Player game detail with comprehensive stats and charts"""
     game_type = request.args.get("game_type", "ALL")
@@ -1035,6 +1061,7 @@ def player_game_detail(player_name):
 
 @main_bp.route("/team-detail")
 @login_required
+@team_access_required
 def team_detail():
     """Team totals rendered on the same detail page as players."""
     game_type = request.args.get("game_type", "ALL")
@@ -1047,6 +1074,7 @@ def team_detail():
 
 @main_bp.route("/players")
 @login_required
+@team_access_required
 def players():
     """List of all players with Comprehensive Advanced Stats"""
     view = request.args.get("view", "cards")
@@ -1082,6 +1110,7 @@ def players():
 
 @main_bp.route("/players/cards.pdf")
 @login_required
+@team_access_required
 def players_cards_pdf():
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
@@ -1117,6 +1146,7 @@ def players_cards_pdf():
 
 @main_bp.route("/players/pages.zip")
 @login_required
+@team_access_required
 def players_pages_zip():
 
     game_type = request.args.get("game_type", "ALL")
@@ -1179,14 +1209,16 @@ def players_pages_zip():
 
 @main_bp.route("/games-list")
 @login_required
+@team_access_required
 def games():
     """Summary of performance against opponents (formerly teams)"""
-    results = db.session.query(Game.opponent).distinct().all()
+    team_id = session.get("current_team_id")
+    results = db.session.query(Game.opponent).filter(Game.team_id == team_id).distinct().all()
 
     team_stats = []
     for r in results:
         opp_name = r[0]
-        opp_games = Game.query.filter_by(opponent=opp_name).all()
+        opp_games = Game.query.filter_by(opponent=opp_name, team_id=team_id).all()
         wins = sum(1 for g in opp_games if g.result == "W")
         losses = len(opp_games) - wins
 
@@ -1211,10 +1243,12 @@ def games():
 
 @main_bp.route("/teams/<opponent_name>")
 @login_required
+@team_access_required
 def opponent_games(opponent_name):
     """Detailed performance view against a specific opponent"""
+    team_id = session.get("current_team_id")
     opp_games = (
-        Game.query.filter_by(opponent=opponent_name)
+        Game.query.filter_by(opponent=opponent_name, team_id=team_id)
         .order_by(Game.sort_date.desc())
         .all()
     )
@@ -1224,11 +1258,15 @@ def opponent_games(opponent_name):
 
 @main_bp.route("/advanced-analytics")
 @login_required
+@team_access_required
 def advanced_analytics():
     """Advanced analytics dashboard"""
+    team_id = session.get("current_team_id")
     # Get players for filters
     players = (
         db.session.query(PlayerStat.player_name)
+        .join(Game, PlayerStat.game_id == Game.id)
+        .filter(Game.team_id == team_id)
         .distinct()
         .order_by(PlayerStat.player_name)
         .all()
@@ -1236,10 +1274,10 @@ def advanced_analytics():
     player_names = [p[0] for p in players]
 
     # Get plays for filters
-    plays = Play.query.order_by(Play.name).all()
+    plays = Play.query.filter_by(team_id=team_id).order_by(Play.name).all()
 
     # Get games for filters
-    games = Game.query.order_by(Game.sort_date.desc()).all()
+    games = Game.query.filter_by(team_id=team_id).order_by(Game.sort_date.desc()).all()
 
     return render_template(
         "advanced_analytics.html", players=player_names, plays=plays, games=games
@@ -1248,9 +1286,13 @@ def advanced_analytics():
 
 @main_bp.route("/game/<int:game_id>/advanced-report")
 @login_required
+@team_access_required
 def advanced_game_report(game_id):
     """Advanced game report page with comprehensive analytics"""
-    game = Game.query.get_or_404(game_id)
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if not game:
+        abort(404)
     return render_template(
         "reports/advanced_game_report.html", game=game, game_id=game_id
     )
@@ -1263,6 +1305,7 @@ def advanced_game_report(game_id):
 
 @main_bp.route("/lineups")
 @login_required
+@team_access_required
 def lineups_page():
     """Lineups browser page - shows all lineup combinations with stats."""
     return render_template("lineups.html")
@@ -1270,19 +1313,27 @@ def lineups_page():
 
 @main_bp.route("/lineup/<int:lineup_id>")
 @login_required
+@team_access_required
 def lineup_card(lineup_id):
     """Single lineup card page with detailed stats."""
     from core.models import Lineup
 
-    lineup = Lineup.query.get_or_404(lineup_id)
+    team_id = session.get("current_team_id")
+    lineup = Lineup.query.filter_by(id=lineup_id, team_id=team_id).first()
+    if not lineup:
+        abort(404)
     return render_template("lineup_card.html", lineup=lineup)
 
 
 @main_bp.route("/game/<int:game_id>/lineup-combinations")
 @login_required
+@team_access_required
 def game_lineup_combinations(game_id):
     """Game subpage with top 3 lineups, duos, and trios."""
-    game = Game.query.get_or_404(game_id)
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if not game:
+        abort(404)
     from core.advanced_analytics import LineupAnalytics
 
     try:
@@ -1323,6 +1374,7 @@ def game_lineup_combinations(game_id):
 
 @main_bp.route("/lineup-combo/<combo_type>/<path:players_key>")
 @login_required
+@team_access_required
 def lineup_combo_card(combo_type, players_key):
     """Single duo/trio combination card page."""
     combo_type = (combo_type or "").strip().lower()
@@ -1349,7 +1401,7 @@ def lineup_combo_card(combo_type, players_key):
 
 @main_bp.route("/create-test-game", methods=["POST"])
 @login_required
-@admin_required
+@gm_required
 def create_test_game():
     """Create a comprehensive test game with all features for testing."""
     import sys
@@ -1371,7 +1423,7 @@ def create_test_game():
         # After payload is ready, try to free any generation-time overhead
         gc.collect()
 
-        game = create_game_from_live_data(payload)
+        game = create_game_from_live_data(payload, team_id=session.get("current_team_id"))
 
         # Clear payload from memory after import
         del payload
@@ -1401,14 +1453,15 @@ VALID_SECTIONS = {"users", "players", "settings"}
 @main_bp.route("/admin")
 @main_bp.route("/admin/<section>")
 @login_required
-@admin_required
+@gm_required
 def admin_panel(section="users"):
     """Admin panel - manage users, players and settings"""
     if section not in VALID_SECTIONS:
         section = "users"
 
     users = User.query.order_by(User.username).all()
-    players = Player.query.order_by(Player.name).all()
+    team_id = session.get("current_team_id")
+    players = Player.query.filter_by(team_id=team_id).order_by(Player.name).all()
 
     settings_data = db.session.query(SystemSetting).all()
     settings = {s.key: s.value for s in settings_data}

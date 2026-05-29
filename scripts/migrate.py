@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from web import create_app
-from core.models import db, Player, PlayerStat, User
+from core.models import db, Organization, Team, OrganizationMembership, TeamAssignment, Player, PlayerStat, User
 
 
 def run():
@@ -105,16 +105,50 @@ def run():
         else:
             try:
                 user = User.query.filter_by(email=admin_email).first()
-                if user:
-                    if user.role != "admin":
-                        user.role = "admin"
-                        user.is_admin = True
-                        db.session.commit()
-                        print(f"[migrate] Promoted {user.email} to admin.")
-                    else:
-                        print(f"[migrate] {user.email} is already admin.")
-                else:
+                if not user:
                     print(f"[migrate] User {admin_email} not found yet (will be promoted on first login).")
+                else:
+                    # Ensure a default org exists
+                    org = Organization.query.first()
+                    if not org:
+                        org = Organization(name="Default Organization")
+                        db.session.add(org)
+                        db.session.flush()
+                        print("[migrate] Created default organization.")
+
+                    team = Team.query.filter_by(organization_id=org.id).first()
+                    if not team:
+                        team = Team(name="Default Team", organization_id=org.id, slug="default-team")
+                        db.session.add(team)
+                        db.session.flush()
+                        print("[migrate] Created default team.")
+
+                    user.organization_id = org.id
+
+                    # Create or update GM membership
+                    membership = OrganizationMembership.query.filter_by(
+                        user_id=user.id, organization_id=org.id
+                    ).first()
+                    if not membership:
+                        membership = OrganizationMembership(
+                            user_id=user.id, organization_id=org.id, is_gm=True
+                        )
+                        db.session.add(membership)
+                        print(f"[migrate] Promoted {user.email} to GM.")
+                    else:
+                        membership.is_gm = True
+                        print(f"[migrate] {user.email} is already GM.")
+
+                    # Ensure team assignment
+                    ta = TeamAssignment.query.filter_by(
+                        user_id=user.id, team_id=team.id
+                    ).first()
+                    if not ta:
+                        ta = TeamAssignment(user_id=user.id, team_id=team.id, is_coach=True)
+                        db.session.add(ta)
+                        print(f"[migrate] Assigned {user.email} as coach.")
+
+                    db.session.commit()
             except Exception as e:
                 print(f"[migrate] Warning: admin promotion failed: {e}")
                 db.session.rollback()

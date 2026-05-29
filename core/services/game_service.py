@@ -655,7 +655,7 @@ def assign_possession_numbers(game_id: int) -> None:
     )
 
 
-def create_game_from_live_data(data):
+def create_game_from_live_data(data, team_id: int = None):
     """
     Creates a new Game, PlayerStats, ShotEvents, and GameEvents from the JSON data payload.
     Validates all play IDs before database insertion.
@@ -797,6 +797,7 @@ def create_game_from_live_data(data):
 
     # Create Game
     game = Game(
+        team_id=team_id,
         date=display_date,
         opponent=opponent,
         team_score=team_score,

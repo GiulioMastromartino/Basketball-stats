@@ -5,7 +5,7 @@ from pathlib import Path
 # Ensure the current directory is in the path so imports work
 sys.path.append(str(Path(__file__).parent))
 
-from core.models import User, db
+from core.models import User, Organization, Team, OrganizationMembership, TeamAssignment, db
 from web import create_app
 
 def create_admin():
@@ -20,11 +20,37 @@ def create_admin():
         if not User.query.filter_by(username="admin").first():
             print("Creating default admin user...")
             try:
-                admin = User(username="admin", email="admin@local.com", is_admin=True)
-                # Use env var for password if available, else default
                 password = os.getenv("ADMIN_PASSWORD", "admin123")
+
+                org = Organization.query.first()
+                if not org:
+                    org = Organization(name="Default Organization")
+                    db.session.add(org)
+                    db.session.flush()
+
+                team = Team.query.filter_by(organization_id=org.id).first()
+                if not team:
+                    team = Team(name="Default Team", organization_id=org.id, slug="default-team")
+                    db.session.add(team)
+                    db.session.flush()
+
+                admin = User(
+                    username="admin",
+                    email="admin@local.com",
+                    organization_id=org.id,
+                )
                 admin.set_password(password)
                 db.session.add(admin)
+                db.session.flush()
+
+                membership = OrganizationMembership(
+                    user_id=admin.id, organization_id=org.id, is_gm=True
+                )
+                db.session.add(membership)
+
+                ta = TeamAssignment(user_id=admin.id, team_id=team.id, is_coach=True)
+                db.session.add(ta)
+
                 db.session.commit()
                 print(f"✓ Admin user created. Username: 'admin', Password: '{password}'")
             except Exception as e:

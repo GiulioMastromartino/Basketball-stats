@@ -1,7 +1,7 @@
 import unittest
 import json
 from web import create_app, db
-from core.models import User, Play
+from core.models import User, Organization, Team, OrganizationMembership, Play
 
 class TestApiV1(unittest.TestCase):
     def setUp(self):
@@ -11,17 +11,33 @@ class TestApiV1(unittest.TestCase):
         self.app_context.push()
         db.create_all()
         
+        # Create default org and team
+        org = Organization(name="Test Org", slug="test-org")
+        db.session.add(org)
+        db.session.flush()
+        team = Team(name="Test Team", organization_id=org.id, slug="test-team")
+        db.session.add(team)
+        db.session.flush()
+        self.team_id = team.id
+        
         # Create test user
         self.username = 'api_test_user'
-        user = User(username=self.username, email='api@example.com', role='editor', is_admin=False)
+        user = User(username=self.username, email='api@example.com', organization_id=org.id)
         user.set_password('password')
         db.session.add(user)
+        db.session.flush()
+        membership = OrganizationMembership(user_id=user.id, organization_id=org.id, is_gm=False)
+        db.session.add(membership)
         
         # Create plays
-        play1 = Play(name='PickAndRoll', play_type='Offense', description='Basic PnR')
-        play2 = Play(name='ZoneDefense', play_type='Defense', description='2-3 Zone')
+        play1 = Play(name='PickAndRoll', play_type='Offense', description='Basic PnR', team_id=self.team_id)
+        play2 = Play(name='ZoneDefense', play_type='Defense', description='2-3 Zone', team_id=self.team_id)
         db.session.add_all([play1, play2])
         db.session.commit()
+        
+        # Set current team in session
+        with self.client.session_transaction() as sess:
+            sess['current_team_id'] = team.id
         
         # Login
         self.client.post('/auth/login', data={

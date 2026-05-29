@@ -6,7 +6,11 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from web import create_app
-from core.models import db, bcrypt, User, PlayType, Game, Play
+from core.models import (
+    db, bcrypt, User, Organization, Team,
+    OrganizationMembership, TeamAssignment,
+    PlayType, Game, Play,
+)
 
 
 def reset_db():
@@ -22,10 +26,18 @@ def reset_db():
         for t in types:
             db.session.add(PlayType(name=t))
 
+        # Create Org & Team
+        org = Organization(name="Default Organization")
+        db.session.add(org)
+        db.session.flush()
+
+        team = Team(name="Default Team", organization_id=org.id, slug="default-team")
+        db.session.add(team)
+        db.session.flush()
+
         # Create Admin
         print("Creating admin user...")
 
-        # Use env vars if available, else defaults
         admin_email = os.getenv("ADMIN_EMAIL", "admin@local.com")
         admin_user = os.getenv("ADMIN_USERNAME", "admin")
         admin_pass = os.getenv("ADMIN_PASSWORD", "admin123")
@@ -35,10 +47,18 @@ def reset_db():
             username=admin_user,
             email=admin_email,
             password_hash=hashed_pw,
-            role="admin",
-            is_admin=True,
+            organization_id=org.id,
         )
         db.session.add(admin)
+        db.session.flush()
+
+        membership = OrganizationMembership(
+            user_id=admin.id, organization_id=org.id, is_gm=True
+        )
+        db.session.add(membership)
+
+        ta = TeamAssignment(user_id=admin.id, team_id=team.id, is_coach=True)
+        db.session.add(ta)
 
         db.session.commit()
         print(f"Database reset complete. Admin: {admin_user} ({admin_email})")

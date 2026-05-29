@@ -3,23 +3,26 @@ Merged API v1 routes.
 Combines routes from legacy api.py and play_builder_api.py under a single blueprint.
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session, abort
 from flask_login import login_required
 from core.models import Play, db
+from web.decorators import team_access_required
 
 api_v1_bp = Blueprint("api_v1", __name__)
 
 
 @api_v1_bp.route("/plays", methods=["GET"])
 @login_required
+@team_access_required
 def get_plays():
     """Get all plays, optionally filtered by type"""
     play_type = request.args.get("type", "All")
 
+    team_id = session.get('current_team_id')
     if play_type == "All":
-        plays = Play.query.order_by(Play.play_type, Play.name).all()
+        plays = Play.query.filter_by(team_id=team_id).order_by(Play.play_type, Play.name).all()
     else:
-        plays = Play.query.filter_by(play_type=play_type).order_by(Play.name).all()
+        plays = Play.query.filter_by(play_type=play_type, team_id=team_id).order_by(Play.name).all()
 
     return jsonify(
         [
@@ -36,16 +39,20 @@ def get_plays():
 
 @api_v1_bp.route("/plays/types", methods=["GET"])
 @login_required
+@team_access_required
 def get_play_types():
     """Get unique play types"""
     play_types = (
-        db.session.query(Play.play_type).distinct().order_by(Play.play_type).all()
+        db.session.query(Play.play_type)
+        .filter(Play.team_id == session.get('current_team_id'))
+        .distinct().order_by(Play.play_type).all()
     )
     return jsonify([pt[0] for pt in play_types])
 
 
 @api_v1_bp.route("/plays/api/save-canvas", methods=["POST"])
 @login_required
+@team_access_required
 def save_canvas():
     """
     Save the play metadata, canvas JSON, SVG preview, and animation frames.
@@ -70,22 +77,23 @@ def save_canvas():
 
     play_id = payload.get("play_id")
 
+    team_id = session.get('current_team_id')
     if play_id:
         # Update existing play
-        play = Play.query.get(play_id)
+        play = Play.query.filter_by(id=play_id, team_id=team_id).first()
         if not play:
             return jsonify({"success": False, "error": "Play not found"}), 404
 
         # Check unique name (exclude self)
-        existing = Play.query.filter_by(name=name).first()
+        existing = Play.query.filter_by(name=name, team_id=team_id).first()
         if existing and existing.id != play.id:
             return jsonify({"success": False, "error": "Name already exists"}), 400
     else:
         # Create new play
-        if Play.query.filter_by(name=name).first():
+        if Play.query.filter_by(name=name, team_id=team_id).first():
             return jsonify({"success": False, "error": "Name already exists"}), 400
 
-        play = Play()
+        play = Play(team_id=team_id)
         db.session.add(play)
 
     # Update fields
@@ -142,11 +150,14 @@ def save_canvas():
 
 @api_v1_bp.route("/plays/api/load-canvas/<int:play_id>", methods=["GET"])
 @login_required
+@team_access_required
 def load_canvas(play_id):
     """
     Return the canvas JSON, metadata, and animation frames for a given play.
     """
-    play = Play.query.get_or_404(play_id)
+    play = Play.query.filter_by(id=play_id, team_id=session.get('current_team_id')).first()
+    if not play:
+        abort(404)
 
     # Load sequences
     from core.models import PlaySequence

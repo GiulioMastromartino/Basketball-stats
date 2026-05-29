@@ -8,31 +8,68 @@ db = SQLAlchemy()
 bcrypt = Bcrypt()
 
 
+class Organization(db.Model):
+    __tablename__ = "organizations"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    slug = db.Column(db.String(50), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    teams = db.relationship("Team", backref="organization", lazy=True)
+    memberships = db.relationship("OrganizationMembership", backref="organization", lazy=True)
+
+
+class Team(db.Model):
+    __tablename__ = "teams"
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    slug = db.Column(db.String(50), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("organization_id", "slug"),)
+
+
+class OrganizationMembership(db.Model):
+    __tablename__ = "organization_memberships"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    organization_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=False)
+    is_gm = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("user_id", "organization_id"),)
+
+
+class TeamAssignment(db.Model):
+    __tablename__ = "team_assignments"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    is_coach = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("user_id", "team_id"),)
+    team = db.relationship("Team", backref=db.backref("assignments", lazy=True))
+
+
 class User(UserMixin, db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(
-        db.String(255), nullable=True
-    )  # Nullable for WorkOS users
+    password_hash = db.Column(db.String(255), nullable=True)
 
-    # New Role Field
-    # Options: 'admin', 'editor', 'viewer'
-    role = db.Column(db.String(20), nullable=False, default="editor")
+    organization_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
 
-    # Deprecated but kept for safety during migration
-    is_admin = db.Column(db.Boolean, default=False)
-
-    # WorkOS fields
-    workos_id = db.Column(
-        db.String(255), unique=True, nullable=True
-    )  # WorkOS user ID for auth
+    workos_id = db.Column(db.String(255), unique=True, nullable=True)
     email_verified = db.Column(db.Boolean, default=False)
 
-    # OTP Fields (deprecated - will be removed after WorkOS migration)
     otp_code = db.Column(db.String(6), nullable=True)
     otp_expiry = db.Column(db.DateTime, nullable=True)
+
+    memberships = db.relationship("OrganizationMembership", backref="user", lazy=True)
+    team_assignments = db.relationship("TeamAssignment", backref="user", lazy=True)
 
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
@@ -41,9 +78,38 @@ class User(UserMixin, db.Model):
         return bcrypt.check_password_hash(self.password_hash, password)
 
     @property
+    def is_gm(self):
+        mem = OrganizationMembership.query.filter_by(
+            user_id=self.id, organization_id=self.organization_id, is_gm=True
+        ).first()
+        return mem is not None
+
+    @property
+    def is_coach(self):
+        if not self.organization_id:
+            return False
+        from core.models import TeamAssignment
+        ta = TeamAssignment.query.filter(
+            TeamAssignment.user_id == self.id,
+            TeamAssignment.is_coach == True,
+        ).first()
+        return ta is not None
+
+    @property
+    def is_admin(self):
+        return self.is_gm
+
+    @property
     def is_manager(self):
-        """Check if user has admin privileges (supports legacy check)"""
-        return self.role == "admin" or self.is_admin
+        return self.is_gm
+
+    @property
+    def assigned_teams(self):
+        if self.is_gm:
+            return Team.query.filter_by(organization_id=self.organization_id).all()
+        return Team.query.join(TeamAssignment).filter(
+            TeamAssignment.user_id == self.id
+        ).all()
 
 
 class SystemSetting(db.Model):
@@ -52,6 +118,7 @@ class SystemSetting(db.Model):
     key = db.Column(db.String(50), unique=True, nullable=False)
     value = db.Column(db.String(255), nullable=True)
     description = db.Column(db.String(255), nullable=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
     updated_at = db.Column(
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
@@ -78,6 +145,7 @@ class SystemSetting(db.Model):
 class Game(db.Model):
     __tablename__ = "games"
     id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     date = db.Column(db.String(10), nullable=False)
     opponent = db.Column(db.String(100), nullable=False)
     team_score = db.Column(db.Integer, nullable=False)
@@ -85,10 +153,10 @@ class Game(db.Model):
     result = db.Column(db.String(1), nullable=False)
     game_type = db.Column(db.String(20), nullable=False)
     sort_date = db.Column(db.String(10), nullable=False)
-    source = db.Column(db.String(20), default="IMPORT")  # LIVE, IMPORT, MANUAL
-    schema_version = db.Column(
-        db.Integer, default=1
-    )  # Schema version for feature detection
+    source = db.Column(db.String(20), default="IMPORT")
+    schema_version = db.Column(db.Integer, default=1)
+
+    team = db.relationship("Team", backref=db.backref("games", lazy=True))
 
     @property
     def score_display(self):
@@ -119,41 +187,32 @@ class PlayerStat(db.Model):
     blk = db.Column(db.Integer, default=0)
     tov = db.Column(db.Integer, default=0)
     pf = db.Column(db.Integer, default=0)
-    plus_minus = db.Column(db.Integer, default=0)  # +/- Stat
-    reb_conceded = db.Column(
-        db.Integer, default=0
-    )  # Offensive rebounds conceded to opponents
+    plus_minus = db.Column(db.Integer, default=0)
+    reb_conceded = db.Column(db.Integer, default=0)
 
-    # Relationship to Game
     game = db.relationship("Game", backref=db.backref("stats", lazy=True))
 
 
 class Play(db.Model):
     __tablename__ = "plays"
     id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
-    play_type = db.Column(db.String(50), default="Offense")  # Offense, Defense, Special
-    source = db.Column(db.String(20), default="imported")  # imported, manual, builder
-    image_filename = db.Column(
-        db.String(255), nullable=True
-    )  # Stored in uploads/plays/
+    play_type = db.Column(db.String(50), default="Offense")
+    source = db.Column(db.String(20), default="imported")
+    image_filename = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Phase 1 fields for Builder
-    canvas_data = db.Column(db.JSON, nullable=True)  # Fabric.js JSON (Source of Truth)
-    diagram_svg = db.Column(db.Text, nullable=True)  # Server-rendered SVG
+    canvas_data = db.Column(db.JSON, nullable=True)
+    diagram_svg = db.Column(db.Text, nullable=True)
     difficulty = db.Column(db.String(20), server_default="Medium", nullable=False)
     personnel_required = db.Column(db.Text, nullable=True)
     tags = db.Column(db.Text, nullable=True)
 
-    # Relationship to sequences
-    sequences = db.relationship(
-        "PlaySequence", backref="play", cascade="all, delete-orphan", lazy=True
-    )
+    team = db.relationship("Team", backref=db.backref("plays", lazy=True))
+    sequences = db.relationship("PlaySequence", backref="play", cascade="all, delete-orphan", lazy=True)
 
 
 class PlaySequence(db.Model):
@@ -161,16 +220,17 @@ class PlaySequence(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     play_id = db.Column(db.Integer, db.ForeignKey("plays.id"), nullable=False)
     sequence_number = db.Column(db.Integer, nullable=False)
-    element_data = db.Column(
-        db.JSON, nullable=True
-    )  # Full snapshot for animation frame
+    element_data = db.Column(db.JSON, nullable=True)
     caption = db.Column(db.String(255), nullable=True)
 
 
 class PlayType(db.Model):
     __tablename__ = "play_types"
     id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     name = db.Column(db.String(50), unique=True, nullable=False)
+
+    team = db.relationship("Team", backref=db.backref("play_types", lazy=True))
 
 
 class ShotEvent(db.Model):
@@ -178,18 +238,14 @@ class ShotEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=False)
     player_name = db.Column(db.String(100))
-    shot_type = db.Column(db.String(10))  # 2pt, 3pt, ft
-    result = db.Column(db.String(10))  # made, missed
+    shot_type = db.Column(db.String(10))
+    result = db.Column(db.String(10))
     points = db.Column(db.Integer, default=0)
-    x_loc = db.Column(db.Float, nullable=True)  # Normalized 0-500
-    y_loc = db.Column(db.Float, nullable=True)  # Normalized 0-470
-    zone = db.Column(
-        db.String(50), nullable=True
-    )  # Shot zone: Rim, Paint, Midrange, Above_Break_3, Corner_3
+    x_loc = db.Column(db.Float, nullable=True)
+    y_loc = db.Column(db.Float, nullable=True)
+    zone = db.Column(db.String(50), nullable=True)
     quarter = db.Column(db.Integer)
-    play_id = db.Column(
-        db.Integer, db.ForeignKey("plays.id"), nullable=True
-    )  # Tagged play
+    play_id = db.Column(db.Integer, db.ForeignKey("plays.id"), nullable=True)
 
     game = db.relationship("Game", backref=db.backref("shots", lazy=True))
     play = db.relationship("Play", backref=db.backref("shot_events", lazy=True))
@@ -199,43 +255,25 @@ class GameEvent(db.Model):
     __tablename__ = "game_events"
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=False)
-    event_type = db.Column(
-        db.String(50)
-    )  # SHOT_2PT, SHOT_3PT, TURNOVER, SUB_IN, SUB_OUT, OPP_SCORE, FT, OPP_OREB, FT_MADE, FT_MISS, STEAL, BLOCK, REBOUND_DEFENSIVE, REBOUND_OFFENSIVE, FOUL_PERSONAL, TECHNICAL_FOUL, FLAGRANT_FOUL, NEXT_QUARTER, TIMEOUT, OPP_TURNOVER, OPP_MISS
+    event_type = db.Column(db.String(50))
     player_name = db.Column(db.String(100), nullable=True)
-    detail = db.Column(
-        db.String(255), nullable=True
-    )  # e.g. amount of points for opp score
-    timestamp = db.Column(db.BigInteger, default=0)  # generic ordering index
-    shot_attempt = db.Column(
-        db.String(10), nullable=True
-    )  # 'attempted' or 'made' for shots
-    play_id = db.Column(
-        db.Integer, db.ForeignKey("plays.id"), nullable=True
-    )  # Tagged play
-    quarter = db.Column(db.Integer, nullable=True)  # Quarter period (1-4, OT)
-    time_remaining = db.Column(db.String(10), nullable=True)  # MM:SS format
-    score_margin = db.Column(
-        db.Integer, nullable=True
-    )  # Point differential at event time
-    possession_number = db.Column(
-        db.Integer, nullable=True
-    )  # Possession sequence number
-    game_seconds = db.Column(db.Integer, nullable=True)  # Absolute game time in seconds
-    x_loc = db.Column(db.Float, nullable=True)  # Shot location X (normalized 0-500)
-    y_loc = db.Column(db.Float, nullable=True)  # Shot location Y (normalized 0-470)
-    zone = db.Column(
-        db.String(50), nullable=True
-    )  # Shot zone: Rim, Paint, Midrange, Above_Break_3, Corner_3
-    lineup_segment_id = db.Column(
-        db.Integer, db.ForeignKey("lineup_segments.id"), nullable=True
-    )  # Link to active lineup during this event
+    detail = db.Column(db.String(255), nullable=True)
+    timestamp = db.Column(db.BigInteger, default=0)
+    shot_attempt = db.Column(db.String(10), nullable=True)
+    play_id = db.Column(db.Integer, db.ForeignKey("plays.id"), nullable=True)
+    quarter = db.Column(db.Integer, nullable=True)
+    time_remaining = db.Column(db.String(10), nullable=True)
+    score_margin = db.Column(db.Integer, nullable=True)
+    possession_number = db.Column(db.Integer, nullable=True)
+    game_seconds = db.Column(db.Integer, nullable=True)
+    x_loc = db.Column(db.Float, nullable=True)
+    y_loc = db.Column(db.Float, nullable=True)
+    zone = db.Column(db.String(50), nullable=True)
+    lineup_segment_id = db.Column(db.Integer, db.ForeignKey("lineup_segments.id"), nullable=True)
 
     game = db.relationship("Game", backref=db.backref("events", lazy=True))
     play = db.relationship("Play", backref=db.backref("game_events", lazy=True))
-    lineup_segment = db.relationship(
-        "LineupSegment", backref=db.backref("events", lazy=True)
-    )
+    lineup_segment = db.relationship("LineupSegment", backref=db.backref("events", lazy=True))
 
 
 class LineupSegment(db.Model):
@@ -244,31 +282,18 @@ class LineupSegment(db.Model):
     __tablename__ = "lineup_segments"
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=False)
-    start_timestamp = db.Column(
-        db.BigInteger, nullable=False
-    )  # Event index when segment starts
-    end_timestamp = db.Column(
-        db.BigInteger, nullable=True
-    )  # Event index when segment ends (NULL = current)
+    start_timestamp = db.Column(db.BigInteger, nullable=False)
+    end_timestamp = db.Column(db.BigInteger, nullable=True)
     quarter = db.Column(db.Integer, nullable=True)
-    players = db.Column(
-        db.JSON, nullable=False
-    )  # List of 5 player names ["Player1", "Player2", ...]
-    lineup_hash = db.Column(
-        db.String(64), nullable=False
-    )  # MD5 hash of sorted player names for quick lookup
+    players = db.Column(db.JSON, nullable=False)
+    lineup_hash = db.Column(db.String(64), nullable=False)
 
-    # Stats during this segment
     points_scored = db.Column(db.Integer, default=0)
     points_allowed = db.Column(db.Integer, default=0)
     possessions = db.Column(db.Integer, default=0)
     reb_conceded = db.Column(db.Integer, default=0)
-    duration_seconds = db.Column(
-        db.Integer, default=0
-    )  # Actual playing time in seconds
-    lineup_id = db.Column(
-        db.Integer, db.ForeignKey("lineups.id"), nullable=True
-    )  # Link to Lineup record
+    duration_seconds = db.Column(db.Integer, default=0)
+    lineup_id = db.Column(db.Integer, db.ForeignKey("lineups.id"), nullable=True)
 
     game = db.relationship("Game", backref=db.backref("lineup_segments", lazy=True))
 
@@ -278,14 +303,12 @@ class Lineup(db.Model):
 
     __tablename__ = "lineups"
     id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     lineup_hash = db.Column(db.String(64), unique=True, nullable=False)
-    players = db.Column(db.JSON, nullable=False)  # Sorted list of 5 player names
-    display_name = db.Column(db.String(100), nullable=True)  # Optional custom name
-    is_starting = db.Column(
-        db.Boolean, default=False
-    )  # Was this ever a starting lineup?
+    players = db.Column(db.JSON, nullable=False)
+    display_name = db.Column(db.String(100), nullable=True)
+    is_starting = db.Column(db.Boolean, default=False)
 
-    # Cached aggregated stats
     total_seconds = db.Column(db.Integer, default=0)
     total_possessions = db.Column(db.Integer, default=0)
     points_scored = db.Column(db.Integer, default=0)
@@ -293,12 +316,10 @@ class Lineup(db.Model):
     games_played = db.Column(db.Integer, default=0)
     segment_count = db.Column(db.Integer, default=0)
 
-    # Calculated ratings
     ortg = db.Column(db.Float, default=0)
     drtg = db.Column(db.Float, default=0)
     net_rating = db.Column(db.Float, default=0)
 
-    # Additional cached stats (aggregated from PlayerLineupStats)
     fgm = db.Column(db.Integer, default=0)
     fga = db.Column(db.Integer, default=0)
     tpm = db.Column(db.Integer, default=0)
@@ -314,11 +335,9 @@ class Lineup(db.Model):
     reb_conceded = db.Column(db.Integer, default=0)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_updated = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
+    team = db.relationship("Team", backref=db.backref("lineups", lazy=True))
     segments = db.relationship("LineupSegment", backref="lineup_ref", lazy=True)
 
 
@@ -328,18 +347,12 @@ class Possession(db.Model):
     __tablename__ = "possessions"
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=False)
-    start_event_id = db.Column(
-        db.Integer, db.ForeignKey("game_events.id"), nullable=False
-    )
+    start_event_id = db.Column(db.Integer, db.ForeignKey("game_events.id"), nullable=False)
     end_event_id = db.Column(db.Integer, db.ForeignKey("game_events.id"), nullable=True)
-    team_possession = db.Column(
-        db.Boolean, default=True
-    )  # True = our team, False = opponent
+    team_possession = db.Column(db.Boolean, default=True)
     quarter = db.Column(db.Integer, nullable=True)
-    points = db.Column(db.Integer, default=0)  # Points scored on this possession
-    play_id = db.Column(
-        db.Integer, db.ForeignKey("plays.id"), nullable=True
-    )  # Primary play used
+    points = db.Column(db.Integer, default=0)
+    play_id = db.Column(db.Integer, db.ForeignKey("plays.id"), nullable=True)
 
     game = db.relationship("Game", backref=db.backref("possessions", lazy=True))
     start_event = db.relationship("GameEvent", foreign_keys=[start_event_id])
@@ -352,15 +365,11 @@ class ShotZone(db.Model):
 
     __tablename__ = "shot_zones"
     id = db.Column(db.Integer, primary_key=True)
-    zone_name = db.Column(
-        db.String(50), unique=True, nullable=False
-    )  # e.g., "Corner_3", "Paint", "Midrange"
-    zone_type = db.Column(
-        db.String(20), nullable=False
-    )  # "Corner_3", "Above_Break_3", "Paint", "Midrange", "FT"
-    expected_value = db.Column(db.Float, nullable=False)  # Expected points per shot
+    zone_name = db.Column(db.String(50), unique=True, nullable=False)
+    zone_type = db.Column(db.String(20), nullable=False)
+    expected_value = db.Column(db.Float, nullable=False)
     description = db.Column(db.String(255), nullable=True)
-    x_min = db.Column(db.Float, nullable=True)  # Bounding box for zone classification
+    x_min = db.Column(db.Float, nullable=True)
     x_max = db.Column(db.Float, nullable=True)
     y_min = db.Column(db.Float, nullable=True)
     y_max = db.Column(db.Float, nullable=True)
@@ -371,12 +380,9 @@ class PlayerLineupStats(db.Model):
 
     __tablename__ = "player_lineup_stats"
     id = db.Column(db.Integer, primary_key=True)
-    lineup_segment_id = db.Column(
-        db.Integer, db.ForeignKey("lineup_segments.id"), nullable=False
-    )
+    lineup_segment_id = db.Column(db.Integer, db.ForeignKey("lineup_segments.id"), nullable=False)
     player_name = db.Column(db.String(100), nullable=False)
 
-    # Counting stats during this segment
     points = db.Column(db.Integer, default=0)
     fga = db.Column(db.Integer, default=0)
     fgm = db.Column(db.Integer, default=0)
@@ -390,13 +396,9 @@ class PlayerLineupStats(db.Model):
     stl = db.Column(db.Integer, default=0)
     blk = db.Column(db.Integer, default=0)
     tov = db.Column(db.Integer, default=0)
-    reb_conceded = db.Column(
-        db.Integer, default=0
-    )  # Offensive rebounds conceded to opponents
+    reb_conceded = db.Column(db.Integer, default=0)
 
-    lineup_segment = db.relationship(
-        "LineupSegment", backref=db.backref("player_stats", lazy=True)
-    )
+    lineup_segment = db.relationship("LineupSegment", backref=db.backref("player_stats", lazy=True))
 
 
 class Player(db.Model):
@@ -404,12 +406,13 @@ class Player(db.Model):
 
     __tablename__ = "players"
     id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     name = db.Column(db.String(100), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=True)
-    # server_default='1' ensures SQL-level DEFAULT so db.create_all() and
-    # raw schema copies always default to active rather than 0.
     active = db.Column(db.Boolean, default=True, server_default="1", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    team = db.relationship("Team", backref=db.backref("players", lazy=True))
 
     def __repr__(self):
         return f"<Player {self.name}>"

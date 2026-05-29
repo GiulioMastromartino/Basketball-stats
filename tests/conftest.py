@@ -17,6 +17,10 @@ from datetime import datetime
 from web import create_app, db
 from core.models import (
     User,
+    Organization,
+    Team,
+    OrganizationMembership,
+    TeamAssignment,
     Game,
     PlayerStat,
     ShotEvent,
@@ -73,40 +77,72 @@ def db_session(app):
 
 
 @pytest.fixture
-def editor_user(db_session):
-    """Create an editor role user for testing."""
-    user = User(username="test_editor", email="editor@test.com", role="editor")
+def default_org(db_session):
+    """Create a default organization for testing."""
+    org = Organization(name="Test Org", slug="test-org")
+    db_session.add(org)
+    db_session.commit()
+    return org
+
+
+@pytest.fixture
+def default_team(db_session, default_org):
+    """Create a default team for testing."""
+    team = Team(name="Test Team", organization_id=default_org.id, slug="test-team")
+    db_session.add(team)
+    db_session.commit()
+    return team
+
+
+@pytest.fixture
+def editor_user(db_session, default_org, default_team):
+    """Create an editor user for testing."""
+    user = User(username="test_editor", email="editor@test.com", organization_id=default_org.id)
     user.set_password("password123")
     db_session.add(user)
+    db_session.flush()
+    membership = OrganizationMembership(user_id=user.id, organization_id=default_org.id, is_gm=False)
+    db_session.add(membership)
+    ta = TeamAssignment(user_id=user.id, team_id=default_team.id, is_coach=False)
+    db_session.add(ta)
     db_session.commit()
     return user
 
 
 @pytest.fixture
-def admin_user(db_session):
-    """Create an admin role user for testing."""
-    user = User(username="test_admin", email="admin@test.com", role="admin")
+def admin_user(db_session, default_org, default_team):
+    """Create an admin (GM) user for testing."""
+    user = User(username="test_admin", email="admin@test.com", organization_id=default_org.id)
     user.set_password("admin123")
     db_session.add(user)
+    db_session.flush()
+    membership = OrganizationMembership(user_id=user.id, organization_id=default_org.id, is_gm=True)
+    db_session.add(membership)
+    ta = TeamAssignment(user_id=user.id, team_id=default_team.id, is_coach=True)
+    db_session.add(ta)
     db_session.commit()
     return user
 
 
 @pytest.fixture
-def auth_client(client, editor_user):
+def auth_client(client, editor_user, default_team):
     """Authenticated client as editor user."""
     with client.session_transaction() as sess:
         sess['_user_id'] = str(editor_user.id)
         sess['_fresh'] = True
+        sess['current_team_id'] = default_team.id
+        sess['current_team_name'] = default_team.name
     return client
 
 
 @pytest.fixture
-def admin_client(client, admin_user):
+def admin_client(client, admin_user, default_team):
     """Authenticated client as admin user."""
     with client.session_transaction() as sess:
         sess['_user_id'] = str(admin_user.id)
         sess['_fresh'] = True
+        sess['current_team_id'] = default_team.id
+        sess['current_team_name'] = default_team.name
     return client
 
 
@@ -116,7 +152,7 @@ def admin_client(client, admin_user):
 
 
 @pytest.fixture
-def sample_game(db_session):
+def sample_game(db_session, default_team):
     """Create a sample game for testing."""
     game = Game(
         date="17-02-2024",
@@ -127,6 +163,7 @@ def sample_game(db_session):
         game_type="Season",
         sort_date="2024-02-17",
         source="MANUAL",
+        team_id=default_team.id,
     )
     db_session.add(game)
     db_session.commit()
@@ -134,7 +171,7 @@ def sample_game(db_session):
 
 
 @pytest.fixture
-def sample_games(db_session):
+def sample_games(db_session, default_team):
     """Create multiple sample games for testing aggregations."""
     games = []
     for i in range(3):
@@ -147,6 +184,7 @@ def sample_games(db_session):
             game_type="Season",
             sort_date=f"2024-02-{17 + i:02d}",
             source="MANUAL",
+            team_id=default_team.id,
         )
         db_session.add(game)
         games.append(game)

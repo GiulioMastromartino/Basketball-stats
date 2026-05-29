@@ -1,7 +1,7 @@
 import unittest
 import json
 from web import create_app, db
-from core.models import User, Game, PlayerStat
+from core.models import User, Organization, Team, OrganizationMembership, TeamAssignment, Game, PlayerStat
 from core.services.analytics_service import AnalyticsService
 
 
@@ -13,20 +13,34 @@ class TestMainRoutes(unittest.TestCase):
         self.app_context.push()
         db.create_all()
 
+        # Create default org and team
+        org = Organization(name="Test Org", slug="test-org")
+        db.session.add(org)
+        db.session.flush()
+        team = Team(name="Test Team", organization_id=org.id, slug="test-team")
+        db.session.add(team)
+        db.session.flush()
+        self.team_id = team.id
+
         # Create test user
         self.username = "main_test_user"
         self.password = "password"
         user = User(
             username=self.username,
             email="main@example.com",
-            role="editor",
-            is_admin=False,
+            organization_id=org.id,
         )
         user.set_password(self.password)
         db.session.add(user)
+        db.session.flush()
+        membership = OrganizationMembership(user_id=user.id, organization_id=org.id, is_gm=False)
+        db.session.add(membership)
+        ta = TeamAssignment(user_id=user.id, team_id=team.id)
+        db.session.add(ta)
 
         # Create dummy game
         game = Game(
+            team_id=team.id,
             date="01/01/2024",
             opponent="TestOpp",
             team_score=100,
@@ -100,6 +114,10 @@ class TestMainRoutes(unittest.TestCase):
             follow_redirects=True,
         )
 
+        # Set current team in session
+        with self.client.session_transaction() as sess:
+            sess['current_team_id'] = team.id
+
     def tearDown(self):
         db.session.remove()
         db.drop_all()
@@ -166,6 +184,7 @@ class TestMainRoutes(unittest.TestCase):
 
     def test_opponent_detail_page_renders_summary_and_matchups(self):
         second_game = Game(
+            team_id=self.team_id,
             date="15/01/2024",
             opponent="TestOpp",
             team_score=88,
@@ -176,6 +195,7 @@ class TestMainRoutes(unittest.TestCase):
             source="MANUAL",
         )
         other_opponent = Game(
+            team_id=self.team_id,
             date="20/01/2024",
             opponent="OtherOpp",
             team_score=77,
@@ -259,6 +279,7 @@ class TestMainRoutes(unittest.TestCase):
 
     def test_opponent_detail_page_handles_missing_player_stats(self):
         sparse_game = Game(
+            team_id=self.team_id,
             date="11/02/2024",
             opponent="SparseOpp",
             team_score=61,

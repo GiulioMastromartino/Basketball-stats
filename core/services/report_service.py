@@ -1337,13 +1337,13 @@ def generate_simple_game_pdf_bytes(game_id):
     return filename, pdf_bytes
 
 
-def generate_player_quarter_pdf_bytes(player_name: str, game_type: str = "ALL", game_id: int = None):
+def generate_player_quarter_pdf_bytes(player_name: str, game_type: str = "ALL", game_id: int = None, team_id: int = None):
     """
     Generates PDF bytes for the player quarter-by-quarter detail page.
     Returns (filename, pdf_bytes) or (None, None) on failure.
     """
     try:
-        context = AnalyticsService.build_player_game_detail(player_name, game_type, game_id=game_id)
+        context = AnalyticsService.build_player_game_detail(player_name, game_type, game_id=game_id, team_id=team_id)
 
         html = render_template(
             "player_game_detail.html",

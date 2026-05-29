@@ -3,11 +3,12 @@ Advanced Analytics API Routes
 Provides endpoints for advanced basketball statistics and visualizations.
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 from flask_login import login_required
 from sqlalchemy import func, desc
 from sqlalchemy.exc import OperationalError
 
+from web.decorators import team_access_required
 from core.models import (
     db,
     Game,
@@ -62,6 +63,7 @@ def safe_query(func, fallback_result, error_message="Database table not found"):
 
 @advanced_api_bp.route("/player/<player_name>/advanced")
 @login_required
+@team_access_required
 def get_player_advanced_stats(player_name):
     """Get advanced statistics for a player."""
     game_type = request.args.get("game_type", "ALL")
@@ -96,6 +98,7 @@ def get_player_advanced_stats(player_name):
 
 @advanced_api_bp.route("/player/<player_name>/usage")
 @login_required
+@team_access_required
 def get_player_usage(player_name):
     """Calculate true usage rate for a player."""
     game_type = request.args.get("game_type", "ALL")
@@ -174,6 +177,7 @@ def get_player_usage(player_name):
 
 @advanced_api_bp.route("/player/<player_name>/pps")
 @login_required
+@team_access_required
 def get_player_pps(player_name):
     """Get Points Per Shot for a player."""
     game_type = request.args.get("game_type", "ALL")
@@ -214,6 +218,7 @@ def get_player_pps(player_name):
 
 @advanced_api_bp.route("/clutch/<int:game_id>")
 @login_required
+@team_access_required
 def get_game_clutch_stats(game_id):
     """Get clutch time statistics for a game."""
     player_name = request.args.get("player")
@@ -227,12 +232,13 @@ def get_game_clutch_stats(game_id):
 
 @advanced_api_bp.route("/clutch/season")
 @login_required
+@team_access_required
 def get_season_clutch_stats():
     """Get season-wide clutch performance for all players."""
     game_type = request.args.get("game_type", "Season")
 
     # Get all games
-    query = Game.query
+    query = Game.query.filter(Game.team_id == session['current_team_id'])
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
 
@@ -306,12 +312,13 @@ def get_season_clutch_stats():
 
 @advanced_api_bp.route("/lineup/on-off/<player_name>")
 @login_required
+@team_access_required
 def get_on_off_splits(player_name):
     """Get on/off court splits for a player."""
     game_type = request.args.get("game_type", "ALL")
 
     # Get game IDs
-    query = Game.query
+    query = Game.query.filter(Game.team_id == session['current_team_id'])
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -350,11 +357,12 @@ def get_on_off_splits(player_name):
 
 @advanced_api_bp.route("/lineup/duos")
 @login_required
+@team_access_required
 def get_duo_compatibility():
     """Get duo compatibility matrix."""
     game_type = request.args.get("game_type", "ALL")
 
-    query = Game.query
+    query = Game.query.filter(Game.team_id == session['current_team_id'])
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -379,11 +387,12 @@ def get_duo_compatibility():
 
 @advanced_api_bp.route("/lineup/trios")
 @login_required
+@team_access_required
 def get_trio_compatibility():
     """Get trio compatibility data."""
     game_type = request.args.get("game_type", "ALL")
 
-    query = Game.query
+    query = Game.query.filter(Game.team_id == session['current_team_id'])
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -408,13 +417,14 @@ def get_trio_compatibility():
 
 @advanced_api_bp.route("/lineup/rankings")
 @login_required
+@team_access_required
 def get_lineup_rankings():
     """Get 5-man lineup efficiency rankings."""
     game_type = request.args.get("game_type", "ALL")
     min_possessions = request.args.get("min_possessions", 5, type=int)
     rank_by = request.args.get("rank_by", "overall")
 
-    query = Game.query
+    query = Game.query.filter(Game.team_id == session['current_team_id'])
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -442,6 +452,7 @@ def get_lineup_rankings():
 
 @advanced_api_bp.route("/lineups/combinations")
 @login_required
+@team_access_required
 def get_lineup_combinations():
     """Get top lineup combinations (duos/trios) by ON vs OFF net differential."""
     game_type = request.args.get("game_type", "ALL")
@@ -454,7 +465,7 @@ def get_lineup_combinations():
     if combo_type not in {"duo", "trio"}:
         return jsonify({"error": "Invalid type. Use 'duo' or 'trio'."}), 400
 
-    query = Game.query
+    query = Game.query.filter(Game.team_id == session['current_team_id'])
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -489,6 +500,7 @@ def get_lineup_combinations():
 
 @advanced_api_bp.route("/lineups/combinations/detail")
 @login_required
+@team_access_required
 def get_lineup_combination_detail():
     """Get detailed ON/OFF card data for a specific duo/trio combination."""
     game_type = request.args.get("game_type", "ALL")
@@ -511,7 +523,7 @@ def get_lineup_combination_detail():
             400,
         )
 
-    query = Game.query
+    query = Game.query.filter(Game.team_id == session['current_team_id'])
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -568,6 +580,7 @@ def get_lineup_combination_detail():
 
 @advanced_api_bp.route("/rotation/<int:game_id>")
 @login_required
+@team_access_required
 def get_rotation_analysis(game_id):
     """Get rotation analysis for a game."""
     rotation = safe_query(
@@ -581,6 +594,7 @@ def get_rotation_analysis(game_id):
 
 @advanced_api_bp.route("/lineup/game/<int:game_id>/rankings")
 @login_required
+@team_access_required
 def get_game_lineup_rankings(game_id):
     """Get top N 5-player lineups for a specific game, ranked by minutes played.
 
@@ -593,7 +607,9 @@ def get_game_lineup_rankings(game_id):
     top_n = request.args.get("top_n", 4, type=int)
 
     # Verify game exists
-    game = Game.query.get_or_404(game_id)
+    game = Game.query.filter_by(id=game_id, team_id=session.get('current_team_id')).first()
+    if not game:
+        abort(404)
 
     rankings = safe_query(
         lambda: LineupAnalytics.get_game_lineup_rankings(game_id, top_n),
@@ -622,6 +638,7 @@ def get_game_lineup_rankings(game_id):
 
 @advanced_api_bp.route("/shots/chart")
 @login_required
+@team_access_required
 def get_shot_chart():
     """Get shot chart data with optional filters."""
     game_id = request.args.get("game_id", type=int)
@@ -633,7 +650,7 @@ def get_shot_chart():
     if game_id:
         game_ids = [game_id]
     elif game_type != "ALL":
-        query = Game.query
+        query = Game.query.filter(Game.team_id == session['current_team_id'])
         if game_type == "Season":
             query = query.filter(Game.game_type == "Season")
         elif game_type == "Friendly":
@@ -650,6 +667,7 @@ def get_shot_chart():
 
 @advanced_api_bp.route("/shots/heatmap")
 @login_required
+@team_access_required
 def get_shot_heatmap():
     """Get shot heatmap data by zone."""
     player_name = request.args.get("player")
@@ -657,7 +675,7 @@ def get_shot_heatmap():
 
     game_ids = None
     if game_type != "ALL":
-        query = Game.query
+        query = Game.query.filter(Game.team_id == session['current_team_id'])
         if game_type == "Season":
             query = query.filter(Game.game_type == "Season")
         elif game_type == "Friendly":
@@ -672,6 +690,7 @@ def get_shot_heatmap():
 
 @advanced_api_bp.route("/shots/hexbin")
 @login_required
+@team_access_required
 def get_hexbin_data():
     """Get hexbin data for shot chart visualization."""
     player_name = request.args.get("player")
@@ -680,7 +699,7 @@ def get_hexbin_data():
 
     game_ids = None
     if game_type != "ALL":
-        query = Game.query
+        query = Game.query.filter(Game.team_id == session['current_team_id'])
         if game_type == "Season":
             query = query.filter(Game.game_type == "Season")
         elif game_type == "Friendly":
@@ -695,6 +714,7 @@ def get_hexbin_data():
 
 @advanced_api_bp.route("/shots/by-play/<int:play_id>")
 @login_required
+@team_access_required
 def get_shots_by_play(play_id):
     """Get all shots for a specific play type."""
     shots = ShotChartAnalytics.get_shot_chart_data(play_id=play_id)
@@ -723,13 +743,14 @@ def get_shots_by_play(play_id):
 
 @advanced_api_bp.route("/plays/rankings")
 @login_required
+@team_access_required
 def get_play_rankings():
     """Get play effectiveness rankings (optimized single query)."""
     game_type = request.args.get("game_type", "ALL")
 
     game_ids = None
     if game_type != "ALL":
-        query = Game.query
+        query = Game.query.filter(Game.team_id == session['current_team_id'])
         if game_type == "Season":
             query = query.filter(Game.game_type == "Season")
         elif game_type == "Friendly":
@@ -749,6 +770,7 @@ def get_play_rankings():
 
 @advanced_api_bp.route("/four-factors")
 @login_required
+@team_access_required
 def get_four_factors():
     """Get Dean Oliver's Four Factors."""
     game_id = request.args.get("game_id", type=int)
@@ -758,7 +780,7 @@ def get_four_factors():
     if game_id:
         game_ids = [game_id]
     elif game_type != "ALL":
-        query = Game.query
+        query = Game.query.filter(Game.team_id == session['current_team_id'])
         if game_type == "Season":
             query = query.filter(Game.game_type == "Season")
         elif game_type == "Friendly":
@@ -780,6 +802,7 @@ def get_four_factors():
 
 @advanced_api_bp.route("/possessions/reconstruct/<int:game_id>", methods=["POST"])
 @login_required
+@team_access_required
 def reconstruct_game_possessions(game_id):
     """Reconstruct and save possessions for a game."""
     count = PossessionReconstructor.save_possessions(game_id)
@@ -795,6 +818,7 @@ def reconstruct_game_possessions(game_id):
 
 @advanced_api_bp.route("/possessions/<int:game_id>")
 @login_required
+@team_access_required
 def get_game_possessions(game_id):
     """Get possession data for a game."""
     possessions = (
@@ -826,6 +850,7 @@ def get_game_possessions(game_id):
 
 @advanced_api_bp.route("/zones")
 @login_required
+@team_access_required
 def get_shot_zones():
     """Get all shot zone definitions."""
     zones = ShotZone.query.all()
@@ -856,6 +881,7 @@ def get_shot_zones():
 
 @advanced_api_bp.route("/zones/classify", methods=["POST"])
 @login_required
+@team_access_required
 def classify_shot():
     """Classify a shot into a zone based on coordinates."""
     data = request.get_json()
@@ -884,6 +910,7 @@ def classify_shot():
 
 @advanced_api_bp.route("/game/<int:game_id>/report")
 @login_required
+@team_access_required
 def get_advanced_game_report(game_id):
     """
     Get comprehensive advanced game report data.
@@ -906,7 +933,9 @@ def get_advanced_game_report(game_id):
         player_advanced,
     )
 
-    game = Game.query.get_or_404(game_id)
+    game = Game.query.filter_by(id=game_id, team_id=session.get('current_team_id')).first()
+    if not game:
+        abort(404)
     stats = PlayerStat.query.filter_by(game_id=game_id).all()
     shots = ShotEvent.query.filter_by(game_id=game_id).all()
     events = (
@@ -1162,6 +1191,7 @@ def get_advanced_game_report(game_id):
 
 @advanced_api_bp.route("/lineups")
 @login_required
+@team_access_required
 def get_all_lineups():
     """Get all lineups with cached stats, sorted by total minutes played.
 
@@ -1222,6 +1252,7 @@ def get_all_lineups():
 
 @advanced_api_bp.route("/lineup/<int:lineup_id>")
 @login_required
+@team_access_required
 def get_lineup_card(lineup_id):
     """Get detailed stats for a single lineup (card view).
 
@@ -1237,7 +1268,7 @@ def get_lineup_card(lineup_id):
     for segment in segments:
         game_id = segment.game_id
         if game_id not in games_data:
-            game = Game.query.get(game_id)
+            game = Game.query.filter_by(id=game_id, team_id=session.get('current_team_id')).first()
             games_data[game_id] = {
                 "game_id": game_id,
                 "date": game.date if game else None,
@@ -1590,7 +1621,7 @@ def _summarize_combination_by_game(segments):
 
     result = []
     for game_id, stats in game_stats.items():
-        game = Game.query.get(game_id)
+        game = Game.query.filter_by(id=game_id, team_id=session.get('current_team_id')).first()
         if not game:
             continue
 
@@ -1621,6 +1652,7 @@ def _summarize_combination_by_game(segments):
 
 @advanced_api_bp.route("/lineup/<int:lineup_id>", methods=["PUT"])
 @login_required
+@team_access_required
 def update_lineup_name(lineup_id):
     """Update the display name of a lineup.
 
@@ -1648,6 +1680,7 @@ def update_lineup_name(lineup_id):
 
 @advanced_api_bp.route("/lineup/by-players", methods=["POST"])
 @login_required
+@team_access_required
 def get_lineup_by_players():
     """Get lineup stats by player combination.
 

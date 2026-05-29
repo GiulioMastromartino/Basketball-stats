@@ -11,11 +11,11 @@ import time
 import uuid
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, g, request
+from flask import Flask, g, request, session
 from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_login import LoginManager, AnonymousUserMixin
+from flask_login import LoginManager, AnonymousUserMixin, current_user
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from prometheus_flask_exporter import PrometheusMetrics
@@ -47,16 +47,34 @@ class NoAuthUser(AnonymousUserMixin):
     id = 0
     username = "local"
     email = "local@localhost"
-    role = "admin"
-    is_admin = True
 
     @property
     def is_authenticated(self):
         return True
 
     @property
+    def is_gm(self):
+        return True
+
+    @property
     def is_manager(self):
         return True
+
+    @property
+    def is_admin(self):
+        return True
+
+    @property
+    def is_coach(self):
+        return True
+
+    @property
+    def organization_id(self):
+        return None
+
+    @property
+    def assigned_teams(self):
+        return []
 
 
 def create_app(config_name: str = None) -> Flask:
@@ -113,6 +131,23 @@ def create_app(config_name: str = None) -> Flask:
             extra={"extra_fields": {"method": request.method, "path": request.path}},
         )
 
+    @app.before_request
+    def _set_team_context():
+        """Ensure current_team_id is set in session for authenticated users."""
+        if current_user.is_authenticated and current_user.organization_id:
+            if not session.get("current_team_id"):
+                teams = current_user.assigned_teams
+                if teams:
+                    session["current_team_id"] = teams[0].id
+                    session["current_team_name"] = teams[0].name
+
+    @app.context_processor
+    def _inject_team_context():
+        return {
+            "current_team_id": session.get("current_team_id"),
+            "current_team_name": session.get("current_team_name"),
+        }
+
     @app.after_request
     def _log_response(response):
         duration_ms = round((time.time() - g.get("start_time", time.time())) * 1000, 2)
@@ -141,7 +176,7 @@ def create_app(config_name: str = None) -> Flask:
         login_manager.login_message_category = None
         login_manager.anonymous_user = NoAuthUser
     else:
-        login_manager.login_view = "main.landing"
+        login_manager.login_view = "auth.login"
         login_manager.login_message = "Please log in to access this page."
         login_manager.login_message_category = "info"
 

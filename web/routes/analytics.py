@@ -1,11 +1,12 @@
 import statistics
 from collections import defaultdict
 
-from flask import Blueprint, jsonify, render_template, request, redirect, url_for
+from flask import Blueprint, jsonify, render_template, request, redirect, url_for, session
 from flask_login import login_required
 from sqlalchemy import desc, func
 
 from core.models import Game, PlayerStat, db
+from web.decorators import team_access_required
 from core.utils import (
     FT_ATTEMPT_WEIGHT,
     THREE_POINT_WEIGHT,
@@ -26,10 +27,13 @@ VALID_GAME_TYPES = {"ALL", "Season", "Friendly"}
 
 @analytics_bp.route("/analytics")
 @login_required
+@team_access_required
 def dashboard():
     """Analytics dashboard page"""
     players = (
         db.session.query(PlayerStat.player_name)
+        .join(Game, PlayerStat.game_id == Game.id)
+        .filter(Game.team_id == session['current_team_id'])
         .distinct()
         .order_by(PlayerStat.player_name)
         .all()
@@ -40,6 +44,7 @@ def dashboard():
 
 @analytics_bp.route("/api/analytics/team_overview")
 @login_required
+@team_access_required
 def get_team_overview():
     """API for Team Overview with Weighted Top Performers"""
     # Validate inputs
@@ -64,7 +69,7 @@ def get_team_overview():
         top_limit = 3
 
     # Build game query
-    query = Game.query.order_by(Game.sort_date.asc())
+    query = Game.query.filter(Game.team_id == session['current_team_id']).order_by(Game.sort_date.asc())
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -202,6 +207,7 @@ def get_team_overview():
 
 @analytics_bp.route("/api/analytics/multi_compare")
 @login_required
+@team_access_required
 def multi_compare():
     """API for Multi-Player Comparison"""
     selected_players = request.args.getlist("players")
@@ -215,7 +221,7 @@ def multi_compare():
     if not selected_players:
         return jsonify({"error": "No players", "datasets": []})
 
-    query = Game.query.order_by(Game.sort_date.asc())
+    query = Game.query.filter(Game.team_id == session['current_team_id']).order_by(Game.sort_date.asc())
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -231,6 +237,7 @@ def multi_compare():
             .join(Game)
             .filter(PlayerStat.player_name == player)
             .filter(PlayerStat.minutes != "00:00")
+            .filter(Game.team_id == session['current_team_id'])
             .order_by(Game.sort_date.asc())
         )
 
@@ -392,6 +399,7 @@ def multi_compare():
 
 @analytics_bp.route("/api/analytics/player_progression")
 @login_required
+@team_access_required
 def player_progression():
     """API for individual player progression charts"""
     player_name = request.args.get("player")
@@ -404,7 +412,7 @@ def player_progression():
         return jsonify({"error": "No player specified"})
 
     # Get games
-    query = Game.query.order_by(Game.sort_date.asc())
+    query = Game.query.filter(Game.team_id == session['current_team_id']).order_by(Game.sort_date.asc())
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -420,6 +428,7 @@ def player_progression():
         .filter(PlayerStat.player_name == player_name)
         .filter(PlayerStat.game_id.in_(game_ids))
         .filter(PlayerStat.minutes != "00:00")
+        .filter(Game.team_id == session['current_team_id'])
         .order_by(Game.sort_date.asc())
         .all()
     )
@@ -466,6 +475,7 @@ def player_progression():
 
 @analytics_bp.route("/api/analytics/consistency_leaderboard")
 @login_required
+@team_access_required
 def consistency_leaderboard():
     """API for consistency rankings"""
     game_type = request.args.get("game_type", "ALL")
@@ -474,7 +484,7 @@ def consistency_leaderboard():
         game_type = "ALL"
 
     # Get games
-    query = Game.query.order_by(Game.sort_date.desc())
+    query = Game.query.filter(Game.team_id == session['current_team_id']).order_by(Game.sort_date.desc())
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -534,12 +544,17 @@ def consistency_leaderboard():
 
 @analytics_bp.route("/api/analytics/shooting_breakdown")
 @login_required
+@team_access_required
 def shooting_breakdown():
     """API for team shooting breakdown per game"""
     game_id = request.args.get("game_id", type=int)
 
     if not game_id:
         return jsonify({"error": "No game specified"})
+
+    game = Game.query.filter_by(id=game_id, team_id=session['current_team_id']).first()
+    if not game:
+        return jsonify({"error": "Game not found"}), 404
 
     stats = PlayerStat.query.filter_by(game_id=game_id).all()
 
@@ -594,6 +609,7 @@ def shooting_breakdown():
 
 @analytics_bp.route("/api/analytics/role_analysis")
 @login_required
+@team_access_required
 def role_analysis():
     """API for role-based player classification"""
     game_type = request.args.get("game_type", "ALL")
@@ -602,7 +618,7 @@ def role_analysis():
         game_type = "ALL"
 
     # Get games
-    query = Game.query.order_by(Game.sort_date.desc())
+    query = Game.query.filter(Game.team_id == session['current_team_id']).order_by(Game.sort_date.desc())
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -672,6 +688,7 @@ def role_analysis():
 
 @analytics_bp.route("/games/<int:game_id>/summary.pdf")
 @login_required
+@team_access_required
 def game_summary_pdf(game_id):
     """Redirect to new reports blueprint"""
     return redirect(url_for("reports.game_summary_pdf", game_id=game_id), code=301)
@@ -679,6 +696,7 @@ def game_summary_pdf(game_id):
 
 @analytics_bp.route("/team/report.pdf")
 @login_required
+@team_access_required
 def team_report_pdf():
     """Redirect to new reports blueprint"""
     return redirect(url_for("reports.team_report_pdf", **request.args), code=301)
@@ -686,6 +704,7 @@ def team_report_pdf():
 
 @analytics_bp.route("/player/<player_name>/report.pdf")
 @login_required
+@team_access_required
 def player_report_pdf(player_name):
     """Redirect to new reports blueprint"""
     return redirect(
@@ -696,6 +715,7 @@ def player_report_pdf(player_name):
 
 @analytics_bp.route("/analytics/reports/download-all")
 @login_required
+@team_access_required
 def download_all_reports():
     """Legacy redirect to the reports blueprint."""
     return redirect(url_for("reports.download_all_reports", **request.args), code=301)

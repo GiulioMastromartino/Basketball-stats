@@ -1,6 +1,6 @@
 import unittest
 from web import create_app, db
-from core.models import User
+from core.models import User, Organization, Team, OrganizationMembership, TeamAssignment
 import os
 
 class TestAuth(unittest.TestCase):
@@ -11,14 +11,31 @@ class TestAuth(unittest.TestCase):
         self.app_context.push()
         db.create_all()
         
+        # Create a default organization and team
+        org = Organization(name="Test Org", slug="test-org")
+        db.session.add(org)
+        db.session.flush()
+        team = Team(name="Test Team", organization_id=org.id, slug="test-team")
+        db.session.add(team)
+        db.session.flush()
+        
         # Create a test user
         self.username = 'auth_test_user'
         self.password = 'password'
         self.email = 'auth_test@example.com'
-        user = User(username=self.username, email=self.email, role='editor', is_admin=False)
+        user = User(username=self.username, email=self.email, organization_id=org.id)
         user.set_password(self.password)
         db.session.add(user)
+        db.session.flush()
+        membership = OrganizationMembership(user_id=user.id, organization_id=org.id, is_gm=False)
+        db.session.add(membership)
+        ta = TeamAssignment(user_id=user.id, team_id=team.id)
+        db.session.add(ta)
         db.session.commit()
+        
+        # Set current team in session
+        with self.client.session_transaction() as sess:
+            sess['current_team_id'] = team.id
 
     def tearDown(self):
         db.session.remove()

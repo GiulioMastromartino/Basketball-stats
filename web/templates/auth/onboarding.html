@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-12">
+        <div class="card shadow-sm auth-login-card">
+            <div class="card-header text-center py-4">
+                <h2 class="mb-0 auth-login-brand">Hooper Lab</h2>
+            </div>
+            <div class="card-body p-4">
+                <h4 class="card-title text-center mb-2">Welcome!</h4>
+                <p class="text-center text-muted mb-4">Set up your organization to get started.</p>
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="mb-3">
+                        <label for="organization_name" class="form-label">Organization Name</label>
+                        <input type="text" class="form-control" id="organization_name" name="organization_name"
+                               placeholder="e.g. Springfield High School" required>
+                        <div class="form-text">The name of your school, club, or league.</div>
+                    </div>
+                    <div class="mb-4">
+                        <label for="team_name" class="form-label">Team Name</label>
+                        <input type="text" class="form-control" id="team_name" name="team_name"
+                               placeholder="e.g. Varsity Boys" required>
+                        <div class="form-text">The first team you want to track stats for.</div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-rocket me-2"></i>Create Organization
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

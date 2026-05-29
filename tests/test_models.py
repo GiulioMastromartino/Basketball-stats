@@ -7,6 +7,10 @@ Tests model validation, relationships, and methods.
 import pytest
 from core.models import (
     User,
+    Organization,
+    Team,
+    OrganizationMembership,
+    TeamAssignment,
     Game,
     PlayerStat,
     ShotEvent,
@@ -31,7 +35,10 @@ class TestUserModel:
     @pytest.mark.integration
     def test_user_creation(self, db_session):
         """Test basic user creation."""
-        user = User(username="testuser", email="test@test.com", role="editor")
+        org = Organization(name="Test Org", slug="test-org")
+        db_session.add(org)
+        db_session.flush()
+        user = User(username="testuser", email="test@test.com", organization_id=org.id)
         user.set_password("password123")
         db_session.add(user)
         db_session.commit()
@@ -39,12 +46,14 @@ class TestUserModel:
         assert user.id is not None
         assert user.username == "testuser"
         assert user.email == "test@test.com"
-        assert user.role == "editor"
 
     @pytest.mark.integration
     def test_password_hashing(self, db_session):
         """Test password is hashed, not stored in plain text."""
-        user = User(username="testuser2", email="test2@test.com", role="editor")
+        org = Organization(name="Test Org", slug="test-org")
+        db_session.add(org)
+        db_session.flush()
+        user = User(username="testuser2", email="test2@test.com", organization_id=org.id)
         user.set_password("mypassword")
         db_session.add(user)
         db_session.commit()
@@ -55,7 +64,10 @@ class TestUserModel:
     @pytest.mark.integration
     def test_password_verification(self, db_session):
         """Test password verification."""
-        user = User(username="testuser3", email="test3@test.com", role="editor")
+        org = Organization(name="Test Org", slug="test-org")
+        db_session.add(org)
+        db_session.flush()
+        user = User(username="testuser3", email="test3@test.com", organization_id=org.id)
         user.set_password("mypassword")
         db_session.add(user)
         db_session.commit()
@@ -64,17 +76,35 @@ class TestUserModel:
         assert user.check_password("wrongpassword") is False
 
     @pytest.mark.integration
-    def test_is_manager_property(self, db_session):
-        """Test is_manager property for admin users."""
-        admin = User(username="admin", email="admin@test.com", role="admin")
-        admin.set_password("adminpass")
-        editor = User(username="editor", email="editor@test.com", role="editor")
-        editor.set_password("editorpass")
-        db_session.add_all([admin, editor])
+    def test_is_gm_property(self, db_session):
+        """Test is_gm property."""
+        org = Organization(name="Test Org", slug="test-org")
+        db_session.add(org)
+        db_session.flush()
+
+        team = Team(name="Test Team", organization_id=org.id, slug="test-team")
+        db_session.add(team)
+        db_session.flush()
+
+        admin_user = User(username="admin", email="admin@test.com", organization_id=org.id)
+        admin_user.set_password("adminpass")
+        db_session.add(admin_user)
+        db_session.flush()
+
+        membership = OrganizationMembership(user_id=admin_user.id, organization_id=org.id, is_gm=True)
+        db_session.add(membership)
+
+        editor_user = User(username="editor", email="editor@test.com", organization_id=org.id)
+        editor_user.set_password("editorpass")
+        db_session.add(editor_user)
+        db_session.flush()
+
+        membership2 = OrganizationMembership(user_id=editor_user.id, organization_id=org.id, is_gm=False)
+        db_session.add(membership2)
         db_session.commit()
 
-        assert admin.is_manager is True
-        assert editor.is_manager is False
+        assert admin_user.is_gm is True
+        assert editor_user.is_gm is False
 
 
 # =============================================================================
@@ -88,7 +118,14 @@ class TestGameModel:
     @pytest.mark.integration
     def test_game_creation(self, db_session):
         """Test basic game creation."""
+        _org = Organization(name="Test Org", slug="test-org")
+        db_session.add(_org)
+        db_session.flush()
+        _team = Team(name="Test Team", organization_id=_org.id, slug="test-team")
+        db_session.add(_team)
+        db_session.flush()
         game = Game(
+            team_id=_team.id,
             date="17-02-2024",
             opponent="Test Opponents",
             team_score=75,
@@ -110,7 +147,14 @@ class TestGameModel:
     @pytest.mark.integration
     def test_game_source_types(self, db_session):
         """Test different game source types."""
+        _org = Organization(name="Test Org", slug="test-org")
+        db_session.add(_org)
+        db_session.flush()
+        _team = Team(name="Test Team", organization_id=_org.id, slug="test-team")
+        db_session.add(_team)
+        db_session.flush()
         live_game = Game(
+            team_id=_team.id,
             date="01-01-2024",
             opponent="Team1",
             team_score=70,
@@ -121,6 +165,7 @@ class TestGameModel:
             source="LIVE",
         )
         import_game = Game(
+            team_id=_team.id,
             date="02-01-2024",
             opponent="Team2",
             team_score=75,
@@ -131,6 +176,7 @@ class TestGameModel:
             source="IMPORT",
         )
         manual_game = Game(
+            team_id=_team.id,
             date="03-01-2024",
             opponent="Team3",
             team_score=80,
@@ -160,7 +206,14 @@ class TestPlayerStatModel:
     @pytest.mark.integration
     def test_player_stat_creation(self, db_session):
         """Test basic player stat creation."""
+        _org = Organization(name="Test Org", slug="test-org")
+        db_session.add(_org)
+        db_session.flush()
+        _team = Team(name="Test Team", organization_id=_org.id, slug="test-team")
+        db_session.add(_team)
+        db_session.flush()
         game = Game(
+            team_id=_team.id,
             date="17-02-2024",
             opponent="Test",
             team_score=70,
@@ -196,7 +249,14 @@ class TestShotEventModel:
     @pytest.mark.integration
     def test_shot_event_creation(self, db_session):
         """Test basic shot event creation."""
+        _org = Organization(name="Test Org", slug="test-org")
+        db_session.add(_org)
+        db_session.flush()
+        _team = Team(name="Test Team", organization_id=_org.id, slug="test-team")
+        db_session.add(_team)
+        db_session.flush()
         game = Game(
+            team_id=_team.id,
             date="17-02-2024",
             opponent="Test",
             team_score=70,
@@ -227,7 +287,14 @@ class TestShotEventModel:
     @pytest.mark.integration
     def test_shot_event_coordinates(self, db_session):
         """Test shot event with coordinates."""
+        _org = Organization(name="Test Org", slug="test-org")
+        db_session.add(_org)
+        db_session.flush()
+        _team = Team(name="Test Team", organization_id=_org.id, slug="test-team")
+        db_session.add(_team)
+        db_session.flush()
         game = Game(
+            team_id=_team.id,
             date="17-02-2024",
             opponent="Test",
             team_score=70,
@@ -267,7 +334,14 @@ class TestGameEventModel:
     @pytest.mark.integration
     def test_game_event_creation(self, db_session):
         """Test basic game event creation."""
+        _org = Organization(name="Test Org", slug="test-org")
+        db_session.add(_org)
+        db_session.flush()
+        _team = Team(name="Test Team", organization_id=_org.id, slug="test-team")
+        db_session.add(_team)
+        db_session.flush()
         game = Game(
+            team_id=_team.id,
             date="17-02-2024",
             opponent="Test",
             team_score=70,
@@ -290,7 +364,14 @@ class TestGameEventModel:
     @pytest.mark.integration
     def test_game_event_timeline_fields(self, db_session):
         """Test timeline fields are stored."""
+        _org = Organization(name="Test Org", slug="test-org")
+        db_session.add(_org)
+        db_session.flush()
+        _team = Team(name="Test Team", organization_id=_org.id, slug="test-team")
+        db_session.add(_team)
+        db_session.flush()
         game = Game(
+            team_id=_team.id,
             date="17-02-2024",
             opponent="Test",
             team_score=70,
@@ -324,7 +405,14 @@ class TestGameEventModel:
     @pytest.mark.integration
     def test_game_event_substitution(self, db_session):
         """Test substitution event types."""
+        _org = Organization(name="Test Org", slug="test-org")
+        db_session.add(_org)
+        db_session.flush()
+        _team = Team(name="Test Team", organization_id=_org.id, slug="test-team")
+        db_session.add(_team)
+        db_session.flush()
         game = Game(
+            team_id=_team.id,
             date="17-02-2024",
             opponent="Test",
             team_score=70,
@@ -359,7 +447,13 @@ class TestPlayModel:
     @pytest.mark.integration
     def test_play_creation(self, db_session):
         """Test basic play creation."""
-        play = Play(name="Horns PnR", play_type="Pick and Roll")
+        _org = Organization(name="Test Org", slug="test-org")
+        db_session.add(_org)
+        db_session.flush()
+        _team = Team(name="Test Team", organization_id=_org.id, slug="test-team")
+        db_session.add(_team)
+        db_session.flush()
+        play = Play(name="Horns PnR", play_type="Pick and Roll", team_id=_team.id)
         db_session.add(play)
         db_session.commit()
 
@@ -379,7 +473,14 @@ class TestLineupSegmentModel:
     @pytest.mark.integration
     def test_lineup_segment_creation(self, db_session):
         """Test basic lineup segment creation."""
+        _org = Organization(name="Test Org", slug="test-org")
+        db_session.add(_org)
+        db_session.flush()
+        _team = Team(name="Test Team", organization_id=_org.id, slug="test-team")
+        db_session.add(_team)
+        db_session.flush()
         game = Game(
+            team_id=_team.id,
             date="17-02-2024",
             opponent="Test",
             team_score=70,
@@ -419,7 +520,14 @@ class TestPossessionModel:
     @pytest.mark.integration
     def test_possession_creation(self, db_session):
         """Test basic possession creation."""
+        _org = Organization(name="Test Org", slug="test-org")
+        db_session.add(_org)
+        db_session.flush()
+        _team = Team(name="Test Team", organization_id=_org.id, slug="test-team")
+        db_session.add(_team)
+        db_session.flush()
         game = Game(
+            team_id=_team.id,
             date="17-02-2024",
             opponent="Test",
             team_score=70,

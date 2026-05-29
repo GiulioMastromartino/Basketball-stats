@@ -1,6 +1,6 @@
 import unittest
 from web import create_app, db
-from core.models import User, Play
+from core.models import User, Organization, Team, OrganizationMembership, Play
 
 class TestPlays(unittest.TestCase):
     def setUp(self):
@@ -11,14 +11,30 @@ class TestPlays(unittest.TestCase):
         self.app_context.push()
         db.create_all()
         
-        # Create test user (Editor role - No OTP required)
+        # Create default org and team
+        org = Organization(name="Test Org", slug="test-org")
+        db.session.add(org)
+        db.session.flush()
+        team = Team(name="Test Team", organization_id=org.id, slug="test-team")
+        db.session.add(team)
+        db.session.flush()
+        self.team_id = team.id
+        
+        # Create test user (Editor - no OTP required)
         self.username = 'plays_test_user'
-        self.user = User(username=self.username, email='plays@example.com', role='editor', is_admin=False)
+        self.user = User(username=self.username, email='plays@example.com', organization_id=org.id)
         self.user.set_password('password')
         db.session.add(self.user)
+        db.session.flush()
+        membership = OrganizationMembership(user_id=self.user.id, organization_id=org.id, is_gm=False)
+        db.session.add(membership)
         db.session.commit()
         
-        # Login directly (No OTP for non-admin/manager roles)
+        # Set current team before login
+        with self.client.session_transaction() as sess:
+            sess['current_team_id'] = team.id
+        
+        # Login
         login_resp = self.client.post('/auth/login', data={
             'username': self.username,
             'password': 'password'
@@ -41,7 +57,8 @@ class TestPlays(unittest.TestCase):
         response = self.client.post('/plays/add', data={
             'name': 'New Play',
             'play_type': 'Offense',
-            'description': 'Test Description'
+            'description': 'Test Description',
+            'team_id': self.team_id,
         }, follow_redirects=False)
         
         # Handle redirects manually for debugging

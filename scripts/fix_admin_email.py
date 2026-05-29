@@ -5,8 +5,8 @@ from pathlib import Path
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from core import create_app, db
-from core.models import User
+from web import create_app
+from core.models import User, OrganizationMembership
 
 def fix_admin_email():
     app = create_app()
@@ -19,15 +19,17 @@ def fix_admin_email():
             
         print(f"Target Email from Env: {target_email}")
         
-        # Look for admin by username 'admin'
+        # Look for admin by username 'admin' or by GM membership
         admin = User.query.filter_by(username="admin").first()
         
         if not admin:
             print("Admin user 'admin' not found in database.")
-            # Try finding by role?
-            admin = User.query.filter_by(role='admin').first()
-            if admin:
-                print(f"Found alternative admin with username: {admin.username}")
+            # Try finding a GM user
+            gm_membership = OrganizationMembership.query.filter_by(is_gm=True).first()
+            if gm_membership:
+                admin = User.query.get(gm_membership.user_id)
+                if admin:
+                    print(f"Found GM user with username: {admin.username}")
         
         if admin:
             print(f"Current Admin Email in DB: {admin.email}")

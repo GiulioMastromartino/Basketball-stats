@@ -16,7 +16,11 @@ from flask_wtf import FlaskForm
 from wtforms import BooleanField, PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired, Email
 
-from core.models import User, SystemSetting, db, bcrypt, Player
+from core.models import (
+    User, SystemSetting, Organization, Team,
+    OrganizationMembership, TeamAssignment,
+    db, bcrypt, Player,
+)
 from core.services.email_service import send_otp_email
 from core.services.workos_service import (
     get_auth_url,
@@ -25,7 +29,7 @@ from core.services.workos_service import (
     create_workos_user,
     get_logout_url,
 )
-from web.decorators import admin_required
+from web.decorators import admin_required, gm_required
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -125,24 +129,32 @@ def callback():
                     username = f"{base_username}{counter}"
                     counter += 1
 
-                # Check if this is the admin email
-                admin_email = os.getenv("ADMIN_EMAIL", "").lower()
-                is_admin = admin_email and workos_user.email.lower() == admin_email
-
                 user = User(
                     workos_id=workos_user.id,
                     email=workos_user.email,
                     username=username,
-                    role="admin" if is_admin else "editor",
-                    is_admin=is_admin,  # Legacy field
                     email_verified=True,
                     password_hash=None,
                 )
                 db.session.add(user)
+                db.session.flush()
 
             db.session.commit()
 
         login_user(user, remember=True)
+
+        # If user has no organization, redirect to onboarding
+        if not user.organization_id:
+            flash("Welcome! Please set up your organization to get started.", "info")
+            return redirect(url_for("auth.onboarding"))
+
+        # Ensure session has current team
+        if not session.get("current_team_id"):
+            teams = user.assigned_teams
+            if teams:
+                session["current_team_id"] = teams[0].id
+                session["current_team_name"] = teams[0].name
+
         flash(f"Welcome, {user.username}!", "success")
         return redirect(url_for("main.index"))
 
@@ -152,11 +164,60 @@ def callback():
         return redirect(url_for("auth.login"))
 
 
+@auth_bp.route("/onboarding", methods=["GET", "POST"])
+@login_required
+def onboarding():
+    """First-time setup: create or join an organization."""
+    if current_user.organization_id:
+        return redirect(url_for("main.index"))
+
+    if request.method == "POST":
+        org_name = request.form.get("organization_name", "").strip()
+        team_name = request.form.get("team_name", "").strip()
+
+        if not org_name or not team_name:
+            flash("Organization name and team name are required.", "danger")
+            return render_template("auth/onboarding.html")
+
+        org_slug = org_name.lower().replace(" ", "-")
+        org = Organization(name=org_name, slug=org_slug)
+        db.session.add(org)
+        db.session.flush()
+
+        team_slug = team_name.lower().replace(" ", "-")
+        team = Team(name=team_name, organization_id=org.id, slug=team_slug)
+        db.session.add(team)
+        db.session.flush()
+
+        current_user.organization_id = org.id
+
+        membership = OrganizationMembership(
+            user_id=current_user.id, organization_id=org.id, is_gm=True
+        )
+        db.session.add(membership)
+
+        ta = TeamAssignment(
+            user_id=current_user.id, team_id=team.id, is_coach=True
+        )
+        db.session.add(ta)
+        db.session.commit()
+
+        session["current_team_id"] = team.id
+        session["current_team_name"] = team.name
+
+        flash(f"Welcome to {org_name}! You are now a GM and coach.", "success")
+        return redirect(url_for("main.index"))
+
+    return render_template("auth/onboarding.html")
+
+
 @auth_bp.route("/logout")
 @login_required
 def logout():
     """Log out the user and redirect to WorkOS logout"""
     logout_user()
+    session.pop("current_team_id", None)
+    session.pop("current_team_name", None)
     flash("You have been logged out.", "info")
     return redirect(url_for("main.landing"))
 
@@ -202,7 +263,7 @@ def verify_otp():
 
 @auth_bp.route("/settings/update", methods=["POST"])
 @login_required
-@admin_required
+@gm_required
 def update_settings():
     """Update system settings"""
     try:
@@ -236,12 +297,18 @@ def update_settings():
 
 @auth_bp.route("/users/create", methods=["GET", "POST"])
 @login_required
-@admin_required
+@gm_required
 def create_user():
-    """Admin-only user creation via WorkOS"""
+    """GM-only user creation via WorkOS"""
+    org_id = current_user.organization_id
+    team_id = session.get("current_team_id")
+
+    if not org_id:
+        flash("You must belong to an organization to create users.", "danger")
+        return redirect(url_for("main.admin_panel", section="users"))
+
     if request.method == "POST":
         email = request.form.get("email")
-        role = request.form.get("role", "editor")
 
         if not email:
             flash("Email is required.", "danger")
@@ -265,11 +332,26 @@ def create_user():
                 workos_id=workos_user.id,
                 email=email,
                 username=username,
-                role=role,
                 email_verified=False,
                 password_hash=None,
+                organization_id=org_id,
             )
             db.session.add(new_user)
+            db.session.flush()
+
+            # Add org membership as non-GM
+            membership = OrganizationMembership(
+                user_id=new_user.id, organization_id=org_id, is_gm=False
+            )
+            db.session.add(membership)
+
+            # Assign to current team as non-coach
+            if team_id:
+                ta = TeamAssignment(
+                    user_id=new_user.id, team_id=team_id, is_coach=False
+                )
+                db.session.add(ta)
+
             db.session.commit()
 
             flash(f"User {email} created. An invitation has been sent.", "success")
@@ -285,7 +367,7 @@ def create_user():
 
 @auth_bp.route("/users/<int:user_id>/delete", methods=["POST"])
 @login_required
-@admin_required
+@gm_required
 def delete_user(user_id):
     """Delete a user account"""
     if user_id == current_user.id:
@@ -299,33 +381,58 @@ def delete_user(user_id):
     return redirect(url_for("main.admin_panel", section="users"))
 
 
-@auth_bp.route("/users/<int:user_id>/role", methods=["POST"])
+@auth_bp.route("/users/<int:user_id>/membership", methods=["POST"])
 @login_required
-@admin_required
-def change_role(user_id):
-    """Change a user's role"""
+@gm_required
+def manage_membership(user_id):
+    """Manage a user's GM status and coaching assignments."""
     if user_id == current_user.id:
-        flash("You cannot change your own role.", "danger")
+        flash("You cannot modify your own membership.", "danger")
         return redirect(url_for("main.admin_panel", section="users"))
 
     user = User.query.get_or_404(user_id)
-    new_role = request.form.get("role")
+    org_id = current_user.organization_id
+    team_id = session.get("current_team_id")
 
-    if new_role not in ["admin", "editor", "viewer"]:
-        flash("Invalid role.", "danger")
+    if not org_id or user.organization_id != org_id:
+        flash("User is not in your organization.", "danger")
         return redirect(url_for("main.admin_panel", section="users"))
 
-    user.role = new_role
-    user.is_admin = new_role == "admin"
+    is_gm = request.form.get("is_gm") == "on"
+    is_coach = request.form.get("is_coach") == "on"
+
+    membership = OrganizationMembership.query.filter_by(
+        user_id=user.id, organization_id=org_id
+    ).first()
+    if membership:
+        membership.is_gm = is_gm
+    else:
+        membership = OrganizationMembership(
+            user_id=user.id, organization_id=org_id, is_gm=is_gm
+        )
+        db.session.add(membership)
+
+    if team_id:
+        ta = TeamAssignment.query.filter_by(
+            user_id=user.id, team_id=team_id
+        ).first()
+        if ta:
+            ta.is_coach = is_coach
+        else:
+            ta = TeamAssignment(
+                user_id=user.id, team_id=team_id, is_coach=is_coach
+            )
+            db.session.add(ta)
+
     db.session.commit()
 
-    flash(f"Role for {user.username} updated to {new_role}.", "success")
+    flash(f"Membership for {user.username} updated.", "success")
     return redirect(url_for("main.admin_panel", section="users"))
 
 
 @auth_bp.route("/players")
 @login_required
-@admin_required
+@gm_required
 def manage_players():
     """Redirect to admin panel players tab"""
     return redirect(url_for("main.admin_panel", section="players"))
@@ -333,9 +440,14 @@ def manage_players():
 
 @auth_bp.route("/players/create", methods=["GET", "POST"])
 @login_required
-@admin_required
+@gm_required
 def create_player():
     """Create a new player"""
+    team_id = session.get("current_team_id")
+    if not team_id:
+        flash("No team selected.", "danger")
+        return redirect(url_for("main.admin_panel", section="players"))
+
     if request.method == "POST":
         name = request.form.get("name")
         email = request.form.get("email")
@@ -351,7 +463,7 @@ def create_player():
             flash("A player with this name or email already exists.", "warning")
             return redirect(url_for("main.admin_panel", section="players"))
 
-        player = Player(name=name, email=email, active=True)
+        player = Player(name=name, email=email, active=True, team_id=team_id)
         db.session.add(player)
         db.session.commit()
         flash(f"Player {name} added.", "success")
@@ -362,7 +474,7 @@ def create_player():
 
 @auth_bp.route("/players/<int:player_id>/delete", methods=["POST"])
 @login_required
-@admin_required
+@gm_required
 def delete_player(player_id):
     """Delete a player"""
     player = Player.query.get_or_404(player_id)
@@ -374,7 +486,7 @@ def delete_player(player_id):
 
 @auth_bp.route("/players/<int:player_id>/update", methods=["POST"])
 @login_required
-@admin_required
+@gm_required
 def update_player(player_id):
     """Update player email and/or active status"""
     player = Player.query.get_or_404(player_id)

@@ -5,10 +5,11 @@ from collections import defaultdict
 from io import BytesIO
 from datetime import datetime
 from sqlalchemy import desc, func
-from flask import Blueprint, current_app, jsonify, render_template, request, send_file
+from flask import Blueprint, current_app, jsonify, render_template, request, send_file, session, abort
 from flask_login import login_required
 from weasyprint import HTML
 
+from web.decorators import team_access_required
 from core.models import (
     Game,
     GameEvent,
@@ -111,6 +112,7 @@ MIN_TOP_LINEUP_SECONDS = MIN_TOP_LINEUP_MINUTES * 60
 
 @reports_bp.route("/games/<int:game_id>/summary.pdf")
 @login_required
+@team_access_required
 def game_summary_pdf(game_id):
     """Generate full game summary PDF"""
     filename, pdf_bytes = generate_game_pdf_bytes(game_id)
@@ -131,9 +133,12 @@ def game_summary_pdf(game_id):
 
 @reports_bp.route("/games/<int:game_id>/advanced_summary.pdf")
 @login_required
+@team_access_required
 def advanced_game_summary_pdf(game_id):
     """Generate advanced game summary PDF using new backend module"""
-    game = Game.query.get_or_404(game_id)
+    game = Game.query.filter_by(id=game_id, team_id=session.get('current_team_id')).first()
+    if not game:
+        abort(404)
     stats = PlayerStat.query.filter_by(game_id=game_id).all()
 
     if not stats:
@@ -272,6 +277,7 @@ def advanced_game_summary_pdf(game_id):
 
 @reports_bp.route("/team/report.pdf")
 @login_required
+@team_access_required
 def team_report_pdf():
     """Generate enhanced team-level PDF report"""
     game_type = _get_game_type()
@@ -289,6 +295,7 @@ def team_report_pdf():
 
 @reports_bp.route("/player/<player_name>/report.pdf")
 @login_required
+@team_access_required
 def player_report_pdf(player_name):
     """Generate multi-page PDF report for a player"""
     game_type = _get_game_type()
@@ -308,6 +315,7 @@ def player_report_pdf(player_name):
 
 @reports_bp.route("/download-all", strict_slashes=False)
 @login_required
+@team_access_required
 def download_all_reports():
     """Generate ZIP with all player reports sequentially to stay under 500MB RAM"""
     import time
@@ -439,7 +447,7 @@ def _get_game_type(default="ALL"):
 
 
 def _get_games(game_type):
-    query = Game.query.order_by(Game.sort_date.asc())
+    query = Game.query.filter(Game.team_id == session['current_team_id']).order_by(Game.sort_date.asc())
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
@@ -463,6 +471,7 @@ def _render_pdf(html, filename):
 
 @reports_bp.route("/games/<int:game_id>/visual.pdf")
 @login_required
+@team_access_required
 def visual_game_report_pdf(game_id):
     """Generate visual game report with score worm, quarterly flow, four factors."""
     filename, pdf_bytes = generate_visual_game_report_bytes(game_id)
@@ -483,6 +492,7 @@ def visual_game_report_pdf(game_id):
 
 @reports_bp.route("/lineup/report.pdf")
 @login_required
+@team_access_required
 def lineup_report_pdf():
     """Generate lineup analysis report with top lineups, duo matrix."""
     game_type = _get_game_type()
@@ -510,6 +520,7 @@ def lineup_report_pdf():
 
 @reports_bp.route("/player/<player_name>/scouting.pdf")
 @login_required
+@team_access_required
 def player_scouting_card_pdf(player_name):
     """Generate player scouting card with shot chart and hot zones."""
     game_type = _get_game_type()
@@ -532,6 +543,7 @@ def player_scouting_card_pdf(player_name):
 
 @reports_bp.route("/season/trends.pdf")
 @login_required
+@team_access_required
 def season_trend_report_pdf():
     """Generate season trend report with rolling averages."""
     game_type = _get_game_type(default="Season")
@@ -552,6 +564,7 @@ def season_trend_report_pdf():
 
 @reports_bp.route("/clutch/report.pdf")
 @login_required
+@team_access_required
 def clutch_report_pdf():
     """Generate clutch time performance report."""
     game_type = _get_game_type(default="Season")
@@ -571,6 +584,7 @@ def clutch_report_pdf():
 
 @reports_bp.route("/live/halftime-pdf", methods=["POST"])
 @login_required
+@team_access_required
 def live_halftime_pdf():
     """
     Generate half-time summary PDF from live game data.
@@ -839,6 +853,7 @@ def live_halftime_pdf():
 
 @reports_bp.route("/games/<int:game_id>/evolution.pdf")
 @login_required
+@team_access_required
 def game_evolution_pdf(game_id: int):
     """Generate game evolution PDF showing stats over time.
 
@@ -858,7 +873,7 @@ def game_evolution_pdf(game_id: int):
     """
     try:
         game = db.session.get(Game, game_id)
-        if game is None:
+        if game is None or game.team_id != session.get('current_team_id'):
             raise ValueError(f"Game with id {game_id} not found")
 
         if (game.schema_version or 0) >= 4:

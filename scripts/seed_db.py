@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from web import create_app
-from core.models import db, bcrypt, User, PlayType
+from core.models import db, bcrypt, User, Organization, Team, OrganizationMembership, TeamAssignment, PlayType
 
 
 def seed_db():
@@ -36,14 +36,36 @@ def seed_db():
         if not user:
             print(f"Seeding NEW admin...")
             hashed_pw = bcrypt.generate_password_hash(final_pass).decode("utf-8")
+
+            org = Organization.query.first()
+            if not org:
+                org = Organization(name="Default Organization")
+                db.session.add(org)
+                db.session.flush()
+
+            team = Team.query.filter_by(organization_id=org.id).first()
+            if not team:
+                team = Team(name="Default Team", organization_id=org.id, slug="default-team")
+                db.session.add(team)
+                db.session.flush()
+
             new_admin = User(
                 username=env_user,
                 email=final_email,
                 password_hash=hashed_pw,
-                role="admin",
-                is_admin=True,
+                organization_id=org.id,
             )
             db.session.add(new_admin)
+            db.session.flush()
+
+            membership = OrganizationMembership(
+                user_id=new_admin.id, organization_id=org.id, is_gm=True
+            )
+            db.session.add(membership)
+
+            ta = TeamAssignment(user_id=new_admin.id, team_id=team.id, is_coach=True)
+            db.session.add(ta)
+
             db.session.commit()
             print("=" * 40)
             print(f"ADMIN CREATED -> User: {env_user}")

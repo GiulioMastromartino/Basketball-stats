@@ -26,10 +26,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from web import create_app
-from core.models import db, User, SystemSetting, Game, PlayerStat, Player
-from core.models import Play, PlaySequence, PlayType, ShotEvent, GameEvent
-from core.models import LineupSegment, Lineup, Possession, ShotZone, PlayerLineupStats
-from core.models import bcrypt
+from core.models import (
+    db, User, SystemSetting, Game, PlayerStat, Player,
+    Play, PlaySequence, PlayType, ShotEvent, GameEvent,
+    LineupSegment, Lineup, Possession, ShotZone, PlayerLineupStats,
+    Organization, Team, OrganizationMembership, TeamAssignment,
+    bcrypt,
+)
 from sqlalchemy import inspect, text
 
 
@@ -45,7 +48,7 @@ def add_missing_columns(app):
         columns_to_add = {
             # Users table
             "users": {
-                "role": "VARCHAR(20) DEFAULT 'editor'",
+                "organization_id": "INTEGER",
                 "workos_id": "VARCHAR(255)",
                 "email_verified": "BOOLEAN DEFAULT 0",
                 "otp_code": "VARCHAR(6)",
@@ -53,15 +56,18 @@ def add_missing_columns(app):
             },
             # System settings table
             "system_settings": {
+                "organization_id": "INTEGER",
                 "updated_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
             },
             # Games table
             "games": {
+                "team_id": "INTEGER",
                 "source": "VARCHAR(20) DEFAULT 'IMPORT'",
                 "schema_version": "INTEGER DEFAULT 1",
             },
             # Plays table
             "plays": {
+                "team_id": "INTEGER",
                 "source": "VARCHAR(20) DEFAULT 'imported'",
                 "canvas_data": "JSON",
                 "diagram_svg": "TEXT",
@@ -85,8 +91,13 @@ def add_missing_columns(app):
             "shot_events": {
                 "zone": "VARCHAR(50)",
             },
+            # Play types table
+            "play_types": {
+                "team_id": "INTEGER",
+            },
             # Lineups table - these columns were added in later migrations
             "lineups": {
+                "team_id": "INTEGER",
                 "fgm": "INTEGER DEFAULT 0",
                 "fga": "INTEGER DEFAULT 0",
                 "tpm": "INTEGER DEFAULT 0",
@@ -119,6 +130,7 @@ def add_missing_columns(app):
             },
             # Players table columns (handles DBs created before email/active were added)
             "players": {
+                "team_id": "INTEGER",
                 "email": "VARCHAR(120)",
                 "active": "BOOLEAN DEFAULT 1",
             },
@@ -443,6 +455,30 @@ def seed_default_data(app):
         else:
             print("  ✓ ShotZones already exist")
 
+        # Seed default organization and team
+        print("\n[Multi-Tenant] Setting up default organization and team...")
+        org_name = os.getenv("DEFAULT_ORG_NAME", "Default Organization")
+        team_name = os.getenv("DEFAULT_TEAM_NAME", "Default Team")
+
+        org = Organization.query.filter_by(name=org_name).first()
+        if not org:
+            org = Organization(name=org_name)
+            db.session.add(org)
+            db.session.flush()
+            print(f"  ✓ Created organization: {org_name}")
+        else:
+            print(f"  ✓ Organization already exists: {org_name}")
+
+        team = Team.query.filter_by(name=team_name, organization_id=org.id).first()
+        if not team:
+            team = Team(name=team_name, organization_id=org.id, slug="default-team")
+            db.session.add(team)
+            db.session.flush()
+            print(f"  ✓ Created team: {team_name}")
+        else:
+            print(f"  ✓ Team already exists: {team_name}")
+        db.session.commit()
+
         # Create admin user if not exists
         print("\n[Admin] Setting up admin user...")
         admin_email = os.getenv("ADMIN_EMAIL")
@@ -456,6 +492,7 @@ def seed_default_data(app):
             if not user:
                 user = User.query.filter_by(username=admin_username).first()
 
+            needs_org_membership = True
             if not user:
                 hashed_pw = bcrypt.generate_password_hash(admin_password).decode(
                     "utf-8"
@@ -464,22 +501,48 @@ def seed_default_data(app):
                     username=admin_username,
                     email=admin_email,
                     password_hash=hashed_pw,
-                    role="admin",
-                    is_admin=True,
+                    organization_id=org.id,
                 )
                 db.session.add(new_admin)
-                db.session.commit()
+                db.session.flush()
                 print(f"  ✓ Created admin user: {admin_email}")
+                user = new_admin
             else:
                 user.email = admin_email
-                user.role = "admin"
-                user.is_admin = True
+                user.organization_id = org.id
                 if admin_password:
                     user.password_hash = bcrypt.generate_password_hash(
                         admin_password
                     ).decode("utf-8")
+                # Check if already has membership
+                existing_membership = OrganizationMembership.query.filter_by(
+                    user_id=user.id, organization_id=org.id
+                ).first()
+                if existing_membership:
+                    needs_org_membership = False
                 db.session.commit()
                 print(f"  ✓ Updated admin user: {admin_email}")
+
+            # Ensure GM membership for admin
+            if needs_org_membership:
+                membership = OrganizationMembership(
+                    user_id=user.id,
+                    organization_id=org.id,
+                    is_gm=True,
+                )
+                db.session.add(membership)
+                db.session.flush()
+
+            # Ensure team assignment
+            existing_ta = TeamAssignment.query.filter_by(
+                user_id=user.id, team_id=team.id
+            ).first()
+            if not existing_ta:
+                ta = TeamAssignment(user_id=user.id, team_id=team.id, is_coach=True)
+                db.session.add(ta)
+
+            db.session.commit()
+            print(f"  ✓ Admin user is GM of {org_name} and coach of {team_name}")
 
 
 def init_database():

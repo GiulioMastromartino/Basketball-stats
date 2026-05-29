@@ -35,13 +35,14 @@ def calculate_segment_duration(segment_events: list) -> int:
     return 0
 
 
-def get_or_create_lineup(players: list, is_starting: bool = False):
+def get_or_create_lineup(players: list, is_starting: bool = False, team_id: int = None):
     """
     Get existing lineup or create new one.
 
     Args:
         players: List of 5 player names
         is_starting: Whether this is a starting lineup
+        team_id: Team ID to associate the lineup with
 
     Returns:
         Lineup object (existing or newly created)
@@ -54,7 +55,7 @@ def get_or_create_lineup(players: list, is_starting: bool = False):
 
     if not lineup:
         lineup = Lineup(
-            lineup_hash=lineup_hash, players=sorted(players), is_starting=is_starting
+            lineup_hash=lineup_hash, players=sorted(players), is_starting=is_starting, team_id=team_id
         )
         db.session.add(lineup)
         db.session.flush()

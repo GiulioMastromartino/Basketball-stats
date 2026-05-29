@@ -48,7 +48,8 @@
                                     <tr>
                                         <th class="ps-4">Username</th>
                                         <th>Email</th>
-                                        <th>Role</th>
+                                        <th>GM</th>
+                                        <th>Coach</th>
                                         <th class="text-end pe-4">Actions</th>
                                     </tr>
                                 </thead>
@@ -59,18 +60,31 @@
         <td>{{ user.email }}</td>
         <td>
             {% if user.id != current_user.id %}
-            <form action="{{ url_for('auth.change_role', user_id=user.id) }}" method="POST" class="d-inline">
+            <form action="{{ url_for('auth.manage_membership', user_id=user.id) }}" method="POST" class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <select name="role" class="form-select form-select-sm d-inline-block w-auto" onchange="this.form.submit()">
-                    <option value="viewer" {% if user.role == 'viewer' %}selected{% endif %}>Viewer</option>
-                    <option value="editor" {% if user.role == 'editor' %}selected{% endif %}>Editor</option>
-                    <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
-                </select>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="is_gm" 
+                           {% if user.is_gm %}checked{% endif %}
+                           onchange="this.form.submit()">
+                </div>
             </form>
             {% else %}
-            <span class="badge bg-{{ 'danger' if user.role == 'admin' else 'secondary' }}">
-                {{ user.role }}
-            </span>
+            <span class="badge bg-danger">GM</span>
+            <span class="text-muted small ms-1">(You)</span>
+            {% endif %}
+        </td>
+        <td>
+            {% if user.id != current_user.id %}
+            <form action="{{ url_for('auth.manage_membership', user_id=user.id) }}" method="POST" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="is_coach"
+                           {% if user.is_coach %}checked{% endif %}
+                           onchange="this.form.submit()">
+                </div>
+            </form>
+            {% else %}
+            <span class="badge bg-success">Coach</span>
             <span class="text-muted small ms-1">(You)</span>
             {% endif %}
         </td>
