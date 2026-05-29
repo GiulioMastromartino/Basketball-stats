@@ -386,6 +386,62 @@ class TestProductionMigration:
             games = Game.query.filter_by(team_id=team.id).all()
             assert len(games) == 1
 
+    def test_migrate_promotes_old_admin_to_gm(self, pre_migration_db):
+        """Existing users with is_admin=True must get is_gm=True membership."""
+        from scripts.migrate import run as run_migration
+        from core.models import User, OrganizationMembership
+
+        app, db = pre_migration_db
+        with app.app_context():
+            db.session.execute(text(
+                "INSERT INTO users (username, email, password_hash, is_admin) "
+                "VALUES ('oldadmin', 'admin@test.com', 'x', 1)"
+            ))
+            db.session.execute(text(
+                "INSERT INTO users (username, email, password_hash, is_admin) "
+                "VALUES ('olduser', 'user@test.com', 'x', 0)"
+            ))
+            db.session.commit()
+
+            run_migration(app)
+
+            admin = User.query.filter_by(email="admin@test.com").first()
+            assert admin is not None
+            mem = OrganizationMembership.query.filter_by(user_id=admin.id).first()
+            assert mem is not None
+            assert mem.is_gm is True, "Old admin should be promoted to GM"
+
+            user = User.query.filter_by(email="user@test.com").first()
+            assert user is not None
+            mem = OrganizationMembership.query.filter_by(user_id=user.id).first()
+            assert mem is not None
+            assert mem.is_gm is False, "Non-admin user should not be GM"
+
+    def test_migrate_fixes_gm_status_on_repeat_run(self, pre_migration_db):
+        """If a previous migration set is_gm=False, re-running must fix it."""
+        from scripts.migrate import run as run_migration
+        from core.models import User, OrganizationMembership
+
+        app, db = pre_migration_db
+        with app.app_context():
+            db.session.execute(text(
+                "INSERT INTO users (username, email, password_hash, is_admin) "
+                "VALUES ('oldadmin', 'admin@test.com', 'x', 1)"
+            ))
+            db.session.commit()
+
+            run_migration(app)
+
+            admin = User.query.filter_by(email="admin@test.com").first()
+            mem = OrganizationMembership.query.filter_by(user_id=admin.id).first()
+            mem.is_gm = False  # simulate a previous bad migration
+            db.session.commit()
+
+            run_migration(app)
+
+            mem = OrganizationMembership.query.filter_by(user_id=admin.id).first()
+            assert mem.is_gm is True, "Repeat run must fix GM status"
+
     def test_landing_page_does_not_500_after_migration(self, pre_migration_db):
         """App must serve pages without 500 after migration."""
         from scripts.migrate import run as run_migration

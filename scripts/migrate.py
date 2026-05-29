@@ -235,6 +235,33 @@ def run(app=None):
             if unassigned_users:
                 print(f"[migrate] Assigned {len(unassigned_users)} user(s) to default org.")
 
+            # Fix existing memberships: promote old admins to GM if they were
+            # missed by a previous migration run that set is_gm=False for all.
+            try:
+                cols = db.session.execute(
+                    text("PRAGMA table_info(users)")
+                ).fetchall()
+                has_old_admin = any(row[1] == "is_admin" for row in cols)
+                if has_old_admin:
+                    all_users = User.query.filter(User.organization_id.isnot(None)).all()
+                    fixed = 0
+                    for u in all_users:
+                        row = db.session.execute(
+                            text("SELECT is_admin FROM users WHERE id = :uid"),
+                            {"uid": u.id},
+                        ).fetchone()
+                        was_admin = bool(row[0]) if row else False
+                        mem = OrganizationMembership.query.filter_by(
+                            user_id=u.id, organization_id=org.id
+                        ).first()
+                        if mem and mem.is_gm != was_admin:
+                            mem.is_gm = was_admin
+                            fixed += 1
+                    if fixed:
+                        print(f"[migrate] Fixed GM status for {fixed} existing user(s).")
+            except Exception:
+                pass
+
             # Assign unassigned games to default team
             unassigned_games = Game.query.filter(Game.team_id.is_(None)).all()
             for g in unassigned_games:

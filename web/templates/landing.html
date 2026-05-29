@@ -1310,6 +1310,17 @@
         </style>
     </head>
     <body>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;flex-direction:column;gap:8px;padding:16px;">
+            {% for category, message in messages %}
+            <div style="background:{% if category == 'danger' %}#dc3545{% elif category == 'success' %}#198754{% else %}#ff6b2b{% endif %};color:#fff;padding:12px 20px;border-radius:8px;font-family:Inter,sans-serif;font-size:14px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.3);">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
         <!-- NAV -->
         <nav class="nav">
             <a class="nav__logo" href="{{ url_for('main.landing') }}"
