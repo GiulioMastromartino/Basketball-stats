@@ -20,7 +20,12 @@ import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+_project_root = str(Path(__file__).parent.parent)
+_scripts_dir = str(Path(__file__).parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+if _scripts_dir not in sys.path:
+    sys.path.insert(0, _scripts_dir)
 
 from web import create_app
 from core.models import (
@@ -31,8 +36,15 @@ from core.models import (
 from init_db import add_missing_columns
 
 
-def run():
-    app = create_app()
+def run(app=None):
+    """Run the production migration.
+
+    Args:
+        app: Optional Flask app instance. If None, creates one using the
+             default config (for CLI usage). Tests should pass their own app.
+    """
+    if app is None:
+        app = create_app()
 
     with app.app_context():
         # ── 1. Create all tables that don't exist yet ──────────────────────
