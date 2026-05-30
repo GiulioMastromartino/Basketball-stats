@@ -64,6 +64,7 @@ class User(UserMixin, db.Model):
 
     workos_id = db.Column(db.String(255), unique=True, nullable=True)
     email_verified = db.Column(db.Boolean, default=False)
+    role = db.Column(db.String(20), nullable=False, default="editor")
 
     otp_code = db.Column(db.String(6), nullable=True)
     otp_expiry = db.Column(db.DateTime, nullable=True)
