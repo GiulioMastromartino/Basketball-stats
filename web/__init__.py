@@ -212,9 +212,8 @@ def setup_logging(app: Flask, config):
         log_file=log_file,
         max_bytes=config.LOG_MAX_BYTES,
         backup_count=config.LOG_BACKUP_COUNT,
+        app=app,
     )
-
-    app.logger.setLevel(log_level)
 
 
 def register_blueprints(app: Flask):

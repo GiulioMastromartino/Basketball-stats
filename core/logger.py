@@ -77,6 +77,7 @@ def configure_root_logger(
     log_file: Optional[str] = None,
     max_bytes: int = 10 * 1024 * 1024,
     backup_count: int = 5,
+    app=None,
 ):
     root = logging.getLogger()
     root.setLevel(level)
@@ -103,9 +104,6 @@ def configure_root_logger(
     handler.setFormatter(formatter)
     root.addHandler(handler)
 
-    from flask import current_app
-
-    if current_app:
-        current_app.logger.handlers[:] = []
-        current_app.logger.addHandler(handler)
-        current_app.logger.setLevel(level)
+    app.logger.handlers[:] = []
+    app.logger.addHandler(handler)
+    app.logger.setLevel(level)

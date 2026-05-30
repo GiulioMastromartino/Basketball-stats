@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import logging
 import os
 import secrets
 from flask import (
@@ -29,7 +30,10 @@ from core.services.workos_service import (
     create_workos_user,
     get_logout_url,
 )
+from core.logger import get_logger
 from web.decorators import admin_required, gm_required
+
+logger = get_logger("auth")
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -150,6 +154,10 @@ def callback():
 
         # If user has no organization, redirect to onboarding
         if not user.organization_id:
+            current_app.logger.info(
+                "New WorkOS user has no org_id, redirecting to onboarding",
+                extra={"extra_fields": {"user_id": user.id, "email": user.email}},
+            )
             flash("Welcome! Please set up your organization to get started.", "info")
             return redirect(url_for("auth.onboarding"))
 
@@ -164,8 +172,9 @@ def callback():
         return redirect(url_for("main.index"))
 
     except Exception as e:
-        current_app.logger.error(f"WorkOS authentication error: {e}")
-        flash("Authentication failed. Please try again.", "danger")
+        msg = f"WorkOS authentication callback error: {e}"
+        logger.error(msg, exc_info=True)
+        flash(msg, "danger")
         return redirect(url_for("auth.login"))
 
 
