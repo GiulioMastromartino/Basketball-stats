@@ -80,17 +80,38 @@
     .stat-excellent { color: #2f855a; font-weight: 700; }
     .stat-good { color: #3182ce; }
     .stat-poor { color: #c53030; }
+
+    .team-total-card {
+        background: linear-gradient(135deg, rgba(23,162,162,0.12), rgba(255,152,0,0.12));
+        border: 1px solid rgba(23,162,162,0.18);
+    }
+
+    .team-total-card .player-card-avatar {
+        background: linear-gradient(135deg, #17a2a2, #ff9800);
+        color: #fff;
+    }
 </style>
 
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="page-hero">
         <div>
-            <h1>Players</h1>
-            <p class="text-muted">{{ stats|length }} active players</p>
+            <h1 class="page-hero__title"><i class="fas fa-users" aria-hidden="true"></i> Players</h1>
+            <p class="page-hero__lead">
+                {{ stats|length }} active players
+                {% if total_row and total_row.excluded_player %}
+                    • team total excludes {{ total_row.excluded_player }}
+                {% endif %}
+            </p>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{{ url_for('main.players', view='table', game_type=filters.type) }}" class="btn btn-outline-primary">
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('main.players', view='table', game_type=filters.type, limit=filters.limit, sort=filters.sort, order=filters.order, exclude_player=filters.exclude_player) }}" class="btn btn-outline-primary">
                 <i class="fas fa-table"></i> Table View
+            </a>
+            <a href="{{ url_for('reports.download_all_reports', game_type=filters.type) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
+                <i class="fas fa-download"></i> Download All
+            </a>
+            <a href="{{ url_for('main.players_pages_zip', game_type=filters.type, limit=filters.limit, sort=filters.sort, order=filters.order, exclude_player=filters.exclude_player) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
+                <i class="fas fa-file-archive"></i> Download All Player Pages
             </a>
             <a href="#" class="btn btn-primary" onclick="alert('Add Player modal would open here')">
                 <i class="fas fa-plus"></i> Add Player
@@ -102,10 +123,14 @@
     <div class="card mb-4">
         <div class="card-body p-3">
             <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
-                <!-- Search -->
-                <div style="flex: 1; min-width: 250px; position: relative;">
-                    <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                    <input type="text" placeholder="Search players..." style="padding-left: 36px; width: 100%; border-radius: var(--border-radius);" onkeyup="searchPlayers(this.value)">
+                <div style="flex: 1; min-width: 250px; max-width: 420px;">
+                    <label class="me-2"><i class="fas fa-user"></i> Show Player:</label>
+                    <select class="form-select" id="playerCardFilter" onchange="filterPlayerCards(this.value)">
+                        <option value="">All players</option>
+                        {% for player_name in all_player_names %}
+                        <option value="{{ player_name|lower }}">{{ player_name }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
 
                 <!-- Filters -->
@@ -116,10 +141,18 @@
                         <button type="button" class="btn btn-outline">All</button>
                     </div>
 
-                    <select class="form-select" style="width: auto;" id="gameTypeFilter" onchange="window.location.href='{{ url_for('main.players') }}?game_type=' + this.value">
+                    <select class="form-select" style="width: auto;" id="gameTypeFilter" onchange="updatePlayersCardsParams({ game_type: this.value })">
                         <option value="ALL" {% if filters.type == 'ALL' %}selected{% endif %}>All Games</option>
                         <option value="Season" {% if filters.type == 'Season' %}selected{% endif %}>Season</option>
                         <option value="Friendly" {% if filters.type == 'Friendly' %}selected{% endif %}>Friendly</option>
+                        <option value="Playoff" {% if filters.type == 'Playoff' %}selected{% endif %}>Playoff</option>
+                    </select>
+
+                    <select class="form-select" style="width: auto;" id="excludePlayerFilter" onchange="updatePlayersCardsParams({ exclude_player: this.value })" aria-label="Hide one player from team total">
+                        <option value="">Hide no player from total</option>
+                        {% for player_name in all_player_names %}
+                        <option value="{{ player_name }}" {% if filters.exclude_player == player_name %}selected{% endif %}>Hide {{ player_name }} from total</option>
+                        {% endfor %}
                     </select>
                 </div>
             </div>
@@ -128,104 +161,203 @@
 
     <!-- Players Grid -->
     <div class="grid-players" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--spacing-md);">
-        {% for p in stats %}
-        <a href="{{ url_for('main.player_detail', player_name=p.player_name, game_type=filters.type) }}" style="text-decoration: none; color: inherit;">
-            <div class="player-card" data-name="{{ p.player_name|lower }}" style="cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'">
-                <div class="player-card-header w-100">
-                    <div class="d-flex align-items-center gap-3 w-100">
-                        <!-- Avatar Placeholder -->
-                        <div class="player-card-avatar">
-                            {{ p.player_name[:2]|upper }}
+        {% if total_row %}
+        <div class="player-card team-total-card" data-name="team total" style="cursor: pointer; transition: all 0.3s ease; position: relative;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onclick="window.location='{{ url_for('main.team_detail', game_type=filters.type, exclude_player=filters.exclude_player) }}'">
+            <div class="player-card-header w-100">
+                <div class="d-flex align-items-center gap-3 w-100">
+                    <div class="player-card-avatar">
+                        TT
+                    </div>
+                    <div style="flex: 1;">
+                        <h3 class="player-card-name">Team Total</h3>
+                        <div class="text-muted small mt-1">
+                            {{ total_row.games_played }} Games • {{ total_row.mpg|round(1) }} MPG
+                            {% if total_row.excluded_player %}
+                                • without {{ total_row.excluded_player }}
+                            {% endif %}
                         </div>
-                        
-                        <!-- Name -->
-                        <div style="flex: 1;">
-                            <h3 class="player-card-name">{{ p.player_name }}</h3>
-                            <div class="text-muted small mt-1">
-                                {{ p.games_played }} Games • {{ p.mpg|round(1) }} MPG
-                            </div>
-                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right" style="color: #999;"></i>
+                </div>
+            </div>
 
+            <div class="player-card-stats mt-3">
+                <div class="player-stat">
+                    <div class="player-stat-value" style="font-weight: 700; color: #667eea;">{{ total_row.ppg|round(1) }}</div>
+                    <div class="player-stat-label">PPG</div>
+                </div>
+                <div class="player-stat">
+                    <div class="player-stat-value">{{ total_row.rpg|round(1) }}</div>
+                    <div class="player-stat-label">RPG</div>
+                </div>
+                <div class="player-stat">
+                    <div class="player-stat-value">{{ total_row.apg|round(1) }}</div>
+                    <div class="player-stat-label">APG</div>
+                </div>
+                <div class="player-stat stat-with-tooltip">
+                    <div class="player-stat-value" style="font-weight: 600;">{{ total_row.eff|round(1) }}</div>
+                    <div class="player-stat-label">EFF</div>
+                    <span class="stat-tooltip">
+                        Team efficiency rating
+                        <span class="stat-formula">(PTS+REB+AST+STL+BLK) - Misses/TO</span>
+                    </span>
+                </div>
+
+                <div class="player-stat stat-with-tooltip">
+                    <div class="player-stat-value stat-{% if total_row.ortg > 110 %}excellent{% elif total_row.ortg < 90 %}poor{% endif %}">{{ total_row.ortg|round(0) }}</div>
+                    <div class="player-stat-label">ORtg</div>
+                    <span class="stat-tooltip">
+                        Offensive Rating
+                        <span class="stat-formula">Points / 100 Poss</span>
+                    </span>
+                </div>
+                <div class="player-stat stat-with-tooltip">
+                    <div class="player-stat-value stat-{% if total_row.ppp > 1.1 %}excellent{% elif total_row.ppp < 0.8 %}poor{% endif %}">{{ total_row.ppp|round(2) }}</div>
+                    <div class="player-stat-label">PPP</div>
+                    <span class="stat-tooltip">
+                        Points Per Possession
+                        <span class="stat-formula">PTS / Possessions</span>
+                    </span>
+                </div>
+                <div class="player-stat stat-with-tooltip">
+                    <div class="player-stat-value stat-good">{{ total_row.ts_pct|round(1) }}%</div>
+                    <div class="player-stat-label">TS%</div>
+                    <span class="stat-tooltip">
+                        True Shooting %
+                        <span class="stat-formula">PTS / (2*(FGA + 0.44*FTA))</span>
+                    </span>
+                </div>
+                <div class="player-stat stat-with-tooltip">
+                    <div class="player-stat-value">{{ total_row.poss_per_40|round(1) }}</div>
+                    <div class="player-stat-label">Poss/40</div>
+                    <span class="stat-tooltip">
+                        Possessions per 40 minutes
+                        <span class="stat-formula">Poss / (Min / 40)</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% for p in stats %}
+        <div class="player-card" data-name="{{ p.player_name|lower }}" style="cursor: pointer; transition: all 0.3s ease; position: relative;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onclick="window.location='{{ url_for('main.player_detail', player_name=p.player_name, game_type=filters.type) }}'">
+            <div class="player-card-header w-100">
+                <div class="d-flex align-items-center gap-3 w-100">
+                    <!-- Avatar Placeholder -->
+                    <div class="player-card-avatar">
+                        {{ p.player_name[:2]|upper }}
+                    </div>
+                    
+                    <!-- Name -->
+                    <div style="flex: 1;">
+                        <h3 class="player-card-name">{{ p.player_name }}</h3>
+                        <div class="text-muted small mt-1">
+                            {{ p.games_played }} Games • {{ p.mpg|round(1) }} MPG
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <a href="{{ url_for('analytics.player_report_pdf', player_name=p.player_name, game_type=filters.type) }}" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();" title="Download Report" style="z-index: 2;">
+                            <i class="fas fa-file-download"></i>
+                        </a>
                         <i class="fas fa-chevron-right" style="color: #999;"></i>
                     </div>
                 </div>
+            </div>
 
-                <!-- Selected Stats Grid (8 key metrics) -->
-                <div class="player-card-stats mt-3">
-                    <!-- Row 1: Traditional Core Stats -->
-                    <div class="player-stat">
-                        <div class="player-stat-value" style="font-weight: 700; color: #667eea;">{{ p.ppg|round(1) }}</div>
-                        <div class="player-stat-label">PPG</div>
-                    </div>
-                    <div class="player-stat">
-                        <div class="player-stat-value">{{ p.rpg|round(1) }}</div>
-                        <div class="player-stat-label">RPG</div>
-                    </div>
-                    <div class="player-stat">
-                        <div class="player-stat-value">{{ p.apg|round(1) }}</div>
-                        <div class="player-stat-label">APG</div>
-                    </div>
-                    <div class="player-stat stat-with-tooltip">
-                        <div class="player-stat-value" style="font-weight: 600;">{{ p.eff|round(1) }}</div>
-                        <div class="player-stat-label">EFF</div>
-                        <span class="stat-tooltip">
-                            Efficiency Rating
-                            <span class="stat-formula">(PTS+REB+AST+STL+BLK) - Misses/TO</span>
-                        </span>
-                    </div>
+            <!-- Selected Stats Grid (8 key metrics) -->
+            <div class="player-card-stats mt-3">
+                <!-- Row 1: Traditional Core Stats -->
+                <div class="player-stat">
+                    <div class="player-stat-value" style="font-weight: 700; color: #667eea;">{{ p.ppg|round(1) }}</div>
+                    <div class="player-stat-label">PPG</div>
+                </div>
+                <div class="player-stat">
+                    <div class="player-stat-value">{{ p.rpg|round(1) }}</div>
+                    <div class="player-stat-label">RPG</div>
+                </div>
+                <div class="player-stat">
+                    <div class="player-stat-value">{{ p.apg|round(1) }}</div>
+                    <div class="player-stat-label">APG</div>
+                </div>
+                <div class="player-stat stat-with-tooltip">
+                    <div class="player-stat-value" style="font-weight: 600;">{{ p.eff|round(1) }}</div>
+                    <div class="player-stat-label">EFF</div>
+                    <span class="stat-tooltip">
+                        Efficiency Rating
+                        <span class="stat-formula">(PTS+REB+AST+STL+BLK) - Misses/TO</span>
+                    </span>
+                </div>
 
-                    <!-- Row 2: Advanced Metrics -->
-                    <div class="player-stat stat-with-tooltip">
-                        <div class="player-stat-value stat-{% if p.ortg > 110 %}excellent{% elif p.ortg < 90 %}poor{% endif %}">{{ p.ortg|round(0) }}</div>
-                        <div class="player-stat-label">ORtg</div>
-                        <span class="stat-tooltip">
-                            Offensive Rating
-                            <span class="stat-formula">Points / 100 Poss</span>
-                        </span>
-                    </div>
-                    <div class="player-stat stat-with-tooltip">
-                        <div class="player-stat-value stat-{% if p.ppp > 1.1 %}excellent{% elif p.ppp < 0.8 %}poor{% endif %}">{{ p.ppp|round(2) }}</div>
-                        <div class="player-stat-label">PPP</div>
-                        <span class="stat-tooltip">
-                            Points Per Possession
-                            <span class="stat-formula">PTS / Possessions</span>
-                        </span>
-                    </div>
-                    <div class="player-stat stat-with-tooltip">
-                        <div class="player-stat-value stat-good">{{ p.ts_pct|round(1) }}%</div>
-                        <div class="player-stat-label">TS%</div>
-                        <span class="stat-tooltip">
-                            True Shooting %
-                            <span class="stat-formula">PTS / (2*(FGA + 0.44*FTA))</span>
-                        </span>
-                    </div>
-                    <div class="player-stat stat-with-tooltip">
-                        <div class="player-stat-value">{{ p.usg_pct|round(1) }}</div>
-                        <div class="player-stat-label">USG%</div>
-                        <span class="stat-tooltip">
-                            Usage Rate
-                            <span class="stat-formula">Plays Used / Team Plays</span>
-                        </span>
-                    </div>
+                <!-- Row 2: Advanced Metrics -->
+                <div class="player-stat stat-with-tooltip">
+                    <div class="player-stat-value stat-{% if p.ortg > 110 %}excellent{% elif p.ortg < 90 %}poor{% endif %}">{{ p.ortg|round(0) }}</div>
+                    <div class="player-stat-label">ORtg</div>
+                    <span class="stat-tooltip">
+                        Offensive Rating
+                        <span class="stat-formula">Points / 100 Poss</span>
+                    </span>
+                </div>
+                <div class="player-stat stat-with-tooltip">
+                    <div class="player-stat-value stat-{% if p.ppp > 1.1 %}excellent{% elif p.ppp < 0.8 %}poor{% endif %}">{{ p.ppp|round(2) }}</div>
+                    <div class="player-stat-label">PPP</div>
+                    <span class="stat-tooltip">
+                        Points Per Possession
+                        <span class="stat-formula">PTS / Possessions</span>
+                    </span>
+                </div>
+                <div class="player-stat stat-with-tooltip">
+                    <div class="player-stat-value stat-good">{{ p.ts_pct|round(1) }}%</div>
+                    <div class="player-stat-label">TS%</div>
+                    <span class="stat-tooltip">
+                        True Shooting %
+                        <span class="stat-formula">PTS / (2*(FGA + 0.44*FTA))</span>
+                    </span>
+                </div>
+                <div class="player-stat stat-with-tooltip">
+                    <div class="player-stat-value">{{ p.poss_per_40|round(1) }}</div>
+                    <div class="player-stat-label">Poss/40</div>
+                    <span class="stat-tooltip">
+                        Possessions per 40 minutes
+                        <span class="stat-formula">Poss / (Min / 40)</span>
+                    </span>
                 </div>
             </div>
-        </a>
+        </div>
         {% endfor %}
     </div>
 </div>
 
 <script>
-    function searchPlayers(query) {
+    function updatePlayersCardsParams(updates) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', 'cards');
+
+        Object.entries(updates).forEach(([key, value]) => {
+            if (value === null || value === undefined || value === '') {
+                url.searchParams.delete(key);
+            } else {
+                url.searchParams.set(key, value);
+            }
+        });
+
+        window.location.href = url.toString();
+    }
+
+    function filterPlayerCards(playerName) {
         const cards = document.querySelectorAll('.player-card');
-        const lowerQuery = query.toLowerCase();
+        const selectedPlayer = playerName.toLowerCase();
         
         cards.forEach(card => {
             const name = card.getAttribute('data-name');
-            const parent = card.parentElement;
-            if (name.includes(lowerQuery)) {
-                parent.style.display = 'block';
+            if (card.classList.contains('team-total-card')) {
+                card.style.display = 'block';
+                return;
+            }
+            if (!selectedPlayer || name.includes(selectedPlayer)) {
+                card.style.display = 'block';
             } else {
-                parent.style.display = 'none';
+                card.style.display = 'none';
             }
         });
     }

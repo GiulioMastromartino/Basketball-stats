@@ -1,0 +1,528 @@
+{% extends "layout.html" %}
+
+{% block title %}Advanced Analytics{% endblock %}
+
+{% block extra_css %}
+<style>
+.analytics-header { margin-bottom: 2rem; }
+.analytics-header h1 { font-size: 1.75rem; font-weight: 700; }
+.stat-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.07); margin-bottom: 1.5rem; }
+.loading-state { text-align: center; padding: 3rem; color: #6c757d; }
+.error-state { text-align: center; padding: 2rem; color: #dc3545; background: #f8d7da; border-radius: 8px; }
+.success-state { text-align: center; padding: 2rem; color: #28a745; background: #d4edda; border-radius: 8px; }
+.empty-state { text-align: center; padding: 2rem; color: #6c757d; }
+.shot-chart-container { background: #f8f9fa; border-radius: 8px; min-height: 400px; position: relative; }
+.zone-stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+.zone-stat-item { background: #f8f9fa; border-radius: 8px; padding: 1rem; text-align: center; }
+.debug-log { background: #1e1e1e; color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; border-radius: 8px; max-height: 200px; overflow-y: auto; margin-top: 1rem; }
+.debug-log .log-entry { margin: 2px 0; }
+.debug-log .log-info { color: #58a6ff; }
+.debug-log .log-error { color: #f85149; }
+.debug-log .log-success { color: #3fb950; }
+.progress-container { margin: 1rem 0; }
+.progress { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+.progress-bar { height: 100%; background: #1e3c72; transition: width 0.3s; }
+.nav-tabs-analytics { border-bottom: 2px solid #dee2e6; margin-bottom: 1.5rem; }
+.nav-tabs-analytics .nav-link { border: none; color: #6c757d; font-weight: 500; padding: 0.75rem 1.25rem; border-bottom: 3px solid transparent; }
+.nav-tabs-analytics .nav-link.active { color: #1e3c72; border-bottom-color: #1e3c72; background: transparent; }
+.factor-item { text-align: center; padding: 1rem; }
+.factor-item .factor-value { font-size: 2rem; font-weight: 700; color: #1e3c72; }
+.factor-item .factor-label { font-size: 0.75rem; color: #6c757d; text-transform: uppercase; }
+.shot-chart-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+}
+.shot-chart-wrapper svg {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+.shots-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+.shot-point {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+.shot-point:hover {
+    transform: translate(-50%, -50%) scale(1.5);
+    z-index: 20;
+}
+.shot-make { 
+    background-color: #28a745; 
+    border: 1px solid #fff;
+}
+.shot-miss { 
+    background-color: transparent; 
+    border: 2px solid #dc3545; 
+    box-sizing: border-box;
+}
+.chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 15px;
+    font-size: 13px;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="page-hero px-0">
+        <div>
+            <h1 class="page-hero__title"><i class="fas fa-chart-line me-2" aria-hidden="true"></i>Advanced Analytics</h1>
+            <p class="page-hero__lead">Shot charts, four factors, and player splits</p>
+        </div>
+    </div>
+
+    <!-- Status Display -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="stat-card">
+                <div id="status-display" class="success-state">
+                    <strong>JavaScript Status:</strong> <span id="js-status">Checking...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs-analytics" id="analyticsTabs" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="shot-charts-tab" data-bs-toggle="tab" href="#shot-charts" role="tab">
+                <i class="fas fa-basketball-ball me-1"></i> Shot Charts
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="four-factors-tab" data-bs-toggle="tab" href="#four-factors" role="tab">
+                <i class="fas fa-chart-bar me-1"></i> Four Factors
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="player-stats-tab" data-bs-toggle="tab" href="#player-stats" role="tab">
+                <i class="fas fa-user me-1"></i> Player Stats
+            </a>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content">
+        <!-- Shot Charts Tab -->
+        <div class="tab-pane fade show active" id="shot-charts" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Player</label>
+                    <select id="filter-player" class="form-control form-control-sm">
+                        <option value="">All Players</option>
+                        {% for player in players %}
+                        <option value="{{ player }}">{{ player }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Game Type</label>
+                    <select id="filter-game-type" class="form-control form-control-sm">
+                        <option value="ALL">All Games</option>
+                        <option value="Season">Season</option>
+                        <option value="Friendly">Friendly</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="progress-container" id="progress-container" style="display:none;">
+                <div class="progress">
+                    <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="stat-card">
+                        <div class="shot-chart-container">
+                            <div id="shot-loading" class="loading-state">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Loading shot chart...</p>
+                            </div>
+                            <div class="shot-chart-wrapper" id="shot-chart-wrapper" style="display:none;">
+                                <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c; border-radius: 8px;">
+                                    <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                                    <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                                    <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                                    <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                                    <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                                    <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                                    <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                                </svg>
+                                <div class="shots-layer" id="shots-layer"></div>
+                            </div>
+                            <div id="chart-legend" class="chart-legend" style="display:none;">
+                                <div class="legend-item">
+                                    <span class="legend-dot" style="background-color: #28a745; border: 1px solid #fff;"></span>
+                                    <span>Made: <strong id="makes-count">0</strong></span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-dot" style="border: 2px solid #dc3545;"></span>
+                                    <span>Missed: <strong id="misses-count">0</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="stat-card">
+                        <h5>Zone Breakdown</h5>
+                        <div id="zone-stats">
+                            <div class="loading-state">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Four Factors Tab -->
+        <div class="tab-pane fade" id="four-factors" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Game</label>
+                    <select id="filter-ff-game" class="form-control form-control-sm">
+                        <option value="">Season Average</option>
+                        {% for game in games %}
+                        <option value="{{ game.id }}">{{ game.date }} vs {{ game.opponent }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="row" id="four-factors-content">
+                <div class="col-12"><div class="loading-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div></div>
+            </div>
+        </div>
+
+        <!-- Player Stats Tab -->
+        <div class="tab-pane fade" id="player-stats" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label small">Select Player</label>
+                    <select id="filter-player-stats" class="form-control form-control-sm">
+                        <option value="">Choose a player...</option>
+                        {% for player in players %}
+                        <option value="{{ player }}">{{ player }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div id="player-stats-content">
+                <div class="empty-state"><p>Select a player to view stats</p></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debug Log -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="stat-card">
+                <h5>Debug Log</h5>
+                <div class="debug-log" id="debug-log"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Simple debug logger
+var debugEl = document.getElementById('debug-log');
+function log(msg, type) {
+    type = type || 'info';
+    var d = new Date();
+    var time = d.toLocaleTimeString() + '.' + d.getMilliseconds();
+    var entry = document.createElement('div');
+    entry.className = 'log-entry log-' + type;
+    entry.textContent = '[' + time + '] ' + msg;
+    debugEl.appendChild(entry);
+    debugEl.scrollTop = debugEl.scrollHeight;
+    console.log('[' + type.toUpperCase() + ']', msg);
+}
+
+// Set initial status
+document.getElementById('js-status').textContent = 'Loaded OK';
+log('JavaScript loaded and running', 'success');
+
+// Simple fetch wrapper
+function fetchData(url, callback) {
+    log('Fetching: ' + url, 'info');
+    
+    fetch(url)
+        .then(function(response) {
+            log('Response: ' + response.status + ' ' + response.statusText, response.ok ? 'success' : 'error');
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            log('Data received successfully', 'success');
+            callback(null, data);
+        })
+        .catch(function(error) {
+            log('Fetch error: ' + error.message, 'error');
+            callback(error, null);
+        });
+}
+
+// Draw shot chart using SVG layers
+function drawShotChart(shots) {
+    var wrapper = document.getElementById('shot-chart-wrapper');
+    var layer = document.getElementById('shots-layer');
+    var legend = document.getElementById('chart-legend');
+    var loading = document.getElementById('shot-loading');
+    
+    layer.innerHTML = '';
+    
+    if (!shots || shots.length === 0) {
+        wrapper.style.display = 'none';
+        legend.style.display = 'none';
+        loading.innerHTML = '<div class="empty-state"><p>No shots recorded</p></div>';
+        loading.style.display = 'block';
+        return;
+    }
+    
+    loading.style.display = 'none';
+    wrapper.style.display = 'block';
+    legend.style.display = 'flex';
+    
+    var makes = 0, misses = 0;
+    
+    shots.forEach(function(shot) {
+        var x = shot.x_loc || 250;
+        var y = shot.y_loc || 50;
+        
+        var dot = document.createElement('div');
+        dot.className = 'shot-point ' + (shot.result === 'made' ? 'shot-make' : 'shot-miss');
+        dot.style.left = (x / 500 * 100) + '%';
+        dot.style.top = (y / 470 * 100) + '%';
+        
+        var title = (shot.player_name || 'Unknown') + ' - ' + (shot.shot_type || 'Shot');
+        if (shot.game_id) title += ' (Game #' + shot.game_id + ')';
+        dot.title = title;
+        
+        layer.appendChild(dot);
+        
+        if (shot.result === 'made') makes++;
+        else misses++;
+    });
+    
+    document.getElementById('makes-count').textContent = makes;
+    document.getElementById('misses-count').textContent = misses;
+    
+    log('Shot chart rendered: ' + makes + ' makes, ' + misses + ' misses', 'success');
+}
+
+// Update zone stats display
+function updateZoneStats(heatmap) {
+    var container = document.getElementById('zone-stats');
+    var zones = ['Rim', 'Paint', 'Midrange', 'Corner_3', 'Above_Break_3'];
+    var html = '<div class="zone-stats-grid">';
+    
+    for (var i = 0; i < zones.length; i++) {
+        var zone = zones[i];
+        var stats = heatmap[zone] || {};
+        html += '<div class="zone-stat-item">';
+        html += '<div style="font-size:0.75rem;color:#6c757d;text-transform:uppercase">' + zone.replace('_', ' ') + '</div>';
+        html += '<div style="font-size:1.5rem;font-weight:700">' + (stats.fg_pct || 0) + '%</div>';
+        html += '<div style="font-size:0.75rem;color:#6c757d">' + (stats.attempts || 0) + ' shots</div>';
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+    log('Zone stats updated', 'success');
+}
+
+// Load all shot data
+function loadShotData() {
+    log('=== Loading shot data ===', 'info');
+    
+    var progressContainer = document.getElementById('progress-container');
+    var progressBar = document.getElementById('progress-bar');
+    
+    progressContainer.style.display = 'block';
+    progressBar.style.width = '10%';
+    
+    var player = document.getElementById('filter-player').value;
+    var gameType = document.getElementById('filter-game-type').value;
+    
+    var params = '?game_type=' + gameType;
+    if (player) params += '&player=' + encodeURIComponent(player);
+    
+    progressBar.style.width = '30%';
+    
+    // Load shot chart data
+    fetchData('/api/advanced/shots/chart' + params, function(err, data) {
+        if (err) {
+            document.getElementById('shot-chart-container').innerHTML = '<div class="error-state"><p>Error loading shots: ' + err.message + '</p></div>';
+            return;
+        }
+        
+        progressBar.style.width = '60%';
+        
+        var shots = data && data.shots ? data.shots : [];
+        log('Received ' + shots.length + ' shots', 'info');
+        
+        if (shots.length > 0) {
+            drawShotChart(shots);
+        } else {
+            document.getElementById('shot-chart-container').innerHTML = '<div class="empty-state"><p>No shots recorded</p></div>';
+        }
+        
+        progressBar.style.width = '80%';
+        
+        // Load heatmap data
+        fetchData('/api/advanced/shots/heatmap' + params, function(err2, data2) {
+            if (err2) {
+                document.getElementById('zone-stats').innerHTML = '<div class="error-state"><p>Error loading zones</p></div>';
+            } else {
+                var heatmap = data2 && data2.heatmap ? data2.heatmap : {};
+                updateZoneStats(heatmap);
+            }
+            
+            progressBar.style.width = '100%';
+            setTimeout(function() {
+                progressContainer.style.display = 'none';
+            }, 500);
+            
+            log('=== Shot data load complete ===', 'success');
+        });
+    });
+}
+
+// Load four factors
+function loadFourFactors() {
+    log('=== Loading four factors ===', 'info');
+    var container = document.getElementById('four-factors-content');
+    container.innerHTML = '<div class="col-12"><div class="loading-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div></div>';
+    
+    var gameId = document.getElementById('filter-ff-game').value;
+    var params = gameId ? '?game_id=' + gameId : '?game_type=Season';
+    
+    fetchData('/api/advanced/four-factors' + params, function(err, data) {
+        if (err || !data || !data.four_factors) {
+            container.innerHTML = '<div class="col-12"><div class="error-state"><p>Error loading four factors</p></div></div>';
+            return;
+        }
+        
+        var f = data.four_factors;
+        var html = '';
+        html += '<div class="col-md-3"><div class="stat-card factor-item"><div class="factor-value">' + (f.efg_pct||0).toFixed(1) + '%</div><div class="factor-label">eFG%</div><div class="factor-bar"><div class="factor-bar-fill" style="width:' + Math.min(f.efg_pct||0,100) + '%"></div></div></div></div>';
+        html += '<div class="col-md-3"><div class="stat-card factor-item"><div class="factor-value">' + (f.tov_pct||0).toFixed(1) + '%</div><div class="factor-label">TOV%</div><div class="factor-bar"><div class="factor-bar-fill" style="width:' + Math.min(f.tov_pct||0,100) + '%"></div></div></div></div>';
+        html += '<div class="col-md-3"><div class="stat-card factor-item"><div class="factor-value">' + (f.orb_pct||0).toFixed(1) + '%</div><div class="factor-label">ORB%</div><div class="factor-bar"><div class="factor-bar-fill" style="width:' + Math.min(f.orb_pct||0,100) + '%"></div></div></div></div>';
+        html += '<div class="col-md-3"><div class="stat-card factor-item"><div class="factor-value">' + (f.ft_rate||0).toFixed(1) + '%</div><div class="factor-label">FT Rate</div><div class="factor-bar"><div class="factor-bar-fill" style="width:' + Math.min(f.ft_rate||0,100) + '%"></div></div></div></div>';
+        
+        container.innerHTML = html;
+        log('Four factors loaded', 'success');
+    });
+}
+
+// Load player stats
+function loadPlayerStats() {
+    var player = document.getElementById('filter-player-stats').value;
+    var container = document.getElementById('player-stats-content');
+    
+    if (!player) {
+        container.innerHTML = '<div class="empty-state"><p>Select a player to view stats</p></div>';
+        return;
+    }
+    
+    log('=== Loading player stats for ' + player + ' ===', 'info');
+    container.innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
+    
+    fetchData('/api/advanced/player/' + encodeURIComponent(player) + '/advanced', function(err, data) {
+        if (err || !data) {
+            container.innerHTML = '<div class="error-state"><p>Error loading player stats</p></div>';
+            return;
+        }
+        
+        var stats = data.season_stats || {};
+        var sq = data.shot_quality || {};
+        
+        var html = '<div class="row">';
+        html += '<div class="col-md-6"><div class="stat-card">';
+        html += '<h5>' + player + '</h5>';
+        html += '<table class="table table-sm"><tbody>';
+        html += '<tr><td>PPG</td><td><strong>' + (stats.ppg||0) + '</strong></td></tr>';
+        html += '<tr><td>RPG</td><td><strong>' + (stats.rpg||0) + '</strong></td></tr>';
+        html += '<tr><td>APG</td><td><strong>' + (stats.apg||0) + '</strong></td></tr>';
+        html += '<tr><td>FG%</td><td><strong>' + (stats.fg_pct||0) + '%</strong></td></tr>';
+        html += '</tbody></table></div></div>';
+        html += '<div class="col-md-6"><div class="stat-card">';
+        html += '<h5>Advanced</h5>';
+        html += '<table class="table table-sm"><tbody>';
+        html += '<tr><td>TS%</td><td><strong>' + (stats.ts_pct||0) + '%</strong></td></tr>';
+        html += '<tr><td>eFG%</td><td><strong>' + (stats.efg_pct||0) + '%</strong></td></tr>';
+        html += '<tr><td>PPS</td><td><strong>' + (stats.pps||0) + '</strong></td></tr>';
+        html += '<tr><td>Usage</td><td><strong>' + (stats.usage_rate||0) + '%</strong></td></tr>';
+        html += '</tbody></table></div></div>';
+        html += '</div>';
+        
+        container.innerHTML = html;
+        log('Player stats loaded', 'success');
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    log('=== DOM Content Loaded ===', 'success');
+    
+    // Attach event listeners
+    document.getElementById('filter-player').addEventListener('change', loadShotData);
+    document.getElementById('filter-game-type').addEventListener('change', loadShotData);
+    document.getElementById('filter-ff-game').addEventListener('change', loadFourFactors);
+    document.getElementById('filter-player-stats').addEventListener('change', loadPlayerStats);
+    
+    log('Event listeners attached', 'success');
+    
+    // Tab change handlers
+    $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+        var target = $(e.target).attr('href');
+        log('Tab changed to: ' + target, 'info');
+        if (target === '#four-factors') loadFourFactors();
+        if (target === '#player-stats') loadPlayerStats();
+    });
+    
+    log('Starting initial data load...', 'info');
+    
+    // Initial loads
+    loadShotData();
+    loadFourFactors();
+    
+    log('=== Initialization complete ===', 'success');
+});
+</script>
+{% endblock %}

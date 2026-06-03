@@ -1,0 +1,38 @@
+name: BasketballStatsNative
+options:
+  minimumXcodeGenVersion: 2.39.0
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.giulio.basketballstats.native
+    DEVELOPMENT_TEAM: ""
+    SWIFT_VERSION: 6.0
+    IPHONEOS_DEPLOYMENT_TARGET: 17.0
+    TARGETED_DEVICE_FAMILY: "2"
+    SUPPORTS_MACCATALYST: NO
+targets:
+  BasketballStatsNative:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_NAME: BasketballStatsNative
+        INFOPLIST_KEY_CFBundleDisplayName: Basketball Stats
+        INFOPLIST_KEY_LSRequiresIPhoneOS: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleDefault
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+        PRODUCT_BUNDLE_IDENTIFIER: com.giulio.basketballstats.native
+        ENABLE_PREVIEWS: YES
+    scheme:
+      testTargets: []

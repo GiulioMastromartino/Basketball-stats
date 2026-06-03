@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from core.models import Game, PlayerStat, User, db
+from core.models import Game, PlayerStat, User, Organization, Team, OrganizationMembership, TeamAssignment, db
 from web import create_app
 
 
@@ -86,9 +86,35 @@ def setup_local_environment():
         db.create_all()
         print("✓ Database created")
         if User.query.filter_by(username="admin").first() is None:
-            admin = User(username="admin", email="admin@local.com", is_admin=True)
+            org = Organization.query.first()
+            if not org:
+                org = Organization(name="Default Organization")
+                db.session.add(org)
+                db.session.flush()
+
+            team = Team.query.filter_by(organization_id=org.id).first()
+            if not team:
+                team = Team(name="Default Team", organization_id=org.id, slug="default-team")
+                db.session.add(team)
+                db.session.flush()
+
+            admin = User(
+                username="admin",
+                email="admin@local.com",
+                organization_id=org.id,
+            )
             admin.set_password(os.getenv("ADMIN_PASSWORD", "admin123"))
             db.session.add(admin)
+            db.session.flush()
+
+            membership = OrganizationMembership(
+                user_id=admin.id, organization_id=org.id, is_gm=True
+            )
+            db.session.add(membership)
+
+            ta = TeamAssignment(user_id=admin.id, team_id=team.id, is_coach=True)
+            db.session.add(ta)
+
             db.session.commit()
             print("✓ Admin: admin/admin123")
         if Game.query.count() == 0:

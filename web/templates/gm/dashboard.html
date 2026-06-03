@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="page-hero">
+        <div>
+            <h1 class="page-hero__title"><i class="fas fa-building" aria-hidden="true"></i> {{ org.name }}</h1>
+            <p class="page-hero__lead">{{ members }} member{% if members != 1 %}s{% endif %} &middot; {{ team_data|length }} team{% if team_data|length != 1 %}s{% endif %}</p>
+        </div>
+        <div>
+            <a href="{{ url_for('main.admin_panel') }}" class="btn btn-outline-primary">
+                <i class="fas fa-user-gear" aria-hidden="true"></i> Admin Panel
+            </a>
+        </div>
+    </div>
+
+    <!-- Org-wide summary -->
+    {% set total_games = namespace(v=0) %}
+    {% set total_wins = namespace(v=0) %}
+    {% set total_losses = namespace(v=0) %}
+    {% set total_pts = namespace(v=0) %}
+    {% set total_opp_pts = namespace(v=0) %}
+    {% set total_players = namespace(v=0) %}
+    {% for td in team_data %}
+        {% set total_games.v = total_games.v + td.games %}
+        {% set total_wins.v = total_wins.v + td.wins %}
+        {% set total_losses.v = total_losses.v + td.losses %}
+        {% set total_pts.v = total_pts.v + td.points %}
+        {% set total_opp_pts.v = total_opp_pts.v + td.opp_points %}
+        {% set total_players.v = total_players.v + td.players %}
+    {% endfor %}
+
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body p-4">
+            <div class="metrics-row" style="margin-bottom: 0;">
+                <div class="metric-card" style="border:none;box-shadow:none;background:transparent;text-align:left;padding:0;">
+                    <div class="label">Total Games</div>
+                    <div class="value">{{ total_games.v }}</div>
+                </div>
+                <div class="metric-card" style="border:none;box-shadow:none;background:transparent;text-align:left;padding:0;border-left:1px solid var(--border-color);padding-left:20px;">
+                    <div class="label">Combined Record</div>
+                    <div class="value">
+                        <span class="text-success">{{ total_wins.v }}W</span> &ndash;
+                        <span class="text-danger">{{ total_losses.v }}L</span>
+                    </div>
+                </div>
+                <div class="metric-card" style="border:none;box-shadow:none;background:transparent;text-align:left;padding:0;border-left:1px solid var(--border-color);padding-left:20px;">
+                    <div class="label">Points Scored</div>
+                    <div class="value">{{ total_pts.v }}</div>
+                </div>
+                <div class="metric-card" style="border:none;box-shadow:none;background:transparent;text-align:left;padding:0;border-left:1px solid var(--border-color);padding-left:20px;">
+                    <div class="label">Points Allowed</div>
+                    <div class="value">{{ total_opp_pts.v }}</div>
+                </div>
+                <div class="metric-card" style="border:none;box-shadow:none;background:transparent;text-align:left;padding:0;border-left:1px solid var(--border-color);padding-left:20px;">
+                    <div class="label">Active Players</div>
+                    <div class="value">{{ total_players.v }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Team cards -->
+    <div class="row g-4">
+        {% for td in team_data %}
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h5 class="card-title mb-1">{{ td.name }}</h5>
+                            <small class="text-muted">{{ td.games }} game{% if td.games != 1 %}s{% endif %}</small>
+                        </div>
+                        <div class="text-end">
+                            <div style="font-size:1.5rem;font-weight:700;font-family:var(--display);line-height:1;">
+                                {% if td.games > 0 %}
+                                {{ ((td.wins / td.games) * 100)|round(0)|int }}%
+                                {% else %}&ndash;{% endif %}
+                            </div>
+                            <small class="text-muted">Win %</small>
+                        </div>
+                    </div>
+
+                    <div class="metrics-row mb-3" style="grid-template-columns:repeat(3,1fr);gap:8px;">
+                        <div class="metric-card" style="border:none;box-shadow:none;background:transparent;text-align:center;padding:4px;">
+                            <div class="label" style="font-size:11px;">Record</div>
+                            <div class="value" style="font-size:1rem;">
+                                <span class="text-success">{{ td.wins }}W</span> &ndash;
+                                <span class="text-danger">{{ td.losses }}L</span>
+                            </div>
+                        </div>
+                        <div class="metric-card" style="border:none;box-shadow:none;background:transparent;text-align:center;padding:4px;">
+                            <div class="label" style="font-size:11px;">PPG</div>
+                            <div class="value" style="font-size:1rem;">{{ td.avg_ppg }}</div>
+                        </div>
+                        <div class="metric-card" style="border:none;box-shadow:none;background:transparent;text-align:center;padding:4px;">
+                            <div class="label" style="font-size:11px;">Players</div>
+                            <div class="value" style="font-size:1rem;">{{ td.players }}</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-auto d-flex gap-2 flex-wrap">
+                        <a href="{{ url_for('main.games', team_id=td.id) }}" class="btn btn-sm btn-outline-primary" style="flex:1;">
+                            <i class="fas fa-calendar" aria-hidden="true"></i> Games
+                        </a>
+                        <a href="{{ url_for('main.players', team_id=td.id) }}" class="btn btn-sm btn-outline-primary" style="flex:1;">
+                            <i class="fas fa-users" aria-hidden="true"></i> Players
+                        </a>
+                        <a href="{{ url_for('analytics.dashboard', team_id=td.id) }}" class="btn btn-sm btn-outline-primary" style="flex:1;">
+                            <i class="fas fa-chart-column" aria-hidden="true"></i> Analytics
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

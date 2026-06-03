@@ -2,855 +2,968 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>{{ player_name }} - Player Report</title>
+  <title>{{ player_name }} — Player Report</title>
   <style>
+    /* ── Fonts ── */
+    @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Work+Sans:wght@400;600&display=swap');
+
+    /* ── Page setup ── */
     @page {
       size: A4;
-      margin: 1.5cm;
+      margin: 0;
       @bottom-right {
-        content: "Page " counter(page) " of " counter(pages);
-        font-size: 9px;
-        color: #666;
+        content: counter(page) " / " counter(pages);
+        font-family: 'Space Mono', monospace;
+        font-size: 7px;
+        color: #4a5568;
+        margin-right: 15mm;
+        margin-bottom: 8mm;
       }
     }
-    
+
+    /* ── Tokens ── */
+    :root {
+      --bg:        #0a0a0c;
+      --bg-card:   #141417;
+      --bg-cell:   #1c1c1f;
+      --border:    #2a2a30;
+      --cyan:      #00f2ff;
+      --green:     #00e676;
+      --red:       #ff1744;
+      --gold:      #fbbf24;
+      --white:     #e2e8f0;
+      --dim:       #64748b;
+      --font-h:    'Archivo Black', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+      --font-body: 'Work Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: 'Helvetica', 'Arial', sans-serif;
-      font-size: 10px;
-      line-height: 1.4;
-      color: #333;
+      background: var(--bg);
+      color: var(--white);
+      font-family: var(--font-body);
+      font-size: 9px;
+      line-height: 1.5;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-    
-    h1 {
-      font-size: 24px;
-      margin: 0 0 8px 0;
-      color: #1a1a1a;
-      border-bottom: 3px solid #0066cc;
-      padding-bottom: 8px;
-    }
-    
-    h2 {
-      font-size: 16px;
-      margin: 20px 0 10px 0;
-      color: #0066cc;
-      border-bottom: 1px solid #ccc;
-      padding-bottom: 4px;
-      page-break-after: avoid;
-    }
-    
-    h3 {
-      font-size: 13px;
-      margin: 12px 0 6px 0;
-      color: #333;
-      font-weight: 600;
-    }
-    
-    .page-break {
+
+    /* ── Page wrapper ── */
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 12mm 14mm 14mm;
+      background: var(--bg);
+      position: relative;
       page-break-after: always;
+      break-after: page;
     }
-    
-    .header-info {
-      background: #f5f5f5;
-      padding: 10px;
-      margin: 10px 0;
-      border-left: 4px solid #0066cc;
+    .page:last-child { page-break-after: avoid; break-after: avoid; }
+
+    /* scanline texture */
+    .page::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0,0,0,.18) 3px,
+        rgba(0,0,0,.18) 4px
+      );
+      pointer-events: none;
+      z-index: 0;
     }
-    
-    .header-info p {
-      margin: 2px 0;
-      font-size: 11px;
+    .page > * { position: relative; z-index: 1; }
+
+    /* ── Page header strip ── */
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid var(--cyan);
+      padding-bottom: 8px;
+      margin-bottom: 14px;
     }
-    
+    .page-header-name {
+      font-family: var(--font-h);
+      font-size: 22px;
+      text-transform: uppercase;
+      letter-spacing: -1px;
+      color: var(--white);
+    }
+    .page-header-sub {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .page-header-badge {
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--dim);
+      text-align: right;
+    }
+    .page-tag {
+      display: inline-block;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 2px 7px;
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-top: 3px;
+    }
+
+    /* ── Section titles ── */
+    .sec {
+      font-family: var(--font-h);
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 14px 0 7px;
+    }
+    .sec::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .sec-icon { color: var(--cyan); font-size: 9px; }
+
+    /* ── Stat grid ── */
+    .sg {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .sg-4  { grid-template-columns: repeat(4, 1fr); }
+    .sg-6  { grid-template-columns: repeat(6, 1fr); }
+    .sg-8  { grid-template-columns: repeat(8, 1fr); }
+    .sg-3  { grid-template-columns: repeat(3, 1fr); }
+    .sg-2  { grid-template-columns: repeat(2, 1fr); }
+
+    .sc {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 7px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .sc-v {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--white);
+      line-height: 1;
+    }
+    .sc-v.lg  { font-size: 24px; }
+    .sc-v.sm  { font-size: 14px; }
+    .sc-v.gold { color: var(--gold); }
+    .sc-v.cyan { color: var(--cyan); }
+    .sc-l {
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+    .sc-note {
+      font-family: var(--font-mono);
+      font-size: 6.5px;
+      color: var(--dim);
+      font-style: italic;
+    }
+
+    /* ── Tables ── */
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 10px 0;
-      font-size: 9px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 10px;
     }
-    
-    th, td {
-      border: 1px solid #ddd;
-      padding: 6px 4px;
-      text-align: center;
-    }
-    
+    thead { background: var(--bg-cell); }
     th {
-      background: #0066cc;
-      color: white;
-      font-weight: 600;
-      font-size: 9px;
-    }
-    
-    tr:nth-child(even) {
-      background: #f9f9f9;
-    }
-    
-    .highlight {
-      background: #fff3cd !important;
-      font-weight: bold;
-    }
-    
-    .section-box {
-      background: #f8f9fa;
-      border: 1px solid #dee2e6;
-      padding: 12px;
-      margin: 10px 0;
-      border-radius: 4px;
-    }
-    
-    .stat-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      margin: 10px 0;
-    }
-    
-    .stat-card {
-      background: white;
-      border: 1px solid #ddd;
-      padding: 8px;
+      font-family: var(--font-mono);
+      font-size: 7.5px;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: .3px;
+      padding: 6px 5px;
       text-align: center;
-      border-radius: 4px;
+      border-bottom: 1px solid var(--border);
     }
-    
-    .stat-label {
+    td {
+      font-family: var(--font-mono);
       font-size: 8px;
-      color: #666;
+      color: var(--white);
+      padding: 5px 5px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: rgba(255,255,255,.025); }
+    .td-left { text-align: left !important; padding-left: 8px !important; }
+    .td-bold { font-weight: 700; }
+
+    /* ── Colours ── */
+    .pos  { color: var(--green) !important; font-weight: 700; }
+    .neg  { color: var(--red)   !important; font-weight: 700; }
+    .hi   { background: rgba(251,191,36,.12) !important; font-weight: 700; }
+    .win  { color: var(--green); font-weight: 700; }
+    .loss { color: var(--red);   font-weight: 700; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-family: var(--font-mono);
+      font-size: 7.5px;
+      font-weight: 700;
       text-transform: uppercase;
     }
-    
-    .stat-value {
-      font-size: 18px;
-      font-weight: bold;
-      color: #0066cc;
-      margin: 4px 0;
-    }
-    
-    .chart-container {
-      margin: 15px 0;
-      text-align: center;
-      page-break-inside: avoid;
-    }
-    
-    .chart-container img {
-      max-width: 100%;
-      height: auto;
-    }
-    
-    .note {
-      font-size: 8px;
-      color: #666;
-      font-style: italic;
-      margin-top: 4px;
-    }
-    
-    .game-log-table {
-      font-size: 8px;
-    }
-    
-    .game-log-table th {
-      font-size: 8px;
-    }
-    
-    .win {
-      color: #28a745;
-      font-weight: bold;
-    }
-    
-    .loss {
-      color: #dc3545;
-      font-weight: bold;
-    }
-    
-    /* Team Rankings Styles */
-    .rank-badge {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-weight: bold;
-      font-size: 10px;
-      margin-left: 8px;
-    }
-    
-    .rank-1 {
-      background: #ffd700;
-      color: #000;
-    }
-    
-    .rank-top3 {
-      background: #28a745;
-      color: white;
-    }
-    
-    .rank-top50 {
-      background: #0066cc;
-      color: white;
-    }
-    
-    .rank-bottom {
-      background: #dc3545;
-      color: white;
-    }
-    
-    .percentile-bar {
-      width: 100%;
-      height: 20px;
-      background: #e9ecef;
-      border-radius: 10px;
-      overflow: hidden;
-      position: relative;
-      margin: 8px 0;
-    }
-    
-    .percentile-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
-      transition: width 0.3s ease;
-    }
-    
-    .percentile-marker {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 9px;
-      font-weight: bold;
-      color: white;
-      text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-    }
-    
-    .distribution-row {
+    .badge-leader { background: var(--gold);  color: #000; }
+    .badge-top3   { background: #065f46;       color: var(--green); border: 1px solid var(--green); }
+    .badge-mid    { background: #1e3a5f;       color: var(--cyan);  border: 1px solid var(--cyan); }
+    .badge-low    { background: #4a0010;       color: var(--red);   border: 1px solid var(--red); }
+
+    /* ── Percentile bar ── */
+    .pct-row {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin: 8px 0;
-      font-size: 9px;
+      gap: 8px;
+      margin: 5px 0;
     }
-    
-    .distribution-label {
-      width: 60px;
-      font-weight: 600;
+    .pct-label {
+      width: 90px;
+      font-family: var(--font-mono);
+      font-size: 7.5px;
+      color: var(--white);
+      flex-shrink: 0;
     }
-    
-    .distribution-bar {
+    .pct-bar-wrap {
       flex: 1;
-      height: 16px;
-      background: #e9ecef;
-      border-radius: 8px;
+      height: 10px;
+      background: var(--bg-cell);
+      border-radius: 5px;
+      overflow: hidden;
+      position: relative;
+    }
+    .pct-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--red) 0%, var(--gold) 50%, var(--green) 100%);
+    }
+    .pct-marker {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: var(--white);
+      border-radius: 1px;
+    }
+    .pct-val {
+      width: 30px;
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--dim);
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* ── Two-column box ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    /* ── Info box ── */
+    .info-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--cyan);
+      border-radius: 5px;
+      padding: 9px 11px;
+      margin-bottom: 10px;
+    }
+    .info-box p {
+      font-size: 8.5px;
+      margin-bottom: 3px;
+      color: var(--white);
+    }
+    .info-box p:last-child { margin-bottom: 0; }
+    .info-box strong { color: var(--cyan); }
+
+    /* ── Benchmark block ── */
+    .bench-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 8px 10px;
+      margin-bottom: 6px;
+    }
+    .bench-title {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: var(--cyan);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .bench-text { font-size: 8.5px; color: var(--white); }
+
+    /* ── Chart image ── */
+    .chart-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 8px;
+      margin-bottom: 10px;
+      text-align: center;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .chart-wrap img {
+      width: 100%;
+      height: auto;
+      max-height: 20cm;   /* was 14cm — give the scoring chart room to breathe */
+      object-fit: contain;
+      display: block;
+    }
+    /* Tighter cap for compact charts (shot chart, quarter chart) */
+    .chart-wrap.chart-compact img { max-height: 14cm; }
+
+    .chart-cap {
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--dim);
+      text-align: center;
+      margin-top: 5px;
+    }
+
+    /* ── Distribution inline bar ── */
+    .dist-bar-wrap {
+      flex: 1;
+      height: 12px;
+      background: var(--bg-cell);
+      border-radius: 6px;
       position: relative;
       overflow: hidden;
     }
-    
-    .distribution-fill {
+    .dist-bar-fill {
       height: 100%;
-      background: #0066cc;
-      opacity: 0.3;
+      background: rgba(0,242,255,.15);
     }
-    
-    .distribution-player-marker {
+    .dist-marker {
       position: absolute;
-      top: 0;
-      height: 100%;
-      width: 3px;
-      background: #dc3545;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: var(--red);
     }
-    
-    .leader-badge {
-      background: #ffd700;
-      color: #000;
-      padding: 2px 8px;
-      border-radius: 8px;
-      font-weight: bold;
-      font-size: 8px;
-      display: inline-block;
-      margin-left: 4px;
-    }
+
+    /* ── No-split ── */
+    .ns { break-inside: avoid; page-break-inside: avoid; }
   </style>
 </head>
 <body>
 
-  <!-- PAGE 1: SUMMARY & OVERVIEW -->
-  <div class="page">
-    <h1>🏀 {{ player_name }}</h1>
-    
-    <div class="header-info">
-      <p><strong>Report Type:</strong> {{ game_type }}</p>
-      <p><strong>Games Played:</strong> {{ games_played }}</p>
-      <p><strong>Total Minutes:</strong> {{ "%.1f"|format(totals.minutes) }}</p>
-      <p><strong>Generated:</strong> {{ generated_date }}</p>
+{# ─────────────────────────── MACROS ─────────────────────────── #}
+
+{%- macro pm_span(val) -%}
+  {%- if val is not none -%}
+    <span class="{% if val > 0 %}pos{% elif val < 0 %}neg{% endif %}">
+      {%- if val > 0 %}+{% endif %}{{ "%.1f"|format(val) }}
+    </span>
+  {%- else -%}N/A{%- endif -%}
+{%- endmacro -%}
+
+{%- macro pm_int(val) -%}
+  {%- if val is not none -%}
+    <span class="{% if val > 0 %}pos{% elif val < 0 %}neg{% endif %}">
+      {%- if val > 0 %}+{% endif %}{{ "%d"|format(val) }}
+    </span>
+  {%- else -%}N/A{%- endif -%}
+{%- endmacro -%}
+
+{%- macro rank_badge(r) -%}
+  {%- if r.is_leader -%}
+    <span class="badge badge-leader">&#127942; Team Leader</span>
+  {%- elif r.rank <= 3 -%}
+    <span class="badge badge-top3">Top 3</span>
+  {%- elif r.percentile >= 50 -%}
+    <span class="badge badge-mid">Top {{ r.percentile|int }}%</span>
+  {%- else -%}
+    <span class="badge badge-low">{{ r.percentile|int }}th %ile</span>
+  {%- endif -%}
+{%- endmacro -%}
+
+{%- macro pct_bar(r) -%}
+  <div class="pct-row">
+    <div class="pct-val" style="width:auto;color:var(--white);min-width:16px;">#{{ r.rank }}/{{ r.total }}</div>
+    {{ rank_badge(r) }}
+    <div class="pct-bar-wrap" style="flex:1;">
+      <div class="pct-bar-fill" style="width:{{ r.percentile }}%;"></div>
+      <div class="pct-marker" style="left:{{ r.percentile }}%;"></div>
     </div>
-
-    <h2>Season Summary</h2>
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="stat-label">PPG</div>
-        <div class="stat-value">{{ "%.1f"|format(per_game.ppg) }}</div>
-        {% if team_rankings and team_rankings.ppg %}
-        <div class="note">#{{ team_rankings.ppg.rank }} on team</div>
-        {% endif %}
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">RPG</div>
-        <div class="stat-value">{{ "%.1f"|format(per_game.rpg) }}</div>
-        {% if team_rankings and team_rankings.rpg %}
-        <div class="note">#{{ team_rankings.rpg.rank }} on team</div>
-        {% endif %}
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">APG</div>
-        <div class="stat-value">{{ "%.1f"|format(per_game.apg) }}</div>
-        {% if team_rankings and team_rankings.apg %}
-        <div class="note">#{{ team_rankings.apg.rank }} on team</div>
-        {% endif %}
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">MPG</div>
-        <div class="stat-value">{{ "%.1f"|format(per_game.mpg) }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">FG%</div>
-        <div class="stat-value">{{ "%.1f"|format(shooting.fg_pct) }}%</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">3P%</div>
-        <div class="stat-value">{{ "%.1f"|format(shooting.tp_pct) }}%</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">TS%</div>
-        <div class="stat-value">{{ "%.1f"|format(shooting.ts_pct) }}%</div>
-        {% if team_rankings and team_rankings.ts_pct %}
-        <div class="note">#{{ team_rankings.ts_pct.rank }} on team</div>
-        {% endif %}
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">EFF</div>
-        <div class="stat-value">{{ "%.1f"|format(advanced.eff_per_game) }}</div>
-      </div>
-    </div>
-
-    <h2>Season Totals</h2>
-    <table>
-      <tr>
-        <th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th>
-        <th>BLK</th><th>TOV</th><th>PF</th>
-      </tr>
-      <tr>
-        <td>{{ "%.0f"|format(totals.minutes) }}</td>
-        <td class="highlight">{{ totals.points }}</td>
-        <td>{{ totals.reb }}</td>
-        <td>{{ totals.ast }}</td>
-        <td>{{ totals.stl }}</td>
-        <td>{{ totals.blk }}</td>
-        <td>{{ totals.tov }}</td>
-        <td>{{ totals.pf }}</td>
-      </tr>
-    </table>
-
-    <h3>Shooting Totals</h3>
-    <table>
-      <tr>
-        <th>FGM-FGA</th><th>FG%</th><th>2PM-2PA</th><th>2P%</th>
-        <th>3PM-3PA</th><th>3P%</th><th>FTM-FTA</th><th>FT%</th>
-      </tr>
-      <tr>
-        <td>{{ totals.fgm }}-{{ totals.fga }}</td>
-        <td>{{ "%.1f"|format(shooting.fg_pct) }}%</td>
-        <td>{{ shooting.two_pt_made }}-{{ shooting.two_pt_att }}</td>
-        <td>{{ "%.1f"|format(shooting.two_pt_pct) }}%</td>
-        <td>{{ totals.tpm }}-{{ totals.tpa }}</td>
-        <td>{{ "%.1f"|format(shooting.tp_pct) }}%</td>
-        <td>{{ totals.ftm }}-{{ totals.fta }}</td>
-        <td>{{ "%.1f"|format(shooting.ft_pct) }}%</td>
-      </tr>
-    </table>
-
-    <h3>Rebounding Breakdown</h3>
-    <table>
-      <tr>
-        <th>Total REB</th><th>OREB</th><th>DREB</th><th>OREB%</th><th>DREB%</th>
-      </tr>
-      <tr>
-        <td>{{ totals.reb }}</td>
-        <td>{{ totals.oreb }}</td>
-        <td>{{ totals.dreb }}</td>
-        <td>{{ "%.1f"|format(advanced.oreb_pct) }}%</td>
-        <td>{{ "%.1f"|format(advanced.dreb_pct) }}%</td>
-      </tr>
-    </table>
+    <div class="pct-val">{{ r.percentile|int }}%</div>
   </div>
-  
-  <div class="page-break"></div>
+{%- endmacro -%}
 
-  <!-- PAGE 2: TEAM RANKINGS & PERCENTILES -->
-  {% if team_rankings %}
-  <div class="page">
-    <h1>{{ player_name }} - Team Rankings</h1>
+{%- macro bench_block(label, ts, ts_team, ast, ast_team, pm) -%}
+<div class="bench-item">
+  <div class="bench-title">Scoring Efficiency</div>
+  <div class="bench-text">
+    {%- if ts >= 60 %}&#9989; <strong>Elite</strong>
+    {%- elif ts >= 55 %}&#9989; <strong>Above Average</strong>
+    {%- elif ts >= 50 %}&#9888;&#65039; <strong>Average</strong>
+    {%- else %}&#10060; <strong>Below Average</strong>
+    {%- endif %} &mdash; TS% {{ "%.1f"|format(ts) }}% &nbsp;(Team: {{ "%.1f"|format(ts_team) }}%)
+  </div>
+</div>
+<div class="bench-item">
+  <div class="bench-title">Playmaking</div>
+  <div class="bench-text">
+    {%- if ast >= 2.0 %}&#9989; <strong>Excellent</strong>
+    {%- elif ast >= 1.5 %}&#9989; <strong>Good</strong>
+    {%- elif ast >= 1.0 %}&#9888;&#65039; <strong>Average</strong>
+    {%- else %}&#10060; <strong>Needs Work</strong>
+    {%- endif %} &mdash; AST/TOV {{ "%.2f"|format(ast) }} &nbsp;(Team: {{ "%.2f"|format(ast_team) }})
+  </div>
+</div>
+<div class="bench-item">
+  <div class="bench-title">On-Court Impact (+/-)</div>
+  <div class="bench-text">
+    {%- if pm is not none -%}
+      {%- if pm >= 5 %}&#9989; <strong>Elite Impact</strong>
+      {%- elif pm >= 2 %}&#9989; <strong>Positive Impact</strong>
+      {%- elif pm >= -2 %}&#9888;&#65039; <strong>Neutral</strong>
+      {%- else %}&#10060; <strong>Needs Improvement</strong>
+      {%- endif %} &mdash; {{ "%+.1f"|format(pm) }}
+    {%- else -%}
+      &#8505;&#65039; +/- data unavailable
+    {%- endif -%}
+  </div>
+</div>
+{%- endmacro -%}
 
-    <h2>Performance Rankings</h2>
-    <div class="section-box">
-      {% for metric_key, metric_name in [('ppg', 'Points Per Game'), ('rpg', 'Rebounds Per Game'), ('apg', 'Assists Per Game')] %}
-        {% if team_rankings[metric_key] %}
-        {% set ranking = team_rankings[metric_key] %}
-        <div class="distribution-row">
-          <div class="distribution-label">{{ metric_name }}:</div>
-          <div style="flex: 1;">
-            <strong>#{{ ranking.rank }} of {{ ranking.total }}</strong>
-            {% if ranking.is_leader %}
-              <span class="leader-badge">🏆 TEAM LEADER</span>
-            {% elif ranking.rank <= 3 %}
-              <span class="rank-badge rank-top3">TOP 3</span>
-            {% elif ranking.percentile >= 50 %}
-              <span class="rank-badge rank-top50">TOP {{ ranking.percentile|int }}%</span>
-            {% else %}
-              <span class="rank-badge rank-bottom">{{ ranking.percentile|int }}th %ile</span>
-            {% endif %}
-            <div class="percentile-bar">
-              <div class="percentile-fill" style="width: {{ ranking.percentile }}%;"></div>
-              <div class="percentile-marker" style="left: {{ ranking.percentile }}%;">{{ ranking.percentile|int }}%</div>
-            </div>
-          </div>
-        </div>
-        {% endif %}
-      {% endfor %}
+
+{# ═══════════════════ PAGE 1 — OVERVIEW ═══════════════════ #}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-header-name">&#127944; {{ player_name }}</div>
+      <div class="page-header-sub">{{ game_type }} &nbsp;|&nbsp; {{ games_played }} games &nbsp;|&nbsp; {{ "%.1f"|format(avg_stats.minutes) }} MPG</div>
     </div>
-
-    <h2>Advanced Metrics Rankings</h2>
-    <div class="section-box">
-      {% for metric_key, metric_name in [('ts_pct', 'True Shooting %'), ('efg_pct', 'Effective FG %'), ('ortg', 'Offensive Rating'), ('ast_tov', 'AST/TOV Ratio')] %}
-        {% if team_rankings[metric_key] %}
-        {% set ranking = team_rankings[metric_key] %}
-        <div class="distribution-row">
-          <div class="distribution-label">{{ metric_name }}:</div>
-          <div style="flex: 1;">
-            <strong>#{{ ranking.rank }} of {{ ranking.total }}</strong>
-            {% if ranking.is_leader %}
-              <span class="leader-badge">🏆 TEAM LEADER</span>
-            {% elif ranking.rank <= 3 %}
-              <span class="rank-badge rank-top3">TOP 3</span>
-            {% elif ranking.percentile >= 50 %}
-              <span class="rank-badge rank-top50">TOP {{ ranking.percentile|int }}%</span>
-            {% else %}
-              <span class="rank-badge rank-bottom">{{ ranking.percentile|int }}th %ile</span>
-            {% endif %}
-            <div class="percentile-bar">
-              <div class="percentile-fill" style="width: {{ ranking.percentile }}%;"></div>
-              <div class="percentile-marker" style="left: {{ ranking.percentile }}%;">{{ ranking.percentile|int }}%</div>
-            </div>
-          </div>
-        </div>
-        {% endif %}
-      {% endfor %}
-    </div>
-
-    <h2>Team Distribution Analysis</h2>
-    <div class="section-box">
-      <p class="note" style="font-size: 9px; margin-bottom: 10px;">
-        The charts below show where {{ player_name }} ranks within the team distribution for key metrics. 
-        The red line indicates the player's position relative to teammates.
-      </p>
-      
-      {% for metric_key, metric_name in [('ppg', 'PPG'), ('ts_pct', 'TS%'), ('ortg', 'ORTG')] %}
-        {% if team_rankings[metric_key] and team_rankings[metric_key].distribution %}
-        {% set ranking = team_rankings[metric_key] %}
-        {% set min_val = ranking.distribution|min %}
-        {% set max_val = ranking.distribution|max %}
-        {% set range_val = max_val - min_val %}
-        {% set player_val = ranking.player_value %}
-        {% set player_pos = ((player_val - min_val) / range_val * 100) if range_val > 0 else 50 %}
-        
-        <div style="margin: 15px 0;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <strong style="font-size: 10px;">{{ metric_name }}</strong>
-            <span style="font-size: 9px;">{{ "%.1f"|format(min_val) }} → {{ "%.1f"|format(max_val) }}</span>
-          </div>
-          <div class="distribution-bar">
-            <div class="distribution-fill" style="width: 100%;"></div>
-            <div class="distribution-player-marker" style="left: {{ player_pos }}%;"></div>
-          </div>
-          <div style="text-align: center; font-size: 8px; margin-top: 2px; color: #dc3545;">
-            ▲ {{ player_name }}: {{ "%.1f"|format(player_val) }}
-          </div>
-        </div>
-        {% endif %}
-      {% endfor %}
+    <div class="page-header-badge">
+      {{ generated_date }}<br>
+      <span class="page-tag">Season Overview</span>
     </div>
   </div>
-  
-  <div class="page-break"></div>
+
+  <div class="sec"><span class="sec-icon">&#9733;</span> Core Averages</div>
+  <div class="sg sg-8">
+    <div class="sc"><div class="sc-v lg">{{ "%.1f"|format(avg_stats.points) }}</div><div class="sc-l">PPG</div></div>
+    <div class="sc"><div class="sc-v lg">{{ "%.1f"|format(avg_stats.reb) }}</div><div class="sc-l">RPG</div></div>
+    <div class="sc"><div class="sc-v lg">{{ "%.1f"|format(avg_stats.apg) }}</div><div class="sc-l">APG</div></div>
+    <div class="sc"><div class="sc-v lg">{{ "%.1f"|format(avg_stats.stl) }}</div><div class="sc-l">SPG</div></div>
+    <div class="sc"><div class="sc-v lg">{{ "%.1f"|format(avg_stats.blk) }}</div><div class="sc-l">BPG</div></div>
+    <div class="sc"><div class="sc-v lg">{{ "%.1f"|format(avg_stats.tov) }}</div><div class="sc-l">TOV</div></div>
+    <div class="sc"><div class="sc-v lg">{{ "%.1f"|format(avg_stats.minutes) }}</div><div class="sc-l">MPG</div></div>
+    <div class="sc">
+      <div class="sc-v lg {% if advanced.avg_plus_minus is not none and advanced.avg_plus_minus > 0 %}pos{% elif advanced.avg_plus_minus is not none and advanced.avg_plus_minus < 0 %}neg{% endif %}">
+        {{ pm_span(advanced.avg_plus_minus) }}
+      </div>
+      <div class="sc-l">+/- avg</div>
+    </div>
+  </div>
+
+  <div class="sec"><span class="sec-icon">&#128200;</span> Season Totals</div>
+  <table>
+    <thead><tr>
+      <th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>PF</th><th>+/-</th>
+    </tr></thead>
+    <tbody><tr>
+      <td>{{ "%.0f"|format(avg_stats.minutes * games_played) }}</td>
+      <td class="hi">{{ "%.0f"|format(avg_stats.points * games_played) }}</td>
+      <td>{{ "%.0f"|format(avg_stats.reb * games_played) }}</td>
+      <td>{{ "%.0f"|format(avg_stats.ast * games_played) }}</td>
+      <td>{{ "%.0f"|format(avg_stats.stl * games_played) }}</td>
+      <td>{{ "%.0f"|format(avg_stats.blk * games_played) }}</td>
+      <td>{{ "%.0f"|format(avg_stats.tov * games_played) }}</td>
+      <td>{{ "%.0f"|format(avg_stats.pf  * games_played) }}</td>
+      <td>{{ pm_int(advanced.avg_plus_minus * box_detail.tracked_plus_minus_games if advanced.avg_plus_minus is not none else none) }}</td>
+    </tr></tbody>
+  </table>
+
+  <div class="two-col">
+    <div>
+      <div class="sec" style="margin-top:0;"><span class="sec-icon">&#127919;</span> Shooting Totals</div>
+      <table>
+        <thead><tr><th>Type</th><th>M&ndash;A</th><th>%</th><th>Att/G</th></tr></thead>
+        <tbody>
+          <tr><td class="td-left">2PT</td><td>{{ "%.0f"|format(shooting.two_pt.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.two_pt.att*games_played) }}</td><td>{{ "%.1f"|format(shooting.two_pt.pct) }}%</td><td>{{ "%.1f"|format(shooting.two_pt.att) }}</td></tr>
+          <tr><td class="td-left">3PT</td><td>{{ "%.0f"|format(shooting.three_pt.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.three_pt.att*games_played) }}</td><td>{{ "%.1f"|format(shooting.three_pt.pct) }}%</td><td>{{ "%.1f"|format(shooting.three_pt.att) }}</td></tr>
+          <tr><td class="td-left">FT</td><td>{{ "%.0f"|format(shooting.ft.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.ft.att*games_played) }}</td><td>{{ "%.1f"|format(shooting.ft.pct) }}%</td><td>{{ "%.1f"|format(shooting.ft.att) }}</td></tr>
+          <tr><td class="td-left td-bold">FG</td><td class="td-bold">{{ "%.0f"|format(shooting.fg.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.fg.att*games_played) }}</td><td class="td-bold">{{ "%.1f"|format(shooting.fg.pct) }}%</td><td>{{ "%.1f"|format(shooting.fg.att) }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <div class="sec" style="margin-top:0;"><span class="sec-icon">&#128218;</span> Rebounding Breakdown</div>
+      <table>
+        <thead><tr><th>Total</th><th>OREB</th><th>DREB</th><th>OREB%</th><th>DREB%</th></tr></thead>
+        <tbody><tr>
+          <td>{{ "%.0f"|format(avg_stats.reb*games_played) }}</td>
+          <td>{{ "%.0f"|format(avg_stats.oreb*games_played) }}</td>
+          <td>{{ "%.0f"|format(avg_stats.dreb*games_played) }}</td>
+          <td>{{ "%.1f"|format(advanced.oreb_pct if advanced.oreb_pct else 0) }}%</td>
+          <td>{{ "%.1f"|format(advanced.dreb_pct if advanced.dreb_pct else 0) }}%</td>
+        </tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="sec"><span class="sec-icon">&#9889;</span> Advanced Shooting</div>
+  <div class="sg sg-4">
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(advanced.ts_pct) }}%</div><div class="sc-l">True Shooting %</div>{% if team_rankings and team_rankings.ts_pct %}<div class="sc-note">#{{ team_rankings.ts_pct.rank }} on team</div>{% endif %}</div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(advanced.efg_pct) }}%</div><div class="sc-l">eFG %</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.3f"|format(advanced.ppp if advanced.ppp else 0) }}</div><div class="sc-l">PPP</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.2f"|format(advanced.ast_tov) }}</div><div class="sc-l">AST / TOV</div></div>
+  </div>
+
+  <div class="sec"><span class="sec-icon">&#128293;</span> Ortg vs Team</div>
+  <table>
+    <thead><tr><th>Metric</th><th>Player</th><th>Team Avg</th><th>Elite Ref.</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="td-left">Offensive Rating (ORTG)</td>
+        <td class="hi">{{ "%.1f"|format(advanced.ortg) }}</td>
+        <td>{{ "%.1f"|format(team_avg.ortg) }}</td>
+        <td>&gt;110</td>
+        <td class="td-left" style="color:var(--dim);">Pts per 100 possessions</td>
+      </tr>
+      <tr>
+        <td class="td-left">True Shooting %</td>
+        <td class="hi">{{ "%.1f"|format(advanced.ts_pct) }}%</td>
+        <td>{{ "%.1f"|format(team_avg.ts_pct) }}%</td>
+        <td>&gt;55%</td>
+        <td class="td-left" style="color:var(--dim);">FG / 3PT / FT efficiency</td>
+      </tr>
+      <tr>
+        <td class="td-left">Effective FG %</td>
+        <td class="hi">{{ "%.1f"|format(advanced.efg_pct) }}%</td>
+        <td>{{ "%.1f"|format(team_avg.efg_pct) }}%</td>
+        <td>&gt;50%</td>
+        <td class="td-left" style="color:var(--dim);">FG% weighting 3PT</td>
+      </tr>
+      <tr>
+        <td class="td-left">AST / TOV Ratio</td>
+        <td class="hi">{{ "%.2f"|format(advanced.ast_tov) }}</td>
+        <td>{{ "%.2f"|format(team_avg.ast_tov) }}</td>
+        <td>&gt;2.0</td>
+        <td class="td-left" style="color:var(--dim);">Decision quality</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+{# ═══════════════════ PAGE 2 — TEAM RANKINGS ═══════════════════ #}
+{% if team_rankings %}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-header-name">{{ player_name }}</div>
+      <div class="page-header-sub">Team Rankings &amp; Percentiles</div>
+    </div>
+    <div class="page-header-badge"><span class="page-tag">Rankings</span></div>
+  </div>
+
+  <div class="sec"><span class="sec-icon">&#127942;</span> Core Stats Rankings</div>
+  {% for mk, mn in [('ppg','Points Per Game'),('rpg','Rebounds Per Game'),('apg','Assists Per Game'),('spg','Steals Per Game')] %}
+    {% if team_rankings[mk] is defined and team_rankings[mk] %}
+    {% set r = team_rankings[mk] %}
+    <div style="margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+        <span style="font-family:var(--font-mono);font-size:8px;color:var(--white);">{{ mn }}</span>
+        {{ rank_badge(r) }}
+      </div>
+      {{ pct_bar(r) }}
+    </div>
+    {% endif %}
+  {% endfor %}
+
+  <div class="sec"><span class="sec-icon">&#9889;</span> Advanced Metrics Rankings</div>
+  {% for mk, mn in [('ts_pct','True Shooting %'),('efg_pct','Effective FG %'),('ortg','Offensive Rating'),('ast_tov','AST/TOV Ratio')] %}
+    {% if team_rankings[mk] is defined and team_rankings[mk] %}
+    {% set r = team_rankings[mk] %}
+    <div style="margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+        <span style="font-family:var(--font-mono);font-size:8px;color:var(--white);">{{ mn }}</span>
+        {{ rank_badge(r) }}
+      </div>
+      {{ pct_bar(r) }}
+    </div>
+    {% endif %}
+  {% endfor %}
+
+  <div class="sec"><span class="sec-icon">&#128202;</span> Distribution Analysis</div>
+  {% for mk, mn in [('ppg','PPG'),('ts_pct','TS%'),('ortg','ORTG')] %}
+    {% if team_rankings[mk] is defined and team_rankings[mk] and team_rankings[mk].distribution %}
+    {% set r   = team_rankings[mk] %}
+    {% set mn_v = r.distribution|min %}
+    {% set mx_v = r.distribution|max %}
+    {% set rng  = mx_v - mn_v %}
+    {% set ppos = ((r.player_value - mn_v) / rng * 100) if rng > 0 else 50 %}
+    <div style="margin:10px 0;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+        <span style="font-family:var(--font-mono);font-size:8px;font-weight:700;color:var(--cyan);">{{ mn }}</span>
+        <span style="font-family:var(--font-mono);font-size:7px;color:var(--dim);">{{ "%.1f"|format(mn_v) }} &rarr; {{ "%.1f"|format(mx_v) }}</span>
+      </div>
+      <div style="position:relative;height:14px;background:var(--bg-cell);border-radius:7px;overflow:hidden;">
+        <div style="height:100%;background:rgba(0,242,255,.12);width:100%;"></div>
+        <div style="position:absolute;top:0;bottom:0;left:{{ ppos }}%;width:3px;background:var(--red);border-radius:2px;"></div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:7px;color:var(--red);text-align:center;margin-top:2px;">
+        &#9650; {{ player_name }}: {{ "%.1f"|format(r.player_value) }}
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+
+{# ═══════════════════ PAGE 3 — SHOOTING & SHOT CHART ═══════════════════ #}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-header-name">{{ player_name }}</div>
+      <div class="page-header-sub">Shooting Analysis</div>
+    </div>
+    <div class="page-header-badge"><span class="page-tag">Shooting</span></div>
+  </div>
+
+  <div class="sg sg-4">
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.fg.pct) }}%</div><div class="sc-l">FG %</div><div class="sc-note">{{ "%.0f"|format(shooting.fg.made*games_played) }}/{{ "%.0f"|format(shooting.fg.att*games_played) }}</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.two_pt.pct) }}%</div><div class="sc-l">2PT %</div><div class="sc-note">{{ "%.0f"|format(shooting.two_pt.made*games_played) }}/{{ "%.0f"|format(shooting.two_pt.att*games_played) }}</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.three_pt.pct) }}%</div><div class="sc-l">3PT %</div><div class="sc-note">{{ "%.0f"|format(shooting.three_pt.made*games_played) }}/{{ "%.0f"|format(shooting.three_pt.att*games_played) }}</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.ft.pct) }}%</div><div class="sc-l">FT %</div><div class="sc-note">{{ "%.0f"|format(shooting.ft.made*games_played) }}/{{ "%.0f"|format(shooting.ft.att*games_played) }}</div></div>
+  </div>
+
+  {% if shot_chart %}
+  <div class="sec"><span class="sec-icon">&#127919;</span> Shot Chart</div>
+  <div class="chart-wrap chart-compact ns">
+    <img src="data:image/png;base64,{{ shot_chart }}" alt="Shot Chart">
+    <div class="chart-cap">Made shots (&#9679; green) &nbsp;|&nbsp; Missed shots (&#x2715; red) &nbsp;|&nbsp; Half-court view</div>
+  </div>
   {% endif %}
 
-  <!-- PAGE 3: PER-GAME & PER-100 STATS -->
-  <div class="page">
-    <h1>{{ player_name }} - Per-Game Statistics</h1>
+  <div class="sec"><span class="sec-icon">&#128202;</span> Zone Efficiency</div>
+  {% if shot_play_context.zone_summary.available %}
+  <table>
+    <thead><tr><th class="td-left">Zone</th><th>M&ndash;A</th><th>FG%</th><th>PTS</th><th>PTS/Shot</th><th>Expected</th><th>Delta</th></tr></thead>
+    <tbody>
+      {% for row in shot_play_context.zone_summary.rows %}
+      <tr>
+        <td class="td-left">{{ row.zone }}</td>
+        <td>{{ row.makes }}&ndash;{{ row.attempts }}</td>
+        <td>{{ "%.1f"|format(row.fg_pct) }}%</td>
+        <td>{{ row.points }}</td>
+        <td>{{ "%.2f"|format(row.actual_pps) }}</td>
+        <td>{% if row.expected_value is not none %}{{ "%.2f"|format(row.expected_value) }}{% else %}—{% endif %}</td>
+        <td>{% if row.value_delta is not none %}<span class="{% if row.value_delta >= 0 %}pos{% else %}neg{% endif %}">{{ "%+.2f"|format(row.value_delta) }}</span>{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="info-box"><p style="color:var(--dim);">No zone data available.</p></div>
+  {% endif %}
+</div>
 
-    <h2>Per Game Averages</h2>
-    <table>
-      <tr>
-        <th>MPG</th><th>PPG</th><th>RPG</th><th>APG</th><th>SPG</th>
-        <th>BPG</th><th>TOPG</th><th>PFPG</th>
-      </tr>
-      <tr>
-        <td>{{ "%.1f"|format(per_game.mpg) }}</td>
-        <td class="highlight">{{ "%.1f"|format(per_game.ppg) }}</td>
-        <td>{{ "%.1f"|format(per_game.rpg) }}</td>
-        <td>{{ "%.1f"|format(per_game.apg) }}</td>
-        <td>{{ "%.1f"|format(per_game.spg) }}</td>
-        <td>{{ "%.1f"|format(per_game.bpg) }}</td>
-        <td>{{ "%.1f"|format(per_game.topg) }}</td>
-        <td>{{ "%.1f"|format(per_game.pfpg) }}</td>
-      </tr>
-    </table>
 
-    {% if per_100 %}
-    <h2>Per 100 Minutes (Pace-Adjusted)</h2>
-    <table>
-      <tr>
-        <th>PTS</th><th>REB</th><th>AST</th><th>STL</th>
-        <th>BLK</th><th>TOV</th><th>PF</th>
-      </tr>
-      <tr>
-        <td>{{ "%.1f"|format(per_100.pts) }}</td>
-        <td>{{ "%.1f"|format(per_100.reb) }}</td>
-        <td>{{ "%.1f"|format(per_100.ast) }}</td>
-        <td>{{ "%.1f"|format(per_100.stl) }}</td>
-        <td>{{ "%.1f"|format(per_100.blk) }}</td>
-        <td>{{ "%.1f"|format(per_100.tov) }}</td>
-        <td>{{ "%.1f"|format(per_100.pf) }}</td>
-      </tr>
-    </table>
-    <p class="note">* Normalized to 100 minutes of play for comparison purposes</p>
-    {% endif %}
+{# ═══════════════════ PAGE 4 — ADVANCED METRICS & BENCHMARKS ═══════════════════ #}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-header-name">{{ player_name }}</div>
+      <div class="page-header-sub">Advanced Metrics</div>
+    </div>
+    <div class="page-header-badge"><span class="page-tag">Advanced</span></div>
+  </div>
 
-    <h2>Statistical Ratios</h2>
-    <div class="section-box">
-      <table>
-        <tr>
-          <th>Metric</th><th>Value</th><th>Description</th>
-        </tr>
-        <tr>
-          <td>AST/TOV Ratio</td>
-          <td class="highlight">{{ "%.2f"|format(advanced.ast_tov_ratio) }}</td>
-          <td>Assists per turnover (higher is better)</td>
-        </tr>
-        <tr>
-          <td>Usage %</td>
-          <td>{{ "%.1f"|format(advanced.usg_pct) }}%</td>
-          <td>Avg possessions used per game</td>
-        </tr>
-        <tr>
-          <td>OREB %</td>
-          <td>{{ "%.1f"|format(advanced.oreb_pct) }}%</td>
-          <td>Offensive rebound rate</td>
-        </tr>
-        <tr>
-          <td>DREB %</td>
-          <td>{{ "%.1f"|format(advanced.dreb_pct) }}%</td>
-          <td>Defensive rebound rate</td>
-        </tr>
-      </table>
+  <div class="sec"><span class="sec-icon">&#9889;</span> Performance Benchmarks</div>
+  {{ bench_block('', advanced.ts_pct, team_avg.ts_pct, advanced.ast_tov, team_avg.ast_tov, advanced.avg_plus_minus) }}
+
+  <div class="sec" style="margin-top:14px;"><span class="sec-icon">&#128200;</span> Detailed Metrics vs Team</div>
+  <table>
+    <thead><tr><th class="td-left">Metric</th><th>Player</th><th>Team Avg</th><th>Elite Ref.</th><th class="td-left">Description</th></tr></thead>
+    <tbody>
+      <tr><td class="td-left">ORTG</td><td class="hi">{{ "%.1f"|format(advanced.ortg) }}</td><td>{{ "%.1f"|format(team_avg.ortg) }}</td><td>&gt;110</td><td class="td-left" style="color:var(--dim);">Pts / 100 poss</td></tr>
+      <tr><td class="td-left">PPP</td><td class="hi">{{ "%.3f"|format(advanced.ppp if advanced.ppp else 0) }}</td><td>—</td><td>&gt;1.10</td><td class="td-left" style="color:var(--dim);">Pts per possession</td></tr>
+      <tr><td class="td-left">TS%</td><td class="hi">{{ "%.1f"|format(advanced.ts_pct) }}%</td><td>{{ "%.1f"|format(team_avg.ts_pct) }}%</td><td>&gt;55%</td><td class="td-left" style="color:var(--dim);">True shooting eff.</td></tr>
+      <tr><td class="td-left">eFG%</td><td class="hi">{{ "%.1f"|format(advanced.efg_pct) }}%</td><td>{{ "%.1f"|format(team_avg.efg_pct) }}%</td><td>&gt;50%</td><td class="td-left" style="color:var(--dim);">3PT-weighted FG%</td></tr>
+      <tr><td class="td-left">AST/TOV</td><td class="hi">{{ "%.2f"|format(advanced.ast_tov) }}</td><td>{{ "%.2f"|format(team_avg.ast_tov) }}</td><td>&gt;2.0</td><td class="td-left" style="color:var(--dim);">Decision quality</td></tr>
+      <tr>
+        <td class="td-left">+/- avg</td>
+        <td class="hi">{{ pm_span(advanced.avg_plus_minus) }}</td>
+        <td>—</td><td>&gt;+5</td>
+        <td class="td-left" style="color:var(--dim);">On-court differential</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="sec"><span class="sec-icon">&#127950;</span> Rebounding &amp; Discipline Detail</div>
+  <div class="sg sg-4">
+    <div class="sc"><div class="sc-v">{{ "%.1f"|format(box_detail.per_game.oreb) }}</div><div class="sc-l">OREB/G</div><div class="sc-note">{{ box_detail.totals.oreb }} total</div></div>
+    <div class="sc"><div class="sc-v">{{ "%.1f"|format(box_detail.per_game.dreb) }}</div><div class="sc-l">DREB/G</div><div class="sc-note">{{ box_detail.totals.dreb }} total</div></div>
+    <div class="sc"><div class="sc-v {% if box_detail.per_game.pf >= 4 %}neg{% endif %}">{{ "%.1f"|format(box_detail.per_game.pf) }}</div><div class="sc-l">PF/G</div><div class="sc-note">{{ box_detail.totals.pf }} total</div></div>
+    <div class="sc"><div class="sc-v">{{ "%.1f"|format(box_detail.per_game.reb_conceded) }}</div><div class="sc-l">REB conceded/G</div><div class="sc-note">{{ box_detail.totals.reb_conceded }} total</div></div>
+  </div>
+
+  <table>
+    <thead><tr><th class="td-left">Metric</th><th>Total</th><th>Per Game</th><th class="td-left">Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="td-left">Offensive Rebounds</td><td>{{ box_detail.totals.oreb }}</td><td>{{ "%.1f"|format(box_detail.per_game.oreb) }}</td><td class="td-left" style="color:var(--dim);">2nd-chance creation</td></tr>
+      <tr><td class="td-left">Defensive Rebounds</td><td>{{ box_detail.totals.dreb }}</td><td>{{ "%.1f"|format(box_detail.per_game.dreb) }}</td><td class="td-left" style="color:var(--dim);">Possession-ending</td></tr>
+      <tr><td class="td-left">Personal Fouls</td><td>{{ box_detail.totals.pf }}</td><td>{{ "%.1f"|format(box_detail.per_game.pf) }}</td><td class="td-left" style="color:var(--dim);">Discipline &amp; availability</td></tr>
+      <tr><td class="td-left">REB Conceded</td><td>{{ box_detail.totals.reb_conceded }}</td><td>{{ "%.1f"|format(box_detail.per_game.reb_conceded) }}</td><td class="td-left" style="color:var(--dim);">{% if box_detail.has_reb_conceded %}Tracked {{ box_detail.tracked_reb_conceded_games }} games{% else %}Unavailable{% endif %}</td></tr>
+      <tr>
+        <td class="td-left">Plus / Minus</td>
+        <td>{{ pm_int(box_detail.totals.plus_minus) }}</td>
+        <td>{{ pm_span(box_detail.per_game.plus_minus) }}</td>
+        <td class="td-left" style="color:var(--dim);">{% if box_detail.has_live_plus_minus %}Tracked {{ box_detail.tracked_plus_minus_games }} games{% else %}Unavailable{% endif %}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+{# ═══════════════════ PAGE 5 — PERFORMANCE TRENDS ═══════════════════ #}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-header-name">{{ player_name }}</div>
+      <div class="page-header-sub">Performance Trends</div>
+    </div>
+    <div class="page-header-badge"><span class="page-tag">Trends</span></div>
+  </div>
+
+  <div class="sec"><span class="sec-icon">&#128200;</span> Scoring &amp; +/- Progression</div>
+  {% if chart_scoring %}
+  <div class="chart-wrap ns">
+    <img src="data:image/png;base64,{{ chart_scoring }}" alt="Scoring chart">
+    <div class="chart-cap">Cyan area = points per game &nbsp;|&nbsp; Gold dashed = 3-game MA &nbsp;|&nbsp; Green/red shading = +/- trend (LIVE games only)</div>
+  </div>
+  {% else %}
+  <div class="info-box"><p style="color:var(--dim);">Chart data not available.</p></div>
+  {% endif %}
+
+  <div class="sec"><span class="sec-icon">&#128202;</span> Clutch Snapshot</div>
+  <div class="sg sg-4">
+    <div class="sc"><div class="sc-v">{{ possession_context.clutch.plays }}</div><div class="sc-l">Clutch Plays</div></div>
+    <div class="sc"><div class="sc-v">{{ possession_context.clutch.points }}</div><div class="sc-l">Clutch PTS</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(possession_context.clutch.fg_pct) }}%</div><div class="sc-l">Clutch FG%</div></div>
+    <div class="sc"><div class="sc-v {% if possession_context.clutch.tov > 0 %}neg{% endif %}">{{ possession_context.clutch.tov }}</div><div class="sc-l">Clutch TOV</div></div>
+  </div>
+
+  <div class="sec"><span class="sec-icon">&#127918;</span> Possession Context</div>
+  <div class="info-box">
+    <p><strong>Source:</strong> {{ possession_context.source|capitalize }} possessions &nbsp;|&nbsp;
+       <strong>Team PPP:</strong> {{ "%.3f"|format(possession_context.team_ppp) }} &nbsp;|&nbsp;
+       <strong>Opp PPP:</strong> {{ "%.3f"|format(possession_context.opp_ppp) }}</p>
+    <p><strong>Total Team Poss:</strong> {{ possession_context.total_team_possessions }} &nbsp;|&nbsp;
+       <strong>Total Opp Poss:</strong> {{ possession_context.total_opp_possessions }}</p>
+  </div>
+
+  {% if possession_context.quarter_rows %}
+  <table>
+    <thead><tr><th>Qtr</th><th>Team Poss</th><th>Opp Poss</th><th>Team Pts</th><th>Opp Pts</th><th>Team PPP</th><th>Opp PPP</th></tr></thead>
+    <tbody>
+      {% for row in possession_context.quarter_rows %}
+      <tr>
+        <td>Q{{ row.quarter }}</td>
+        <td>{{ row.team_possessions }}</td>
+        <td>{{ row.opp_possessions }}</td>
+        <td>{{ row.team_points }}</td>
+        <td>{{ row.opp_points }}</td>
+        <td>{{ "%.3f"|format(row.team_ppp) }}</td>
+        <td>{{ "%.3f"|format(row.opp_ppp) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+
+{# ═══════════════════ PAGE 6 — LINEUP CONTEXT ═══════════════════ #}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-header-name">{{ player_name }}</div>
+      <div class="page-header-sub">Lineup Context</div>
+    </div>
+    <div class="page-header-badge"><span class="page-tag">Lineups</span></div>
+  </div>
+
+  {% if lineup_context.available %}
+
+  {% if lineup_context.top_lineups_available %}
+  <div class="sec"><span class="sec-icon">&#128200;</span> Best &amp; Worst Lineups</div>
+  <div class="two-col">
+    <div class="info-box" style="border-left-color:var(--green);">
+      <p><strong style="color:var(--green);">&#9650; Best Lineup</strong></p>
+      <p>{{ lineup_context.best_lineup.players|join(' &middot; ') }}</p>
+      <p style="color:var(--dim);">Teammates: {{ lineup_context.best_lineup.teammates|join(', ') }}</p>
+      <p>Net Rating: <span class="pos">{{ "%+.1f"|format(lineup_context.best_lineup.net_rating) }}</span></p>
+      <p>{{ "%.1f"|format(lineup_context.best_lineup.minutes) }} min &nbsp;|&nbsp; {{ lineup_context.best_lineup.possessions }} poss</p>
+      <p style="color:var(--dim);">ORTG {{ "%.1f"|format(lineup_context.best_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.best_lineup.drtg) }}</p>
+    </div>
+    <div class="info-box" style="border-left-color:var(--red);">
+      <p><strong style="color:var(--red);">&#9660; Worst Lineup</strong></p>
+      <p>{{ lineup_context.worst_lineup.players|join(' &middot; ') }}</p>
+      <p style="color:var(--dim);">Teammates: {{ lineup_context.worst_lineup.teammates|join(', ') }}</p>
+      <p>Net Rating: <span class="neg">{{ "%+.1f"|format(lineup_context.worst_lineup.net_rating) }}</span></p>
+      <p>{{ "%.1f"|format(lineup_context.worst_lineup.minutes) }} min &nbsp;|&nbsp; {{ lineup_context.worst_lineup.possessions }} poss</p>
+      <p style="color:var(--dim);">ORTG {{ "%.1f"|format(lineup_context.worst_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.worst_lineup.drtg) }}</p>
     </div>
   </div>
-  
-  <div class="page-break"></div>
+  {% endif %}
 
-  <!-- PAGE 4: SHOOTING BREAKDOWN -->
-  <div class="page">
-    <h1>{{ player_name }} - Shooting Analysis</h1>
+  <div class="sec"><span class="sec-icon">&#128101;</span> Most Used Lineups</div>
+  <table>
+    <thead><tr><th class="td-left">Lineup</th><th>Min</th><th>Poss</th><th>Net</th><th>FG%</th><th>REB</th><th>AST</th><th>Seg</th></tr></thead>
+    <tbody>
+      {% for lu in lineup_context.most_used_lineups %}
+      <tr>
+        <td class="td-left">{{ lu.players|join(' · ') }}</td>
+        <td>{{ "%.1f"|format(lu.minutes) }}</td>
+        <td>{{ lu.possessions }}</td>
+        <td class="{% if lu.net_rating >= 0 %}pos{% else %}neg{% endif %}">{{ "%+.1f"|format(lu.net_rating) }}</td>
+        <td>{{ "%.1f"|format(lu.fg_pct) }}%</td>
+        <td>{{ lu.reb }}</td>
+        <td>{{ lu.ast }}</td>
+        <td>{{ lu.segment_count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
-    <h2>Shooting Percentages</h2>
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="stat-label">Field Goal %</div>
-        <div class="stat-value">{{ "%.1f"|format(shooting.fg_pct) }}%</div>
-        <div class="note">{{ totals.fgm }}/{{ totals.fga }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">2-Point %</div>
-        <div class="stat-value">{{ "%.1f"|format(shooting.two_pt_pct) }}%</div>
-        <div class="note">{{ shooting.two_pt_made }}/{{ shooting.two_pt_att }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">3-Point %</div>
-        <div class="stat-value">{{ "%.1f"|format(shooting.tp_pct) }}%</div>
-        <div class="note">{{ totals.tpm }}/{{ totals.tpa }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Free Throw %</div>
-        <div class="stat-value">{{ "%.1f"|format(shooting.ft_pct) }}%</div>
-        <div class="note">{{ totals.ftm }}/{{ totals.fta }}</div>
-      </div>
+  {% else %}
+  <div class="info-box"><p style="color:var(--dim);">No lineup data available for this filter.</p></div>
+  {% endif %}
+
+  <div class="sec"><span class="sec-icon">&#127918;</span> Top Tagged Plays</div>
+  {% if shot_play_context.play_summary.available %}
+  <table>
+    <thead><tr><th class="td-left">Play</th><th class="td-left">Type</th><th>PTS</th><th>Att</th><th>FG%</th><th>PPP</th><th>TOV</th></tr></thead>
+    <tbody>
+      {% for play in shot_play_context.play_summary.top_volume %}
+      <tr>
+        <td class="td-left">{{ play.play_name }}</td>
+        <td class="td-left" style="color:var(--dim);">{{ play.play_type }}</td>
+        <td>{{ play.points }}</td>
+        <td>{{ play.attempts }}</td>
+        <td>{{ "%.1f"|format(play.fg_pct) }}%</td>
+        <td>{{ "%.3f"|format(play.ppp) }}</td>
+        <td>{{ play.turnovers }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="info-box"><p style="color:var(--dim);">No play-tagged events available.</p></div>
+  {% endif %}
+</div>
+
+
+{# ═══════════════════ PAGE 7 — GAME LOG ═══════════════════ #}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-header-name">{{ player_name }}</div>
+      <div class="page-header-sub">Game-by-Game Log &mdash; {{ games_played }} games</div>
     </div>
-
-    <h2>Advanced Shooting Metrics</h2>
-    <table>
-      <tr>
-        <th>Metric</th><th>Player Value</th><th>Team Avg</th><th>Description</th>
-      </tr>
-      <tr>
-        <td>True Shooting %</td>
-        <td class="highlight">{{ "%.1f"|format(shooting.ts_pct) }}%</td>
-        <td>{{ "%.1f"|format(team_avg.ts_pct) }}%</td>
-        <td>Shooting efficiency accounting for FTs and 3PTs</td>
-      </tr>
-      <tr>
-        <td>Effective FG %</td>
-        <td class="highlight">{{ "%.1f"|format(shooting.efg_pct) }}%</td>
-        <td>{{ "%.1f"|format(team_avg.efg_pct) }}%</td>
-        <td>FG% adjusted for 3PT value</td>
-      </tr>
-    </table>
-
-    <h2>Shot Distribution</h2>
-    <table>
-      <tr>
-        <th>Shot Type</th><th>Makes</th><th>Attempts</th><th>%</th><th>Per Game</th>
-      </tr>
-      <tr>
-        <td>2-Point</td>
-        <td>{{ shooting.two_pt_made }}</td>
-        <td>{{ shooting.two_pt_att }}</td>
-        <td>{{ "%.1f"|format(shooting.two_pt_pct) }}%</td>
-        <td>{{ "%.1f"|format(shooting.two_pt_att / games_played) }}</td>
-      </tr>
-      <tr>
-        <td>3-Point</td>
-        <td>{{ totals.tpm }}</td>
-        <td>{{ totals.tpa }}</td>
-        <td>{{ "%.1f"|format(shooting.tp_pct) }}%</td>
-        <td>{{ "%.1f"|format(totals.tpa / games_played) }}</td>
-      </tr>
-      <tr>
-        <td>Free Throw</td>
-        <td>{{ totals.ftm }}</td>
-        <td>{{ totals.fta }}</td>
-        <td>{{ "%.1f"|format(shooting.ft_pct) }}%</td>
-        <td>{{ "%.1f"|format(totals.fta / games_played) }}</td>
-      </tr>
-    </table>
+    <div class="page-header-badge"><span class="page-tag">Game Log</span></div>
   </div>
-  
-  <div class="page-break"></div>
 
-  <!-- PAGE 5: ADVANCED METRICS -->
-  <div class="page">
-    <h1>{{ player_name }} - Advanced Metrics</h1>
-
-    <h2>Offensive Metrics vs Team Average</h2>
-    <div class="section-box">
-      <table>
-        <tr>
-          <th>Metric</th><th>Player</th><th>Team Avg</th><th>Elite</th><th>Meaning</th>
-        </tr>
-        <tr>
-          <td>Offensive Rating (ORTG)</td>
-          <td class="highlight">{{ "%.1f"|format(advanced.ortg) }}</td>
-          <td>{{ "%.1f"|format(team_avg.ortg) }}</td>
-          <td>&gt;110</td>
-          <td>Points per 100 possessions</td>
-        </tr>
-        <tr>
-          <td>Points Per Possession (PPP)</td>
-          <td class="highlight">{{ "%.3f"|format(advanced.ppp) }}</td>
-          <td>-</td>
-          <td>&gt;1.10</td>
-          <td>Scoring efficiency per possession</td>
-        </tr>
-        <tr>
-          <td>Efficiency (EFF)</td>
-          <td class="highlight">{{ "%.1f"|format(advanced.eff_per_game) }}</td>
-          <td>-</td>
-          <td>&gt;15</td>
-          <td>Overall production metric</td>
-        </tr>
-        <tr>
-          <td>Total Efficiency</td>
-          <td>{{ "%.1f"|format(advanced.eff_total) }}</td>
-          <td>-</td>
-          <td>-</td>
-          <td>Season cumulative efficiency</td>
-        </tr>
-        <tr>
-          <td>AST/TOV Ratio</td>
-          <td class="highlight">{{ "%.2f"|format(advanced.ast_tov_ratio) }}</td>
-          <td>{{ "%.2f"|format(team_avg.ast_tov) }}</td>
-          <td>&gt;2.0</td>
-          <td>Decision making quality</td>
-        </tr>
-      </table>
-    </div>
-
-    <h2>Performance Benchmarks</h2>
-    <div class="section-box">
-      <h3>Scoring Efficiency</h3>
-      <p>
-        {% if shooting.ts_pct >= 60 %}
-          ✅ <strong>Elite</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is outstanding (Team: {{ "%.1f"|format(team_avg.ts_pct) }}%)
-        {% elif shooting.ts_pct >= 55 %}
-          ✅ <strong>Above Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is solid (Team: {{ "%.1f"|format(team_avg.ts_pct) }}%)
-        {% elif shooting.ts_pct >= 50 %}
-          ⚠️ <strong>Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% is acceptable (Team: {{ "%.1f"|format(team_avg.ts_pct) }}%)
-        {% else %}
-          ❌ <strong>Below Average</strong> - TS% of {{ "%.1f"|format(shooting.ts_pct) }}% needs improvement (Team: {{ "%.1f"|format(team_avg.ts_pct) }}%)
-        {% endif %}
-        {% if team_rankings and team_rankings.ts_pct %}
-          <span class="rank-badge rank-{% if team_rankings.ts_pct.percentile >= 66 %}top3{% elif team_rankings.ts_pct.percentile >= 33 %}top50{% else %}bottom{% endif %}">
-            #{{ team_rankings.ts_pct.rank }} on team
-          </span>
-        {% endif %}
-      </p>
-
-      <h3>Playmaking</h3>
-      <p>
-        {% if advanced.ast_tov_ratio >= 2.0 %}
-          ✅ <strong>Excellent</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} shows great decision making (Team: {{ "%.2f"|format(team_avg.ast_tov) }})
-        {% elif advanced.ast_tov_ratio >= 1.5 %}
-          ✅ <strong>Good</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} is solid (Team: {{ "%.2f"|format(team_avg.ast_tov) }})
-        {% elif advanced.ast_tov_ratio >= 1.0 %}
-          ⚠️ <strong>Average</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} is adequate (Team: {{ "%.2f"|format(team_avg.ast_tov) }})
-        {% else %}
-          ❌ <strong>Needs Work</strong> - AST/TOV of {{ "%.2f"|format(advanced.ast_tov_ratio) }} indicates turnover issues (Team: {{ "%.2f"|format(team_avg.ast_tov) }})
-        {% endif %}
-        {% if team_rankings and team_rankings.ast_tov %}
-          <span class="rank-badge rank-{% if team_rankings.ast_tov.percentile >= 66 %}top3{% elif team_rankings.ast_tov.percentile >= 33 %}top50{% else %}bottom{% endif %}">
-            #{{ team_rankings.ast_tov.rank }} on team
-          </span>
-        {% endif %}
-      </p>
-
-      <h3>Offensive Impact</h3>
-      <p>
-        {% if advanced.ortg >= 120 %}
-          ✅ <strong>Elite Scorer</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is exceptional (Team: {{ "%.1f"|format(team_avg.ortg) }})
-        {% elif advanced.ortg >= 110 %}
-          ✅ <strong>Above Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is very good (Team: {{ "%.1f"|format(team_avg.ortg) }})
-        {% elif advanced.ortg >= 100 %}
-          ⚠️ <strong>Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} is league average (Team: {{ "%.1f"|format(team_avg.ortg) }})
-        {% else %}
-          ❌ <strong>Below Average</strong> - ORTG of {{ "%.0f"|format(advanced.ortg) }} needs improvement (Team: {{ "%.1f"|format(team_avg.ortg) }})
-        {% endif %}
-        {% if team_rankings and team_rankings.ortg %}
-          <span class="rank-badge rank-{% if team_rankings.ortg.percentile >= 66 %}top3{% elif team_rankings.ortg.percentile >= 33 %}top50{% else %}bottom{% endif %}">
-            #{{ team_rankings.ortg.rank }} on team
-          </span>
-        {% endif %}
-      </p>
-    </div>
-  </div>
-  
-  <div class="page-break"></div>
-
-  <!-- PAGE 6: PERFORMANCE CHARTS - CORE STATS -->
-  <div class="page">
-    <h1>{{ player_name }} - Performance Trends</h1>
-
-    <h2>Core Statistics Progression</h2>
-    {% if chart_core_stats %}
-    <div class="chart-container">
-      <img src="data:image/png;base64,{{ chart_core_stats }}" alt="Core Stats Chart">
-    </div>
-    <p class="note">Solid lines show game-by-game stats. Dashed lines represent 3-game moving averages to smooth out variance.</p>
-    {% else %}
-    <p>Chart data not available.</p>
-    {% endif %}
-
-    <h2>Key Observations</h2>
-    <div class="section-box">
-      <p><strong>Consistency:</strong> The 3-game moving average helps identify performance trends and consistency over the season.</p>
-      <p><strong>Peak Performance:</strong> Look for games where multiple stats spike simultaneously.</p>
-      <p><strong>Growth Trend:</strong> Rising moving averages indicate improving form.</p>
-    </div>
-  </div>
-  
-  <div class="page-break"></div>
-
-  <!-- PAGE 7: PERFORMANCE CHARTS - ADVANCED METRICS -->
-  <div class="page">
-    <h1>{{ player_name }} - Advanced Metrics Trends</h1>
-
-    <h2>Efficiency & Rating Progression</h2>
-    {% if chart_advanced %}
-    <div class="chart-container">
-      <img src="data:image/png;base64,{{ chart_advanced }}" alt="Advanced Metrics Chart">
-    </div>
-    <p class="note">
-      Charts display Efficiency and ORTG on the left axis, True Shooting % on the right axis. 
-      Dashed lines show 3-game moving averages for trend analysis.
-    </p>
-    {% else %}
-    <p>Chart data not available.</p>
-    {% endif %}
-
-    <h2>Metric Interpretation</h2>
-    <div class="section-box">
-      <ul style="margin: 8px 0; padding-left: 20px;">
-        <li><strong>Efficiency:</strong> Positive values indicate productive games. Higher is better.</li>
-        <li><strong>ORTG:</strong> Points produced per 100 possessions. Elite level is 115+.</li>
-        <li><strong>TS%:</strong> Best measure of shooting efficiency. 55%+ is above average.</li>
-        <li><strong>Moving Averages:</strong> Smooth out game-to-game noise to show true form.</li>
-      </ul>
-    </div>
-  </div>
-  
-  <div class="page-break"></div>
-
-  <!-- PAGE 8+: GAME-BY-GAME LOG -->
-  <div class="page">
-    <h1>{{ player_name }} - Game-by-Game Log</h1>
-
-    <table class="game-log-table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Opponent</th>
-          <th>W/L</th>
-          <th>Score</th>
-          <th>MIN</th>
-          <th>PTS</th>
-          <th>REB</th>
-          <th>AST</th>
-          <th>STL</th>
-          <th>BLK</th>
-          <th>TOV</th>
-          <th>FG</th>
-          <th>FG%</th>
-          <th>3P</th>
-          <th>3P%</th>
-          <th>FT</th>
-          <th>FT%</th>
-          <th>EFF</th>
-          <th>ORTG</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for game in game_breakdown %}
-        <tr>
-          <td>{{ game.date }}</td>
-          <td>{{ game.opponent }}</td>
-          <td class="{% if game.result == 'W' %}win{% else %}loss{% endif %}">{{ game.result }}</td>
-          <td>{{ game.team_score }}-{{ game.opp_score }}</td>
-          <td>{{ game.minutes }}</td>
-          <td class="{% if game.points >= 20 %}highlight{% endif %}">{{ game.points }}</td>
-          <td>{{ game.reb }}</td>
-          <td>{{ game.ast }}</td>
-          <td>{{ game.stl }}</td>
-          <td>{{ game.blk }}</td>
-          <td>{{ game.tov }}</td>
-          <td>{{ game.fg }}</td>
-          <td>{{ "%.1f"|format(game.fg_pct) }}%</td>
-          <td>{{ game.tp }}</td>
-          <td>{{ "%.1f"|format(game.tp_pct) }}%</td>
-          <td>{{ game.ft }}</td>
-          <td>{{ "%.1f"|format(game.ft_pct) }}%</td>
-          <td>{{ "%.0f"|format(game.eff) }}</td>
-          <td>{{ "%.0f"|format(game.ortg) }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-
-    <p class="note" style="margin-top: 10px;">
-      * Games with 20+ points are highlighted. W/L shows individual game result.
-    </p>
-  </div>
+  <table style="font-size:7.5px;">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th class="td-left">Opponent</th>
+        <th>W/L</th>
+        <th>MIN</th>
+        <th>PTS</th>
+        <th>REB</th>
+        <th>O/D</th>
+        <th>AST</th>
+        <th>STL</th>
+        <th>BLK</th>
+        <th>TOV</th>
+        <th>PF</th>
+        <th>FG</th>
+        <th>FG%</th>
+        <th>3P</th>
+        <th>3P%</th>
+        <th>FT</th>
+        <th>FT%</th>
+        <th>+/-</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for game in game_logs %}
+      <tr style="break-inside:avoid;page-break-inside:avoid;">
+        <td>{{ game.date }}</td>
+        <td class="td-left"><strong>{{ game.opponent }}</strong></td>
+        <td class="{% if game.result == 'W' %}win{% else %}loss{% endif %}">{{ game.result }}</td>
+        <td>{{ game.minutes }}</td>
+        <td class="{% if game.pts >= 20 %}hi{% endif %} td-bold">{{ game.pts }}</td>
+        <td>{{ game.reb }}</td>
+        <td style="color:var(--dim);">{{ game.oreb }}/{{ game.dreb }}</td>
+        <td>{{ game.ast }}</td>
+        <td>{{ game.stl }}</td>
+        <td>{{ game.blk }}</td>
+        <td>{{ game.tov }}</td>
+        <td>{{ game.pf }}</td>
+        <td>{{ game.fgm }}/{{ game.fga }}</td>
+        <td>{{ game.fg_pct }}%</td>
+        <td>{{ game.tpm }}/{{ game.tpa }}</td>
+        <td>{{ game.tp_percent }}%</td>
+        <td>{{ game.ftm }}/{{ game.fta }}</td>
+        <td>{{ game.ft_percent }}%</td>
+        <td>
+          {% if game.plus_minus is not none %}
+            <span class="{% if game.plus_minus > 0 %}pos{% elif game.plus_minus < 0 %}neg{% endif %}">
+              {% if game.plus_minus > 0 %}+{% endif %}{{ game.plus_minus }}
+            </span>
+          {% else %}&mdash;{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="font-family:var(--font-mono);font-size:7px;color:var(--dim);margin-top:8px;">
+    * 20+ point games are highlighted &nbsp;|&nbsp; +/- = point differential while on court
+  </p>
+</div>
 
 </body>
 </html>

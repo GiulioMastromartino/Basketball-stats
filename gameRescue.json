@@ -1,0 +1,6765 @@
+{
+  "schema_version": 4,
+  "exported_at": "2026-03-05T21:55:26.703Z",
+  "game": {
+    "opponent": "Nebula",
+    "date": "2026-03-05",
+    "team_score": 79,
+    "opponent_score": 61,
+    "game_type": "Season",
+    "source": "LIVE_RESCUE"
+  },
+  "player_stats": {
+    "Ardizzoia": {
+      "points": 8,
+      "fgm": 2,
+      "fga": 5,
+      "tpm": 1,
+      "tpa": 3,
+      "ftm": 3,
+      "fta": 3,
+      "oreb": 0,
+      "dreb": 2,
+      "ast": 0,
+      "tov": 2,
+      "stl": 0,
+      "blk": 0,
+      "pf": 0,
+      "plus_minus": 7,
+      "minutes_seconds": 850,
+      "quarter_minutes": {
+        "1": 246,
+        "2": 275,
+        "3": 146,
+        "4": 183
+      },
+      "last_sub_in": null,
+      "reb_conceded": 2,
+      "minutes": "14:10"
+    },
+    "Cantù": {
+      "points": 5,
+      "fgm": 2,
+      "fga": 7,
+      "tpm": 1,
+      "tpa": 4,
+      "ftm": 0,
+      "fta": 0,
+      "oreb": 0,
+      "dreb": 4,
+      "ast": 3,
+      "tov": 1,
+      "stl": 0,
+      "blk": 0,
+      "pf": 1,
+      "plus_minus": 6,
+      "minutes_seconds": 1667,
+      "quarter_minutes": {
+        "1": 354,
+        "2": 442,
+        "3": 456,
+        "4": 415
+      },
+      "last_sub_in": null,
+      "reb_conceded": 0,
+      "minutes": "27:47"
+    },
+    "Cremona": {
+      "points": 2,
+      "fgm": 0,
+      "fga": 4,
+      "tpm": 0,
+      "tpa": 3,
+      "ftm": 2,
+      "fta": 2,
+      "oreb": 1,
+      "dreb": 1,
+      "ast": 5,
+      "tov": 0,
+      "stl": 3,
+      "blk": 1,
+      "pf": 1,
+      "plus_minus": 9,
+      "minutes_seconds": 1438,
+      "quarter_minutes": {
+        "1": 336,
+        "2": 325,
+        "3": 456,
+        "4": 321
+      },
+      "last_sub_in": null,
+      "reb_conceded": 0,
+      "minutes": "23:58"
+    },
+    "Della": {
+      "points": 2,
+      "fgm": 1,
+      "fga": 1,
+      "tpm": 0,
+      "tpa": 0,
+      "ftm": 0,
+      "fta": 0,
+      "oreb": 0,
+      "dreb": 2,
+      "ast": 0,
+      "tov": 0,
+      "stl": 0,
+      "blk": 0,
+      "pf": 0,
+      "plus_minus": 5,
+      "minutes_seconds": 824,
+      "quarter_minutes": {
+        "1": 171,
+        "2": 275,
+        "3": 101,
+        "4": 277
+      },
+      "last_sub_in": null,
+      "reb_conceded": 2,
+      "minutes": "13:44"
+    },
+    "Fernandez": {
+      "points": 25,
+      "fgm": 8,
+      "fga": 19,
+      "tpm": 4,
+      "tpa": 9,
+      "ftm": 5,
+      "fta": 5,
+      "oreb": 5,
+      "dreb": 6,
+      "ast": 2,
+      "tov": 0,
+      "stl": 0,
+      "blk": 0,
+      "pf": 1,
+      "plus_minus": 14,
+      "minutes_seconds": 1632,
+      "quarter_minutes": {
+        "1": 479,
+        "2": 325,
+        "3": 501,
+        "4": 327
+      },
+      "last_sub_in": null,
+      "reb_conceded": 1,
+      "minutes": "27:12"
+    },
+    "Maffioli": {
+      "points": 3,
+      "fgm": 1,
+      "fga": 1,
+      "tpm": 1,
+      "tpa": 1,
+      "ftm": 0,
+      "fta": 0,
+      "oreb": 0,
+      "dreb": 1,
+      "ast": 5,
+      "tov": 0,
+      "stl": 0,
+      "blk": 0,
+      "pf": 2,
+      "plus_minus": 11,
+      "minutes_seconds": 368,
+      "quarter_minutes": {
+        "1": 0,
+        "2": 84,
+        "3": 101,
+        "4": 183
+      },
+      "last_sub_in": null,
+      "reb_conceded": 1,
+      "minutes": "6:08"
+    },
+    "Montanari": {
+      "points": 3,
+      "fgm": 1,
+      "fga": 2,
+      "tpm": 1,
+      "tpa": 1,
+      "ftm": 0,
+      "fta": 2,
+      "oreb": 0,
+      "dreb": 2,
+      "ast": 1,
+      "tov": 1,
+      "stl": 2,
+      "blk": 0,
+      "pf": 1,
+      "plus_minus": 4,
+      "minutes_seconds": 552,
+      "quarter_minutes": {
+        "1": 121,
+        "2": 59,
+        "3": 101,
+        "4": 271
+      },
+      "last_sub_in": null,
+      "reb_conceded": 1,
+      "minutes": "9:12"
+    },
+    "Orbon": {
+      "points": 2,
+      "fgm": 1,
+      "fga": 4,
+      "tpm": 0,
+      "tpa": 0,
+      "ftm": 0,
+      "fta": 2,
+      "oreb": 3,
+      "dreb": 6,
+      "ast": 0,
+      "tov": 3,
+      "stl": 1,
+      "blk": 0,
+      "pf": 1,
+      "plus_minus": 12,
+      "minutes_seconds": 1189,
+      "quarter_minutes": {
+        "1": 264,
+        "2": 97,
+        "3": 501,
+        "4": 327
+      },
+      "last_sub_in": null,
+      "reb_conceded": 1,
+      "minutes": "19:49"
+    },
+    "Portaro": {
+      "points": 0,
+      "fgm": 0,
+      "fga": 0,
+      "tpm": 0,
+      "tpa": 0,
+      "ftm": 0,
+      "fta": 0,
+      "oreb": 0,
+      "dreb": 0,
+      "ast": 0,
+      "tov": 0,
+      "stl": 0,
+      "blk": 0,
+      "pf": 0,
+      "plus_minus": 0,
+      "minutes_seconds": 0,
+      "quarter_minutes": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0
+      },
+      "last_sub_in": null,
+      "reb_conceded": 0,
+      "minutes": "0:00"
+    },
+    "Sacchi": {
+      "points": 0,
+      "fgm": 0,
+      "fga": 1,
+      "tpm": 0,
+      "tpa": 1,
+      "ftm": 0,
+      "fta": 0,
+      "oreb": 0,
+      "dreb": 0,
+      "ast": 0,
+      "tov": 0,
+      "stl": 0,
+      "blk": 0,
+      "pf": 0,
+      "plus_minus": -5,
+      "minutes_seconds": 195,
+      "quarter_minutes": {
+        "1": 121,
+        "2": 74,
+        "3": 0,
+        "4": 0
+      },
+      "last_sub_in": null,
+      "reb_conceded": 0,
+      "minutes": "3:15"
+    },
+    "Silva": {
+      "points": 14,
+      "fgm": 6,
+      "fga": 9,
+      "tpm": 0,
+      "tpa": 1,
+      "ftm": 2,
+      "fta": 3,
+      "oreb": 1,
+      "dreb": 4,
+      "ast": 1,
+      "tov": 0,
+      "stl": 0,
+      "blk": 0,
+      "pf": 0,
+      "plus_minus": 10,
+      "minutes_seconds": 1349,
+      "quarter_minutes": {
+        "1": 429,
+        "2": 503,
+        "3": 146,
+        "4": 271
+      },
+      "last_sub_in": null,
+      "reb_conceded": 1,
+      "minutes": "22:29"
+    },
+    "Sorrentino": {
+      "points": 15,
+      "fgm": 4,
+      "fga": 12,
+      "tpm": 1,
+      "tpa": 6,
+      "ftm": 6,
+      "fta": 9,
+      "oreb": 0,
+      "dreb": 3,
+      "ast": 3,
+      "tov": 2,
+      "stl": 1,
+      "blk": 0,
+      "pf": 3,
+      "plus_minus": 17,
+      "minutes_seconds": 1936,
+      "quarter_minutes": {
+        "1": 479,
+        "2": 541,
+        "3": 501,
+        "4": 415
+      },
+      "last_sub_in": null,
+      "reb_conceded": 1,
+      "minutes": "32:16"
+    }
+  },
+  "shot_locations": [
+    {
+      "shooter": "Fernandez",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 53.55651092529297,
+      "y": 277.2953186035156,
+      "nx": 0.10711302185058594,
+      "ny": 0.5899900395819482,
+      "quarter": 1,
+      "clockSeconds": 23,
+      "timestamp": 1772742701072,
+      "play_id": 20
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 298.44879150390625,
+      "y": 69.79118347167969,
+      "nx": 0.5968975830078125,
+      "ny": 0.14849187972697805,
+      "quarter": 1,
+      "clockSeconds": 47,
+      "timestamp": 1772742724780,
+      "play_id": 13
+    },
+    {
+      "shooter": "Silva",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 212.45608520507812,
+      "y": 65.42923736572266,
+      "nx": 0.4249121704101563,
+      "ny": 0.1392111433313248,
+      "quarter": 1,
+      "clockSeconds": 78,
+      "timestamp": 1772742755793,
+      "play_id": null
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 98.42227172851562,
+      "y": 322.1611022949219,
+      "nx": 0.19684454345703126,
+      "ny": 0.6854491538189827,
+      "quarter": 1,
+      "clockSeconds": 97,
+      "timestamp": 1772742775112,
+      "play_id": 13
+    },
+    {
+      "shooter": "Cantù",
+      "type": "2pt",
+      "points": 2,
+      "assister": null,
+      "result": "made",
+      "x": 231.150146484375,
+      "y": 56.08219909667969,
+      "nx": 0.46230029296875,
+      "ny": 0.11932382786527593,
+      "quarter": 1,
+      "clockSeconds": 124,
+      "timestamp": 1772742801789,
+      "play_id": 22
+    },
+    {
+      "shooter": "Cremona",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 224.91879272460938,
+      "y": 64.80609893798828,
+      "nx": 0.44983758544921876,
+      "ny": 0.13788531688933678,
+      "quarter": 1,
+      "clockSeconds": 220,
+      "timestamp": 1772742923552,
+      "play_id": 13
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "2pt",
+      "points": 2,
+      "assister": "Cremona",
+      "result": "made",
+      "x": 216.81802368164062,
+      "y": 66.67550659179688,
+      "nx": 0.43363604736328126,
+      "ny": 0.14186277998254654,
+      "quarter": 1,
+      "clockSeconds": 238,
+      "timestamp": 1772742941393,
+      "play_id": 13
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "3pt",
+      "points": 3,
+      "assister": "Sorrentino",
+      "result": "made",
+      "x": 99.66854095458984,
+      "y": 325.2767639160156,
+      "nx": 0.19933708190917968,
+      "ny": 0.6920782210979056,
+      "quarter": 1,
+      "clockSeconds": 282,
+      "timestamp": 1772742986109,
+      "play_id": 26
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 11.183294296264648,
+      "y": 56.08219909667969,
+      "nx": 0.022366588592529296,
+      "ny": 0.11932382786527593,
+      "quarter": 1,
+      "clockSeconds": 324,
+      "timestamp": 1772743027889,
+      "play_id": null
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "2pt",
+      "points": 2,
+      "assister": "Sorrentino",
+      "result": "made",
+      "x": 441.76995849609375,
+      "y": 59.197879791259766,
+      "nx": 0.8835399169921875,
+      "ny": 0.1259529357260846,
+      "quarter": 1,
+      "clockSeconds": 388,
+      "timestamp": 1772743239430,
+      "play_id": 22
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "2pt",
+      "points": 2,
+      "assister": null,
+      "result": "made",
+      "x": 218.68743896484375,
+      "y": 62.31355667114258,
+      "nx": 0.4373748779296875,
+      "ny": 0.1325820354705161,
+      "quarter": 1,
+      "clockSeconds": 429,
+      "timestamp": 1772743425149,
+      "play_id": null
+    },
+    {
+      "shooter": "Ardizzoia",
+      "type": "2pt",
+      "points": 2,
+      "assister": null,
+      "result": "made",
+      "x": 201.86277770996094,
+      "y": 93.4703369140625,
+      "nx": 0.4037255554199219,
+      "ny": 0.19887305726396276,
+      "quarter": 1,
+      "clockSeconds": 438,
+      "timestamp": 1772743459611,
+      "play_id": 26
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 459.2177734375,
+      "y": 240.53033447265625,
+      "nx": 0.918435546875,
+      "ny": 0.511766669090758,
+      "quarter": 1,
+      "clockSeconds": 455,
+      "timestamp": 1772743511516,
+      "play_id": 13
+    },
+    {
+      "shooter": "Ardizzoia",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 346.43023681640625,
+      "y": 357.6798095703125,
+      "nx": 0.6928604736328124,
+      "ny": 0.7610208714261968,
+      "quarter": 1,
+      "clockSeconds": 518,
+      "timestamp": 1772743630765,
+      "play_id": null
+    },
+    {
+      "shooter": "Sacchi",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 58.541595458984375,
+      "y": 262.96319580078125,
+      "nx": 0.11708319091796875,
+      "ny": 0.559496161278258,
+      "quarter": 1,
+      "clockSeconds": 530,
+      "timestamp": 1772743642694,
+      "play_id": null
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "2pt",
+      "points": 2,
+      "assister": null,
+      "result": "made",
+      "x": 212.45608520507812,
+      "y": 76.02253723144531,
+      "nx": 0.4249121704101563,
+      "ny": 0.16175007921584109,
+      "quarter": 2,
+      "clockSeconds": 94,
+      "timestamp": 1772743961803,
+      "play_id": 13
+    },
+    {
+      "shooter": "Cantù",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 89.07524108886719,
+      "y": 299.72821044921875,
+      "nx": 0.17815048217773438,
+      "ny": 0.6377195967004654,
+      "quarter": 2,
+      "clockSeconds": 167,
+      "timestamp": 1772744057753,
+      "play_id": 14
+    },
+    {
+      "shooter": "Silva",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 416.2214050292969,
+      "y": 312.8140563964844,
+      "nx": 0.8324428100585938,
+      "ny": 0.6655618221201796,
+      "quarter": 2,
+      "clockSeconds": 199,
+      "timestamp": 1772744090366,
+      "play_id": null
+    },
+    {
+      "shooter": "Cantù",
+      "type": "3pt",
+      "points": 3,
+      "assister": null,
+      "result": "made",
+      "x": 381.9489440917969,
+      "y": 396.9373474121094,
+      "nx": 0.7638978881835937,
+      "ny": 0.8445475476853391,
+      "quarter": 2,
+      "clockSeconds": 232,
+      "timestamp": 1772744122527,
+      "play_id": null
+    },
+    {
+      "shooter": "Cantù",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 481.650634765625,
+      "y": 168.86973571777344,
+      "nx": 0.96330126953125,
+      "ny": 0.35929731003781584,
+      "quarter": 2,
+      "clockSeconds": 260,
+      "timestamp": 1772744150604,
+      "play_id": null
+    },
+    {
+      "shooter": "Cantù",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 358.8929443359375,
+      "y": 104.68677520751953,
+      "nx": 0.717785888671875,
+      "ny": 0.2227378195904671,
+      "quarter": 2,
+      "clockSeconds": 294,
+      "timestamp": 1772744230901,
+      "play_id": 15
+    },
+    {
+      "shooter": "Cantù",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 451.7401428222656,
+      "y": 258.60125732421875,
+      "nx": 0.9034802856445312,
+      "ny": 0.550215441115359,
+      "quarter": 2,
+      "clockSeconds": 306,
+      "timestamp": 1772744258978,
+      "play_id": 23
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 223.0493927001953,
+      "y": 79.13821411132812,
+      "nx": 0.4460987854003906,
+      "ny": 0.1683791789602726,
+      "quarter": 2,
+      "clockSeconds": 338,
+      "timestamp": 1772744290625,
+      "play_id": 13
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "2pt",
+      "points": 2,
+      "assister": "Silva",
+      "result": "made",
+      "x": 390.0497131347656,
+      "y": 231.80642700195312,
+      "nx": 0.7800994262695312,
+      "ny": 0.4932051638339428,
+      "quarter": 2,
+      "clockSeconds": 379,
+      "timestamp": 1772744399933,
+      "play_id": 26
+    },
+    {
+      "shooter": "Silva",
+      "type": "2pt",
+      "points": 2,
+      "assister": "Cantù",
+      "result": "made",
+      "x": 234.2658233642578,
+      "y": 71.66059112548828,
+      "nx": 0.4685316467285156,
+      "ny": 0.15246934282018784,
+      "quarter": 2,
+      "clockSeconds": 428,
+      "timestamp": 1772744449352,
+      "play_id": 26
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "3pt",
+      "points": 3,
+      "assister": "Cantù",
+      "result": "made",
+      "x": 122.10142517089844,
+      "y": 334.6238098144531,
+      "nx": 0.24420285034179687,
+      "ny": 0.7119655527967088,
+      "quarter": 2,
+      "clockSeconds": 457,
+      "timestamp": 1772744493467,
+      "play_id": null
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 108.39244079589844,
+      "y": 322.1611022949219,
+      "nx": 0.21678488159179687,
+      "ny": 0.6854491538189827,
+      "quarter": 2,
+      "clockSeconds": 488,
+      "timestamp": 1772744523910,
+      "play_id": 26
+    },
+    {
+      "shooter": "Silva",
+      "type": "2pt",
+      "points": 2,
+      "assister": "Cremona",
+      "result": "made",
+      "x": 289.10174560546875,
+      "y": 72.28372192382812,
+      "nx": 0.5782034912109375,
+      "ny": 0.15379515302942154,
+      "quarter": 2,
+      "clockSeconds": 529,
+      "timestamp": 1772744583766,
+      "play_id": 16
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 247.9748077392578,
+      "y": 71.66059112548828,
+      "nx": 0.4959496154785156,
+      "ny": 0.15246934282018784,
+      "quarter": 2,
+      "clockSeconds": 562,
+      "timestamp": 1772744717330,
+      "play_id": 13
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 245.48226928710938,
+      "y": 75.39940643310547,
+      "nx": 0.49096453857421873,
+      "ny": 0.1604242690066074,
+      "quarter": 2,
+      "clockSeconds": 562,
+      "timestamp": 1772744724571,
+      "play_id": 13
+    },
+    {
+      "shooter": "Maffioli",
+      "type": "3pt",
+      "points": 3,
+      "assister": "Cremona",
+      "result": "made",
+      "x": 15.545243263244629,
+      "y": 54.83592987060547,
+      "nx": 0.03109048652648926,
+      "ny": 0.11667219121405419,
+      "quarter": 2,
+      "clockSeconds": 592,
+      "timestamp": 1772744824479,
+      "play_id": null
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 257.32183837890625,
+      "y": 241.77659606933594,
+      "nx": 0.5146436767578125,
+      "ny": 0.5144182895092254,
+      "quarter": 3,
+      "clockSeconds": 32,
+      "timestamp": 1772745497362,
+      "play_id": 22
+    },
+    {
+      "shooter": "Cantù",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 190.64633178710938,
+      "y": 76.02253723144531,
+      "nx": 0.38129266357421876,
+      "ny": 0.16175007921584109,
+      "quarter": 3,
+      "clockSeconds": 61,
+      "timestamp": 1772745526359,
+      "play_id": 14
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 449.8707275390625,
+      "y": 264.8326110839844,
+      "nx": 0.899741455078125,
+      "ny": 0.5634736406042221,
+      "quarter": 3,
+      "clockSeconds": 99,
+      "timestamp": 1772745578491,
+      "play_id": 20
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 240.49717712402344,
+      "y": 69.79118347167969,
+      "nx": 0.4809943542480469,
+      "ny": 0.14849187972697805,
+      "quarter": 3,
+      "clockSeconds": 105,
+      "timestamp": 1772745584546,
+      "play_id": 20
+    },
+    {
+      "shooter": "Cremona",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 243.61285400390625,
+      "y": 191.92575073242188,
+      "nx": 0.4872257080078125,
+      "ny": 0.4083526611328125,
+      "quarter": 3,
+      "clockSeconds": 138,
+      "timestamp": 1772745617439,
+      "play_id": null
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "2pt",
+      "points": 2,
+      "assister": null,
+      "result": "made",
+      "x": 266.66888427734375,
+      "y": 77.8919448852539,
+      "nx": 0.5333377685546875,
+      "ny": 0.16572754230905087,
+      "quarter": 3,
+      "clockSeconds": 166,
+      "timestamp": 1772745644676,
+      "play_id": 13
+    },
+    {
+      "shooter": "Orbon",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 279.131591796875,
+      "y": 65.42923736572266,
+      "nx": 0.55826318359375,
+      "ny": 0.1392111433313248,
+      "quarter": 3,
+      "clockSeconds": 190,
+      "timestamp": 1772745695400,
+      "play_id": 20
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "3pt",
+      "points": 3,
+      "assister": "Cantù",
+      "result": "made",
+      "x": 13.675836563110352,
+      "y": 28.664236068725586,
+      "nx": 0.027351673126220704,
+      "ny": 0.06098773631643742,
+      "quarter": 3,
+      "clockSeconds": 198,
+      "timestamp": 1772745710656,
+      "play_id": null
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "3pt",
+      "points": 3,
+      "assister": "Cremona",
+      "result": "made",
+      "x": 487.2588806152344,
+      "y": 56.08219909667969,
+      "nx": 0.9745177612304687,
+      "ny": 0.11932382786527593,
+      "quarter": 3,
+      "clockSeconds": 248,
+      "timestamp": 1772745767542,
+      "play_id": null
+    },
+    {
+      "shooter": "Orbon",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 223.67251586914062,
+      "y": 76.02253723144531,
+      "nx": 0.4473450317382813,
+      "ny": 0.16175007921584109,
+      "quarter": 3,
+      "clockSeconds": 269,
+      "timestamp": 1772745796420,
+      "play_id": null
+    },
+    {
+      "shooter": "Orbon",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 238.62777709960938,
+      "y": 75.39940643310547,
+      "nx": 0.4772555541992187,
+      "ny": 0.1604242690066074,
+      "quarter": 3,
+      "clockSeconds": 269,
+      "timestamp": 1772745812457,
+      "play_id": null
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 236.75836181640625,
+      "y": 67.29863739013672,
+      "nx": 0.4735167236328125,
+      "ny": 0.14318859019178026,
+      "quarter": 3,
+      "clockSeconds": 269,
+      "timestamp": 1772745821059,
+      "play_id": null
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 297.2025146484375,
+      "y": 86.6158447265625,
+      "nx": 0.594405029296875,
+      "ny": 0.1842890313331117,
+      "quarter": 3,
+      "clockSeconds": 309,
+      "timestamp": 1772745946476,
+      "play_id": 16
+    },
+    {
+      "shooter": "Cremona",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 227.4113311767578,
+      "y": 383.2283630371094,
+      "nx": 0.45482266235351565,
+      "ny": 0.815379495823637,
+      "quarter": 3,
+      "clockSeconds": 320,
+      "timestamp": 1772745958060,
+      "play_id": 16
+    },
+    {
+      "shooter": "Orbon",
+      "type": "2pt",
+      "points": 2,
+      "assister": null,
+      "result": "made",
+      "x": 219.9337158203125,
+      "y": 124.62711334228516,
+      "nx": 0.439867431640625,
+      "ny": 0.2651640709410322,
+      "quarter": 3,
+      "clockSeconds": 355,
+      "timestamp": 1772745992788,
+      "play_id": 16
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 404.3818359375,
+      "y": 320.9148254394531,
+      "nx": 0.808763671875,
+      "ny": 0.6827975009350067,
+      "quarter": 3,
+      "clockSeconds": 397,
+      "timestamp": 1772746035418,
+      "play_id": 16
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "3pt",
+      "points": 3,
+      "assister": "Sorrentino",
+      "result": "made",
+      "x": 13.052700996398926,
+      "y": 152.04507446289062,
+      "nx": 0.02610540199279785,
+      "ny": 0.32350015843168217,
+      "quarter": 3,
+      "clockSeconds": 425,
+      "timestamp": 1772746063332,
+      "play_id": 14
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 18.037784576416016,
+      "y": 178.21676635742188,
+      "nx": 0.036075569152832034,
+      "ny": 0.37918460927111036,
+      "quarter": 3,
+      "clockSeconds": 456,
+      "timestamp": 1772746096679,
+      "play_id": 13
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 216.81802368164062,
+      "y": 375.750732421875,
+      "nx": 0.43363604736328126,
+      "ny": 0.7994696434507979,
+      "quarter": 3,
+      "clockSeconds": 471,
+      "timestamp": 1772746132421,
+      "play_id": 14
+    },
+    {
+      "shooter": "Ardizzoia",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 219.31057739257812,
+      "y": 69.16804504394531,
+      "nx": 0.43862115478515623,
+      "ny": 0.14716605328499002,
+      "quarter": 3,
+      "clockSeconds": 509,
+      "timestamp": 1772746246984,
+      "play_id": 15
+    },
+    {
+      "shooter": "Silva",
+      "type": "2pt",
+      "points": 2,
+      "assister": "Maffioli",
+      "result": "made",
+      "x": 221.1799774169922,
+      "y": 59.821014404296875,
+      "nx": 0.4423599548339844,
+      "ny": 0.12727875405169548,
+      "quarter": 3,
+      "clockSeconds": 516,
+      "timestamp": 1772746315310,
+      "play_id": 13
+    },
+    {
+      "shooter": "Ardizzoia",
+      "type": "3pt",
+      "points": 3,
+      "assister": "Maffioli",
+      "result": "made",
+      "x": 382.57208251953125,
+      "y": 335.2469482421875,
+      "nx": 0.7651441650390625,
+      "ny": 0.7132913792386968,
+      "quarter": 3,
+      "clockSeconds": 552,
+      "timestamp": 1772746389739,
+      "play_id": 13
+    },
+    {
+      "shooter": "Della",
+      "type": "2pt",
+      "points": 2,
+      "assister": "Maffioli",
+      "result": "made",
+      "x": 105.27676391601562,
+      "y": 49.22771072387695,
+      "nx": 0.21055352783203124,
+      "ny": 0.10473981005080203,
+      "quarter": 4,
+      "clockSeconds": 18,
+      "timestamp": 1772746633865,
+      "play_id": 26
+    },
+    {
+      "shooter": "Silva",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 223.0493927001953,
+      "y": 90.97779083251953,
+      "nx": 0.4460987854003906,
+      "ny": 0.19356976772876497,
+      "quarter": 4,
+      "clockSeconds": 51,
+      "timestamp": 1772746669364,
+      "play_id": 13
+    },
+    {
+      "shooter": "Silva",
+      "type": "2pt",
+      "points": 2,
+      "assister": "Maffioli",
+      "result": "made",
+      "x": 246.72853088378906,
+      "y": 87.86211395263672,
+      "nx": 0.49345706176757814,
+      "ny": 0.18694066798433345,
+      "quarter": 4,
+      "clockSeconds": 67,
+      "timestamp": 1772746698424,
+      "play_id": 26
+    },
+    {
+      "shooter": "Silva",
+      "type": "2pt",
+      "points": 2,
+      "assister": null,
+      "result": "made",
+      "x": 287.23236083984375,
+      "y": 64.1829605102539,
+      "nx": 0.5744647216796875,
+      "ny": 0.13655949044734875,
+      "quarter": 4,
+      "clockSeconds": 154,
+      "timestamp": 1772746923081,
+      "play_id": 22
+    },
+    {
+      "shooter": "Montanari",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 226.78819274902344,
+      "y": 81.00762176513672,
+      "nx": 0.45357638549804685,
+      "ny": 0.1723566420534824,
+      "quarter": 4,
+      "clockSeconds": 175,
+      "timestamp": 1772746973909,
+      "play_id": null
+    },
+    {
+      "shooter": "Ardizzoia",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 170.70599365234375,
+      "y": 367.02685546875,
+      "nx": 0.3414119873046875,
+      "ny": 0.780908203125,
+      "quarter": 4,
+      "clockSeconds": 175,
+      "timestamp": 1772746990414,
+      "play_id": null
+    },
+    {
+      "shooter": "Montanari",
+      "type": "3pt",
+      "points": 3,
+      "assister": "Cremona",
+      "result": "made",
+      "x": 84.71328735351562,
+      "y": 308.4521179199219,
+      "nx": 0.16942657470703126,
+      "ny": 0.6562811019572806,
+      "quarter": 4,
+      "clockSeconds": 208,
+      "timestamp": 1772747074354,
+      "play_id": 13
+    },
+    {
+      "shooter": "Cremona",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 348.29962158203125,
+      "y": 363.28802490234375,
+      "nx": 0.6965992431640625,
+      "ny": 0.7729532444730718,
+      "quarter": 4,
+      "clockSeconds": 240,
+      "timestamp": 1772747107032,
+      "play_id": null
+    },
+    {
+      "shooter": "Silva",
+      "type": "2pt",
+      "points": 2,
+      "assister": "Montanari",
+      "result": "made",
+      "x": 232.39642333984375,
+      "y": 43.61948776245117,
+      "nx": 0.4647928466796875,
+      "ny": 0.09280742077117271,
+      "quarter": 4,
+      "clockSeconds": 259,
+      "timestamp": 1772747126241,
+      "play_id": null
+    },
+    {
+      "shooter": "Cremona",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 479.1581115722656,
+      "y": 174.4779510498047,
+      "nx": 0.9583162231445312,
+      "ny": 0.37122968308469084,
+      "quarter": 4,
+      "clockSeconds": 334,
+      "timestamp": 1772747319432,
+      "play_id": 13
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "3pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 485.38946533203125,
+      "y": 71.0374526977539,
+      "nx": 0.9707789306640625,
+      "ny": 0.1511435163781998,
+      "quarter": 4,
+      "clockSeconds": 356,
+      "timestamp": 1772747341239,
+      "play_id": 13
+    },
+    {
+      "shooter": "Sorrentino",
+      "type": "2pt",
+      "points": 0,
+      "assister": null,
+      "result": "missed",
+      "x": 362.00860595703125,
+      "y": 117.14948272705078,
+      "nx": 0.7240172119140625,
+      "ny": 0.24925421856819316,
+      "quarter": 4,
+      "clockSeconds": 457,
+      "timestamp": 1772747500051,
+      "play_id": null
+    },
+    {
+      "shooter": "Fernandez",
+      "type": "2pt",
+      "points": 2,
+      "assister": null,
+      "result": "made",
+      "x": 227.4113311767578,
+      "y": 65.42923736572266,
+      "nx": 0.45482266235351565,
+      "ny": 0.1392111433313248,
+      "quarter": 4,
+      "clockSeconds": 476,
+      "timestamp": 1772747524844,
+      "play_id": 26
+    }
+  ],
+  "game_events": [
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 1,
+      "clockSeconds": 10,
+      "time_remaining": "9:50",
+      "score_margin": 0,
+      "game_seconds": 10,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 0,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742688063
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Silva",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 13,
+      "time_remaining": "9:47",
+      "score_margin": 0,
+      "game_seconds": 13,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 1,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742690879
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 20,
+        "play_name": "Flash"
+      },
+      "quarter": 1,
+      "clockSeconds": 25,
+      "timestamp": 1772742702822,
+      "play_id": 20
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 3,
+        "shot_type": "3pt",
+        "result": "made",
+        "x_loc": 242.36659240722656,
+        "y_loc": 373.88134765625
+      },
+      "quarter": 1,
+      "clockSeconds": 37,
+      "time_remaining": "9:23",
+      "score_margin": 0,
+      "game_seconds": 37,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 3,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742715188,
+      "x_loc": 242.36659240722656,
+      "y_loc": 373.88134765625
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 1,
+      "clockSeconds": 60,
+      "timestamp": 1772742737675,
+      "play_id": 13
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 1,
+      "clockSeconds": 64,
+      "time_remaining": "8:56",
+      "score_margin": -3,
+      "game_seconds": 64,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 5,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742741783
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 66,
+      "time_remaining": "8:54",
+      "score_margin": -3,
+      "game_seconds": 66,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 6,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742744117
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 1,
+      "clockSeconds": 87,
+      "time_remaining": "8:33",
+      "score_margin": -3,
+      "game_seconds": 87,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 7,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742764530
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 93,
+      "time_remaining": "8:27",
+      "score_margin": -3,
+      "game_seconds": 93,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 8,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742770891
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Sorrentino",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 1,
+      "clockSeconds": 99,
+      "timestamp": 1772742776887,
+      "play_id": 13
+    },
+    {
+      "type": "STEAL",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 110,
+      "time_remaining": "8:10",
+      "score_margin": -3,
+      "game_seconds": 110,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 10,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742787483
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Cantù",
+      "detail": {
+        "play_id": 22,
+        "play_name": "Personale"
+      },
+      "quarter": 1,
+      "clockSeconds": 128,
+      "timestamp": 1772742805989,
+      "play_id": 22
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 310.9114990234375,
+        "y_loc": 295.9893798828125
+      },
+      "quarter": 1,
+      "clockSeconds": 150,
+      "time_remaining": "7:30",
+      "score_margin": -1,
+      "game_seconds": 150,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 12,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742827713,
+      "x_loc": 310.9114990234375,
+      "y_loc": 295.9893798828125
+    },
+    {
+      "type": "TURNOVER",
+      "player": "Cantù",
+      "detail": {
+        "play_id": 20,
+        "play_name": "Flash"
+      },
+      "quarter": 1,
+      "clockSeconds": 174,
+      "timestamp": 1772742873879,
+      "play_id": 20
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 1,
+      "clockSeconds": 190,
+      "time_remaining": "6:50",
+      "score_margin": -3,
+      "game_seconds": 190,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 14,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742894119
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 193,
+      "time_remaining": "6:47",
+      "score_margin": -3,
+      "game_seconds": 193,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 15,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742896488
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 1,
+      "clockSeconds": 200,
+      "time_remaining": "6:40",
+      "score_margin": -3,
+      "game_seconds": 200,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 16,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742903914
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 205,
+      "time_remaining": "6:35",
+      "score_margin": -3,
+      "game_seconds": 205,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 17,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742908709
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Cremona",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 1,
+      "clockSeconds": 226,
+      "timestamp": 1772742929942,
+      "play_id": 13
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Sorrentino",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 1,
+      "clockSeconds": 239,
+      "timestamp": 1772742942483,
+      "play_id": 13
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 268.53826904296875,
+        "y_loc": 62.93669128417969
+      },
+      "quarter": 1,
+      "clockSeconds": 257,
+      "time_remaining": "5:43",
+      "score_margin": -1,
+      "game_seconds": 257,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 20,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772742960427,
+      "x_loc": 268.53826904296875,
+      "y_loc": 62.93669128417969
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 26,
+        "play_name": "Bimbe"
+      },
+      "quarter": 1,
+      "clockSeconds": 286,
+      "timestamp": 1772742989995,
+      "play_id": 26
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 1,
+      "clockSeconds": 314,
+      "time_remaining": "4:46",
+      "score_margin": 0,
+      "game_seconds": 314,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 22,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772743017803
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 316,
+      "time_remaining": "4:44",
+      "score_margin": 0,
+      "game_seconds": 316,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 23,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772743019732
+    },
+    {
+      "type": "FOUL_PERSONAL",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 331,
+      "time_remaining": "4:29",
+      "score_margin": 0,
+      "game_seconds": 331,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 24,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772743042176
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 1,
+        "shot_type": "ft",
+        "result": "made"
+      },
+      "quarter": 1,
+      "clockSeconds": 331,
+      "time_remaining": "4:29",
+      "score_margin": 0,
+      "game_seconds": 331,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 25,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772743055427
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "ft",
+        "result": "missed"
+      },
+      "quarter": 1,
+      "clockSeconds": 331,
+      "time_remaining": "4:29",
+      "score_margin": -1,
+      "game_seconds": 331,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 26,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772743066747
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 331,
+      "time_remaining": "4:29",
+      "score_margin": -1,
+      "game_seconds": 331,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 27,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772743068716
+    },
+    {
+      "type": "FT",
+      "player": "Sorrentino",
+      "detail": {
+        "ftm": 1,
+        "fta": 2
+      },
+      "quarter": 1,
+      "clockSeconds": 336,
+      "time_remaining": "4:24",
+      "score_margin": 0,
+      "game_seconds": 336,
+      "possession_number": 2,
+      "play_id": 13,
+      "event_index": 28,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772743113858
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 336,
+      "time_remaining": "4:24",
+      "score_margin": 0,
+      "game_seconds": 336,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 29,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772743149520
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 336,
+      "time_remaining": "4:24",
+      "score_margin": 0,
+      "game_seconds": 336,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 30,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "timestamp": 1772743149520
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Cantù",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 354,
+      "time_remaining": "4:06",
+      "score_margin": 0,
+      "game_seconds": 354,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 31,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Orbon"
+      ],
+      "timestamp": 1772743174909
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Ardizzoia",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 354,
+      "time_remaining": "4:06",
+      "score_margin": 0,
+      "game_seconds": 354,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 32,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Orbon"
+      ],
+      "timestamp": 1772743174909
+    },
+    {
+      "type": "FT",
+      "player": "Silva",
+      "detail": {
+        "ftm": 2,
+        "fta": 2
+      },
+      "quarter": 1,
+      "clockSeconds": 354,
+      "time_remaining": "4:06",
+      "score_margin": 2,
+      "game_seconds": 354,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 33,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Silva",
+        "Orbon",
+        "Ardizzoia"
+      ],
+      "timestamp": 1772743187026
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 1,
+      "clockSeconds": 372,
+      "time_remaining": "3:48",
+      "score_margin": 2,
+      "game_seconds": 372,
+      "possession_number": 2,
+      "play_id": null,
+      "event_index": 34,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Silva",
+        "Orbon",
+        "Ardizzoia"
+      ],
+      "timestamp": 1772743206280
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 374,
+      "time_remaining": "3:46",
+      "score_margin": 2,
+      "game_seconds": 374,
+      "possession_number": 2,
+      "play_id": null,
+      "event_index": 35,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Silva",
+        "Orbon",
+        "Ardizzoia"
+      ],
+      "timestamp": 1772743208951
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 22,
+        "play_name": "Personale"
+      },
+      "quarter": 1,
+      "clockSeconds": 392,
+      "timestamp": 1772743243052,
+      "play_id": 22
+    },
+    {
+      "type": "FOUL_PERSONAL",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 399,
+      "time_remaining": "3:21",
+      "score_margin": 4,
+      "game_seconds": 399,
+      "possession_number": 2,
+      "play_id": null,
+      "event_index": 37,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Silva",
+        "Orbon",
+        "Ardizzoia"
+      ],
+      "timestamp": 1772743251000
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 429,
+      "time_remaining": "2:51",
+      "score_margin": 4,
+      "game_seconds": 429,
+      "possession_number": 2,
+      "play_id": null,
+      "event_index": 38,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Silva",
+        "Orbon",
+        "Ardizzoia"
+      ],
+      "timestamp": 1772743348786
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Maffioli",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 429,
+      "time_remaining": "2:51",
+      "score_margin": 4,
+      "game_seconds": 429,
+      "possession_number": 2,
+      "play_id": null,
+      "event_index": 39,
+      "active_lineup": [
+        "Fernandez",
+        "Sorrentino",
+        "Silva",
+        "Orbon",
+        "Ardizzoia"
+      ],
+      "timestamp": 1772743348786
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Silva",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 429,
+      "time_remaining": "2:51",
+      "score_margin": 4,
+      "game_seconds": 429,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 40,
+      "active_lineup": [
+        "Fernandez",
+        "Silva",
+        "Orbon",
+        "Ardizzoia",
+        "Maffioli"
+      ],
+      "timestamp": 1772743418578
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Maffioli",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 429,
+      "time_remaining": "2:51",
+      "score_margin": 4,
+      "game_seconds": 429,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 41,
+      "active_lineup": [
+        "Fernandez",
+        "Silva",
+        "Orbon",
+        "Ardizzoia",
+        "Maffioli"
+      ],
+      "timestamp": 1772743418578
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 429,
+      "time_remaining": "2:51",
+      "score_margin": 4,
+      "game_seconds": 429,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 42,
+      "active_lineup": [
+        "Fernandez",
+        "Silva",
+        "Orbon",
+        "Ardizzoia",
+        "Maffioli"
+      ],
+      "timestamp": 1772743418578
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Della",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 429,
+      "time_remaining": "2:51",
+      "score_margin": 4,
+      "game_seconds": 429,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 43,
+      "active_lineup": [
+        "Fernandez",
+        "Silva",
+        "Orbon",
+        "Ardizzoia",
+        "Maffioli"
+      ],
+      "timestamp": 1772743418578
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 1,
+        "shot_type": "ft",
+        "result": "made"
+      },
+      "quarter": 1,
+      "clockSeconds": 429,
+      "time_remaining": "2:51",
+      "score_margin": 6,
+      "game_seconds": 429,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 44,
+      "active_lineup": [
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della"
+      ],
+      "timestamp": 1772743430394
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "ft",
+        "result": "missed"
+      },
+      "quarter": 1,
+      "clockSeconds": 429,
+      "time_remaining": "2:51",
+      "score_margin": 5,
+      "game_seconds": 429,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 45,
+      "active_lineup": [
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della"
+      ],
+      "timestamp": 1772743432612
+    },
+    {
+      "type": "OPP_OREB",
+      "player": null,
+      "detail": {
+        "shot_type": "ft"
+      },
+      "quarter": 1,
+      "clockSeconds": 429,
+      "time_remaining": "2:51",
+      "score_margin": 5,
+      "game_seconds": 429,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 46,
+      "active_lineup": [
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della"
+      ],
+      "timestamp": 1772743434162
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 421.8296203613281,
+        "y_loc": 146.43685913085938
+      },
+      "quarter": 1,
+      "clockSeconds": 429,
+      "time_remaining": "2:51",
+      "score_margin": 5,
+      "game_seconds": 429,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 47,
+      "active_lineup": [
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della"
+      ],
+      "timestamp": 1772743440014,
+      "x_loc": 421.8296203613281,
+      "y_loc": 146.43685913085938
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Ardizzoia",
+      "detail": {
+        "play_id": 26,
+        "play_name": "Bimbe"
+      },
+      "quarter": 1,
+      "clockSeconds": 438,
+      "timestamp": 1772743461063,
+      "play_id": 26
+    },
+    {
+      "type": "FT",
+      "player": "Ardizzoia",
+      "detail": {
+        "ftm": 1,
+        "fta": 1
+      },
+      "quarter": 1,
+      "clockSeconds": 443,
+      "time_remaining": "2:37",
+      "score_margin": 6,
+      "game_seconds": 443,
+      "possession_number": 2,
+      "play_id": 26,
+      "event_index": 49,
+      "active_lineup": [
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della"
+      ],
+      "timestamp": 1772743497171
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 1,
+      "clockSeconds": 448,
+      "time_remaining": "2:32",
+      "score_margin": 6,
+      "game_seconds": 448,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 50,
+      "active_lineup": [
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della"
+      ],
+      "timestamp": 1772743503653
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 450,
+      "time_remaining": "2:30",
+      "score_margin": 6,
+      "game_seconds": 450,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 51,
+      "active_lineup": [
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della"
+      ],
+      "timestamp": 1772743505726
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 1,
+      "clockSeconds": 459,
+      "timestamp": 1772743515485,
+      "play_id": 13
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 479,
+      "time_remaining": "2:01",
+      "score_margin": 6,
+      "game_seconds": 479,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 53,
+      "active_lineup": [
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della"
+      ],
+      "timestamp": 1772743565945
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Montanari",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 479,
+      "time_remaining": "2:01",
+      "score_margin": 6,
+      "game_seconds": 479,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 54,
+      "active_lineup": [
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della"
+      ],
+      "timestamp": 1772743565945
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 479,
+      "time_remaining": "2:01",
+      "score_margin": 6,
+      "game_seconds": 479,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 55,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della",
+        "Montanari"
+      ],
+      "timestamp": 1772743581367
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Sacchi",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 479,
+      "time_remaining": "2:01",
+      "score_margin": 6,
+      "game_seconds": 479,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 56,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della",
+        "Montanari"
+      ],
+      "timestamp": 1772743581367
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 3,
+        "shot_type": "3pt",
+        "result": "made",
+        "x_loc": 66.01922607421875,
+        "y_loc": 305.9595642089844
+      },
+      "quarter": 1,
+      "clockSeconds": 479,
+      "time_remaining": "2:01",
+      "score_margin": 6,
+      "game_seconds": 479,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 57,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Della",
+        "Montanari",
+        "Sacchi"
+      ],
+      "timestamp": 1772743586149,
+      "x_loc": 66.01922607421875,
+      "y_loc": 305.9595642089844
+    },
+    {
+      "type": "REBOUND_OFFENSIVE",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 1,
+      "clockSeconds": 521,
+      "time_remaining": "1:19",
+      "score_margin": 3,
+      "game_seconds": 521,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 58,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Della",
+        "Montanari",
+        "Sacchi"
+      ],
+      "timestamp": 1772743633334
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 133.31787109375,
+        "y_loc": 245.51541137695312
+      },
+      "quarter": 1,
+      "clockSeconds": 541,
+      "time_remaining": "0:59",
+      "score_margin": 3,
+      "game_seconds": 541,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 59,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Della",
+        "Montanari",
+        "Sacchi"
+      ],
+      "timestamp": 1772743653810,
+      "x_loc": 133.31787109375,
+      "y_loc": 245.51541137695312
+    },
+    {
+      "type": "NEXT_QUARTER",
+      "player": null,
+      "detail": {
+        "from_quarter": 1,
+        "to_quarter": 2
+      },
+      "quarter": 1,
+      "clockSeconds": 600,
+      "time_remaining": "0:00",
+      "score_margin": 1,
+      "game_seconds": 600,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 60,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Della",
+        "Montanari",
+        "Sacchi"
+      ],
+      "timestamp": 1772743744915
+    },
+    {
+      "type": "TURNOVER",
+      "player": "Orbon",
+      "detail": {
+        "play_id": 26,
+        "play_name": "Bimbe"
+      },
+      "quarter": 2,
+      "clockSeconds": 18,
+      "timestamp": 1772743806927,
+      "play_id": 26
+    },
+    {
+      "type": "STEAL",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 24,
+      "time_remaining": "9:36",
+      "score_margin": 1,
+      "game_seconds": 624,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 62,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Della",
+        "Montanari",
+        "Sacchi"
+      ],
+      "timestamp": 1772743814926
+    },
+    {
+      "type": "TURNOVER",
+      "player": "Orbon",
+      "detail": {
+        "play_id": 22,
+        "play_name": "Personale"
+      },
+      "quarter": 2,
+      "clockSeconds": 52,
+      "timestamp": 1772743843084,
+      "play_id": 22
+    },
+    {
+      "type": "FOUL_PERSONAL",
+      "player": "Montanari",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 55,
+      "time_remaining": "9:05",
+      "score_margin": 1,
+      "game_seconds": 655,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 64,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Della",
+        "Montanari",
+        "Sacchi"
+      ],
+      "timestamp": 1772743846104
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 59,
+      "time_remaining": "9:01",
+      "score_margin": 1,
+      "game_seconds": 659,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 65,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Della",
+        "Montanari",
+        "Sacchi"
+      ],
+      "timestamp": 1772743867198
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Montanari",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 59,
+      "time_remaining": "9:01",
+      "score_margin": 1,
+      "game_seconds": 659,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 66,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Della",
+        "Montanari",
+        "Sacchi"
+      ],
+      "timestamp": 1772743867198
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 59,
+      "time_remaining": "9:01",
+      "score_margin": 1,
+      "game_seconds": 659,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 67,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Della",
+        "Montanari",
+        "Sacchi"
+      ],
+      "timestamp": 1772743867198
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Silva",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 59,
+      "time_remaining": "9:01",
+      "score_margin": 1,
+      "game_seconds": 659,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 68,
+      "active_lineup": [
+        "Orbon",
+        "Ardizzoia",
+        "Della",
+        "Montanari",
+        "Sacchi"
+      ],
+      "timestamp": 1772743867198
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 2,
+      "clockSeconds": 67,
+      "time_remaining": "8:53",
+      "score_margin": 1,
+      "game_seconds": 667,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 69,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sacchi",
+        "Sorrentino",
+        "Silva"
+      ],
+      "timestamp": 1772743877023
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Ardizzoia",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 69,
+      "time_remaining": "8:51",
+      "score_margin": 1,
+      "game_seconds": 669,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 70,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sacchi",
+        "Sorrentino",
+        "Silva"
+      ],
+      "timestamp": 1772743878865
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Sacchi",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 74,
+      "time_remaining": "8:46",
+      "score_margin": 1,
+      "game_seconds": 674,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 71,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sacchi",
+        "Sorrentino",
+        "Silva"
+      ],
+      "timestamp": 1772743900110
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Cantù",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 74,
+      "time_remaining": "8:46",
+      "score_margin": 1,
+      "game_seconds": 674,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 72,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sacchi",
+        "Sorrentino",
+        "Silva"
+      ],
+      "timestamp": 1772743900110
+    },
+    {
+      "type": "TURNOVER",
+      "player": "Ardizzoia",
+      "detail": {
+        "play_id": 26,
+        "play_name": "Bimbe"
+      },
+      "quarter": 2,
+      "clockSeconds": 84,
+      "timestamp": 1772743951931,
+      "play_id": 26
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 254.8292999267578,
+        "y_loc": 49.85084533691406
+      },
+      "quarter": 2,
+      "clockSeconds": 86,
+      "time_remaining": "8:34",
+      "score_margin": 1,
+      "game_seconds": 686,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 74,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772743954177,
+      "x_loc": 254.8292999267578,
+      "y_loc": 49.85084533691406
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Sorrentino",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 2,
+      "clockSeconds": 97,
+      "timestamp": 1772743964436,
+      "play_id": 13
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 3,
+        "shot_type": "3pt",
+        "result": "made",
+        "x_loc": 69.13490295410156,
+        "y_loc": 297.8587951660156
+      },
+      "quarter": 2,
+      "clockSeconds": 119,
+      "time_remaining": "8:01",
+      "score_margin": 1,
+      "game_seconds": 719,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 76,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772743994023,
+      "x_loc": 69.13490295410156,
+      "y_loc": 297.8587951660156
+    },
+    {
+      "type": "FOUL_PERSONAL",
+      "player": "Cantù",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 140,
+      "time_remaining": "7:40",
+      "score_margin": -2,
+      "game_seconds": 740,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 77,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744022753
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 2,
+      "clockSeconds": 155,
+      "time_remaining": "7:25",
+      "score_margin": -2,
+      "game_seconds": 755,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 78,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744046225
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Silva",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 158,
+      "time_remaining": "7:22",
+      "score_margin": -2,
+      "game_seconds": 758,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 79,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744049212
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Cantù",
+      "detail": {
+        "play_id": 14,
+        "play_name": "Transi"
+      },
+      "quarter": 2,
+      "clockSeconds": 171,
+      "timestamp": 1772744062169,
+      "play_id": 14
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 2,
+      "clockSeconds": 181,
+      "time_remaining": "6:59",
+      "score_margin": -2,
+      "game_seconds": 781,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 81,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744071519
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Silva",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 184,
+      "time_remaining": "6:56",
+      "score_margin": -2,
+      "game_seconds": 784,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 82,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744074754
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 2,
+      "clockSeconds": 248,
+      "time_remaining": "5:52",
+      "score_margin": 1,
+      "game_seconds": 848,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 83,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744138631
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Della",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 250,
+      "time_remaining": "5:50",
+      "score_margin": 1,
+      "game_seconds": 850,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 84,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744140913
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 2,
+      "clockSeconds": 268,
+      "time_remaining": "5:32",
+      "score_margin": 1,
+      "game_seconds": 868,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 85,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744158788
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Ardizzoia",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 275,
+      "time_remaining": "5:25",
+      "score_margin": 1,
+      "game_seconds": 875,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 86,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744183766
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Della",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 275,
+      "time_remaining": "5:25",
+      "score_margin": 1,
+      "game_seconds": 875,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 87,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744183766
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 275,
+      "time_remaining": "5:25",
+      "score_margin": 1,
+      "game_seconds": 875,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 88,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744183766
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 275,
+      "time_remaining": "5:25",
+      "score_margin": 1,
+      "game_seconds": 875,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 89,
+      "active_lineup": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "timestamp": 1772744183766
+    },
+    {
+      "type": "TURNOVER",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 282,
+      "timestamp": 1772744192248,
+      "play_id": null
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 257.9449768066406,
+        "y_loc": 82.87702941894531
+      },
+      "quarter": 2,
+      "clockSeconds": 285,
+      "time_remaining": "5:15",
+      "score_margin": 1,
+      "game_seconds": 885,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 91,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "timestamp": 1772744195249,
+      "x_loc": 257.9449768066406,
+      "y_loc": 82.87702941894531
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Cantù",
+      "detail": {
+        "play_id": 15,
+        "play_name": "quadrato"
+      },
+      "quarter": 2,
+      "clockSeconds": 294,
+      "timestamp": 1772744241453,
+      "play_id": 15
+    },
+    {
+      "type": "REBOUND_OFFENSIVE",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 294,
+      "time_remaining": "5:06",
+      "score_margin": -1,
+      "game_seconds": 894,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 93,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "timestamp": 1772744245077
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Cantù",
+      "detail": {
+        "play_id": 23,
+        "play_name": "Corna"
+      },
+      "quarter": 2,
+      "clockSeconds": 309,
+      "timestamp": 1772744261776,
+      "play_id": 23
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 2,
+      "clockSeconds": 317,
+      "time_remaining": "4:43",
+      "score_margin": -1,
+      "game_seconds": 917,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 95,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "timestamp": 1772744269326
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 319,
+      "time_remaining": "4:41",
+      "score_margin": -1,
+      "game_seconds": 919,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 96,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "timestamp": 1772744271995
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Sorrentino",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 2,
+      "clockSeconds": 347,
+      "timestamp": 1772744299848,
+      "play_id": 13
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 232.39642333984375,
+        "y_loc": 85.36957550048828
+      },
+      "quarter": 2,
+      "clockSeconds": 358,
+      "time_remaining": "4:02",
+      "score_margin": -1,
+      "game_seconds": 958,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 98,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "timestamp": 1772744310764,
+      "x_loc": 232.39642333984375,
+      "y_loc": 85.36957550048828
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Sorrentino",
+      "detail": {
+        "play_id": 26,
+        "play_name": "Bimbe"
+      },
+      "quarter": 2,
+      "clockSeconds": 382,
+      "timestamp": 1772744402861,
+      "play_id": 26
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 219.9337158203125,
+        "y_loc": 65.42923736572266
+      },
+      "quarter": 2,
+      "clockSeconds": 403,
+      "time_remaining": "3:17",
+      "score_margin": -1,
+      "game_seconds": 1003,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 100,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "timestamp": 1772744423501,
+      "x_loc": 219.9337158203125,
+      "y_loc": 65.42923736572266
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Silva",
+      "detail": {
+        "play_id": 26,
+        "play_name": "Bimbe"
+      },
+      "quarter": 2,
+      "clockSeconds": 430,
+      "timestamp": 1772744451196,
+      "play_id": 26
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 266.66888427734375,
+        "y_loc": 74.7762680053711
+      },
+      "quarter": 2,
+      "clockSeconds": 445,
+      "time_remaining": "2:35",
+      "score_margin": -1,
+      "game_seconds": 1045,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 102,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "timestamp": 1772744466316,
+      "x_loc": 266.66888427734375,
+      "y_loc": 74.7762680053711
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 3,
+        "shot_type": "3pt",
+        "result": "made",
+        "x_loc": 479.78125,
+        "y_loc": 57.32847213745117
+      },
+      "quarter": 2,
+      "clockSeconds": 469,
+      "time_remaining": "2:11",
+      "score_margin": 0,
+      "game_seconds": 1069,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 103,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "timestamp": 1772744505397,
+      "x_loc": 479.78125,
+      "y_loc": 57.32847213745117
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Sorrentino",
+      "detail": {
+        "play_id": 26,
+        "play_name": "Bimbe"
+      },
+      "quarter": 2,
+      "clockSeconds": 489,
+      "timestamp": 1772744525213,
+      "play_id": 26
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 3,
+        "shot_type": "3pt",
+        "result": "made",
+        "x_loc": 371.35565185546875,
+        "y_loc": 413.1388854980469
+      },
+      "quarter": 2,
+      "clockSeconds": 508,
+      "time_remaining": "1:32",
+      "score_margin": -3,
+      "game_seconds": 1108,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 105,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "timestamp": 1772744544246,
+      "x_loc": 371.35565185546875,
+      "y_loc": 413.1388854980469
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Cantù",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 516,
+      "time_remaining": "1:24",
+      "score_margin": -6,
+      "game_seconds": 1116,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 106,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "timestamp": 1772744561958
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Maffioli",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 516,
+      "time_remaining": "1:24",
+      "score_margin": -6,
+      "game_seconds": 1116,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 107,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "timestamp": 1772744561958
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Silva",
+      "detail": {
+        "play_id": 16,
+        "play_name": "2Basso"
+      },
+      "quarter": 2,
+      "clockSeconds": 529,
+      "timestamp": 1772744588462,
+      "play_id": 16
+    },
+    {
+      "type": "FT",
+      "player": "Silva",
+      "detail": {
+        "ftm": 0,
+        "fta": 1
+      },
+      "quarter": 2,
+      "clockSeconds": 529,
+      "time_remaining": "1:11",
+      "score_margin": -4,
+      "game_seconds": 1129,
+      "possession_number": 4,
+      "play_id": 16,
+      "event_index": 109,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Fernandez",
+        "Cremona",
+        "Maffioli"
+      ],
+      "timestamp": 1772744604542
+    },
+    {
+      "type": "FOUL_PERSONAL",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 541,
+      "time_remaining": "0:59",
+      "score_margin": -4,
+      "game_seconds": 1141,
+      "possession_number": 4,
+      "play_id": null,
+      "event_index": 110,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Fernandez",
+        "Cremona",
+        "Maffioli"
+      ],
+      "timestamp": 1772744619690
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 2,
+      "clockSeconds": 550,
+      "time_remaining": "0:50",
+      "score_margin": -4,
+      "game_seconds": 1150,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 111,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Fernandez",
+        "Cremona",
+        "Maffioli"
+      ],
+      "timestamp": 1772744645616
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Silva",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 556,
+      "time_remaining": "0:44",
+      "score_margin": -4,
+      "game_seconds": 1156,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 112,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Fernandez",
+        "Cremona",
+        "Maffioli"
+      ],
+      "timestamp": 1772744651937
+    },
+    {
+      "type": "FT",
+      "player": "Fernandez",
+      "detail": {
+        "ftm": 2,
+        "fta": 2
+      },
+      "quarter": 2,
+      "clockSeconds": 557,
+      "time_remaining": "0:43",
+      "score_margin": -2,
+      "game_seconds": 1157,
+      "possession_number": 6,
+      "play_id": null,
+      "event_index": 113,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Fernandez",
+        "Cremona",
+        "Maffioli"
+      ],
+      "timestamp": 1772744696661
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Silva",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 562,
+      "time_remaining": "0:38",
+      "score_margin": -2,
+      "game_seconds": 1162,
+      "possession_number": 6,
+      "play_id": null,
+      "event_index": 114,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Fernandez",
+        "Cremona",
+        "Maffioli"
+      ],
+      "timestamp": 1772744708662
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 562,
+      "time_remaining": "0:38",
+      "score_margin": -2,
+      "game_seconds": 1162,
+      "possession_number": 6,
+      "play_id": null,
+      "event_index": 115,
+      "active_lineup": [
+        "Sorrentino",
+        "Silva",
+        "Fernandez",
+        "Cremona",
+        "Maffioli"
+      ],
+      "timestamp": 1772744708662
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 2,
+      "clockSeconds": 562,
+      "timestamp": 1772744719340,
+      "play_id": 13
+    },
+    {
+      "type": "REBOUND_OFFENSIVE",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 2,
+      "clockSeconds": 562,
+      "time_remaining": "0:38",
+      "score_margin": -2,
+      "game_seconds": 1162,
+      "possession_number": 6,
+      "play_id": null,
+      "event_index": 117,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Maffioli",
+        "Orbon"
+      ],
+      "timestamp": 1772744721285
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 2,
+      "clockSeconds": 562,
+      "timestamp": 1772744726240,
+      "play_id": 13
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 244.23599243164062,
+        "y_loc": 61.067283630371094
+      },
+      "quarter": 2,
+      "clockSeconds": 562,
+      "time_remaining": "0:38",
+      "score_margin": -2,
+      "game_seconds": 1162,
+      "possession_number": 7,
+      "play_id": null,
+      "event_index": 119,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Maffioli",
+        "Orbon"
+      ],
+      "timestamp": 1772744740347,
+      "x_loc": 244.23599243164062,
+      "y_loc": 61.067283630371094
+    },
+    {
+      "type": "FT",
+      "player": "Sorrentino",
+      "detail": {
+        "ftm": 0,
+        "fta": 2
+      },
+      "quarter": 2,
+      "clockSeconds": 562,
+      "time_remaining": "0:38",
+      "score_margin": -4,
+      "game_seconds": 1162,
+      "possession_number": 8,
+      "play_id": null,
+      "event_index": 120,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Maffioli",
+        "Orbon"
+      ],
+      "timestamp": 1772744779718
+    },
+    {
+      "type": "NEXT_QUARTER",
+      "player": null,
+      "detail": {
+        "from_quarter": 2,
+        "to_quarter": 3
+      },
+      "quarter": 2,
+      "clockSeconds": 600,
+      "time_remaining": "0:00",
+      "score_margin": -1,
+      "game_seconds": 1200,
+      "possession_number": 8,
+      "play_id": null,
+      "event_index": 121,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Maffioli",
+        "Orbon"
+      ],
+      "timestamp": 1772744838031
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Maffioli",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 0,
+      "time_remaining": "10:00",
+      "score_margin": -1,
+      "game_seconds": 1200,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 122,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Maffioli",
+        "Orbon"
+      ],
+      "timestamp": 1772745363745
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Cantù",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 0,
+      "time_remaining": "10:00",
+      "score_margin": -1,
+      "game_seconds": 1200,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 123,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Maffioli",
+        "Orbon"
+      ],
+      "timestamp": 1772745363745
+    },
+    {
+      "type": "STEAL",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 15,
+      "time_remaining": "9:45",
+      "score_margin": -1,
+      "game_seconds": 1215,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 124,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745472595
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 22,
+        "play_name": "Personale"
+      },
+      "quarter": 3,
+      "clockSeconds": 38,
+      "timestamp": 1772745503469,
+      "play_id": 22
+    },
+    {
+      "type": "STEAL",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 45,
+      "time_remaining": "9:15",
+      "score_margin": -1,
+      "game_seconds": 1245,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 126,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745510344
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Cantù",
+      "detail": {
+        "play_id": 14,
+        "play_name": "Transi"
+      },
+      "quarter": 3,
+      "clockSeconds": 70,
+      "timestamp": 1772745535356,
+      "play_id": 14
+    },
+    {
+      "type": "REBOUND_OFFENSIVE",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 73,
+      "time_remaining": "8:47",
+      "score_margin": -1,
+      "game_seconds": 1273,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 128,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745537637
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 20,
+        "play_name": "Flash"
+      },
+      "quarter": 3,
+      "clockSeconds": 101,
+      "timestamp": 1772745580106,
+      "play_id": 20
+    },
+    {
+      "type": "REBOUND_OFFENSIVE",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 102,
+      "time_remaining": "8:18",
+      "score_margin": -1,
+      "game_seconds": 1302,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 130,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745581520
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 20,
+        "play_name": "Flash"
+      },
+      "quarter": 3,
+      "clockSeconds": 110,
+      "timestamp": 1772745589274,
+      "play_id": 20
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 3,
+      "clockSeconds": 117,
+      "time_remaining": "8:03",
+      "score_margin": -1,
+      "game_seconds": 1317,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 132,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745595945
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 124,
+      "time_remaining": "7:56",
+      "score_margin": -1,
+      "game_seconds": 1324,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 133,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745602681
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 3,
+      "clockSeconds": 170,
+      "timestamp": 1772745648903,
+      "play_id": 13
+    },
+    {
+      "type": "FOUL_PERSONAL",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 173,
+      "time_remaining": "7:07",
+      "score_margin": -1,
+      "game_seconds": 1373,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 136,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745651999
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 3,
+        "shot_type": "3pt",
+        "result": "made",
+        "x_loc": 114.00066375732422,
+        "y_loc": 332.1312561035156
+      },
+      "quarter": 3,
+      "clockSeconds": 179,
+      "time_remaining": "7:01",
+      "score_margin": 1,
+      "game_seconds": 1379,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 136,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745666719,
+      "x_loc": 114.00066375732422,
+      "y_loc": 332.1312561035156
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Orbon",
+      "detail": {
+        "play_id": 20,
+        "play_name": "Flash"
+      },
+      "quarter": 3,
+      "clockSeconds": 190,
+      "timestamp": 1772745696588,
+      "play_id": 20
+    },
+    {
+      "type": "BLOCK",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 209,
+      "time_remaining": "6:31",
+      "score_margin": 1,
+      "game_seconds": 1409,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 138,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745720838
+    },
+    {
+      "type": "TURNOVER",
+      "player": "Sorrentino",
+      "detail": {
+        "play_id": 20,
+        "play_name": "Flash"
+      },
+      "quarter": 3,
+      "clockSeconds": 230,
+      "timestamp": 1772745749607,
+      "play_id": 20
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 3,
+      "clockSeconds": 234,
+      "time_remaining": "6:06",
+      "score_margin": 1,
+      "game_seconds": 1434,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 140,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745753899
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 237,
+      "time_remaining": "6:03",
+      "score_margin": 1,
+      "game_seconds": 1437,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 141,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745757151
+    },
+    {
+      "type": "REBOUND_OFFENSIVE",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 269,
+      "time_remaining": "5:31",
+      "score_margin": 4,
+      "game_seconds": 1469,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 142,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745818589
+    },
+    {
+      "type": "FT",
+      "player": "Fernandez",
+      "detail": {
+        "ftm": 2,
+        "fta": 2
+      },
+      "quarter": 3,
+      "clockSeconds": 269,
+      "time_remaining": "5:31",
+      "score_margin": 6,
+      "game_seconds": 1469,
+      "possession_number": 2,
+      "play_id": null,
+      "event_index": 143,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745904825
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 270.4076843261719,
+        "y_loc": 72.9068603515625
+      },
+      "quarter": 3,
+      "clockSeconds": 292,
+      "time_remaining": "5:08",
+      "score_margin": 6,
+      "game_seconds": 1492,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 144,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745930299,
+      "x_loc": 270.4076843261719,
+      "y_loc": 72.9068603515625
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Sorrentino",
+      "detail": {
+        "play_id": 16,
+        "play_name": "2Basso"
+      },
+      "quarter": 3,
+      "clockSeconds": 313,
+      "timestamp": 1772745950772,
+      "play_id": 16
+    },
+    {
+      "type": "REBOUND_OFFENSIVE",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 315,
+      "time_remaining": "4:45",
+      "score_margin": 4,
+      "game_seconds": 1515,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 146,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745952641
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Cremona",
+      "detail": {
+        "play_id": 16,
+        "play_name": "2Basso"
+      },
+      "quarter": 3,
+      "clockSeconds": 323,
+      "timestamp": 1772745961012,
+      "play_id": 16
+    },
+    {
+      "type": "REBOUND_OFFENSIVE",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 324,
+      "time_remaining": "4:36",
+      "score_margin": 4,
+      "game_seconds": 1524,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 148,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745962164
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 3,
+      "clockSeconds": 331,
+      "time_remaining": "4:29",
+      "score_margin": 4,
+      "game_seconds": 1531,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 149,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745968828
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Cantù",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 334,
+      "time_remaining": "4:26",
+      "score_margin": 4,
+      "game_seconds": 1534,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 150,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772745971429
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Orbon",
+      "detail": {
+        "play_id": 16,
+        "play_name": "2Basso"
+      },
+      "quarter": 3,
+      "clockSeconds": 357,
+      "timestamp": 1772745994496,
+      "play_id": 16
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 3,
+      "clockSeconds": 378,
+      "time_remaining": "3:42",
+      "score_margin": 6,
+      "game_seconds": 1578,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 152,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772746016188
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Cantù",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 381,
+      "time_remaining": "3:39",
+      "score_margin": 6,
+      "game_seconds": 1581,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 153,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772746018608
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Sorrentino",
+      "detail": {
+        "play_id": 16,
+        "play_name": "2Basso"
+      },
+      "quarter": 3,
+      "clockSeconds": 399,
+      "timestamp": 1772746036566,
+      "play_id": 16
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 3,
+        "shot_type": "3pt",
+        "result": "made",
+        "x_loc": 486.0126037597656,
+        "y_loc": 40.50381088256836
+      },
+      "quarter": 3,
+      "clockSeconds": 408,
+      "time_remaining": "3:12",
+      "score_margin": 6,
+      "game_seconds": 1608,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 155,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772746046034,
+      "x_loc": 486.0126037597656,
+      "y_loc": 40.50381088256836
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 14,
+        "play_name": "Transi"
+      },
+      "quarter": 3,
+      "clockSeconds": 429,
+      "timestamp": 1772746067412,
+      "play_id": 14
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 3,
+      "clockSeconds": 448,
+      "time_remaining": "2:32",
+      "score_margin": 6,
+      "game_seconds": 1648,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 157,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772746085733
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Cantù",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 450,
+      "time_remaining": "2:30",
+      "score_margin": 6,
+      "game_seconds": 1650,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 158,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772746087887
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 3,
+      "clockSeconds": 456,
+      "timestamp": 1772746099591,
+      "play_id": 13
+    },
+    {
+      "type": "REBOUND_OFFENSIVE",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 456,
+      "time_remaining": "2:24",
+      "score_margin": 6,
+      "game_seconds": 1656,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 160,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772746102096
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 456,
+      "time_remaining": "2:24",
+      "score_margin": 6,
+      "game_seconds": 1656,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 161,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772746115867
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Cantù",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 456,
+      "time_remaining": "2:24",
+      "score_margin": 6,
+      "game_seconds": 1656,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 162,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772746115867
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Ardizzoia",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 456,
+      "time_remaining": "2:24",
+      "score_margin": 6,
+      "game_seconds": 1656,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 163,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772746115868
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Silva",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 456,
+      "time_remaining": "2:24",
+      "score_margin": 6,
+      "game_seconds": 1656,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 164,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "timestamp": 1772746115868
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Sorrentino",
+      "detail": {
+        "play_id": 14,
+        "play_name": "Transi"
+      },
+      "quarter": 3,
+      "clockSeconds": 473,
+      "timestamp": 1772746133894,
+      "play_id": 14
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 3,
+      "clockSeconds": 495,
+      "time_remaining": "1:45",
+      "score_margin": 6,
+      "game_seconds": 1695,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 166,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Silva"
+      ],
+      "timestamp": 1772746156642
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 498,
+      "time_remaining": "1:42",
+      "score_margin": 6,
+      "game_seconds": 1698,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 167,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Silva"
+      ],
+      "timestamp": 1772746159029
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 501,
+      "time_remaining": "1:39",
+      "score_margin": 6,
+      "game_seconds": 1701,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 168,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Silva"
+      ],
+      "timestamp": 1772746212332
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 501,
+      "time_remaining": "1:39",
+      "score_margin": 6,
+      "game_seconds": 1701,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 169,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Silva"
+      ],
+      "timestamp": 1772746212332
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 501,
+      "time_remaining": "1:39",
+      "score_margin": 6,
+      "game_seconds": 1701,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 170,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Silva"
+      ],
+      "timestamp": 1772746212332
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Montanari",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 501,
+      "time_remaining": "1:39",
+      "score_margin": 6,
+      "game_seconds": 1701,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 171,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Silva"
+      ],
+      "timestamp": 1772746212332
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Della",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 501,
+      "time_remaining": "1:39",
+      "score_margin": 6,
+      "game_seconds": 1701,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 172,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Silva"
+      ],
+      "timestamp": 1772746212332
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Maffioli",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 501,
+      "time_remaining": "1:39",
+      "score_margin": 6,
+      "game_seconds": 1701,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 173,
+      "active_lineup": [
+        "Sorrentino",
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Silva"
+      ],
+      "timestamp": 1772746212332
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "ft",
+        "result": "missed"
+      },
+      "quarter": 3,
+      "clockSeconds": 501,
+      "time_remaining": "1:39",
+      "score_margin": 6,
+      "game_seconds": 1701,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 174,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746225070
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Ardizzoia",
+      "detail": {
+        "play_id": 15,
+        "play_name": "quadrato"
+      },
+      "quarter": 3,
+      "clockSeconds": 512,
+      "timestamp": 1772746250238,
+      "play_id": 15
+    },
+    {
+      "type": "FT",
+      "player": "Montanari",
+      "detail": {
+        "ftm": 0,
+        "fta": 2
+      },
+      "quarter": 3,
+      "clockSeconds": 516,
+      "time_remaining": "1:24",
+      "score_margin": 6,
+      "game_seconds": 1716,
+      "possession_number": 4,
+      "play_id": null,
+      "event_index": 176,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746304354
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Silva",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 3,
+      "clockSeconds": 516,
+      "timestamp": 1772746317629,
+      "play_id": 13
+    },
+    {
+      "type": "STEAL",
+      "player": "Montanari",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 516,
+      "time_remaining": "1:24",
+      "score_margin": 8,
+      "game_seconds": 1716,
+      "possession_number": 4,
+      "play_id": null,
+      "event_index": 178,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746320908
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 3,
+      "clockSeconds": 516,
+      "time_remaining": "1:24",
+      "score_margin": 8,
+      "game_seconds": 1716,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 179,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746327192
+    },
+    {
+      "type": "OPP_OREB",
+      "player": null,
+      "detail": {
+        "shot_type": "3pt"
+      },
+      "quarter": 3,
+      "clockSeconds": 516,
+      "time_remaining": "1:24",
+      "score_margin": 8,
+      "game_seconds": 1716,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 180,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746331645
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 3,
+        "shot_type": "3pt",
+        "result": "made",
+        "x_loc": 5.575074195861816,
+        "y_loc": 26.171693801879883
+      },
+      "quarter": 3,
+      "clockSeconds": 516,
+      "time_remaining": "1:24",
+      "score_margin": 8,
+      "game_seconds": 1716,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 181,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746335912,
+      "x_loc": 5.575074195861816,
+      "y_loc": 26.171693801879883
+    },
+    {
+      "type": "TURNOVER",
+      "player": "Montanari",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 523,
+      "timestamp": 1772746360724,
+      "play_id": null
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 3,
+      "clockSeconds": 538,
+      "time_remaining": "1:02",
+      "score_margin": 5,
+      "game_seconds": 1738,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 183,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746376028
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Maffioli",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 541,
+      "time_remaining": "0:59",
+      "score_margin": 5,
+      "game_seconds": 1741,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 184,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746378945
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Ardizzoia",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 3,
+      "clockSeconds": 553,
+      "timestamp": 1772746391090,
+      "play_id": 13
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 3,
+      "clockSeconds": 571,
+      "time_remaining": "0:29",
+      "score_margin": 8,
+      "game_seconds": 1771,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 186,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746409190
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Ardizzoia",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 574,
+      "time_remaining": "0:26",
+      "score_margin": 8,
+      "game_seconds": 1774,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 187,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746411609
+    },
+    {
+      "type": "FOUL_PERSONAL",
+      "player": "Maffioli",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 585,
+      "time_remaining": "0:15",
+      "score_margin": 8,
+      "game_seconds": 1785,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 188,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746446255
+    },
+    {
+      "type": "FOUL_PERSONAL",
+      "player": "Maffioli",
+      "detail": null,
+      "quarter": 3,
+      "clockSeconds": 585,
+      "time_remaining": "0:15",
+      "score_margin": 8,
+      "game_seconds": 1785,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 189,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746446656
+    },
+    {
+      "type": "FT",
+      "player": "Ardizzoia",
+      "detail": {
+        "ftm": 2,
+        "fta": 2
+      },
+      "quarter": 3,
+      "clockSeconds": 585,
+      "time_remaining": "0:15",
+      "score_margin": 10,
+      "game_seconds": 1785,
+      "possession_number": 6,
+      "play_id": null,
+      "event_index": 190,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746462812
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 3,
+      "clockSeconds": 602,
+      "time_remaining": "0:00",
+      "score_margin": 10,
+      "game_seconds": 1802,
+      "possession_number": 7,
+      "play_id": null,
+      "event_index": 191,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746489620
+    },
+    {
+      "type": "NEXT_QUARTER",
+      "player": null,
+      "detail": {
+        "from_quarter": 3,
+        "to_quarter": 4
+      },
+      "quarter": 3,
+      "clockSeconds": 602,
+      "time_remaining": "0:00",
+      "score_margin": 10,
+      "game_seconds": 1802,
+      "possession_number": 7,
+      "play_id": null,
+      "event_index": 192,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746518248
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Della",
+      "detail": {
+        "play_id": 26,
+        "play_name": "Bimbe"
+      },
+      "quarter": 4,
+      "clockSeconds": 22,
+      "timestamp": 1772746637901,
+      "play_id": 26
+    },
+    {
+      "type": "STEAL",
+      "player": "Montanari",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 41,
+      "time_remaining": "9:19",
+      "score_margin": 12,
+      "game_seconds": 1841,
+      "possession_number": 7,
+      "play_id": null,
+      "event_index": 194,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746656168
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Silva",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 4,
+      "clockSeconds": 51,
+      "timestamp": 1772746670605,
+      "play_id": 13
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Silva",
+      "detail": {
+        "play_id": 26,
+        "play_name": "Bimbe"
+      },
+      "quarter": 4,
+      "clockSeconds": 70,
+      "timestamp": 1772746701708,
+      "play_id": 26
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 4,
+      "clockSeconds": 86,
+      "time_remaining": "8:34",
+      "score_margin": 14,
+      "game_seconds": 1886,
+      "possession_number": 7,
+      "play_id": null,
+      "event_index": 197,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746719582
+    },
+    {
+      "type": "TURNOVER",
+      "player": "Ardizzoia",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 106,
+      "timestamp": 1772746831749,
+      "play_id": null
+    },
+    {
+      "type": "FOUL_PERSONAL",
+      "player": "Montanari",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 116,
+      "time_remaining": "8:04",
+      "score_margin": 14,
+      "game_seconds": 1916,
+      "possession_number": 0,
+      "play_id": null,
+      "event_index": 199,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746850908
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 4,
+      "clockSeconds": 127,
+      "time_remaining": "7:53",
+      "score_margin": 14,
+      "game_seconds": 1927,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 200,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746874366
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Maffioli",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 131,
+      "time_remaining": "7:49",
+      "score_margin": 14,
+      "game_seconds": 1931,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 201,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746878034
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Montanari",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 137,
+      "time_remaining": "7:43",
+      "score_margin": 14,
+      "game_seconds": 1937,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 202,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746893941
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Silva",
+      "detail": {
+        "play_id": 22,
+        "play_name": "Personale"
+      },
+      "quarter": 4,
+      "clockSeconds": 158,
+      "timestamp": 1772746927144,
+      "play_id": 22
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 217.441162109375,
+        "y_loc": 76.64567565917969
+      },
+      "quarter": 4,
+      "clockSeconds": 165,
+      "time_remaining": "7:15",
+      "score_margin": 16,
+      "game_seconds": 1965,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 204,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746933907,
+      "x_loc": 217.441162109375,
+      "y_loc": 76.64567565917969
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 4,
+      "clockSeconds": 175,
+      "time_remaining": "7:05",
+      "score_margin": 14,
+      "game_seconds": 1975,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 205,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746980071
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Della",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 175,
+      "time_remaining": "7:05",
+      "score_margin": 14,
+      "game_seconds": 1975,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 206,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772746983107
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 281.6241149902344,
+        "y_loc": 87.86211395263672
+      },
+      "quarter": 4,
+      "clockSeconds": 182,
+      "time_remaining": "6:58",
+      "score_margin": 14,
+      "game_seconds": 1982,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 207,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772747006765,
+      "x_loc": 281.6241149902344,
+      "y_loc": 87.86211395263672
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Ardizzoia",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 183,
+      "time_remaining": "6:57",
+      "score_margin": 12,
+      "game_seconds": 1983,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 208,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772747046819
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Della",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 183,
+      "time_remaining": "6:57",
+      "score_margin": 12,
+      "game_seconds": 1983,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 209,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772747046819
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Maffioli",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 183,
+      "time_remaining": "6:57",
+      "score_margin": 12,
+      "game_seconds": 1983,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 210,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772747046819
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 183,
+      "time_remaining": "6:57",
+      "score_margin": 12,
+      "game_seconds": 1983,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 211,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772747046819
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 183,
+      "time_remaining": "6:57",
+      "score_margin": 12,
+      "game_seconds": 1983,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 212,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772747046819
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Cantù",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 183,
+      "time_remaining": "6:57",
+      "score_margin": 12,
+      "game_seconds": 1983,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 213,
+      "active_lineup": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "timestamp": 1772747046819
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 4,
+      "clockSeconds": 193,
+      "time_remaining": "6:47",
+      "score_margin": 12,
+      "game_seconds": 1993,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 214,
+      "active_lineup": [
+        "Silva",
+        "Montanari",
+        "Sorrentino",
+        "Cremona",
+        "Cantù"
+      ],
+      "timestamp": 1772747059419
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 195,
+      "time_remaining": "6:45",
+      "score_margin": 12,
+      "game_seconds": 1995,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 215,
+      "active_lineup": [
+        "Silva",
+        "Montanari",
+        "Sorrentino",
+        "Cremona",
+        "Cantù"
+      ],
+      "timestamp": 1772747061554
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Montanari",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 4,
+      "clockSeconds": 211,
+      "timestamp": 1772747078146,
+      "play_id": 13
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 4,
+      "clockSeconds": 222,
+      "time_remaining": "6:18",
+      "score_margin": 15,
+      "game_seconds": 2022,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 217,
+      "active_lineup": [
+        "Silva",
+        "Montanari",
+        "Sorrentino",
+        "Cremona",
+        "Cantù"
+      ],
+      "timestamp": 1772747088457
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Montanari",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 224,
+      "time_remaining": "6:16",
+      "score_margin": 15,
+      "game_seconds": 2024,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 218,
+      "active_lineup": [
+        "Silva",
+        "Montanari",
+        "Sorrentino",
+        "Cremona",
+        "Cantù"
+      ],
+      "timestamp": 1772747090363
+    },
+    {
+      "type": "REBOUND_OFFENSIVE",
+      "player": "Silva",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 247,
+      "time_remaining": "5:53",
+      "score_margin": 15,
+      "game_seconds": 2047,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 219,
+      "active_lineup": [
+        "Silva",
+        "Montanari",
+        "Sorrentino",
+        "Cremona",
+        "Cantù"
+      ],
+      "timestamp": 1772747114035
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 292.2174377441406,
+        "y_loc": 89.73152160644531
+      },
+      "quarter": 4,
+      "clockSeconds": 268,
+      "time_remaining": "5:32",
+      "score_margin": 17,
+      "game_seconds": 2068,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 220,
+      "active_lineup": [
+        "Silva",
+        "Montanari",
+        "Sorrentino",
+        "Cremona",
+        "Cantù"
+      ],
+      "timestamp": 1772747134755,
+      "x_loc": 292.2174377441406,
+      "y_loc": 89.73152160644531
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Silva",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 271,
+      "time_remaining": "5:29",
+      "score_margin": 15,
+      "game_seconds": 2071,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 221,
+      "active_lineup": [
+        "Silva",
+        "Montanari",
+        "Sorrentino",
+        "Cremona",
+        "Cantù"
+      ],
+      "timestamp": 1772747166488
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Montanari",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 271,
+      "time_remaining": "5:29",
+      "score_margin": 15,
+      "game_seconds": 2071,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 222,
+      "active_lineup": [
+        "Silva",
+        "Montanari",
+        "Sorrentino",
+        "Cremona",
+        "Cantù"
+      ],
+      "timestamp": 1772747166488
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 271,
+      "time_remaining": "5:29",
+      "score_margin": 15,
+      "game_seconds": 2071,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 223,
+      "active_lineup": [
+        "Silva",
+        "Montanari",
+        "Sorrentino",
+        "Cremona",
+        "Cantù"
+      ],
+      "timestamp": 1772747166488
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Fernandez",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 271,
+      "time_remaining": "5:29",
+      "score_margin": 15,
+      "game_seconds": 2071,
+      "possession_number": 1,
+      "play_id": null,
+      "event_index": 224,
+      "active_lineup": [
+        "Silva",
+        "Montanari",
+        "Sorrentino",
+        "Cremona",
+        "Cantù"
+      ],
+      "timestamp": 1772747166488
+    },
+    {
+      "type": "FT",
+      "player": "Orbon",
+      "detail": {
+        "ftm": 0,
+        "fta": 2
+      },
+      "quarter": 4,
+      "clockSeconds": 278,
+      "time_remaining": "5:22",
+      "score_margin": 15,
+      "game_seconds": 2078,
+      "possession_number": 2,
+      "play_id": 20,
+      "event_index": 225,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747209288
+    },
+    {
+      "type": "FT",
+      "player": "Sorrentino",
+      "detail": {
+        "ftm": 1,
+        "fta": 1
+      },
+      "quarter": 4,
+      "clockSeconds": 308,
+      "time_remaining": "4:52",
+      "score_margin": 16,
+      "game_seconds": 2108,
+      "possession_number": 2,
+      "play_id": null,
+      "event_index": 226,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747271179
+    },
+    {
+      "type": "FT",
+      "player": "Sorrentino",
+      "detail": {
+        "ftm": 2,
+        "fta": 2
+      },
+      "quarter": 4,
+      "clockSeconds": 308,
+      "time_remaining": "4:52",
+      "score_margin": 18,
+      "game_seconds": 2108,
+      "possession_number": 2,
+      "play_id": null,
+      "event_index": 227,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747289984
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 4,
+      "clockSeconds": 321,
+      "time_remaining": "4:39",
+      "score_margin": 18,
+      "game_seconds": 2121,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 228,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747306205
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 329,
+      "time_remaining": "4:31",
+      "score_margin": 18,
+      "game_seconds": 2129,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 229,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747313991
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Cremona",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 4,
+      "clockSeconds": 336,
+      "timestamp": 1772747320964,
+      "play_id": 13
+    },
+    {
+      "type": "STEAL",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 343,
+      "time_remaining": "4:17",
+      "score_margin": 18,
+      "game_seconds": 2143,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 231,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747328363
+    },
+    {
+      "type": "SHOT_3PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 4,
+      "clockSeconds": 358,
+      "timestamp": 1772747343323,
+      "play_id": 13
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 278.5084533691406,
+        "y_loc": 90.35466003417969
+      },
+      "quarter": 4,
+      "clockSeconds": 365,
+      "time_remaining": "3:55",
+      "score_margin": 18,
+      "game_seconds": 2165,
+      "possession_number": 3,
+      "play_id": null,
+      "event_index": 233,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747350038,
+      "x_loc": 278.5084533691406,
+      "y_loc": 90.35466003417969
+    },
+    {
+      "type": "FT",
+      "player": "Cremona",
+      "detail": {
+        "ftm": 2,
+        "fta": 2
+      },
+      "quarter": 4,
+      "clockSeconds": 385,
+      "time_remaining": "3:35",
+      "score_margin": 18,
+      "game_seconds": 2185,
+      "possession_number": 4,
+      "play_id": null,
+      "event_index": 234,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747404029
+    },
+    {
+      "type": "FOUL_PERSONAL",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 406,
+      "time_remaining": "3:14",
+      "score_margin": 18,
+      "game_seconds": 2206,
+      "possession_number": 4,
+      "play_id": null,
+      "event_index": 235,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747429785
+    },
+    {
+      "type": "FOUL_PERSONAL",
+      "player": "Sorrentino",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 406,
+      "time_remaining": "3:14",
+      "score_margin": 18,
+      "game_seconds": 2206,
+      "possession_number": 4,
+      "play_id": null,
+      "event_index": 236,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747434420
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 4,
+      "clockSeconds": 413,
+      "time_remaining": "3:07",
+      "score_margin": 18,
+      "game_seconds": 2213,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 237,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747456061
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 416,
+      "time_remaining": "3:04",
+      "score_margin": 18,
+      "game_seconds": 2216,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 238,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747458848
+    },
+    {
+      "type": "TURNOVER",
+      "player": "Orbon",
+      "detail": {
+        "play_id": 13,
+        "play_name": "Contropiede"
+      },
+      "quarter": 4,
+      "clockSeconds": 426,
+      "timestamp": 1772747469517,
+      "play_id": 13
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 3,
+        "shot_type": "3pt",
+        "result": "made",
+        "x_loc": 29.25422477722168,
+        "y_loc": 236.1683807373047
+      },
+      "quarter": 4,
+      "clockSeconds": 441,
+      "time_remaining": "2:39",
+      "score_margin": 18,
+      "game_seconds": 2241,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 240,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747484273,
+      "x_loc": 29.25422477722168,
+      "y_loc": 236.1683807373047
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 2,
+        "shot_type": "2pt",
+        "result": "made",
+        "x_loc": 231.150146484375,
+        "y_loc": 69.16804504394531
+      },
+      "quarter": 4,
+      "clockSeconds": 464,
+      "time_remaining": "2:16",
+      "score_margin": 15,
+      "game_seconds": 2264,
+      "possession_number": 5,
+      "play_id": null,
+      "event_index": 241,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747506948,
+      "x_loc": 231.150146484375,
+      "y_loc": 69.16804504394531
+    },
+    {
+      "type": "SHOT_2PT",
+      "player": "Fernandez",
+      "detail": {
+        "play_id": 26,
+        "play_name": "Bimbe"
+      },
+      "quarter": 4,
+      "clockSeconds": 476,
+      "timestamp": 1772747529756,
+      "play_id": 26
+    },
+    {
+      "type": "FT",
+      "player": "Fernandez",
+      "detail": {
+        "ftm": 1,
+        "fta": 1
+      },
+      "quarter": 4,
+      "clockSeconds": 498,
+      "time_remaining": "1:42",
+      "score_margin": 16,
+      "game_seconds": 2298,
+      "possession_number": 6,
+      "play_id": 26,
+      "event_index": 243,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747555551
+    },
+    {
+      "type": "SUB_OUT",
+      "player": "Cremona",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 504,
+      "time_remaining": "1:36",
+      "score_margin": 16,
+      "game_seconds": 2304,
+      "possession_number": 6,
+      "play_id": null,
+      "event_index": 244,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747564355
+    },
+    {
+      "type": "SUB_IN",
+      "player": "Della",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 504,
+      "time_remaining": "1:36",
+      "score_margin": 16,
+      "game_seconds": 2304,
+      "possession_number": 6,
+      "play_id": null,
+      "event_index": 245,
+      "active_lineup": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "timestamp": 1772747564355
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "3pt",
+        "result": "missed"
+      },
+      "quarter": 4,
+      "clockSeconds": 504,
+      "time_remaining": "1:36",
+      "score_margin": 16,
+      "game_seconds": 2304,
+      "possession_number": 7,
+      "play_id": null,
+      "event_index": 246,
+      "active_lineup": [
+        "Sorrentino",
+        "Cantù",
+        "Orbon",
+        "Fernandez",
+        "Della"
+      ],
+      "timestamp": 1772747569728
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Cantù",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 504,
+      "time_remaining": "1:36",
+      "score_margin": 16,
+      "game_seconds": 2304,
+      "possession_number": 7,
+      "play_id": null,
+      "event_index": 247,
+      "active_lineup": [
+        "Sorrentino",
+        "Cantù",
+        "Orbon",
+        "Fernandez",
+        "Della"
+      ],
+      "timestamp": 1772747572640
+    },
+    {
+      "type": "OPP_SCORE",
+      "player": null,
+      "detail": {
+        "points": 0,
+        "shot_type": "2pt",
+        "result": "missed"
+      },
+      "quarter": 4,
+      "clockSeconds": 515,
+      "time_remaining": "1:25",
+      "score_margin": 16,
+      "game_seconds": 2315,
+      "possession_number": 7,
+      "play_id": null,
+      "event_index": 248,
+      "active_lineup": [
+        "Sorrentino",
+        "Cantù",
+        "Orbon",
+        "Fernandez",
+        "Della"
+      ],
+      "timestamp": 1772747589913
+    },
+    {
+      "type": "REBOUND_DEFENSIVE",
+      "player": "Orbon",
+      "detail": null,
+      "quarter": 4,
+      "clockSeconds": 517,
+      "time_remaining": "1:23",
+      "score_margin": 16,
+      "game_seconds": 2317,
+      "possession_number": 7,
+      "play_id": null,
+      "event_index": 249,
+      "active_lineup": [
+        "Sorrentino",
+        "Cantù",
+        "Orbon",
+        "Fernandez",
+        "Della"
+      ],
+      "timestamp": 1772747591615
+    },
+    {
+      "type": "FT",
+      "player": "Sorrentino",
+      "detail": {
+        "ftm": 2,
+        "fta": 2
+      },
+      "quarter": 4,
+      "clockSeconds": 561,
+      "time_remaining": "0:39",
+      "score_margin": 18,
+      "game_seconds": 2361,
+      "possession_number": 8,
+      "play_id": 22,
+      "event_index": 250,
+      "active_lineup": [
+        "Sorrentino",
+        "Cantù",
+        "Orbon",
+        "Fernandez",
+        "Della"
+      ],
+      "timestamp": 1772747635706
+    }
+  ],
+  "starting_lineup": [
+    "Fernandez",
+    "Sorrentino",
+    "Cantù",
+    "Silva",
+    "Cremona"
+  ],
+  "lineup_history": [
+    {
+      "players": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Cremona"
+      ],
+      "startEventIndex": 0,
+      "quarter": 1,
+      "gameSeconds": 0,
+      "endEventIndex": 29
+    },
+    {
+      "players": [
+        "Fernandez",
+        "Sorrentino",
+        "Cantù",
+        "Silva",
+        "Orbon"
+      ],
+      "startEventIndex": 31,
+      "quarter": 1,
+      "gameSeconds": 336,
+      "endEventIndex": 31
+    },
+    {
+      "players": [
+        "Fernandez",
+        "Sorrentino",
+        "Silva",
+        "Orbon",
+        "Ardizzoia"
+      ],
+      "startEventIndex": 33,
+      "quarter": 1,
+      "gameSeconds": 354,
+      "endEventIndex": 38
+    },
+    {
+      "players": [
+        "Fernandez",
+        "Silva",
+        "Orbon",
+        "Ardizzoia",
+        "Maffioli"
+      ],
+      "startEventIndex": 40,
+      "quarter": 1,
+      "gameSeconds": 429,
+      "endEventIndex": 40
+    },
+    {
+      "players": [
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della"
+      ],
+      "startEventIndex": 44,
+      "quarter": 1,
+      "gameSeconds": 429,
+      "endEventIndex": 53
+    },
+    {
+      "players": [
+        "Orbon",
+        "Ardizzoia",
+        "Sorrentino",
+        "Della",
+        "Montanari"
+      ],
+      "startEventIndex": 55,
+      "quarter": 1,
+      "gameSeconds": 479,
+      "endEventIndex": 55
+    },
+    {
+      "players": [
+        "Orbon",
+        "Ardizzoia",
+        "Della",
+        "Montanari",
+        "Sacchi"
+      ],
+      "startEventIndex": 57,
+      "quarter": 1,
+      "gameSeconds": 479,
+      "endEventIndex": 65
+    },
+    {
+      "players": [
+        "Ardizzoia",
+        "Della",
+        "Sacchi",
+        "Sorrentino",
+        "Silva"
+      ],
+      "startEventIndex": 69,
+      "quarter": 2,
+      "gameSeconds": 659,
+      "endEventIndex": 71
+    },
+    {
+      "players": [
+        "Ardizzoia",
+        "Della",
+        "Sorrentino",
+        "Silva",
+        "Cantù"
+      ],
+      "startEventIndex": 73,
+      "quarter": 2,
+      "gameSeconds": 674,
+      "endEventIndex": 86
+    },
+    {
+      "players": [
+        "Sorrentino",
+        "Silva",
+        "Cantù",
+        "Fernandez",
+        "Cremona"
+      ],
+      "startEventIndex": 90,
+      "quarter": 2,
+      "gameSeconds": 875,
+      "endEventIndex": 106
+    },
+    {
+      "players": [
+        "Sorrentino",
+        "Silva",
+        "Fernandez",
+        "Cremona",
+        "Maffioli"
+      ],
+      "startEventIndex": 108,
+      "quarter": 2,
+      "gameSeconds": 1116,
+      "endEventIndex": 114
+    },
+    {
+      "players": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Maffioli",
+        "Orbon"
+      ],
+      "startEventIndex": 116,
+      "quarter": 2,
+      "gameSeconds": 1162,
+      "endEventIndex": 122
+    },
+    {
+      "players": [
+        "Sorrentino",
+        "Fernandez",
+        "Cremona",
+        "Orbon",
+        "Cantù"
+      ],
+      "startEventIndex": 124,
+      "quarter": 3,
+      "gameSeconds": 1200,
+      "endEventIndex": 161
+    },
+    {
+      "players": [
+        "Sorrentino",
+        "Fernandez",
+        "Orbon",
+        "Ardizzoia",
+        "Silva"
+      ],
+      "startEventIndex": 165,
+      "quarter": 3,
+      "gameSeconds": 1656,
+      "endEventIndex": 168
+    },
+    {
+      "players": [
+        "Ardizzoia",
+        "Silva",
+        "Montanari",
+        "Della",
+        "Maffioli"
+      ],
+      "startEventIndex": 174,
+      "quarter": 3,
+      "gameSeconds": 1701,
+      "endEventIndex": 208
+    },
+    {
+      "players": [
+        "Silva",
+        "Montanari",
+        "Sorrentino",
+        "Cremona",
+        "Cantù"
+      ],
+      "startEventIndex": 214,
+      "quarter": 4,
+      "gameSeconds": 1983,
+      "endEventIndex": 221
+    },
+    {
+      "players": [
+        "Sorrentino",
+        "Cremona",
+        "Cantù",
+        "Orbon",
+        "Fernandez"
+      ],
+      "startEventIndex": 225,
+      "quarter": 4,
+      "gameSeconds": 2071,
+      "endEventIndex": 244
+    },
+    {
+      "players": [
+        "Sorrentino",
+        "Cantù",
+        "Orbon",
+        "Fernandez",
+        "Della"
+      ],
+      "startEventIndex": 246,
+      "quarter": 4,
+      "gameSeconds": 2304,
+      "endEventIndex": 251
+    }
+  ]
+}

@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lineup Analysis Report</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Work+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-pure: #000000;
+            --bg-dark: #0a0a0c;
+            --bg-module: #141417;
+            --bg-module-2: #101015;
+            --accent-primary: #00f2ff;
+            --accent-hot: #00ff41;
+            --accent-cold: #ff003c;
+            --text-main: #e2e8f0;
+            --text-dim: #94a3b8;
+            --border-color: #2d2d33;
+            --border-strong: rgba(226, 232, 240, 0.7);
+            --font-display: 'Archivo Black', sans-serif;
+            --font-mono: 'Space Mono', monospace;
+            --font-body: 'Work Sans', sans-serif;
+        }
+
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            background: var(--bg-pure);
+            color: var(--text-main);
+        }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 11px;
+            line-height: 1.4;
+            -webkit-print-color-adjust: exact;
+            display: block;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 10mm 20mm 20mm 20mm;
+            background: var(--bg-dark);
+            position: relative;
+            display: block;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+
+        /* Dossier texture */
+        .page::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                radial-gradient(circle at 1px 1px, rgba(255,255,255,0.035) 1px, transparent 0);
+            background-size: 22px 22px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .page::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.12) 2px,
+                rgba(0, 0, 0, 0.12) 4px
+            );
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .layer {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Pagination controls (WeasyPrint) */
+        .page-start {
+            break-before: page;
+            page-break-before: always;
+            padding-top: 10mm;
+        }
+
+        .avoid-break {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .lineup-card,
+        .duo-item,
+        .duo-matrix,
+        .trio-card {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .header {
+            border-bottom: 2px solid var(--border-strong);
+            padding-bottom: 18px;
+            margin-bottom: 22px;
+        }
+
+        .header h1 {
+            font-family: var(--font-display);
+            font-size: 28px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 1;
+        }
+
+        .header .subtitle {
+            margin-top: 6px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--accent-primary);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+        }
+
+        .definition-box {
+            background: linear-gradient(180deg, var(--bg-module), var(--bg-module-2));
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-primary);
+            border-radius: 4px;
+            padding: 14px 16px;
+            margin-bottom: 22px;
+        }
+
+        .definition-box h3 {
+            font-family: var(--font-display);
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--accent-primary);
+            margin-bottom: 6px;
+        }
+
+        .definition-box p {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-dim);
+        }
+
+        .section {
+            margin-bottom: 22px;
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 14px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::after {
+            content: '';
+            flex-grow: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+
+        /* Lineup Cards */
+        .lineup-grid {
+            /* WeasyPrint-stable multi-column packing */
+            display: block;
+        }
+
+        /* Deterministic 3-column layout for WeasyPrint */
+        .lineup-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 8px 4px;
+            table-layout: fixed;
+        }
+
+        .lineup-table td {
+            width: 33.333%;
+            vertical-align: top;
+        }
+
+        @media print {
+            .lineup-table {
+                border-spacing: 8px 4px;
+            }
+        }
+
+        .lineup-hero {
+            margin-bottom: 6px;
+        }
+
+        .lineup-card.hero {
+            display: block;
+            width: 100%;
+            margin: 0 0 6px 0;
+            font-size: 10px;
+        }
+
+        .lineup-card.hero .lineup-player {
+            font-size: 7.5px;
+        }
+
+        .lineup-card.hero .lineup-stat .value {
+            font-size: 14px;
+        }
+
+        @media print {
+            .lineup-grid {
+                /* remove inline-block whitespace */
+                font-size: 0;
+            }
+        }
+
+        .lineup-card {
+            background: linear-gradient(180deg, var(--bg-module), var(--bg-module-2));
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-primary);
+            border-radius: 6px;
+            padding: 6px 6px 4px;
+            margin-bottom: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Inline-block rules removed for print stability; table handles 3-up */
+
+        .lineup-card::after {
+            content: '';
+            position: absolute;
+            top: -60px;
+            right: -80px;
+            width: 180px;
+            height: 180px;
+            background: radial-gradient(circle at center, rgba(0, 242, 255, 0.18), transparent 60%);
+            pointer-events: none;
+        }
+
+        .lineup-card.positive { border-left-color: var(--accent-hot); }
+        .lineup-card.negative { border-left-color: var(--accent-cold); }
+
+        .lineup-players {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+
+        .lineup-player {
+            background: rgba(0, 242, 255, 0.08);
+            border: 1px solid rgba(0, 242, 255, 0.22);
+            color: var(--text-main);
+            padding: 2px 7px;
+            border-radius: 999px;
+            font-size: 7.5px;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+        }
+
+        .lineup-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            text-align: center;
+        }
+
+        .lineup-stat {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 4px;
+            padding: 4px 3px;
+        }
+
+        .lineup-stat .value {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .lineup-stat .label {
+            margin-top: 2px;
+            font-family: var(--font-mono);
+            font-size: 6.5px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .lineup-stat.positive .value { color: var(--accent-hot); }
+        .lineup-stat.negative .value { color: var(--accent-cold); }
+
+        /* Duo list */
+        .duo-item {
+            background: linear-gradient(180deg, var(--bg-module), var(--bg-module-2));
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-primary);
+            border-radius: 6px;
+            padding: 8px 10px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 4px 10px;
+            align-items: center;
+        }
+
+        .duo-item.positive { border-left-color: var(--accent-hot); }
+        .duo-item.negative { border-left-color: var(--accent-cold); }
+
+        .duo-names {
+            font-family: var(--font-body);
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-main);
+            line-height: 1.2;
+        }
+
+        .duo-net {
+            font-family: var(--font-mono);
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .duo-net.positive { color: var(--accent-hot); }
+        .duo-net.negative { color: var(--accent-cold); }
+
+        .duo-meta {
+            grid-column: 1 / -1;
+            font-family: var(--font-mono);
+            font-size: 8px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        /* Duo matrix */
+        .duo-matrix {
+            background: linear-gradient(180deg, var(--bg-module), var(--bg-module-2));
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            overflow: hidden;
+        }
+
+        .matrix-legend {
+            background: linear-gradient(180deg, var(--bg-module), var(--bg-module-2));
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+        }
+
+        .matrix-legend-title {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.9px;
+            margin-bottom: 8px;
+        }
+
+        .matrix-legend-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px 10px;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-main);
+        }
+
+        .matrix-legend-item {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .matrix-code {
+            color: var(--accent-primary);
+            font-weight: 700;
+        }
+
+        .duo-matrix table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 7.5px;
+            table-layout: fixed;
+        }
+
+        .duo-matrix th,
+        .duo-matrix td {
+            padding: 6px 2px;
+            text-align: center;
+            vertical-align: middle;
+            border: 1px solid rgba(255,255,255,0.06);
+            font-family: var(--font-mono);
+            height: 24px;
+        }
+
+        .duo-matrix th.sticky-corner {
+            width: 30px;
+        }
+
+        .duo-matrix th.axis {
+            width: 30px;
+            color: rgba(226, 232, 240, 0.9);
+        }
+
+        .duo-matrix th {
+            background: rgba(0, 242, 255, 0.09);
+            color: var(--accent-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-size: 8px;
+        }
+
+        .duo-matrix td.neutral {
+            background: rgba(255,255,255,0.02);
+            color: rgba(226, 232, 240, 0.45);
+        }
+
+        .duo-matrix td.positive {
+            background: rgba(0, 255, 65, 0.10);
+            color: var(--accent-hot);
+            font-weight: 700;
+        }
+
+        .duo-matrix td.negative {
+            background: rgba(255, 0, 60, 0.12);
+            color: var(--accent-cold);
+            font-weight: 700;
+        }
+
+        /* Trios */
+        .trio-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .trio-card {
+            background: linear-gradient(180deg, var(--bg-module), var(--bg-module-2));
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px 10px 12px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .trio-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 20% 10%, rgba(0, 242, 255, 0.12), transparent 55%);
+            pointer-events: none;
+        }
+
+        .trio-players {
+            position: relative;
+            font-family: var(--font-body);
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 10px;
+        }
+
+        .trio-stats {
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 10px;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .trio-net {
+            grid-column: 1 / -1;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            color: var(--text-main);
+        }
+
+        .trio-net.positive { color: var(--accent-hot); }
+        .trio-net.negative { color: var(--accent-cold); }
+
+        /* Footer */
+        .footer {
+            margin-top: 26px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 8px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="layer">
+            <!-- Header -->
+            <div class="header">
+                <div>
+                    <h1>Lineup Analysis</h1>
+                    <div class="subtitle">Efficiency // Compatibility // On-Off Signal</div>
+                </div>
+            </div>
+
+        <!-- Top 5-Man Lineups -->
+        <div class="section">
+            <div class="section-title">Top 5-Man Lineups (by Net Rating)</div>
+            {% set hero = rankings[0] if rankings else none %}
+            {% if hero %}
+            <div class="lineup-hero avoid-break">
+                <div class="lineup-card hero avoid-break {% if hero.net_rating >= 0 %}positive{% else %}negative{% endif %}">
+                    <div class="lineup-players">
+                        {% for player in hero.players %}
+                        <span class="lineup-player">{{ player }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="lineup-stats">
+                        <div class="lineup-stat">
+                            <div class="value">{{ hero.ortg }}</div>
+                            <div class="label">ORtg</div>
+                        </div>
+                        <div class="lineup-stat">
+                            <div class="value">{{ hero.drtg }}</div>
+                            <div class="label">DRtg</div>
+                        </div>
+                        <div class="lineup-stat {% if hero.net_rating >= 0 %}positive{% else %}negative{% endif %}">
+                            <div class="value">{% if hero.net_rating >= 0 %}+{% endif %}{{ hero.net_rating }}</div>
+                            <div class="label">Net</div>
+                        </div>
+                        <div class="lineup-stat">
+                            <div class="value">{{ hero.possessions }}</div>
+                            <div class="label">Poss</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% set rest = rankings[1:10] %}
+            {% if rest %}
+            <table class="lineup-table">
+                {% for row in range(3) %}
+                <tr>
+                    {% for col in range(3) %}
+                    {% set idx = row * 3 + col %}
+                    <td>
+                        {% if idx < rest|length %}
+                        {% set lineup = rest[idx] %}
+                        <div class="lineup-card avoid-break {% if lineup.net_rating >= 0 %}positive{% else %}negative{% endif %}">
+                            <div class="lineup-players">
+                                {% for player in lineup.players %}
+                                <span class="lineup-player">{{ player }}</span>
+                                {% endfor %}
+                            </div>
+                            <div class="lineup-stats">
+                                <div class="lineup-stat">
+                                    <div class="value">{{ lineup.ortg }}</div>
+                                    <div class="label">ORtg</div>
+                                </div>
+                                <div class="lineup-stat">
+                                    <div class="value">{{ lineup.drtg }}</div>
+                                    <div class="label">DRtg</div>
+                                </div>
+                                <div class="lineup-stat {% if lineup.net_rating >= 0 %}positive{% else %}negative{% endif %}">
+                                    <div class="value">{% if lineup.net_rating >= 0 %}+{% endif %}{{ lineup.net_rating }}</div>
+                                    <div class="label">Net</div>
+                                </div>
+                                <div class="lineup-stat">
+                                    <div class="value">{{ lineup.possessions }}</div>
+                                    <div class="label">Poss</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </table>
+            {% endif %}
+        </div>
+        
+        <!-- Duo Matrix -->
+        {% if duo_matrix.players %}
+        <div class="section page-start">
+            <div class="section-title">Duo Compatibility Matrix</div>
+            <div style="font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px;">
+                Values show ON/OFF net differential. Positive means the duo performs better together than the team does without them.
+            </div>
+
+            <div class="matrix-legend avoid-break">
+                <div class="matrix-legend-title">Player codes (matrix axes)</div>
+                <div class="matrix-legend-grid">
+                    {% for player in duo_matrix.players %}
+                    <div class="matrix-legend-item">
+                        <span class="matrix-code">P{{ loop.index }}</span>
+                        <span title="{{ player }}">{{ player }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="duo-matrix">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="sticky-corner"></th>
+                            {% for player in duo_matrix.players %}
+                            <th class="axis">P{{ loop.index }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p1 in duo_matrix.players %}
+                        <tr>
+                            <th class="axis">P{{ loop.index }}</th>
+                            {% for p2 in duo_matrix.players %}
+                            <td class="
+                                {% if duo_matrix.matrix[p1][p2] is none %}neutral
+                                {% elif duo_matrix.matrix[p1][p2] >= 0 %}positive
+                                {% else %}negative{% endif %}
+                            ">
+                                {%- if duo_matrix.matrix[p1][p2] is not none -%}
+                                    {%- if duo_matrix.matrix[p1][p2] >= 0 -%}+{%- endif -%}
+                                    {{- duo_matrix.matrix[p1][p2] -}}
+                                {%- endif -%}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Duo Compatibility -->
+        <div class="section page-start">
+            <div class="section-title">Top Duo Combinations</div>
+            {% set duo_subset = duos[:12] %}
+            {% if duo_subset %}
+            <table class="lineup-table">
+                {% set num_rows = ((duo_subset|length + 2) // 3) %}
+                {% for row in range(num_rows) %}
+                <tr>
+                    {% for col in range(3) %}
+                    {% set idx = row * 3 + col %}
+                    <td>
+                        {% if idx < duo_subset|length %}
+                        {% set duo = duo_subset[idx] %}
+                        <div class="duo-item avoid-break {% if duo.compatibility >= 0 %}positive{% else %}negative{% endif %}">
+                            <div class="duo-names">{{ duo.player1 }} & {{ duo.player2 }}</div>
+                            <div class="duo-net {% if duo.compatibility >= 0 %}positive{% else %}negative{% endif %}">
+                                {% if duo.compatibility >= 0 %}+{% endif %}{{ duo.compatibility }}
+                            </div>
+                            <div class="duo-meta">{{ duo.possessions }} poss · ON Net {% if duo.net_rating >= 0 %}+{% endif %}{{ duo.net_rating }}</div>
+                        </div>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </table>
+            {% endif %}
+        </div>
+        
+        <!-- Top Trios -->
+        <div class="section">
+            <div class="section-title">Top Trio Combinations</div>
+            <div class="trio-grid">
+                {% for trio in trios[:6] %}
+                <div class="trio-card">
+                    <div class="trio-players">
+                        {% for player in trio.players %}
+                        {{ player }}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="trio-stats">
+                        <span>ORtg {{ trio.ortg }}</span>
+                        <span>DRtg {{ trio.drtg }}</span>
+                        <div class="trio-net {% if trio.net_rating >= 0 %}positive{% else %}negative{% endif %}">
+                            NET {% if trio.net_rating >= 0 %}+{% endif %}{{ trio.net_rating }}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <div>LINEUP_REPORT</div>
+            <div>BASKETBALL STATS ANALYTICS PLATFORM</div>
+        </div>
+        </div>
+    </div>
+</body>
+</html>

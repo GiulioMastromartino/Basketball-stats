@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    <title>{% block title %}HoopsStats{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        body.play-builder-body {
+            font-family: var(--hs-font-body);
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: var(--hs-bg-main);
+            color: #fff8eb;
+            height: 100vh;
+        }
+        .play-builder-nav {
+            background: linear-gradient(165deg, #151a22 0%, #0d1015 100%);
+            border-bottom: 1px solid var(--hs-line);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+            z-index: 1000;
+        }
+        .play-builder-nav .navbar-brand {
+            font-family: var(--hs-font-display);
+            font-size: 1.5rem;
+            letter-spacing: 0.06em;
+            color: #fff8eb !important;
+        }
+        #app-content {
+            height: calc(100vh - 56px);
+            overflow: hidden;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="play-builder-body">
+    <nav class="navbar navbar-dark play-builder-nav navbar-expand-lg">
+        <div class="container-fluid px-3">
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                <i class="fas fa-basketball-ball me-2" style="color: var(--hs-accent);"></i> HoopsLab
+            </a>
+            <div class="ms-auto">
+                <a class="btn btn-sm btn-outline-light" href="{{ url_for('plays.list_plays') }}">
+                    <i class="fas fa-arrow-left me-1"></i> Back to Plays
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div id="app-content">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

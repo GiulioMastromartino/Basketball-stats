@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from core.models import User, db
+from core.models import User, Organization, Team, OrganizationMembership, TeamAssignment, db
 from web import create_app
 
 
@@ -23,10 +23,33 @@ def reset_empty_database():
         db.create_all()
         print("✓ Database tables created")
         
+        # Create org and team
+        org = Organization(name="Default Organization")
+        db.session.add(org)
+        db.session.flush()
+
+        team = Team(name="Default Team", organization_id=org.id, slug="default-team")
+        db.session.add(team)
+        db.session.flush()
+
         # Create admin user only
-        admin = User(username="admin", email="admin@local.com", is_admin=True)
+        admin = User(
+            username="admin",
+            email="admin@local.com",
+            organization_id=org.id,
+        )
         admin.set_password(os.getenv("ADMIN_PASSWORD", "admin123"))
         db.session.add(admin)
+        db.session.flush()
+
+        membership = OrganizationMembership(
+            user_id=admin.id, organization_id=org.id, is_gm=True
+        )
+        db.session.add(membership)
+
+        ta = TeamAssignment(user_id=admin.id, team_id=team.id, is_coach=True)
+        db.session.add(ta)
+
         db.session.commit()
         print("✓ Admin user created (admin/admin123)")
         

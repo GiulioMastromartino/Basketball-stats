@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Game Lineup Combinations</h2>
+            <p class="text-muted mb-0">{{ game.date }} vs {{ game.opponent }} · {{ game.team_score }}-{{ game.opponent_score }}</p>
+        </div>
+        <a href="{{ url_for('main.game_detail', game_id=game.id) }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Game
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Top 3 Lineups</h5>
+                </div>
+                <div class="card-body">
+                    {% if top_lineups %}
+                        {% for lineup in top_lineups %}
+                        <div class="border rounded p-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong>#{{ loop.index }}</strong>
+                                <span class="badge {% if lineup.net_rating >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ '+' if lineup.net_rating >= 0 else '' }}{{ '%.1f'|format(lineup.net_rating) }} Net
+                                </span>
+                            </div>
+                            <div class="small text-muted mb-1">{{ '%.1f'|format(lineup.total_minutes) }} min · {{ lineup.segment_count }} segments</div>
+                            <div class="small text-muted mb-1">Pts {{ lineup.points_scored }} / {{ lineup.points_allowed }}</div>
+                            <div class="small text-muted mb-2">ORtg {{ '%.1f'|format(lineup.ortg) }} · DRtg {{ '%.1f'|format(lineup.drtg) }}</div>
+                            <div class="small">{{ lineup.players|join(' · ') }}</div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted mb-0">No lineup data available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Top 3 Duos</h5>
+                </div>
+                <div class="card-body">
+                    {% if top_duos %}
+                        {% for duo in top_duos %}
+                        <a href="{{ url_for('main.lineup_combo_card', combo_type='duo', players_key=duo.players|join(',')) }}" class="text-decoration-none text-dark">
+                            <div class="border rounded p-3 mb-3" style="transition: all 0.2s;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong>#{{ loop.index }} · {{ duo.players|join(' + ') }}</strong>
+                                    <span class="badge bg-primary">{{ '+' if duo.impact.net_differential >= 0 else '' }}{{ '%.1f'|format(duo.impact.net_differential) }}</span>
+                                </div>
+                                <div class="small text-muted">ON ORtg {{ '%.1f'|format(duo.on.ortg) }} · ON DRtg {{ '%.1f'|format(duo.on.drtg) }}</div>
+                                <div class="small text-muted">ON {{ '%.1f'|format(duo.on.net) }} vs OFF {{ '%.1f'|format(duo.off.net) }} · ON {{ '%.1f'|format(duo.on.minutes) }} min</div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted mb-0">No duo data available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Top 3 Trios</h5>
+                </div>
+                <div class="card-body">
+                    {% if top_trios %}
+                        {% for trio in top_trios %}
+                        <a href="{{ url_for('main.lineup_combo_card', combo_type='trio', players_key=trio.players|join(',')) }}" class="text-decoration-none text-dark">
+                            <div class="border rounded p-3 mb-3" style="transition: all 0.2s;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong>#{{ loop.index }} · {{ trio.players|join(' + ') }}</strong>
+                                    <span class="badge bg-primary">{{ '+' if trio.impact.net_differential >= 0 else '' }}{{ '%.1f'|format(trio.impact.net_differential) }}</span>
+                                </div>
+                                <div class="small text-muted">ON ORtg {{ '%.1f'|format(trio.on.ortg) }} · ON DRtg {{ '%.1f'|format(trio.on.drtg) }}</div>
+                                <div class="small text-muted">ON {{ '%.1f'|format(trio.on.net) }} vs OFF {{ '%.1f'|format(trio.off.net) }} · ON {{ '%.1f'|format(trio.on.minutes) }} min</div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted mb-0">No trio data available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

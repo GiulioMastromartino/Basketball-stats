@@ -1,0 +1,585 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .page-loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(6px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 200ms ease;
+    }
+
+    .page-loading-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .page-loading-card {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 14px;
+        padding: 18px 22px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #333;
+        font-weight: 600;
+    }
+
+    .spinner {
+        width: 18px;
+        height: 18px;
+        border: 3px solid #e9ecef;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .page-hidden { visibility: hidden; }
+
+    .combo-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .combo-players {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 15px;
+    }
+
+    .player-chip {
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        padding: 10px 20px;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .section-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin: 35px 0 15px;
+        color: #2d3748;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 10px;
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 18px;
+        margin-top: 20px;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 20px 16px;
+        border-radius: 10px;
+        text-align: center;
+        border: 1px solid #e0e0e0;
+        transition: all 0.3s ease;
+        position: relative;
+        min-height: 85px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-card.highlight {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+
+    .stat-card.highlight .stat-card-value,
+    .stat-card.highlight .stat-card-label {
+        color: white;
+    }
+
+    .stat-card-value {
+        font-size: 26px;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 4px;
+        line-height: 1.2;
+    }
+
+    .stat-card-label {
+        font-size: 11px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+
+    .chart-container {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .chart-box {
+        position: relative;
+        width: 100%;
+        height: 300px;
+    }
+
+    .game-log-table {
+        width: 100%;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .game-log-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .game-log-table th {
+        padding: 12px 8px;
+        font-weight: 600;
+        font-size: 12px;
+        text-align: center;
+    }
+
+    .game-log-table td {
+        padding: 10px 8px;
+        text-align: center;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 13px;
+    }
+
+    .result-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 11px;
+    }
+
+    .result-w { background: #d4edda; color: #155724; }
+    .result-l { background: #f8d7da; color: #721c24; }
+
+    .split-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .shot-chart-wrapper {
+        position: relative;
+        width: 100%;
+        max-width: 500px;
+        margin: 0 auto;
+    }
+
+    .shot-chart-wrapper svg {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .shots-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+
+    .shot-point {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: auto;
+        cursor: pointer;
+        transition: transform 0.1s;
+    }
+
+    .shot-make { border: 1px solid #fff; }
+    .shot-miss { background: transparent; border: 2px solid; box-sizing: border-box; }
+
+    .split-kpis {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .split-kpi {
+        background: #f8f9fa;
+        border-radius: 8px;
+        text-align: center;
+        padding: 8px;
+        font-size: 12px;
+    }
+
+    .split-kpi strong {
+        display: block;
+        font-size: 16px;
+        color: #2d3748;
+    }
+
+    .player-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 10px;
+        font-size: 12px;
+    }
+
+    .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f8f9fa;
+        border-radius: 999px;
+        padding: 4px 10px;
+    }
+
+    .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    @media (max-width: 992px) {
+        .split-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<div id="pageLoader" class="page-loading-overlay">
+    <div class="page-loading-card">
+        <span class="spinner"></span>
+        Loading impact card...
+    </div>
+</div>
+
+<div id="comboPage" class="container-fluid page-hidden">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <a href="/lineups" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Lineups</a>
+    </div>
+
+    <div class="combo-header">
+        <h1 class="mb-1">{{ "Duo" if combo_type == "duo" else "Trio" }} Impact Card</h1>
+        <p class="mb-0 opacity-75">Group performance when ON vs OFF the court together</p>
+        <div class="combo-players">
+            {% for player in players %}
+            <div class="player-chip">
+                <i class="fas fa-user"></i>
+                {{ player }}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-bolt" style="color: #667eea;"></i>
+        Synergy Overview
+    </div>
+
+    <div class="stat-grid" id="statsGrid">
+        <div class="stat-card">
+            <div class="stat-card-value" id="statMinutes">--</div>
+            <div class="stat-card-label">ON Minutes</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statOrtg">--</div>
+            <div class="stat-card-label">ON ORTG</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statDrtg">--</div>
+            <div class="stat-card-label">ON DRTG</div>
+        </div>
+        <div class="stat-card highlight">
+            <div class="stat-card-value" id="statSynergy">--</div>
+            <div class="stat-card-label">Synergy (Net Diff)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statOffDiff">--</div>
+            <div class="stat-card-label">Offense Delta</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statDefDiff">--</div>
+            <div class="stat-card-label">Defense Delta</div>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-chart-line" style="color: #667eea;"></i>
+        Net Rating Trend
+    </div>
+    <div class="chart-container">
+        <div class="chart-box">
+            <canvas id="trendChart"></canvas>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-basketball-ball" style="color: #e53e3e;"></i>
+        Shooting Split: Together vs Not Together
+    </div>
+
+    <div class="split-grid">
+        <div class="chart-container">
+            <div class="fw-bold mb-3 d-flex justify-content-between">
+                <span>ON: Together</span>
+                <span id="onEfg" class="text-primary">--% eFG</span>
+            </div>
+            <div class="split-kpis" id="withShotKpis"></div>
+            <div class="player-legend" id="withShotLegend"></div>
+            <div class="shot-chart-wrapper">
+                <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c;">
+                    <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                    <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                    <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                    <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                    <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                    <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                    <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                </svg>
+                <div class="shots-layer" id="withShotsLayer"></div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="fw-bold mb-3 d-flex justify-content-between">
+                <span>OFF: Not Together</span>
+                <span id="offEfg" class="text-secondary">--% eFG</span>
+            </div>
+            <div class="split-kpis" id="withoutShotKpis"></div>
+            <div class="player-legend" id="withoutShotLegend"></div>
+            <div class="shot-chart-wrapper">
+                <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c;">
+                    <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                    <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                    <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                    <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                    <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                    <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                    <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                </svg>
+                <div class="shots-layer" id="withoutShotsLayer"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-list" style="color: #20c997;"></i>
+        Per-Game Impact Log
+    </div>
+
+    <div style="overflow-x: auto; margin-bottom: 40px;">
+        <table class="game-log-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Opponent</th>
+                    <th>Result</th>
+                    <th>ON Minutes</th>
+                    <th>ON Pts Scored/All</th>
+                    <th>ON ORTG</th>
+                    <th>ON DRTG</th>
+                    <th>ON Net Rtg</th>
+                </tr>
+            </thead>
+            <tbody id="gamesTableBody">
+                <tr><td colspan="8" class="py-4 text-center text-muted">Loading game log...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const comboType = {{ combo_type | tojson }};
+    const comboPlayers = {{ players | tojson }};
+    const PLAYER_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#f59e0b', '#7c3aed'];
+    let trendChart;
+
+    function signed(v) {
+        return (v >= 0 ? '+' : '') + v.toFixed(1);
+    }
+
+    function loadComboCard() {
+        $.ajax({
+            url: '/api/advanced/lineups/combinations/detail',
+            method: 'GET',
+            data: {
+                type: comboType,
+                players: comboPlayers.join(','),
+                min_possessions: 0
+            },
+            success: function(data) {
+                renderCombo(data);
+                hideLoader();
+            },
+            error: function(xhr) {
+                console.error('Failed to load combo card', xhr);
+                hideLoader();
+                document.getElementById('statsGrid').innerHTML = `<div class="alert alert-warning">Failed to load data.</div>`;
+            }
+        });
+    }
+
+    function renderCombo(data) {
+        const { combination, shot_stats, shots, games } = data;
+        const colorMap = {};
+        comboPlayers.forEach((p, i) => colorMap[p] = PLAYER_COLORS[i % PLAYER_COLORS.length]);
+
+        // Synergy Summary
+        document.getElementById('statMinutes').textContent = combination.on?.minutes.toFixed(1);
+        document.getElementById('statOrtg').textContent = combination.on?.ortg.toFixed(1);
+        document.getElementById('statDrtg').textContent = combination.on?.drtg.toFixed(1);
+        document.getElementById('statSynergy').textContent = signed(combination.impact?.net_differential || 0);
+        document.getElementById('statOffDiff').textContent = signed(combination.impact?.offense_delta || 0);
+        document.getElementById('statDefDiff').textContent = signed(combination.impact?.defense_delta || 0);
+
+        // Shooting
+        document.getElementById('onEfg').textContent = `${(shot_stats.with_teammates.efg_pct || 0).toFixed(1)}% eFG`;
+        document.getElementById('offEfg').textContent = `${(shot_stats.without_teammates.efg_pct || 0).toFixed(1)}% eFG`;
+        
+        renderShotKpis('withShotKpis', shot_stats.with_teammates);
+        renderShotKpis('withoutShotKpis', shot_stats.without_teammates);
+        renderPlayerLegend('withShotLegend', shots.with_teammates, colorMap);
+        renderPlayerLegend('withoutShotLegend', shots.without_teammates, colorMap);
+        renderShots('withShotsLayer', shots.with_teammates, colorMap);
+        renderShots('withoutShotsLayer', shots.without_teammates, colorMap);
+
+        // Games and Trend
+        renderGamesTable(games);
+        renderTrendChart(games);
+    }
+
+    function renderShotKpis(containerId, stats) {
+        document.getElementById(containerId).innerHTML = `
+            <div class="split-kpi"><strong>${stats.fg_pct.toFixed(1)}%</strong>FG%</div>
+            <div class="split-kpi"><strong>${stats.three_pt.makes}/${stats.three_pt.attempts}</strong>3PT</div>
+            <div class="split-kpi"><strong>${stats.pps.toFixed(2)}</strong>PPS</div>
+        `;
+    }
+
+    function renderPlayerLegend(containerId, shots, colorMap) {
+        const grouped = {};
+        shots.forEach(s => {
+            const p = s.player_name || 'Unknown';
+            if (!grouped[p]) grouped[p] = { att: 0, mk: 0 };
+            grouped[p].att++;
+            if (s.result === 'made') grouped[p].mk++;
+        });
+
+        document.getElementById(containerId).innerHTML = comboPlayers.map(p => {
+            const g = grouped[p] || { att: 0, mk: 0 };
+            const pct = g.att > 0 ? (g.mk/g.att*100).toFixed(1) : '0';
+            return `<div class="legend-item"><span class="legend-dot" style="background:${colorMap[p]}"></span>${p}: ${g.mk}/${g.att} (${pct}%)</div>`;
+        }).join('');
+    }
+
+    function renderShots(layerId, shots, colorMap) {
+        const layer = document.getElementById(layerId);
+        layer.innerHTML = shots.length ? '' : '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#999;font-size:12px;">No shots</div>';
+        shots.forEach(s => {
+            const dot = document.createElement('div');
+            const color = colorMap[s.player_name] || '#666';
+            dot.className = `shot-point ${s.result === 'made' ? 'shot-make' : 'shot-miss'}`;
+            dot.style.left = `${(s.x/500)*100}%`; dot.style.top = `${(s.y/470)*100}%`;
+            if (s.result === 'made') { dot.style.background = color; dot.style.borderColor = '#fff'; }
+            else { dot.style.borderColor = color; }
+            layer.appendChild(dot);
+        });
+    }
+
+    function renderGamesTable(games) {
+        if (!games.length) {
+            document.getElementById('gamesTableBody').innerHTML = '<tr><td colspan="8">No games found.</td></tr>';
+            return;
+        }
+        document.getElementById('gamesTableBody').innerHTML = games.map(g => {
+            const netClass = g.net > 0 ? 'text-success' : (g.net < 0 ? 'text-danger' : '');
+            return `
+                <tr>
+                    <td>${g.date || '--'}</td>
+                    <td><strong>${g.opponent}</strong></td>
+                    <td><span class="result-badge ${g.result==='W'?'result-w':'result-l'}">${g.result} ${g.team_score}-${g.opponent_score}</span></td>
+                    <td>${(g.duration_seconds/60).toFixed(1)}</td>
+                    <td>${g.points_scored} / ${g.points_allowed}</td>
+                    <td>${g.ortg.toFixed(1)}</td>
+                    <td>${g.drtg.toFixed(1)}</td>
+                    <td class="${netClass}"><strong>${signed(g.net)}</strong></td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderTrendChart(games) {
+        const ctx = document.getElementById('trendChart');
+        const sorted = [...games].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+        if (trendChart) trendChart.destroy();
+        trendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sorted.map(g => g.opponent),
+                datasets: [{
+                    label: 'Net Rating',
+                    data: sorted.map(g => g.net),
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: sorted.map(g => g.net >= 0 ? '#28a745' : '#dc3545')
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { grid: { color: 'rgba(0,0,0,0.05)' } }, x: { grid: { display: false } } }
+            }
+        });
+    }
+
+    function hideLoader() {
+        document.getElementById('pageLoader').classList.add('hidden');
+        document.getElementById('comboPage').classList.remove('page-hidden');
+    }
+
+    window.addEventListener('load', loadComboCard);
+</script>
+{% endblock %}

@@ -1,54 +1,85 @@
 import os
-import statistics
-from pathlib import Path
+import json
+import re
+import zipfile
+from datetime import datetime
 from werkzeug.utils import secure_filename
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
-from flask_login import login_required
+from flask import (
+    Blueprint,
+    abort,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    current_app,
+    jsonify,
+    make_response,
+    send_file,
+    session,
+)
+from io import BytesIO
+from urllib.parse import unquote
+from flask_login import login_required, current_user
 from sqlalchemy import func
+from weasyprint import HTML
 
-from core.models import Game, PlayerStat, db
+from core.models import (
+    Game,
+    PlayerStat,
+    ShotEvent,
+    GameEvent,
+    Player,
+    db,
+    Play,
+    User,
+    SystemSetting,
+    Lineup,
+    LineupSegment,
+    PlayerLineupStats,
+    OrganizationMembership,
+    Organization,
+    Team,
+)
 from core.csv_processor import CSVProcessor
+from core.charts import (
+    generate_team_shot_chart,
+    generate_team_scoring_trend,
+    generate_shooting_trend_base64,
+)
 from core.parser import parse_game_pdf
+
 from core.utils import (
-    FT_ATTEMPT_WEIGHT,
-    THREE_POINT_WEIGHT,
     calculate_efficiency,
     calculate_efg_percent,
     calculate_game_score,
     calculate_ortg,
-    calculate_per_100_minutes,
+    calculate_pace,
     calculate_possessions,
     calculate_ppp,
     calculate_ts_percent,
     calculate_two_point_stats,
     parse_minutes,
     safe_percentage,
+    normalize_date_to_display,
+    normalize_shot_events,
 )
+from core.services.email_service import send_game_notification
+from core.services import create_game_from_live_data
+from core.services.analytics_service import AnalyticsService
+from web.decorators import gm_required, team_access_required
+from flask_mail import Message
+from core import mail
 
 main_bp = Blueprint("main", __name__)
 
 VALID_GAME_TYPES = {"ALL", "Season", "Friendly", "Playoff"}
-ALLOWED_EXTENSIONS = {"csv", "pdf"}
+ALLOWED_EXTENSIONS = {"csv", "pdf", "json"}
 
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-def normalize_date_to_display(date_str: str) -> str:
-    """Return DD/MM/YYYY."""
-    if not date_str:
-        return ""
-    date_str = date_str.strip()
-    date_str = date_str.replace("-", "/")
-    parts = date_str.split("/")
-    if len(parts) != 3:
-        return ""
-    day, month, year = parts
-    if len(year) == 2:
-        year = f"20{year}"
-    return f"{int(day):02d}/{int(month):02d}/{int(year):04d}"
 
 
 def normalize_date_to_sort(date_str: str) -> str:
@@ -60,11 +91,272 @@ def normalize_date_to_sort(date_str: str) -> str:
     return f"{year}-{month}-{day}"
 
 
+def coerce_json_game_dates(game_data: dict) -> tuple[str, str]:
+    """Return (date_display, sort_date) for JSON import.
+
+    Prefers sort_date (YYYY-MM-DD) if present; derives date display as DD/MM/YYYY.
+    Supports YYYY-MM-DD in the date field.
+    """
+    raw_sort = (game_data.get("sort_date") or game_data.get("sortdate") or "").strip()
+    raw_date = (game_data.get("date") or "").strip()
+
+    sort_date = raw_sort
+    if not sort_date and raw_date:
+        # Check if raw_date is already YYYY-MM-DD
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", raw_date):
+            sort_date = raw_date
+        else:
+            # Try to derive sort_date from raw_date (DD/MM/YYYY or DD-MM-YYYY)
+            sort_date = normalize_date_to_sort(raw_date)
+
+    date_display = ""
+    if sort_date and re.match(r"^\d{4}-\d{2}-\d{2}$", sort_date):
+        try:
+            date_display = datetime.strptime(sort_date, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except ValueError:
+            date_display = raw_date
+    else:
+        date_display = normalize_date_to_display(raw_date) or raw_date
+
+    return date_display, sort_date
+
+
+def _calculate_player_season_averages(player_name: str, current_game_id: int) -> dict:
+    """Calculate season averages for a player up to but not including the current game."""
+    # Get all games before the current game
+    prior_games = (
+        db.session.query(Game.id)
+        .filter(Game.id < current_game_id)
+        .order_by(Game.sort_date)
+        .all()
+    )
+
+    prior_game_ids = [g.id for g in prior_games]
+
+    if not prior_game_ids:
+        # Return zeros if no prior games
+        return {
+            "points": 0.0,
+            "reb": 0.0,
+            "oreb": 0.0,
+            "dreb": 0.0,
+            "ast": 0.0,
+            "stl": 0.0,
+            "blk": 0.0,
+            "tov": 0.0,
+            "fgm": 0.0,
+            "fga": 0.0,
+            "fg_percent": 0.0,
+            "tpm": 0.0,
+            "tpa": 0.0,
+            "tp_percent": 0.0,
+            "ftm": 0.0,
+            "fta": 0.0,
+            "ft_percent": 0.0,
+        }
+
+    # Get player stats for prior games
+    prior_stats = PlayerStat.query.filter(
+        PlayerStat.player_name == player_name, PlayerStat.game_id.in_(prior_game_ids)
+    ).all()
+
+    if not prior_stats:
+        return {
+            "points": 0.0,
+            "reb": 0.0,
+            "oreb": 0.0,
+            "dreb": 0.0,
+            "ast": 0.0,
+            "stl": 0.0,
+            "blk": 0.0,
+            "tov": 0.0,
+            "fgm": 0.0,
+            "fga": 0.0,
+            "fg_percent": 0.0,
+            "tpm": 0.0,
+            "tpa": 0.0,
+            "tp_percent": 0.0,
+            "ftm": 0.0,
+            "fta": 0.0,
+            "ft_percent": 0.0,
+        }
+
+    # Calculate averages
+    count = len(prior_stats)
+    totals = {
+        "points": 0,
+        "reb": 0,
+        "oreb": 0,
+        "dreb": 0,
+        "ast": 0,
+        "stl": 0,
+        "blk": 0,
+        "tov": 0,
+        "fgm": 0,
+        "fga": 0,
+        "ftm": 0,
+        "fta": 0,
+        "tpm": 0,
+        "tpa": 0,
+    }
+
+    for stat in prior_stats:
+        totals["points"] += stat.points
+        totals["reb"] += stat.reb
+        totals["oreb"] += stat.oreb
+        totals["dreb"] += stat.dreb
+        totals["ast"] += stat.ast
+        totals["stl"] += stat.stl
+        totals["blk"] += stat.blk
+        totals["tov"] += stat.tov
+        totals["fgm"] += stat.fgm
+        totals["fga"] += stat.fga
+        totals["ftm"] += stat.ftm
+        totals["fta"] += stat.fta
+        totals["tpm"] += stat.tpm
+        totals["tpa"] += stat.tpa
+
+    # Calculate percentages
+    fg_percent = (totals["fgm"] / totals["fga"] * 100) if totals["fga"] > 0 else 0.0
+    tp_percent = (totals["tpm"] / totals["tpa"] * 100) if totals["tpa"] > 0 else 0.0
+    ft_percent = (totals["ftm"] / totals["fta"] * 100) if totals["fta"] > 0 else 0.0
+
+    return {
+        "points": totals["points"] / count,
+        "reb": totals["reb"] / count,
+        "oreb": totals["oreb"] / count,
+        "dreb": totals["dreb"] / count,
+        "ast": totals["ast"] / count,
+        "stl": totals["stl"] / count,
+        "blk": totals["blk"] / count,
+        "tov": totals["tov"] / count,
+        "fgm": totals["fgm"] / count,
+        "fga": totals["fga"] / count,
+        "fg_percent": fg_percent,
+        "tpm": totals["tpm"] / count,
+        "tpa": totals["tpa"] / count,
+        "tp_percent": tp_percent,
+        "ftm": totals["ftm"] / count,
+        "fta": totals["fta"] / count,
+        "ft_percent": ft_percent,
+    }
+
+
+def _notify_users_game_saved(game: Game):
+    """Notify non-admin users that a game was saved (optional PDF attachment)."""
+    try:
+        # Send notifications to users
+        enabled = SystemSetting.get_value("notify_game_added", default="false")
+        if enabled == "true":
+            non_gm_users = User.query.filter(User.id.notin_(
+                db.session.query(OrganizationMembership.user_id).filter_by(is_gm=True)
+            )).all()
+            recipients = [u.email for u in non_gm_users if u.email]
+            if recipients:
+                pdf_attachment = None
+                attach_pdf = SystemSetting.get_value("attach_game_pdf", default="false")
+                if attach_pdf == "true":
+                    try:
+                        # Use the professional ReportLab-based generator
+                        from core.pdf_exports import PlaysBasedPDFGenerator
+                        generator = PlaysBasedPDFGenerator()
+                        pdf_buffer = generator.generate_game_report_pdf(game.id)
+                        
+                        pdf_bytes = pdf_buffer.getvalue()
+                        filename = f"Game_Report_{game.opponent.replace(' ', '_')}_{game.date}.pdf"
+                        
+                        if pdf_bytes:
+                            pdf_attachment = (filename, pdf_bytes)
+                    except Exception as e:
+                        current_app.logger.error(
+                            f"Failed to generate professional game PDF for email (Game ID {game.id}): {e}"
+                        )
+
+                send_game_notification(recipients, game, pdf_attachment=pdf_attachment)
+
+        # Send player performance reports as PDF attachments
+        send_player_reports = SystemSetting.get_value(
+            "send_player_reports", default="true"
+        )
+        if send_player_reports == "true":
+            from core.services.report_service import generate_player_quarter_pdf_bytes
+
+            players = Player.query.filter_by(active=True).all()
+            for player in players:
+                if not player.email:
+                    continue
+
+                game_stat = PlayerStat.query.filter_by(
+                    game_id=game.id, player_name=player.name
+                ).first()
+
+                if not game_stat:
+                    continue
+
+                # Generate the quarter detail PDF for this player (FIX: pass game.id)
+                filename, pdf_bytes = generate_player_quarter_pdf_bytes(
+                    player.name, game.game_type, game_id=game.id
+                )
+                if not pdf_bytes:
+                    current_app.logger.warning(
+                        f"Failed to generate quarter PDF for {player.name}"
+                    )
+                    continue
+
+                # Send email with PDF attachment
+                subject = f"Your Performance Report: {player.name} vs {game.opponent} ({game.date})"
+                body = f"""Hi {player.name},
+
+Your performance report for the game against {game.opponent} on {game.date} is attached.
+
+Result: {game.result} ({game.team_score}-{game.opponent_score})
+Game Type: {game.game_type}
+
+The report includes your per-quarter breakdown and shooting efficiency.
+
+Keep up the great work!
+"""
+
+                msg = Message(
+                    subject,
+                    sender=current_app.config.get("MAIL_DEFAULT_SENDER"),
+                    recipients=[player.email],
+                )
+                msg.body = body
+                msg.attach(filename, "application/pdf", pdf_bytes)
+
+                try:
+                    mail.send(msg)
+                    current_app.logger.info(
+                        f"Player quarter report sent to {player.email}"
+                    )
+                except Exception as e:
+                    current_app.logger.error(
+                        f"Failed to send quarter report to {player.email}: {e}"
+                    )
+
+    except Exception as e:
+        current_app.logger.error(
+            f"Failed to send game notification (Game ID {getattr(game, 'id', None)}): {e}"
+        )
+
+
+@main_bp.route("/landing")
+def landing():
+    """Landing page for unauthenticated users"""
+    if current_user.is_authenticated:
+        return redirect(url_for("main.index"))
+    return render_template("landing.html")
+
+
 @main_bp.route("/")
-@login_required
+@team_access_required
 def index():
     """Dashboard home page"""
-    games = Game.query.order_by(Game.sort_date.desc()).all()
+    if not current_user.is_authenticated:
+        return redirect(url_for("main.landing"))
+    team_id = session.get("current_team_id")
+    games = Game.query.filter_by(team_id=team_id).order_by(Game.sort_date.desc()).all()
     total_games = len(games)
     total_players = db.session.query(PlayerStat.player_name).distinct().count()
     wins = sum(1 for g in games if g.result == "W")
@@ -89,308 +381,627 @@ def glossary():
     return render_template("glossary.html")
 
 
+@main_bp.route("/live-game")
+@login_required
+@team_access_required
+def live_game():
+    """Interface for live game stat tracking"""
+    team_id = session.get("current_team_id")
+    existing_players = [
+        r[0]
+        for r in db.session.query(PlayerStat.player_name)
+        .join(Game)
+        .filter(Game.team_id == team_id)
+        .distinct()
+        .order_by(PlayerStat.player_name)
+        .all()
+    ]
+
+    plays_query = Play.query.filter_by(team_id=team_id).order_by(Play.play_type, Play.name).all()
+    plays_list = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "type": p.play_type,
+            "description": p.description,
+        }
+        for p in plays_query
+    ]
+
+    now_date = datetime.now().strftime("%Y-%m-%d")
+    return render_template(
+        "live_game.html",
+        existing_players=existing_players,
+        now_date=now_date,
+        plays=plays_list,
+    )
+
+
+@main_bp.route("/api/plays")
+@login_required
+@team_access_required
+def api_plays():
+    """API endpoint to get list of plays for live game selector"""
+    team_id = session.get("current_team_id")
+    plays = Play.query.filter_by(team_id=team_id).order_by(Play.play_type, Play.name).all()
+    return jsonify(
+        [
+            {
+                "id": p.id,
+                "name": p.name,
+                "type": p.play_type,
+                "description": p.description,
+            }
+            for p in plays
+        ]
+    )
+
+
+@main_bp.route("/live-game/save", methods=["POST"])
+@login_required
+@team_access_required
+def save_live_game():
+    """Receive JSON data from live tracker and save to DB."""
+    data = request.get_json()
+
+    if not data:
+        return (
+            jsonify(
+                {
+                    "error": "No data received",
+                    "details": "Request body is empty or not valid JSON",
+                }
+            ),
+            400,
+        )
+
+    try:
+        team_id = session.get("current_team_id")
+        game = create_game_from_live_data(data, team_id=team_id)
+        current_app.logger.info(f"Live game saved successfully: Game ID {game.id}")
+
+        # Notify non-admin users (optional PDF attachment)
+        _notify_users_game_saved(game)
+
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "game_id": game.id,
+                    "message": f"Game saved: {game.opponent} ({game.result})",
+                }
+            ),
+            201,
+        )
+
+    except ValueError as e:
+        db.session.rollback()
+        error_msg = str(e)
+        current_app.logger.warning(f"Live game validation error: {error_msg}")
+        return (
+            jsonify({"error": "Validation Error", "details": error_msg}),
+            400,
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        error_msg = str(e)
+        current_app.logger.error(f"Live game save error: {error_msg}", exc_info=True)
+
+        # Always return the root cause so the UI can display it to all users.
+        return (
+            jsonify(
+                {
+                    "error": error_msg,
+                    "details": error_msg,
+                }
+            ),
+            500,
+        )
+
+
 @main_bp.route("/upload-game", methods=["GET", "POST"])
 @login_required
+@team_access_required
 def upload_game():
-    """Upload a CSV or PDF file to add a game"""
+    """Upload a CSV, PDF, or JSON file to add a game"""
     if request.method == "POST":
+        team_id = session.get("current_team_id")
         import_type = request.form.get("import_type", "csv").lower().strip()
-        if import_type not in {"csv", "pdf"}:
+        if import_type not in {"csv", "pdf", "json"}:
             import_type = "csv"
 
         upload_folder = current_app.config["UPLOAD_FOLDER"]
         os.makedirs(upload_folder, exist_ok=True)
 
-        filepath = None
-
         try:
+            # --- CSV Import (Multiple Files) ---
             if import_type == "csv":
-                if "csv_file" not in request.files:
+                files = request.files.getlist("csv_file")
+                if not files or files[0].filename == "":
                     flash("No CSV file uploaded", "danger")
                     return redirect(request.url)
 
-                file = request.files["csv_file"]
+                success_count = 0
+                errors = []
+
+                for file in files:
+                    filepath = None
+                    try:
+                        if not file or file.filename == "":
+                            continue
+
+                        if not allowed_file(
+                            file.filename
+                        ) or not file.filename.lower().endswith(".csv"):
+                            errors.append(
+                                f"{file.filename}: Invalid file type (must be .csv)"
+                            )
+                            continue
+
+                        filename = secure_filename(file.filename)
+                        filepath = os.path.join(upload_folder, filename)
+                        file.save(filepath)
+
+                        info = CSVProcessor.parse_filename(filename)
+                        if not info:
+                            errors.append(f"{file.filename}: Invalid filename format")
+                            continue
+
+                        existing = Game.query.filter_by(
+                            sort_date=info["sort_date"], opponent=info["opponent"], team_id=team_id
+                        ).first()
+                        if existing:
+                            errors.append(
+                                f"{file.filename}: Game already exists ({existing.opponent} on {existing.date})"
+                            )
+                            continue
+
+                        game_data = CSVProcessor.process_game(filepath, info)
+                        if not game_data:
+                            errors.append(f"{file.filename}: Failed to process content")
+                            continue
+
+                        game = Game(
+                            date=game_data["date"],
+                            opponent=game_data["opponent"],
+                            team_score=game_data["team_score"],
+                            opponent_score=game_data["opponent_score"],
+                            result=game_data["result"],
+                            game_type=game_data["game_type"],
+                            sort_date=game_data["sort_date"],
+                            source="IMPORT",
+                        )
+                        db.session.add(game)
+                        db.session.flush()
+
+                        for player in game_data["players"]:
+                            if not player.get("name"):
+                                continue
+
+                            stat = PlayerStat(
+                                game_id=game.id,
+                                player_name=player["name"],
+                                minutes=player["minutes"],
+                                points=player["points"],
+                                fgm=player["fgm"],
+                                fga=player["fga"],
+                                fg_percent=player["fg_percent"],
+                                tpm=player["tpm"],
+                                tpa=player["tpa"],
+                                tp_percent=player["tp_percent"],
+                                ftm=player["ftm"],
+                                fta=player["fta"],
+                                ft_percent=player["ft_percent"],
+                                oreb=player["oreb"],
+                                dreb=player["dreb"],
+                                reb=player["reb"],
+                                ast=player["ast"],
+                                tov=player["tov"],
+                                stl=player["stl"],
+                                blk=player["blk"],
+                                pf=player["pf"],
+                                plus_minus=int(player.get("plus_minus", 0) or 0),
+                                reb_conceded=int(player.get("reb_conceded", 0) or 0),
+                            )
+                            db.session.add(stat)
+
+                        db.session.commit()
+                        _notify_users_game_saved(game)
+                        success_count += 1
+
+                    except Exception as e:
+                        db.session.rollback()
+                        errors.append(f"{file.filename}: {str(e)}")
+                    finally:
+                        if filepath and os.path.exists(filepath):
+                            try:
+                                os.remove(filepath)
+                            except OSError:
+                                pass
+
+                if success_count > 0:
+                    flash(
+                        f"Successfully imported {success_count} CSV game(s).", "success"
+                    )
+
+                if errors:
+                    flash(
+                        f"Errors occurred with {len(errors)} file(s): "
+                        + "; ".join(errors[:5])
+                        + ("..." if len(errors) > 5 else ""),
+                        "danger",
+                    )
+
+                return redirect(url_for("main.index"))
+
+            # --- PDF import (Single File) ---
+            elif import_type == "pdf":
+                if "pdf_file" not in request.files:
+                    flash("No PDF file uploaded", "danger")
+                    return redirect(request.url)
+
+                file = request.files["pdf_file"]
                 if file.filename == "":
                     flash("No file selected", "danger")
                     return redirect(request.url)
 
-                if not allowed_file(file.filename) or not file.filename.lower().endswith(".csv"):
-                    flash("Only CSV files are allowed for CSV import", "danger")
+                filepath = None
+                try:
+                    if not allowed_file(
+                        file.filename
+                    ) or not file.filename.lower().endswith(".pdf"):
+                        flash("Only PDF files are allowed for PDF import", "danger")
+                        return redirect(request.url)
+
+                    filename = secure_filename(file.filename)
+                    filepath = os.path.join(upload_folder, filename)
+                    file.save(filepath)
+
+                    parsed = parse_game_pdf(filepath)
+
+                    # Overrides (optional)
+                    override_opponent = (request.form.get("pdf_opponent") or "").strip()
+                    override_date = (request.form.get("pdf_date") or "").strip()
+                    override_team_score = (
+                        request.form.get("pdf_team_score") or ""
+                    ).strip()
+                    override_opponent_score = (
+                        request.form.get("pdf_opponent_score") or ""
+                    ).strip()
+                    override_game_type = (
+                        request.form.get("pdf_game_type") or ""
+                    ).strip()
+
+                    opponent = override_opponent or parsed.get("opponent") or "Unknown"
+
+                    date_display = (
+                        normalize_date_to_display(override_date)
+                        if override_date
+                        else (parsed.get("date") or "")
+                    )
+                    if override_date and not date_display:
+                        flash(
+                            "Invalid date format. Use DD-MM-YYYY or DD/MM/YYYY.",
+                            "danger",
+                        )
+                        return redirect(request.url)
+
+                    sort_date = (
+                        normalize_date_to_sort(override_date)
+                        if override_date
+                        else (parsed.get("sort_date") or "")
+                    )
+
+                    # Scores
+                    team_score = parsed.get("team_score") or 0
+                    opp_score = parsed.get("opponent_score") or 0
+                    if override_team_score:
+                        team_score = int(override_team_score)
+                    if override_opponent_score:
+                        opp_score = int(override_opponent_score)
+
+                    if not date_display or not sort_date:
+                        flash(
+                            "Could not determine game date from PDF. Please fill the Date override.",
+                            "danger",
+                        )
+                        return redirect(request.url)
+
+                    if team_score == opp_score:
+                        flash(
+                            "Team score and opponent score cannot be equal. Please verify overrides.",
+                            "danger",
+                        )
+                        return redirect(request.url)
+
+                    result = "W" if team_score > opp_score else "L"
+
+                    game_type = (
+                        override_game_type
+                        if override_game_type in {"Season", "Friendly", "Playoff"}
+                        else (parsed.get("game_type") or "Season")
+                    )
+
+                    # Duplicate check
+                    existing = Game.query.filter_by(
+                        sort_date=sort_date, opponent=opponent, team_id=team_id
+                    ).first()
+                    if existing:
+                        flash(
+                            f"Game already exists: {existing.opponent} on {existing.date}",
+                            "warning",
+                        )
+                        return redirect(url_for("main.index"))
+
+                    players = parsed.get("players") or []
+                    if not players:
+                        flash(
+                            "No player rows detected in the PDF. Please check PDF format.",
+                            "danger",
+                        )
+                        return redirect(request.url)
+
+                    game = Game(
+                        date=date_display,
+                        opponent=opponent,
+                        team_score=team_score,
+                        opponent_score=opp_score,
+                        result=result,
+                        game_type=game_type,
+                        sort_date=sort_date,
+                        source="IMPORT",
+                    )
+                    db.session.add(game)
+                    db.session.flush()
+
+                    for player in players:
+                        if not player.get("name"):
+                            continue
+
+                        stat = PlayerStat(
+                            game_id=game.id,
+                            player_name=player.get("name", "").strip(),
+                            minutes=player.get("minutes", "0"),
+                            points=int(player.get("points", 0) or 0),
+                            fgm=int(player.get("fgm", 0) or 0),
+                            fga=int(player.get("fga", 0) or 0),
+                            fg_percent=float(player.get("fg_percent", 0) or 0),
+                            tpm=int(player.get("tpm", 0) or 0),
+                            tpa=int(player.get("tpa", 0) or 0),
+                            tp_percent=float(player.get("tp_percent", 0) or 0),
+                            ftm=int(player.get("ftm", 0) or 0),
+                            fta=int(player.get("fta", 0) or 0),
+                            ft_percent=float(player.get("ft_percent", 0) or 0),
+                            oreb=int(player.get("oreb", 0) or 0),
+                            dreb=int(player.get("dreb", 0) or 0),
+                            reb=int(player.get("reb", 0) or 0),
+                            ast=int(player.get("ast", 0) or 0),
+                            tov=int(player.get("tov", 0) or 0),
+                            stl=int(player.get("stl", 0) or 0),
+                            blk=int(player.get("blk", 0) or 0),
+                            pf=int(player.get("pf", 0) or 0),
+                            plus_minus=int(player.get("plus_minus", 0) or 0),
+                            reb_conceded=int(player.get("reb_conceded", 0) or 0),
+                        )
+                        db.session.add(stat)
+
+                    db.session.commit()
+                    _notify_users_game_saved(game)
+
+                    flash(
+                        f"Successfully imported game (PDF): {game.opponent} ({game.result})",
+                        "success",
+                    )
+                    return redirect(url_for("main.game_detail", game_id=game.id))
+
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f"Error importing PDF: {str(e)}", "danger")
+                    current_app.logger.error(f"Upload error: {e}", exc_info=True)
+                    return redirect(request.url)
+                finally:
+                    if filepath and os.path.exists(filepath):
+                        try:
+                            os.remove(filepath)
+                        except OSError:
+                            pass
+
+            # --- JSON Import (Multiple Files) ---
+            elif import_type == "json":
+                files = request.files.getlist("json_file")
+                if not files or files[0].filename == "":
+                    flash("No JSON file uploaded", "danger")
                     return redirect(request.url)
 
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(upload_folder, filename)
-                file.save(filepath)
+                success_count = 0
+                errors = []
 
-                info = CSVProcessor.parse_filename(filename)
-                if not info:
+                for file in files:
+                    try:
+                        if not file or file.filename == "":
+                            continue
+
+                        if not allowed_file(
+                            file.filename
+                        ) or not file.filename.lower().endswith(".json"):
+                            errors.append(f"{file.filename}: Invalid file type")
+                            continue
+
+                        try:
+                            data = json.load(file)
+                        except json.JSONDecodeError:
+                            errors.append(f"{file.filename}: Invalid JSON format")
+                            continue
+
+                        # Extract basic info for duplicate check
+                        game_data = data.get("game", data)
+                        date_display, sort_date = coerce_json_game_dates(game_data)
+                        opponent = (
+                            game_data.get("opponent")
+                            or game_data.get("Opponent")
+                            or game_data.get("vs")
+                            or ""
+                        ).strip()
+
+                        if not sort_date or not opponent:
+                            errors.append(f"{file.filename}: Missing date or opponent")
+                            continue
+
+                        existing = Game.query.filter_by(
+                            sort_date=sort_date, opponent=opponent, team_id=team_id
+                        ).first()
+                        if existing:
+                            errors.append(
+                                f"{file.filename}: Game already exists ({existing.opponent})"
+                            )
+                            continue
+
+                        # Use service to handle the heavy lifting (supports Schema 4, lineups, plays, etc.)
+                        create_game_from_live_data(data, team_id=session.get("current_team_id"))
+                        success_count += 1
+
+                    except Exception as e:
+                        db.session.rollback()
+                        errors.append(f"{file.filename}: {str(e)}")
+
+                if success_count > 0:
                     flash(
-                        "Invalid filename format. Expected: Opponent_TeamScore-OppScore_DD-MM-YYYY_[F/S/P].csv",
+                        f"Successfully imported {success_count} JSON game(s).",
+                        "success",
+                    )
+
+                if errors:
+                    flash(
+                        f"Errors occurred with {len(errors)} file(s): "
+                        + "; ".join(errors[:5])
+                        + ("..." if len(errors) > 5 else ""),
                         "danger",
                     )
-                    return redirect(request.url)
 
-                existing = Game.query.filter_by(sort_date=info["sort_date"], opponent=info["opponent"]).first()
-                if existing:
-                    flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
-                    return redirect(url_for("main.index"))
-
-                game_data = CSVProcessor.process_game(filepath, info)
-                if not game_data:
-                    flash("Failed to process CSV content. Check file format.", "danger")
-                    return redirect(request.url)
-
-                game = Game(
-                    date=game_data["date"],
-                    opponent=game_data["opponent"],
-                    team_score=game_data["team_score"],
-                    opponent_score=game_data["opponent_score"],
-                    result=game_data["result"],
-                    game_type=game_data["game_type"],
-                    sort_date=game_data["sort_date"],
-                )
-                db.session.add(game)
-                db.session.flush()
-
-                for player in game_data["players"]:
-                    if not player.get("name"):
-                        continue
-
-                    stat = PlayerStat(
-                        game_id=game.id,
-                        player_name=player["name"],
-                        minutes=player["minutes"],
-                        points=player["points"],
-                        fgm=player["fgm"],
-                        fga=player["fga"],
-                        fg_percent=player["fg_percent"],
-                        tpm=player["tpm"],
-                        tpa=player["tpa"],
-                        tp_percent=player["tp_percent"],
-                        ftm=player["ftm"],
-                        fta=player["fta"],
-                        ft_percent=player["ft_percent"],
-                        oreb=player["oreb"],
-                        dreb=player["dreb"],
-                        reb=player["reb"],
-                        ast=player["ast"],
-                        tov=player["tov"],
-                        stl=player["stl"],
-                        blk=player["blk"],
-                        pf=player["pf"],
-                    )
-                    db.session.add(stat)
-
-                db.session.commit()
-                flash(f"Successfully imported game (CSV): {game.opponent} ({game.result})", "success")
-                return redirect(url_for("main.game_detail", game_id=game.id))
-
-            # --- PDF import ---
-            if "pdf_file" not in request.files:
-                flash("No PDF file uploaded", "danger")
-                return redirect(request.url)
-
-            file = request.files["pdf_file"]
-            if file.filename == "":
-                flash("No file selected", "danger")
-                return redirect(request.url)
-
-            if not allowed_file(file.filename) or not file.filename.lower().endswith(".pdf"):
-                flash("Only PDF files are allowed for PDF import", "danger")
-                return redirect(request.url)
-
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(upload_folder, filename)
-            file.save(filepath)
-
-            parsed = parse_game_pdf(filepath)
-
-            # Overrides (optional)
-            override_opponent = (request.form.get("pdf_opponent") or "").strip()
-            override_date = (request.form.get("pdf_date") or "").strip()
-            override_team_score = (request.form.get("pdf_team_score") or "").strip()
-            override_opponent_score = (request.form.get("pdf_opponent_score") or "").strip()
-            override_game_type = (request.form.get("pdf_game_type") or "").strip()
-
-            opponent = override_opponent or parsed.get("opponent") or "Unknown"
-
-            date_display = normalize_date_to_display(override_date) if override_date else (parsed.get("date") or "")
-            if override_date and not date_display:
-                flash("Invalid date format. Use DD-MM-YYYY or DD/MM/YYYY.", "danger")
-                return redirect(request.url)
-
-            sort_date = normalize_date_to_sort(override_date) if override_date else (parsed.get("sort_date") or "")
-
-            # Scores
-            team_score = parsed.get("team_score") or 0
-            opp_score = parsed.get("opponent_score") or 0
-            if override_team_score:
-                team_score = int(override_team_score)
-            if override_opponent_score:
-                opp_score = int(override_opponent_score)
-
-            if not date_display or not sort_date:
-                flash("Could not determine game date from PDF. Please fill the Date override.", "danger")
-                return redirect(request.url)
-
-            if team_score == opp_score:
-                flash("Team score and opponent score cannot be equal. Please verify overrides.", "danger")
-                return redirect(request.url)
-
-            result = "W" if team_score > opp_score else "L"
-
-            game_type = override_game_type if override_game_type in {"Season", "Friendly", "Playoff"} else (parsed.get("game_type") or "Season")
-
-            # Duplicate check
-            existing = Game.query.filter_by(sort_date=sort_date, opponent=opponent).first()
-            if existing:
-                flash(f"Game already exists: {existing.opponent} on {existing.date}", "warning")
                 return redirect(url_for("main.index"))
-
-            players = parsed.get("players") or []
-            if not players:
-                flash("No player rows detected in the PDF. Please check PDF format.", "danger")
-                return redirect(request.url)
-
-            game = Game(
-                date=date_display,
-                opponent=opponent,
-                team_score=team_score,
-                opponent_score=opp_score,
-                result=result,
-                game_type=game_type,
-                sort_date=sort_date,
-            )
-            db.session.add(game)
-            db.session.flush()
-
-            for player in players:
-                if not player.get("name"):
-                    continue
-
-                stat = PlayerStat(
-                    game_id=game.id,
-                    player_name=player.get("name", "").strip(),
-                    minutes=player.get("minutes", "0"),
-                    points=int(player.get("points", 0) or 0),
-                    fgm=int(player.get("fgm", 0) or 0),
-                    fga=int(player.get("fga", 0) or 0),
-                    fg_percent=float(player.get("fg_percent", 0) or 0),
-                    tpm=int(player.get("tpm", 0) or 0),
-                    tpa=int(player.get("tpa", 0) or 0),
-                    tp_percent=float(player.get("tp_percent", 0) or 0),
-                    ftm=int(player.get("ftm", 0) or 0),
-                    fta=int(player.get("fta", 0) or 0),
-                    ft_percent=float(player.get("ft_percent", 0) or 0),
-                    oreb=int(player.get("oreb", 0) or 0),
-                    dreb=int(player.get("dreb", 0) or 0),
-                    reb=int(player.get("reb", 0) or 0),
-                    ast=int(player.get("ast", 0) or 0),
-                    tov=int(player.get("tov", 0) or 0),
-                    stl=int(player.get("stl", 0) or 0),
-                    blk=int(player.get("blk", 0) or 0),
-                    pf=int(player.get("pf", 0) or 0),
-                )
-                db.session.add(stat)
-
-            db.session.commit()
-            flash(f"Successfully imported game (PDF): {game.opponent} ({game.result})", "success")
-            return redirect(url_for("main.game_detail", game_id=game.id))
 
         except Exception as e:
             db.session.rollback()
-            flash(f"Error importing game: {str(e)}", "danger")
+            flash(f"Critical error during import: {str(e)}", "danger")
             current_app.logger.error(f"Upload error: {e}", exc_info=True)
             return redirect(request.url)
-
-        finally:
-            if filepath and os.path.exists(filepath):
-                try:
-                    os.remove(filepath)
-                except OSError:
-                    pass
 
     return render_template("upload_game.html")
 
 
+def serialize_model_instance(instance):
+    """Serialize a single SQLAlchemy model instance to a dict of column values."""
+    if not instance:
+        return None
+    data = {}
+    for column in instance.__table__.columns:
+        data[column.name] = getattr(instance, column.name)
+    return data
+
+
+@main_bp.route("/game/<int:game_id>/export-raw")
+@login_required
+@team_access_required
+def export_game_raw(game_id):
+    """Export raw DB data for a specific game as JSON"""
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if not game:
+        abort(404)
+
+    stats = PlayerStat.query.filter_by(game_id=game.id).all()
+    shot_events = ShotEvent.query.filter_by(game_id=game.id).all()
+
+    game_events = []
+    try:
+        game_events_rows = (
+            GameEvent.query.filter_by(game_id=game.id)
+            .order_by(GameEvent.timestamp)
+            .all()
+        )
+        game_events = [serialize_model_instance(ev) for ev in game_events_rows]
+    except Exception:
+        game_events = []
+
+    payload = {
+        "schema_version": str(game.schema_version or "1.0"),
+        "exported_at": datetime.utcnow().isoformat(),
+        "source": {"app": "HoopsStats", "branch": "Dev"},
+        "game": serialize_model_instance(game),
+        "player_stats": [serialize_model_instance(s) for s in stats],
+        "shot_events": [serialize_model_instance(se) for se in shot_events],
+        "game_events": game_events,
+    }
+
+    safe_opponent = secure_filename(game.opponent)
+    filename = f"game_raw_{game.sort_date}_{safe_opponent}.json"
+
+    response = make_response(jsonify(payload))
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    response.headers["Content-Type"] = "application/json"
+
+    return response
+
+
 @main_bp.route("/game/<int:game_id>")
 @login_required
+@team_access_required
 def game_detail(game_id):
     """Detailed stats for a specific game with Advanced Metrics"""
-    game = Game.query.get_or_404(game_id)
-    stats = (
-        PlayerStat.query.filter_by(game_id=game.id)
-        .order_by(PlayerStat.points.desc())
-        .all()
-    )
-
-    team_possessions = sum(
-        calculate_possessions(p.fga, p.fta, p.oreb, p.tov) for p in stats
-    )
-
-    for p in stats:
-        p.min_decimal = parse_minutes(p.minutes)
-        p.possessions = calculate_possessions(p.fga, p.fta, p.oreb, p.tov)
-        p.ortg = calculate_ortg(p.points, p.possessions)
-        p.ppp = calculate_ppp(p.points, p.possessions)
-        p.usg_pct = safe_percentage(p.possessions, team_possessions)
-        p.ast_tov_ratio = (p.ast / p.tov) if p.tov > 0 else p.ast
-        p.eff = calculate_efficiency(
-            p.points, p.reb, p.ast, p.stl, p.blk, p.fgm, p.fga, p.ftm, p.fta, p.tov
-        )
-        p.ts_pct = calculate_ts_percent(p.points, p.fga, p.fta)
-        p.efg_pct = calculate_efg_percent(p.fgm, p.tpm, p.fga)
-
-        # Calculate Game Score
-        p.game_score = calculate_game_score(
-            p.points,
-            p.fgm,
-            p.fga,
-            p.ftm,
-            p.fta,
-            p.oreb,
-            p.dreb,
-            p.stl,
-            p.ast,
-            p.blk,
-            p.pf,
-            p.tov,
-        )
-
-        if p.min_decimal > 0:
-            p.pts_100 = calculate_per_100_minutes(p.points, p.min_decimal)
-            p.reb_100 = calculate_per_100_minutes(p.reb, p.min_decimal)
-            p.ast_100 = calculate_per_100_minutes(p.ast, p.min_decimal)
-            p.tov_100 = calculate_per_100_minutes(p.tov, p.min_decimal)
-            p.stl_100 = calculate_per_100_minutes(p.stl, p.min_decimal)
-            p.blk_100 = calculate_per_100_minutes(p.blk, p.min_decimal)
-            p.pf_100 = calculate_per_100_minutes(p.pf, p.min_decimal)
-        else:
-            p.pts_100 = p.reb_100 = p.ast_100 = p.tov_100 = p.stl_100 = p.blk_100 = (
-                p.pf_100
-            ) = 0
-
-        two_pt_stats = calculate_two_point_stats(p.fgm, p.fga, p.tpm, p.tpa)
-        p.two_pt_att = two_pt_stats["two_pt_att"]
-        p.two_pt_made = two_pt_stats["two_pt_made"]
-        p.two_pt_pct = two_pt_stats["two_pt_pct"]
-
-        p.fta_pct = safe_percentage(p.fta, p.fga)
-        p.oreb_pct = safe_percentage(p.oreb, p.reb)
-        p.foul_trouble = p.pf >= 3
-
-    return render_template("game_detail.html", game=game, stats=stats)
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if not game:
+        abort(404)
+    context = AnalyticsService.build_game_detail(game_id)
+    return render_template("game_detail.html", **context)
 
 
 @main_bp.route("/game/<int:game_id>/delete", methods=["POST"])
 @login_required
+@team_access_required
+@gm_required
 def delete_game(game_id):
-    """Delete a game and all associated player stats."""
-    game = Game.query.get_or_404(game_id)
+    """Delete a game and all associated stats/events."""
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if not game:
+        abort(404)
 
     try:
-        # Delete player stats first (avoid FK issues)
         PlayerStat.query.filter_by(game_id=game.id).delete()
+        ShotEvent.query.filter_by(game_id=game.id).delete()
+        GameEvent.query.filter_by(game_id=game.id).delete()
+
+        # Get lineup_ids before deleting segments (to update cached stats)
+        segments = LineupSegment.query.filter_by(game_id=game.id).all()
+        segment_ids = [s.id for s in segments]
+        affected_lineup_ids = list(set(s.lineup_id for s in segments if s.lineup_id))
+
+        # Delete PlayerLineupStats
+        if segment_ids:
+            PlayerLineupStats.query.filter(
+                PlayerLineupStats.lineup_segment_id.in_(segment_ids)
+            ).delete()
+
+        # Delete LineupSegments
+        LineupSegment.query.filter_by(game_id=game.id).delete()
+
+        # Update or delete affected Lineups
+        from core.services.lineup_service import update_lineup_cached_stats
+
+        for lineup_id in affected_lineup_ids:
+            lineup = Lineup.query.get(lineup_id)
+            if lineup:
+                # Check if lineup still has segments
+                remaining_segments = LineupSegment.query.filter_by(
+                    lineup_id=lineup_id
+                ).count()
+                if remaining_segments == 0:
+                    db.session.delete(lineup)
+                else:
+                    update_lineup_cached_stats(lineup_id)
+
         db.session.delete(game)
         db.session.commit()
         flash(f"Deleted game: {game.opponent} on {game.date}", "success")
@@ -404,195 +1015,68 @@ def delete_game(game_id):
 
 @main_bp.route("/player/<player_name>")
 @login_required
+@team_access_required
 def player_detail(player_name):
     """Detailed player profile with comprehensive stats and charts"""
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
         game_type = "ALL"
-
-    # Get all games for this player
-    game_query = Game.query.order_by(Game.sort_date.desc())
-    if game_type == "Season":
-        game_query = game_query.filter(Game.game_type == "Season")
-    elif game_type == "Friendly":
-        game_query = game_query.filter(Game.game_type == "Friendly")
-    elif game_type == "Playoff":
-        game_query = game_query.filter(Game.game_type == "Playoff")
-
-    all_filtered_games = game_query.all()
-    target_game_ids = [g.id for g in all_filtered_games]
-
-    if not target_game_ids:
-        flash(f"No games found for {player_name}", "warning")
+    try:
+        context = AnalyticsService.build_player_detail(player_name, game_type)
+    except ValueError as e:
+        flash(str(e) + " for " + player_name, "warning")
         return redirect(url_for("main.players"))
-
-    # Get player's game stats
-    player_stats = (
-        PlayerStat.query.filter(PlayerStat.player_name == player_name)
-        .filter(PlayerStat.game_id.in_(target_game_ids))
-        .filter(PlayerStat.minutes != "00:00")
-        .filter(PlayerStat.minutes != "0")
-        .join(Game)
-        .order_by(Game.sort_date.desc())
-        .all()
-    )
-
-    if not player_stats:
-        flash(f"No stats found for {player_name}", "warning")
-        return redirect(url_for("main.players"))
-
-    # Calculate aggregate stats
-    gp = len(player_stats)
-    total_minutes = sum(parse_minutes(s.minutes) for s in player_stats)
-
-    totals = {
-        "points": sum(s.points for s in player_stats),
-        "reb": sum(s.reb for s in player_stats),
-        "oreb": sum(s.oreb for s in player_stats),
-        "dreb": sum(s.dreb for s in player_stats),
-        "ast": sum(s.ast for s in player_stats),
-        "stl": sum(s.stl for s in player_stats),
-        "blk": sum(s.blk for s in player_stats),
-        "tov": sum(s.tov for s in player_stats),
-        "pf": sum(s.pf for s in player_stats),
-        "fgm": sum(s.fgm for s in player_stats),
-        "fga": sum(s.fga for s in player_stats),
-        "tpm": sum(s.tpm for s in player_stats),
-        "tpa": sum(s.tpa for s in player_stats),
-        "ftm": sum(s.ftm for s in player_stats),
-        "fta": sum(s.fta for s in player_stats),
-    }
-
-    # Calculate advanced metrics
-    total_poss = sum(
-        calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in player_stats
-    )
-
-    two_pt_stats = calculate_two_point_stats(
-        totals["fgm"], totals["fga"], totals["tpm"], totals["tpa"]
-    )
-
-    # Calculate consistency (coefficient of variation) for PPG
-    game_ppgs = [s.points for s in player_stats]
-    consistency_value = 0
-    if len(game_ppgs) > 1 and statistics.mean(game_ppgs) > 0:
-        std_dev = statistics.stdev(game_ppgs)
-        mean_ppg = statistics.mean(game_ppgs)
-        consistency_value = std_dev / mean_ppg
-
-    averages = {
-        "mpg": total_minutes / gp,
-        "ppg": totals["points"] / gp,
-        "rpg": totals["reb"] / gp,
-        "orebpg": totals["oreb"] / gp,
-        "drebpg": totals["dreb"] / gp,
-        "apg": totals["ast"] / gp,
-        "spg": totals["stl"] / gp,
-        "bpg": totals["blk"] / gp,
-        "topg": totals["tov"] / gp,
-        "pfpg": totals["pf"] / gp,
-        "eff": calculate_efficiency(
-            totals["points"],
-            totals["reb"],
-            totals["ast"],
-            totals["stl"],
-            totals["blk"],
-            totals["fgm"],
-            totals["fga"],
-            totals["ftm"],
-            totals["fta"],
-            totals["tov"],
-        )
-        / gp,
-        "ortg": calculate_ortg(totals["points"], total_poss),
-        "ppp": calculate_ppp(totals["points"], total_poss),
-        "usg_pct": total_poss / gp,
-        "fg_pct": (totals["fgm"] / totals["fga"] * 100) if totals["fga"] > 0 else 0,
-        "two_pt_pct": two_pt_stats["two_pt_pct"],
-        "tp_pct": (totals["tpm"] / totals["tpa"] * 100) if totals["tpa"] > 0 else 0,
-        "ft_pct": (totals["ftm"] / totals["fta"] * 100) if totals["fta"] > 0 else 0,
-        "ts_pct": calculate_ts_percent(totals["points"], totals["fga"], totals["fta"]),
-        "efg_pct": calculate_efg_percent(totals["fgm"], totals["tpm"], totals["fga"]),
-        "ast_tov": totals["ast"] / totals["tov"] if totals["tov"] > 0 else totals["ast"],
-        "fta_pct": safe_percentage(totals["fta"], totals["fga"]),
-        "oreb_pct": safe_percentage(totals["oreb"], totals["reb"]),
-        "consistency": consistency_value,
-    }
-
-    career_highs = {
-        "points": max(s.points for s in player_stats),
-        "reb": max(s.reb for s in player_stats),
-        "ast": max(s.ast for s in player_stats),
-        "stl": max(s.stl for s in player_stats),
-        "blk": max(s.blk for s in player_stats),
-    }
-
-    consistency_cv = consistency_value * 100
-
-    game_logs = []
-    for stat in player_stats:
-        game = stat.game
-        poss = calculate_possessions(stat.fga, stat.fta, stat.oreb, stat.tov)
-
-        game_logs.append(
-            {
-                "game": game,
-                "stat": stat,
-                "ortg": calculate_ortg(stat.points, poss),
-                "ppp": calculate_ppp(stat.points, poss),
-                "eff": calculate_efficiency(
-                    stat.points,
-                    stat.reb,
-                    stat.ast,
-                    stat.stl,
-                    stat.blk,
-                    stat.fgm,
-                    stat.fga,
-                    stat.ftm,
-                    stat.fta,
-                    stat.tov,
-                ),
-                "ts_pct": calculate_ts_percent(stat.points, stat.fga, stat.fta),
-                "efg_pct": calculate_efg_percent(stat.fgm, stat.tpm, stat.fga),
-                "ast_tov": stat.ast / stat.tov if stat.tov > 0 else stat.ast,
-            }
-        )
-
-    recent_games = game_logs[:10][::-1]
-    chart_data = {
-        "labels": [g["game"].opponent[:10] for g in recent_games],
-        "points": [g["stat"].points for g in recent_games],
-        "rebounds": [g["stat"].reb for g in recent_games],
-        "assists": [g["stat"].ast for g in recent_games],
-        "efficiency": [g["eff"] for g in recent_games],
-        "fg_pct": [
-            (g["stat"].fgm / g["stat"].fga * 100) if g["stat"].fga > 0 else 0
-            for g in recent_games
-        ],
-        "tp_pct": [
-            (g["stat"].tpm / g["stat"].tpa * 100) if g["stat"].tpa > 0 else 0
-            for g in recent_games
-        ],
-    }
-
     return render_template(
         "player_detail.html",
-        player_name=player_name,
-        games_played=gp,
-        totals=totals,
-        averages=averages,
-        career_highs=career_highs,
-        consistency_cv=consistency_cv,
-        game_logs=game_logs,
-        chart_data=chart_data,
-        game_type=game_type,
-        two_pt_made=two_pt_stats["two_pt_made"],
-        two_pt_att=two_pt_stats["two_pt_att"],
+        **context,
+        report_url=url_for(
+            "analytics.player_report_pdf", player_name=player_name, game_type=game_type
+        ),
+        back_url=url_for("main.players", game_type=game_type),
+        back_label="Back to Players",
     )
+
+
+@main_bp.route("/player/<player_name>/game-detail")
+@login_required
+@team_access_required
+def player_game_detail(player_name):
+    """Player game detail with comprehensive stats and charts"""
+    game_type = request.args.get("game_type", "ALL")
+    if game_type not in VALID_GAME_TYPES:
+        game_type = "ALL"
+    try:
+        context = AnalyticsService.build_player_game_detail(player_name, game_type)
+    except ValueError:
+        flash("No stats available for this player", "warning")
+        return redirect(url_for("main.players", game_type=game_type))
+    return render_template(
+        "player_game_detail.html",
+        **context,
+        report_url=url_for(
+            "reports.player_report_pdf", player_name=player_name, game_type=game_type
+        ),
+        back_url=url_for("main.players", game_type=game_type),
+        back_label="Back to Players",
+    )
+
+
+@main_bp.route("/team-detail")
+@login_required
+@team_access_required
+def team_detail():
+    """Team totals rendered on the same detail page as players."""
+    game_type = request.args.get("game_type", "ALL")
+    if game_type not in VALID_GAME_TYPES:
+        game_type = "ALL"
+    excluded_player = (request.args.get("exclude_player") or "").strip()
+    context = AnalyticsService.build_team_detail_context(game_type, excluded_player)
+    return render_template("player_detail.html", **context)
 
 
 @main_bp.route("/players")
 @login_required
+@team_access_required
 def players():
     """List of all players with Comprehensive Advanced Stats"""
     view = request.args.get("view", "cards")
@@ -609,181 +1093,151 @@ def players():
 
     sort_by = request.args.get("sort", "ppg")
     order = request.args.get("order", "desc")
+    excluded_player = (request.args.get("exclude_player") or "").strip()
 
-    game_query = Game.query.order_by(Game.sort_date.desc())
-    if game_type == "Season":
-        game_query = game_query.filter(Game.game_type == "Season")
-    elif game_type == "Friendly":
-        game_query = game_query.filter(Game.game_type == "Friendly")
-    elif game_type == "Playoff":
-        game_query = game_query.filter(Game.game_type == "Playoff")
-
-    all_filtered_games = game_query.all()
-
-    if limit > 0:
-        target_games = all_filtered_games[:limit]
-    else:
-        target_games = all_filtered_games
-
-    target_game_ids = [g.id for g in target_games]
-
-    if not target_game_ids:
-        template = "players_table.html" if view == "table" else "players.html"
-        return render_template(
-            template,
-            stats=[],
-            filters={"type": game_type, "limit": limit, "sort": sort_by, "order": order},
-        )
-
-    stats_query = (
-        db.session.query(
-            PlayerStat.player_name,
-            func.count(PlayerStat.id).label("games_played"),
-            func.sum(PlayerStat.points).label("total_points"),
-            func.sum(PlayerStat.reb).label("total_reb"),
-            func.sum(PlayerStat.oreb).label("total_oreb"),
-            func.sum(PlayerStat.dreb).label("total_dreb"),
-            func.sum(PlayerStat.ast).label("total_ast"),
-            func.sum(PlayerStat.stl).label("total_stl"),
-            func.sum(PlayerStat.blk).label("total_blk"),
-            func.sum(PlayerStat.tov).label("total_tov"),
-            func.sum(PlayerStat.pf).label("total_pf"),
-            func.sum(PlayerStat.fgm).label("total_fgm"),
-            func.sum(PlayerStat.fga).label("total_fga"),
-            func.sum(PlayerStat.tpm).label("total_tpm"),
-            func.sum(PlayerStat.tpa).label("total_tpa"),
-            func.sum(PlayerStat.ftm).label("total_ftm"),
-            func.sum(PlayerStat.fta).label("total_fta"),
-        )
-        .filter(PlayerStat.game_id.in_(target_game_ids))
-        .filter(PlayerStat.minutes != "00:00")
-        .filter(PlayerStat.minutes != "0")
-        .group_by(PlayerStat.player_name)
-        .all()
+    context = AnalyticsService.build_players_listing_context(
+        game_type, limit, sort_by, order, excluded_player
     )
-
-    players_data = []
-
-    for row in stats_query:
-        gp = row.games_played
-
-        player_stats = (
-            PlayerStat.query.filter(PlayerStat.player_name == row.player_name)
-            .filter(PlayerStat.game_id.in_(target_game_ids))
-            .filter(PlayerStat.minutes != "00:00")
-            .filter(PlayerStat.minutes != "0")
-            .all()
-        )
-
-        total_minutes = sum(parse_minutes(s.minutes) for s in player_stats)
-        game_ppgs = [s.points for s in player_stats]
-
-        total_poss = sum(
-            calculate_possessions(s.fga, s.fta, s.oreb, s.tov) for s in player_stats
-        )
-
-        ortg = calculate_ortg(row.total_points, total_poss)
-        ppp = calculate_ppp(row.total_points, total_poss)
-
-        eff = calculate_efficiency(
-            row.total_points,
-            row.total_reb,
-            row.total_ast,
-            row.total_stl,
-            row.total_blk,
-            row.total_fgm,
-            row.total_fga,
-            row.total_ftm,
-            row.total_fta,
-            row.total_tov,
-        )
-
-        ts_pct = calculate_ts_percent(row.total_points, row.total_fga, row.total_fta)
-        efg_pct = calculate_efg_percent(row.total_fgm, row.total_tpm, row.total_fga)
-
-        two_pt_stats = calculate_two_point_stats(
-            row.total_fgm, row.total_fga, row.total_tpm, row.total_tpa
-        )
-
-        consistency = 0
-        if len(game_ppgs) > 1:
-            std_dev = statistics.stdev(game_ppgs)
-            mean_ppg = statistics.mean(game_ppgs)
-            consistency = (std_dev / mean_ppg) if mean_ppg > 0 else 0
-
-        players_data.append(
-            {
-                "player_name": row.player_name,
-                "games_played": gp,
-                "mpg": total_minutes / gp if gp > 0 else 0,
-                "ppg": row.total_points / gp if gp > 0 else 0,
-                "rpg": row.total_reb / gp if gp > 0 else 0,
-                "orebpg": row.total_oreb / gp if gp > 0 else 0,
-                "drebpg": row.total_dreb / gp if gp > 0 else 0,
-                "apg": row.total_ast / gp if gp > 0 else 0,
-                "spg": row.total_stl / gp if gp > 0 else 0,
-                "bpg": row.total_blk / gp if gp > 0 else 0,
-                "topg": row.total_tov / gp if gp > 0 else 0,
-                "pfpg": row.total_pf / gp if gp > 0 else 0,
-                "eff": eff / gp if gp > 0 else 0,
-                "ortg": ortg,
-                "ppp": ppp,
-                "usg_pct": (total_poss / gp) if gp > 0 else 0,
-                "fg_pct": row.total_fgm / row.total_fga if row.total_fga > 0 else 0,
-                "two_pt_pct": two_pt_stats["two_pt_pct"],
-                "tp_pct": row.total_tpm / row.total_tpa if row.total_tpa > 0 else 0,
-                "ft_pct": row.total_ftm / row.total_fta if row.total_fta > 0 else 0,
-                "ts_pct": ts_pct,
-                "efg_pct": efg_pct,
-                "ast_tov": row.total_ast / row.total_tov if row.total_tov > 0 else row.total_ast,
-                "fta_pct": safe_percentage(row.total_fta, row.total_fga),
-                "oreb_pct": safe_percentage(row.total_oreb, row.total_reb),
-                "consistency": consistency,
-                "fgm": row.total_fgm,
-                "fga": row.total_fga,
-                "two_pt_made": two_pt_stats["two_pt_made"],
-                "two_pt_att": two_pt_stats["two_pt_att"],
-                "tpm": row.total_tpm,
-                "tpa": row.total_tpa,
-                "ftm": row.total_ftm,
-                "fta": row.total_fta,
-            }
-        )
-
-    reverse = order == "desc"
-    players_data.sort(key=lambda x: x.get(sort_by, 0), reverse=reverse)
 
     template = "players_table.html" if view == "table" else "players.html"
 
     return render_template(
         template,
-        stats=players_data,
-        filters={"type": game_type, "limit": limit, "sort": sort_by, "order": order},
+        stats=context["stats"],
+        total_row=context["total_row"],
+        all_player_names=context["all_player_names"],
+        filters=context["filters"],
+    )
+
+
+@main_bp.route("/players/cards.pdf")
+@login_required
+@team_access_required
+def players_cards_pdf():
+    game_type = request.args.get("game_type", "ALL")
+    if game_type not in VALID_GAME_TYPES:
+        game_type = "ALL"
+
+    try:
+        limit = int(request.args.get("limit", 0))
+        if limit < 0:
+            limit = 0
+    except ValueError:
+        limit = 0
+
+    sort_by = request.args.get("sort", "ppg")
+    order = request.args.get("order", "desc")
+    excluded_player = (request.args.get("exclude_player") or "").strip()
+
+    context = AnalyticsService.build_players_listing_context(
+        game_type, limit, sort_by, order, excluded_player
+    )
+
+    html = render_template("players_cards_pdf.html", **context)
+    pdf_bytes = HTML(string=html, base_url=request.host_url).write_pdf()
+    pdf_io = BytesIO(pdf_bytes)
+    pdf_io.seek(0)
+
+    return send_file(
+        pdf_io,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"player_cards_{game_type}.pdf",
+    )
+
+
+@main_bp.route("/players/pages.zip")
+@login_required
+@team_access_required
+def players_pages_zip():
+
+    game_type = request.args.get("game_type", "ALL")
+    if game_type not in VALID_GAME_TYPES:
+        game_type = "ALL"
+
+    try:
+        limit = int(request.args.get("limit", 0))
+        if limit < 0:
+            limit = 0
+    except ValueError:
+        limit = 0
+
+    sort_by = request.args.get("sort", "ppg")
+    order = request.args.get("order", "desc")
+    excluded_player = (request.args.get("exclude_player") or "").strip()
+
+    listing = AnalyticsService.build_players_listing_context(
+        game_type, limit, sort_by, order, excluded_player
+    )
+    zip_buffer = BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        team_context = AnalyticsService.build_team_detail_context(
+            game_type, excluded_player
+        )
+        team_html = render_template(
+            "player_detail.html",
+            **team_context,
+            pdf_mode=True,
+            report_url="",
+            back_url="",
+        )
+        team_pdf = HTML(string=team_html, base_url=request.host_url).write_pdf()
+        zipf.writestr("Team_Total_Page.pdf", team_pdf)
+
+        for player in listing["stats"]:
+            detail_context = AnalyticsService.build_player_detail(
+                player["player_name"], game_type
+            )
+            html = render_template(
+                "player_detail.html",
+                **detail_context,
+                pdf_mode=True,
+                report_url="",
+                back_url="",
+            )
+            pdf_data = HTML(string=html, base_url=request.host_url).write_pdf()
+            filename = f"{player['player_name'].replace(' ', '_')}_page.pdf"
+            zipf.writestr(filename, pdf_data)
+
+    zip_buffer.seek(0)
+    return send_file(
+        zip_buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"player_pages_{game_type}.zip",
     )
 
 
 @main_bp.route("/games-list")
 @login_required
+@team_access_required
 def games():
     """Summary of performance against opponents (formerly teams)"""
-    results = db.session.query(Game.opponent).distinct().all()
+    team_id = session.get("current_team_id")
+    results = db.session.query(Game.opponent).filter(Game.team_id == team_id).distinct().all()
 
     team_stats = []
     for r in results:
         opp_name = r[0]
-        games = Game.query.filter_by(opponent=opp_name).all()
-        wins = sum(1 for g in games if g.result == "W")
-        losses = len(games) - wins
+        opp_games = Game.query.filter_by(opponent=opp_name, team_id=team_id).all()
+        wins = sum(1 for g in opp_games if g.result == "W")
+        losses = len(opp_games) - wins
 
-        if len(games) > 0:
-            avg_team_score = sum(g.team_score for g in games) / len(games)
-            avg_opp_score = sum(g.opponent_score for g in games) / len(games)
+        if len(opp_games) > 0:
+            avg_team_score = sum(g.team_score for g in opp_games) / len(opp_games)
+            avg_opp_score = sum(g.opponent_score for g in opp_games) / len(opp_games)
             avg_score = f"{int(avg_team_score)}-{int(avg_opp_score)}"
         else:
             avg_score = "0-0"
 
         team_stats.append(
-            {"name": opp_name, "games": len(games), "record": f"{wins}-{losses}", "avg_score": avg_score}
+            {
+                "name": opp_name,
+                "games": len(opp_games),
+                "record": f"{wins}-{losses}",
+                "avg_score": avg_score,
+            }
         )
 
     return render_template("teams.html", teams=team_stats)
@@ -791,15 +1245,294 @@ def games():
 
 @main_bp.route("/teams/<opponent_name>")
 @login_required
+@team_access_required
 def opponent_games(opponent_name):
-    """List games against a specific opponent"""
-    games = Game.query.filter_by(opponent=opponent_name).order_by(Game.sort_date.desc()).all()
+    """Detailed performance view against a specific opponent"""
+    team_id = session.get("current_team_id")
+    opp_games = (
+        Game.query.filter_by(opponent=opponent_name, team_id=team_id)
+        .order_by(Game.sort_date.desc())
+        .all()
+    )
+    context = AnalyticsService.build_opponent_detail_context(opponent_name, opp_games)
+    return render_template("opponent_detail.html", **context)
 
-    wins = sum(1 for g in games if g.result == "W")
-    losses = len(games) - wins
+
+@main_bp.route("/advanced-analytics")
+@login_required
+@team_access_required
+def advanced_analytics():
+    """Advanced analytics dashboard"""
+    team_id = session.get("current_team_id")
+    # Get players for filters
+    players = (
+        db.session.query(PlayerStat.player_name)
+        .join(Game, PlayerStat.game_id == Game.id)
+        .filter(Game.team_id == team_id)
+        .distinct()
+        .order_by(PlayerStat.player_name)
+        .all()
+    )
+    player_names = [p[0] for p in players]
+
+    # Get plays for filters
+    plays = Play.query.filter_by(team_id=team_id).order_by(Play.name).all()
+
+    # Get games for filters
+    games = Game.query.filter_by(team_id=team_id).order_by(Game.sort_date.desc()).all()
 
     return render_template(
-        "index.html",
-        games=games,
-        stats={"games": len(games), "players": 0, "wins": wins, "losses": losses},
+        "advanced_analytics.html", players=player_names, plays=plays, games=games
+    )
+
+
+@main_bp.route("/game/<int:game_id>/advanced-report")
+@login_required
+@team_access_required
+def advanced_game_report(game_id):
+    """Advanced game report page with comprehensive analytics"""
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if not game:
+        abort(404)
+    return render_template(
+        "reports/advanced_game_report.html", game=game, game_id=game_id
+    )
+
+
+# =============================================================================
+# LINEUPS PAGES
+# =============================================================================
+
+
+@main_bp.route("/lineups")
+@login_required
+@team_access_required
+def lineups_page():
+    """Lineups browser page - shows all lineup combinations with stats."""
+    return render_template("lineups.html")
+
+
+@main_bp.route("/lineup/<int:lineup_id>")
+@login_required
+@team_access_required
+def lineup_card(lineup_id):
+    """Single lineup card page with detailed stats."""
+    from core.models import Lineup
+
+    team_id = session.get("current_team_id")
+    lineup = Lineup.query.filter_by(id=lineup_id, team_id=team_id).first()
+    if not lineup:
+        abort(404)
+    return render_template("lineup_card.html", lineup=lineup)
+
+
+@main_bp.route("/game/<int:game_id>/lineup-combinations")
+@login_required
+@team_access_required
+def game_lineup_combinations(game_id):
+    """Game subpage with top 3 lineups, duos, and trios."""
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if not game:
+        abort(404)
+    from core.advanced_analytics import LineupAnalytics
+
+    try:
+        top_lineups = LineupAnalytics.get_game_lineup_rankings(game_id, top_n=3)
+    except Exception:
+        top_lineups = []
+
+    try:
+        top_duos = LineupAnalytics.get_combination_net_differentials(
+            combination_type="duo",
+            game_ids=[game_id],
+            min_possessions=10,
+            top_n=3,
+            require_positive=False,
+        )
+    except Exception:
+        top_duos = []
+
+    try:
+        top_trios = LineupAnalytics.get_combination_net_differentials(
+            combination_type="trio",
+            game_ids=[game_id],
+            min_possessions=10,
+            top_n=3,
+            require_positive=False,
+        )
+    except Exception:
+        top_trios = []
+
+    return render_template(
+        "game_lineup_combinations.html",
+        game=game,
+        top_lineups=top_lineups,
+        top_duos=top_duos,
+        top_trios=top_trios,
+    )
+
+
+@main_bp.route("/lineup-combo/<combo_type>/<path:players_key>")
+@login_required
+@team_access_required
+def lineup_combo_card(combo_type, players_key):
+    """Single duo/trio combination card page."""
+    combo_type = (combo_type or "").strip().lower()
+    if combo_type not in {"duo", "trio"}:
+        abort(404)
+
+    raw_players = unquote(players_key or "")
+    players = [p.strip() for p in raw_players.split(",") if p.strip()]
+    expected_count = 2 if combo_type == "duo" else 3
+    if len(players) != expected_count:
+        abort(404)
+
+    return render_template(
+        "lineup_combo_card.html",
+        combo_type=combo_type,
+        players=sorted(players),
+    )
+
+
+# =============================================================================
+# TEST GAME GENERATOR
+# =============================================================================
+
+
+@main_bp.route("/create-test-game", methods=["POST"])
+@login_required
+@gm_required
+def create_test_game():
+    """Create a comprehensive test game with all features for testing."""
+    import sys
+    import os
+
+    sys.path.insert(
+        0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    )
+
+    from scripts.generate_test_game import generate_test_game_payload
+    import gc
+
+    try:
+        # Clear any existing memory before starting heavy operation
+        gc.collect()
+
+        payload = generate_test_game_payload()
+
+        # After payload is ready, try to free any generation-time overhead
+        gc.collect()
+
+        game = create_game_from_live_data(payload, team_id=session.get("current_team_id"))
+
+        # Clear payload from memory after import
+        del payload
+        gc.collect()
+
+        current_app.logger.info(f"Test game created: Game ID {game.id}")
+        flash(
+            f"Test game created successfully! {game.opponent} ({game.team_score}-{game.opponent_score})",
+            "success",
+        )
+        return redirect(url_for("main.game_detail", game_id=game.id))
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to create test game: {e}", exc_info=True)
+        flash(f"Error creating test game: {str(e)}", "danger")
+        return redirect(url_for("main.upload_game"))
+
+
+# =============================================================================
+# GM DASHBOARD
+# =============================================================================
+
+
+@main_bp.route("/gm/dashboard")
+@login_required
+@gm_required
+def gm_dashboard():
+    """GM dashboard showing org-wide overview with all teams."""
+    org = Organization.query.get(current_user.organization_id)
+    teams = current_user.assigned_teams
+    team_data = []
+    for team in teams:
+        games_q = Game.query.filter_by(team_id=team.id)
+        total = games_q.count()
+        wins = games_q.filter_by(result="W").count()
+        losses = games_q.filter_by(result="L").count()
+        pts = db.session.query(func.sum(Game.team_score)).filter_by(team_id=team.id).scalar() or 0
+        opp_pts = db.session.query(func.sum(Game.opponent_score)).filter_by(team_id=team.id).scalar() or 0
+        players = Player.query.filter_by(team_id=team.id, active=True).count()
+        team_data.append({
+            "id": team.id,
+            "name": team.name,
+            "slug": team.slug,
+            "games": total,
+            "wins": wins,
+            "losses": losses,
+            "points": pts,
+            "opp_points": opp_pts,
+            "avg_ppg": round(pts / total, 1) if total else 0,
+            "avg_opp_ppg": round(opp_pts / total, 1) if total else 0,
+            "players": players,
+        })
+    members = OrganizationMembership.query.filter_by(organization_id=org.id).count()
+    return render_template(
+        "gm/dashboard.html",
+        org=org,
+        team_data=team_data,
+        members=members,
+    )
+
+
+@main_bp.route("/switch-team", methods=["POST"])
+@login_required
+def switch_team():
+    """Switch the current team context in the session."""
+    team_id = request.form.get("team_id", type=int)
+    if not team_id:
+        flash("No team selected.", "warning")
+        return redirect(request.referrer or url_for("main.index"))
+    team = Team.query.get(team_id)
+    if not team or team not in current_user.assigned_teams:
+        flash("You do not have access to that team.", "danger")
+        return redirect(request.referrer or url_for("main.index"))
+    session["current_team_id"] = team.id
+    session["current_team_name"] = team.name
+    flash(f"Switched to {team.name}.", "success")
+    return redirect(request.referrer or url_for("main.index"))
+
+
+# =============================================================================
+# ADMIN PANEL
+# =============================================================================
+
+VALID_SECTIONS = {"users", "players", "settings"}
+
+
+@main_bp.route("/admin")
+@main_bp.route("/admin/<section>")
+@login_required
+@gm_required
+def admin_panel(section="users"):
+    """Admin panel - manage users, players and settings"""
+    if section not in VALID_SECTIONS:
+        section = "users"
+
+    users = User.query.order_by(User.username).all()
+    team_id = session.get("current_team_id")
+    players = Player.query.filter_by(team_id=team_id).order_by(Player.name).all()
+
+    settings_data = db.session.query(SystemSetting).all()
+    settings = {s.key: s.value for s in settings_data}
+
+    return render_template(
+        "auth/admin.html",
+        users=users,
+        players=players,
+        settings=settings,
+        section=section,
     )

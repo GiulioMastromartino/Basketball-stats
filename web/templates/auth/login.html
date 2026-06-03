@@ -1,40 +1,79 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Login - Basketball Stats</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #f5f5f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-box { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 300px; }
-        h2 { text-align: center; color: #333; }
-        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        button:hover { background: #0056b3; }
-        .flash { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
-        .flash.danger { background: #f8d7da; color: #721c24; }
-    </style>
-</head>
-<body>
-    <div class="login-box">
-        <h2>🏀 Basketball Stats</h2>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="flash {{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        <form method="POST">
-            {{ form.hidden_tag() }}
-            {{ form.username(placeholder="Username") }}
-            {{ form.password(placeholder="Password") }}
-            <label style="display: block; margin: 10px 0;">
-                {{ form.remember_me() }} Remember Me
-            </label>
-            {{ form.submit() }}
-        </form>
-        <p style="text-align: center; margin-top: 20px; color: #666; font-size: 14px;">
-            Default: admin / admin123
-        </p>
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-12">
+        <div class="card shadow-sm auth-login-card">
+            <div class="card-header text-center py-4">
+                <h2 class="mb-0 auth-login-brand">Hooper Lab</h2>
+            </div>
+            <div class="card-body p-4">
+                <h4 class="card-title text-center mb-4">Sign In</h4>
+                
+                <!-- WorkOS AuthKit Sign In Button -->
+                <div class="d-grid gap-3 mb-4">
+                    {% if workos_configured %}
+                    <a href="{{ auth_url }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-sign-in-alt me-2"></i>Sign in with WorkOS
+                    </a>
+                    {% else %}
+                    <button class="btn btn-secondary btn-lg" disabled title="WorkOS SSO not configured">
+                        <i class="fas fa-sign-in-alt me-2"></i>Sign in with WorkOS
+                    </button>
+                    <div class="alert alert-warning py-2 px-3 mb-0 small">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        WorkOS SSO is not configured. Use username/password below.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <hr class="my-4">
+
+                <!-- Local Username/Password Option -->
+                <h6 class="text-center text-muted mb-3">Or sign in with username</h6>
+                <form method="POST" class="mb-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" 
+                               placeholder="Enter your username">
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" 
+                               placeholder="Enter your password">
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="fas fa-user-check me-2"></i>Sign In
+                        </button>
+                    </div>
+                </form>
+
+                <hr class="my-4">
+                
+                <!-- Magic Link Option -->
+                <h6 class="text-center text-muted mb-3">Or sign in with Magic Link</h6>
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email" 
+                               placeholder="Enter your email" required>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="fas fa-magic me-2"></i>Send Magic Link
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center py-3">
+                <small>Restricted Access - Authorized Personnel Only</small>
+            </div>
+        </div>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}

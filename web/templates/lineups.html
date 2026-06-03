@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    :root {
+        --offense-gradient: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        --defense-gradient: linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%);
+    }
+
+    .lineup-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        gap: 24px;
+    }
+
+    .modern-stat-card {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid #f1f5f9;
+        padding: 24px;
+        transition: all 0.3s ease;
+        margin-bottom: 20px;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .modern-stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 20px -10px rgba(0, 0, 0, 0.08);
+        border-color: #3b82f640;
+    }
+
+    .card-rank-badge {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 0.9rem;
+        margin-bottom: 15px;
+    }
+
+    .rank-1 { background: #fef3c7; color: #92400e; }
+    .rank-2 { background: #f1f5f9; color: #475569; }
+    .rank-3 { background: #fafaf9; color: #78716c; }
+
+    .rating-bar-container {
+        height: 8px;
+        background: #f1f5f9;
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 10px 0;
+    }
+
+    .rating-bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 1s ease-out;
+    }
+
+    .player-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #334155;
+        margin-right: 6px;
+        margin-bottom: 6px;
+    }
+
+    .combo-meta {
+        font-size: 0.75rem;
+        color: #64748b;
+        display: flex;
+        gap: 15px;
+        margin-top: 5px;
+    }
+
+    .bg-primary-soft { background-color: rgba(59, 130, 246, 0.1); }
+    .bg-danger-soft { background-color: rgba(239, 68, 68, 0.1); }
+
+    .section-divider {
+        display: flex;
+        align-items: center;
+        margin: 30px 0 20px;
+    }
+
+    .section-divider span {
+        padding-right: 15px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #1e293b;
+        font-size: 0.9rem;
+    }
+
+    .section-divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: #e2e8f0;
+    }
+
+    .nav-pills .nav-link.active {
+        background: linear-gradient(135deg, #ff4d00 0%, #cc3d00 100%);
+        color: #fff8eb;
+    }
+</style>
+
+
+<div class="container-fluid">
+    <div class="page-hero">
+        <div>
+            <h1 class="page-hero__title"><i class="fas fa-people-group" aria-hidden="true"></i> Lineup Analytics</h1>
+            <p class="page-hero__lead" id="lineupCount">Loading performance data...</p>
+        </div>
+    </div>
+
+    <!-- Main Controls Card -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+            <div class="row g-3 align-items-center">
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                        <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Search players..." onkeyup="filterData()">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white small">Min Poss</span>
+                        <input type="number" id="minPoss" class="form-control" value="5" min="1" onchange="refreshAllData()">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select id="gameTypeFilter" class="form-select" onchange="refreshAllData()">
+                        <option value="ALL">All Game Types</option>
+                        <option value="Season">Season Games</option>
+                        <option value="Friendly">Friendly Games</option>
+                    </select>
+                </div>
+                <div class="col-md-3 text-end">
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="perfMode" id="perf-off" value="offensive" checked onchange="renderAll()">
+                        <label class="btn btn-outline-primary px-3" for="perf-off"><i class="fas fa-fire me-1"></i>Offense</label>
+                        
+                        <input type="radio" class="btn-check" name="perfMode" id="perf-def" value="defensive" onchange="renderAll()">
+                        <label class="btn btn-outline-danger px-3" for="perf-def"><i class="fas fa-shield-alt me-1"></i>Defense</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingBar" class="text-center py-5">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <h5 class="text-muted">Analyzing Lineup Combinations...</h5>
+    </div>
+
+    <!-- Tabs for Lineup Types -->
+    <ul class="nav nav-pills mb-4" id="lineupTabs" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active px-4" id="lineups-tab" data-bs-toggle="tab" data-bs-target="#lineups-pane" type="button" role="tab">5-Man Units</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link px-4" id="duos-tab" data-bs-toggle="tab" data-bs-target="#duos-pane" type="button" role="tab">Top Duos</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link px-4" id="trios-tab" data-bs-toggle="tab" data-bs-target="#trios-pane" type="button" role="tab">Top Trios</button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="lineups-pane" role="tabpanel">
+            <div id="lineupsGrid" class="lineup-grid"></div>
+        </div>
+        <div class="tab-pane fade" id="duos-pane" role="tabpanel">
+            <div id="duosGrid" class="lineup-grid"></div>
+        </div>
+        <div class="tab-pane fade" id="trios-pane" role="tabpanel">
+            <div id="triosGrid" class="lineup-grid"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let allLineups = [];
+    let allDuos = [];
+    let allTrios = [];
+    let currentMode = 'offensive'; // offensive or defensive
+
+    $(document).ready(function() {
+        refreshAllData();
+    });
+
+    function refreshAllData() {
+        $('#loadingBar').show();
+        $('#lineupsGrid, #duosGrid, #triosGrid').empty();
+        
+        const gameType = $('#gameTypeFilter').val();
+        const minPoss = $('#minPoss').val();
+
+        // 1. Fetch Lineups
+        const p1 = $.ajax({
+            url: '/api/advanced/lineup/rankings',
+            data: { game_type: gameType, min_possessions: minPoss, rank_by: 'overall' }
+        });
+
+        // 2. Fetch Duos
+        const p2 = $.ajax({
+            url: '/api/advanced/lineups/combinations',
+            data: { type: 'duo', game_type: gameType, min_possessions: minPoss, rank_by: 'overall' }
+        });
+
+        // 3. Fetch Trios
+        const p3 = $.ajax({
+            url: '/api/advanced/lineups/combinations',
+            data: { type: 'trio', game_type: gameType, min_possessions: minPoss, rank_by: 'overall' }
+        });
+
+        Promise.all([p1, p2, p3]).then(([res1, res2, res3]) => {
+            allLineups = res1.rankings || [];
+            allDuos = res2.combinations || [];
+            allTrios = res3.combinations || [];
+            
+            $('#loadingBar').hide();
+            renderAll();
+        }).catch(err => {
+            console.error("Data fetch failed", err);
+            $('#loadingBar').html('<div class="alert alert-danger">Failed to load lineup data. Please ensure you have games with tracked segments.</div>');
+        });
+    }
+
+    function filterData() {
+        renderAll();
+    }
+
+    function renderAll() {
+        currentMode = $('input[name="perfMode"]:checked').val();
+        const search = $('#searchInput').val().toLowerCase();
+
+        renderGrid('lineupsGrid', allLineups, search, 'lineup');
+        renderGrid('duosGrid', allDuos, search, 'duo');
+        renderGrid('triosGrid', allTrios, search, 'trio');
+        
+        const total = allLineups.length + allDuos.length + allTrios.length;
+        $('#lineupCount').text(`${total} performance combinations analyzed`);
+    }
+
+    function renderGrid(containerId, data, search, type) {
+        const grid = $(`#${containerId}`);
+        grid.empty();
+
+        let filtered = data.filter(item => {
+            const names = (item.players || []).join(' ').toLowerCase();
+            return names.includes(search);
+        });
+
+        // Re-sort based on mode
+        if (currentMode === 'offensive') {
+            filtered.sort((a, b) => {
+                const valA = type === 'lineup' ? a.ortg : (a.impact?.offense_delta || 0);
+                const valB = type === 'lineup' ? b.ortg : (b.impact?.offense_delta || 0);
+                return valB - valA;
+            });
+        } else {
+            filtered.sort((a, b) => {
+                const valA = type === 'lineup' ? a.drtg : (a.impact?.defense_delta || 0);
+                const valB = type === 'lineup' ? b.drtg : (b.impact?.defense_delta || 0);
+                return currentMode === 'defensive' && type === 'lineup' ? valA - valB : valB - valA;
+            });
+        }
+
+        if (filtered.length === 0) {
+            grid.append('<div class="col-12 py-4 text-center text-muted">No units found matching criteria</div>');
+            return;
+        }
+
+        filtered.forEach((item, index) => {
+            const card = $(createCard(item, index + 1, type));
+            card.on('click', () => navigateTo(type, item));
+            grid.append(card);
+        });
+    }
+
+    function createCard(item, rank, type) {
+        const isOff = currentMode === 'offensive';
+        const accentClass = isOff ? 'primary' : 'danger';
+        const rankClass = rank <= 3 ? `rank-${rank}` : 'bg-light text-muted';
+        
+        let heroVal, heroLabel, subVal, subLabel;
+        
+        if (type === 'lineup') {
+            heroVal = isOff ? item.ortg : item.drtg;
+            heroLabel = isOff ? 'OFF RATING' : 'DEF RATING';
+            subVal = item.net_rating;
+            subLabel = 'NET RATING';
+        } else {
+            heroVal = isOff ? item.impact.offense_delta : item.impact.defense_delta;
+            heroLabel = isOff ? 'OFFENSE Δ' : 'DEFENSE Δ';
+            subVal = isOff ? item.on.ortg : item.on.drtg;
+            subLabel = isOff ? 'ON ORTG' : 'ON DRTG';
+        }
+
+        const playersHtml = item.players.map(p => `<span class="player-pill">${p}</span>`).join('');
+        const barColor = isOff ? 'bg-primary' : 'bg-danger';
+        const barWidth = Math.min((Math.abs(heroVal) / (type === 'lineup' ? 1.5 : 0.5)), 100);
+
+        return `
+            <div class="modern-stat-card shadow-sm border-start border-4 border-${accentClass}">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <div class="card-rank-badge ${rankClass}">#${rank}</div>
+                        <div class="d-flex flex-wrap">${playersHtml}</div>
+                        <div class="combo-meta">
+                            <span><i class="far fa-clock me-1"></i>${item.total_minutes || item.on?.minutes || 0}m</span>
+                            <span><i class="fas fa-layer-group me-1"></i>${item.segments || item.games_played || 0} ${type === 'lineup' ? 'games' : 'stints'}</span>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <div class="h3 mb-0 fw-bold text-${accentClass}">${type !== 'lineup' && heroVal > 0 ? '+' : ''}${heroVal.toFixed(1)}</div>
+                        <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.6rem;">${heroLabel}</div>
+                        <div class="fw-bold text-${accentClass}" style="font-size: 0.7rem;">${subVal.toFixed(1)} ${subLabel}</div>
+                    </div>
+                </div>
+                <div class="rating-bar-container">
+                    <div class="rating-bar-fill ${barColor}" style="width: ${Math.max(barWidth, 5)}%"></div>
+                </div>
+            </div>
+        `;
+    }
+
+    function navigateTo(type, item) {
+        if (type === 'lineup') {
+            const id = item.id;
+            if (id) {
+                window.location.href = `/lineup/${id}`;
+            } else {
+                // Fallback or alert if somehow ID is still missing
+                console.error("No ID for lineup", item);
+                alert("Lineup card not available for this unit (missing ID).");
+            }
+        } else {
+            const playersKey = encodeURIComponent(item.players.join(','));
+            window.location.href = `/lineup-combo/${type}/${playersKey}`;
+        }
+    }
+</script>
+{% endblock %}

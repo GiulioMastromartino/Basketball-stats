@@ -2,15 +2,17 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="mb-4">
-        <h1><i class="fas fa-book"></i> Stats Glossary</h1>
-        <p class="text-muted">Comprehensive definitions for all statistics used in HoopsStats</p>
+    <div class="page-hero">
+        <div>
+            <h1 class="page-hero__title"><i class="fas fa-book" aria-hidden="true"></i> Stats Glossary</h1>
+            <p class="page-hero__lead">Comprehensive definitions for all statistics used in HoopsStats</p>
+        </div>
     </div>
 
     <!-- Traditional Stats -->
     <div class="card mb-4">
         <div class="card-header">
-            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-basketball-ball"></i> Traditional Stats</h2>
+            <h2 class="mb-0 fs-5" style="color: var(--hs-ink);"><i class="fas fa-basketball-ball" aria-hidden="true"></i> Traditional Stats</h2>
         </div>
         <div class="card-body">
             <div class="row">
@@ -61,7 +63,7 @@
     <!-- Shooting Stats -->
     <div class="card mb-4">
         <div class="card-header" style="background: linear-gradient(135deg, rgba(255,152,0,0.15), rgba(255,152,0,0.05));">
-            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-bullseye"></i> Shooting Stats</h2>
+            <h2 style="font-size: 1.5rem; margin: 0; color: #1a1a2e;"><i class="fas fa-bullseye"></i> Shooting Stats</h2>
         </div>
         <div class="card-body">
             <div class="row">
@@ -101,7 +103,7 @@
     <!-- Advanced Efficiency Stats -->
     <div class="card mb-4">
         <div class="card-header" style="background: linear-gradient(135deg, rgba(23,162,184,0.15), rgba(23,162,184,0.05));">
-            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-chart-line"></i> Advanced Efficiency</h2>
+            <h2 style="font-size: 1.5rem; margin: 0; color: #1a1a2e;"><i class="fas fa-chart-line"></i> Advanced Efficiency</h2>
         </div>
         <div class="card-body">
             <div class="row">
@@ -129,23 +131,44 @@
         </div>
     </div>
 
-    <!-- Offensive Stats -->
+    <!-- Advanced Ratings -->
     <div class="card mb-4">
         <div class="card-header" style="background: linear-gradient(135deg, rgba(23,162,162,0.15), rgba(23,162,162,0.05));">
-            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-fire"></i> Offensive Metrics</h2>
+            <h2 style="font-size: 1.5rem; margin: 0; color: #1a1a2e;"><i class="fas fa-chart-bar"></i> Advanced Ratings</h2>
         </div>
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <h4 class="text-primary">ORtg - Offensive Rating</h4>
                     <p><strong>Formula:</strong> (Points / Possessions) × 100</p>
-                    <p>Points produced per 100 possessions. Elite scorers have ORtg > 115.</p>
+                    <p>Points produced per 100 possessions. Measures offensive efficiency regardless of pace.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">DRtg - Defensive Rating</h4>
+                    <p><strong>Formula:</strong> (Points Allowed / Opponent Possessions) × 100</p>
+                    <p>Points allowed per 100 possessions. Measures defensive efficiency; lower values are better.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">Net Rating</h4>
+                    <p><strong>Formula:</strong> ORtg − DRtg</p>
+                    <p>The point differential per 100 possessions. A positive value indicates the team/lineup outscored the opponent while on the court.</p>
                 </div>
                 <div class="col-md-6 mb-3">
                     <h4 class="text-primary">PPP - Points Per Possession</h4>
                     <p><strong>Formula:</strong> Points / Possessions</p>
-                    <p>Scoring efficiency per possession. Values above 1.1 are excellent, below 0.8 are poor.</p>
+                    <p>Scoring efficiency per individual possession. Values above 1.1 are excellent.</p>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Player Impact -->
+    <div class="card mb-4">
+        <div class="card-header" style="background: linear-gradient(135deg, rgba(13,202,240,0.15), rgba(13,202,240,0.05));">
+            <h2 style="font-size: 1.5rem; margin: 0; color: #1a1a2e;"><i class="fas fa-user-check"></i> Player Impact Metrics</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
                 <div class="col-md-6 mb-3">
                     <h4 class="text-primary">USG% - Usage Percentage</h4>
                     <p><strong>Formula:</strong> (FGA + 0.44 × FTA + TOV) / Team Possessions × 100</p>
@@ -160,10 +183,111 @@
         </div>
     </div>
 
+    <!-- Team Dynamics & Game Pace -->
+    <div class="card mb-4">
+        <div class="card-header" style="background: linear-gradient(135deg, rgba(255,193,7,0.15), rgba(255,193,7,0.05));">
+            <h2 style="font-size: 1.5rem; margin: 0; color: #1a1a2e;"><i class="fas fa-bolt"></i> Team Dynamics</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">PACE</h4>
+                    <p><strong>Formula:</strong> (Team Possessions / Total Minutes) × 40 (standard game length)</p>
+                    <p>Estimates how many possessions a team has in a full 40-minute game. A higher pace means more scoring opportunities for both sides.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">OREB% - Offensive Rebound Percentage</h4>
+                    <p><strong>Formula:</strong> OREB / (OREB + Opponent DREB)</p>
+                    <p>Percentage of available offensive rebounds a team grabs. It measures how effectively a team creates second-chance opportunities.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">TOV% - Turnover Percentage</h4>
+                    <p><strong>Formula:</strong> TOV / Possessions</p>
+                    <p>The percentage of a team's possessions that end in a turnover. Values below 15% are generally good.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lineup & Combination Analysis -->
+    <div class="card mb-4">
+        <div class="card-header" style="background: linear-gradient(135deg, rgba(102,16,242,0.15), rgba(102,16,242,0.05));">
+            <h2 style="font-size: 1.5rem; margin: 0; color: #1a1a2e;"><i class="fas fa-users-cog"></i> Lineup & Synergy Analysis</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">Lineup Rating</h4>
+                    <p>Individual ratings for a specific set of 5 players on the court. It shows how effective a specific unit is regardless of total time played.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">Synergy (Net Differential)</h4>
+                    <p><strong>Formula:</strong> ON-Court Net Rating − OFF-Court Net Rating</p>
+                    <p>Measures the unique impact of a specific Duo or Trio. A high positive differential means the team is significantly better with that specific combination of players on the court.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">ON Net Rating</h4>
+                    <p>The team's Net Rating while a specific player or combination is on the court.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">OFF Net Rating</h4>
+                    <p>The team's Net Rating while a specific player or combination is sitting on the bench.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">PPP - Points Per Possession</h4>
+                    <p>Points scored per possession. Measures scoring efficiency at the possession level.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">TOV% - Turnover Percentage</h4>
+                    <p>Percentage of possessions that end in a turnover. Lower is better.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">FG% - Field Goal Percentage</h4>
+                    <p>Percentage of field goals made out of attempts.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">3PT% - Three-Point Percentage</h4>
+                    <p>Percentage of three-point shots made.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">EFG% - Effective FG%</h4>
+                    <p><strong>Formula:</strong> (FGM + 0.5 × 3PM) / FGA × 100</p>
+                    <p>FG% adjusted for three-pointers being worth 50% more.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">SCORE% - Scoring Percentage</h4>
+                    <p>Percentage of possessions that result in points (made shots). Does not include free throws.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">NET - Net Rating</h4>
+                    <p><strong>Formula:</strong> ORtg − DRtg</p>
+                    <p>Point differential per 100 possessions. Positive means outscoring opponents.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">+/- - Plus/Minus</h4>
+                    <p>Point differential while a player/combination is on the court vs. off the court.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">USG% - Usage Percentage</h4>
+                    <p>Percentage of team possessions used by a player when on the court.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">A/T - Assist to Turnover Ratio</h4>
+                    <p><strong>Formula:</strong> Assists / Turnovers</p>
+                    <p>Measures ball handling efficiency. Higher is better.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h4 class="text-primary">Resistance</h4>
+                    <p>Points allowed while a lineup/combination is on the court. Lower is better for defense.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Multi-Game Stats (Player Profiles) -->
     <div class="card mb-4">
         <div class="card-header" style="background: linear-gradient(135deg, rgba(108,117,125,0.15), rgba(108,117,125,0.05));">
-            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-calendar-alt"></i> Multi-Game Averages</h2>
+            <h2 style="font-size: 1.5rem; margin: 0; color: #1a1a2e;"><i class="fas fa-calendar-alt"></i> Multi-Game Averages</h2>
         </div>
         <div class="card-body">
             <div class="row">
@@ -211,7 +335,7 @@
     <!-- Possession Calculation -->
     <div class="card mb-4">
         <div class="card-header" style="background: linear-gradient(135deg, rgba(40,167,69,0.15), rgba(40,167,69,0.05));">
-            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-calculator"></i> Possession Calculation</h2>
+            <h2 style="font-size: 1.5rem; margin: 0; color: #1a1a2e;"><i class="fas fa-calculator"></i> Possession Calculation</h2>
         </div>
         <div class="card-body">
             <p><strong>Formula:</strong> Possessions = FGA + 0.44 × FTA − OREB + TOV</p>
@@ -228,7 +352,7 @@
     <!-- Benchmarks & Interpretation -->
     <div class="card mb-4">
         <div class="card-header" style="background: linear-gradient(135deg, rgba(255,193,7,0.15), rgba(255,193,7,0.05));">
-            <h2 style="font-size: 1.5rem; margin: 0;"><i class="fas fa-medal"></i> Performance Benchmarks</h2>
+            <h2 style="font-size: 1.5rem; margin: 0; color: #1a1a2e;"><i class="fas fa-medal"></i> Performance Benchmarks</h2>
         </div>
         <div class="card-body">
             <h4>Shooting Efficiency</h4>

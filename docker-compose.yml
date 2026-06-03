@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: basketball_stats_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: basketball_user
+      POSTGRES_PASSWORD: basketball_pass
+      POSTGRES_DB: basketball_stats
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U basketball_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    container_name: basketball_stats_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLASK_APP: run.py
+      FLASK_ENV: development
+      SECRET_KEY: dev-secret-key
+      DATABASE_URL: postgresql://basketball_user:basketball_pass@db/basketball_stats
+      GAMES_DIR: /app/Games
+      OUTPUT_DIR: /app/Output
+      UPLOAD_FOLDER: /app/uploads
+      LOG_LEVEL: DEBUG
+    volumes:
+      - .:/app
+      - ./Games:/app/Games
+      - ./Output:/app/Output
+      - ./uploads:/app/uploads
+    ports:
+      - "8080:8080"
+    command: ["./entrypoint.sh"]
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: basketball_stats_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --edge-ip-version 4 run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    network_mode: host
+
+volumes:
+  postgres_data:

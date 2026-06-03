@@ -1,0 +1,748 @@
+{% extends "layout.html" %}
+
+{% block title %}Game Report - {{ game.date }} vs {{ game.opponent }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.report-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+.report-header .game-date {
+    font-size: 0.875rem;
+    opacity: 0.8;
+}
+.report-header .game-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0.5rem 0;
+}
+.report-header .score-display {
+    font-size: 3rem;
+    font-weight: 700;
+}
+.report-header .score-display.winner { color: #90EE90; }
+.report-header .score-display.loser { color: #FFB6C1; }
+
+.stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 1.5rem;
+}
+.stat-card h5 {
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    border-bottom: 2px solid var(--primary);
+    padding-bottom: 0.5rem;
+}
+
+/* Four Factors */
+.four-factors-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+.factor-item {
+    text-align: center;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+.factor-item .factor-name {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+.factor-item .factor-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+.factor-item .factor-bar {
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 3px;
+    margin-top: 0.5rem;
+    overflow: hidden;
+}
+.factor-item .factor-bar-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 3px;
+}
+.factor-item.opponent .factor-value {
+    color: #dc3545;
+}
+.factor-item.opponent .factor-bar-fill {
+    background: #dc3545;
+}
+
+/* Shot Chart Container */
+.shot-chart-container {
+    background: #f8f9fa;
+    border-radius: 8px;
+    min-height: 400px;
+    position: relative;
+}
+
+/* Zone Stats Grid */
+.zone-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+}
+.zone-item {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 0.75rem;
+    text-align: center;
+}
+.zone-item .zone-name {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+.zone-item .zone-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+.zone-item .zone-detail {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+/* Player Table */
+.player-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.player-table th {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 500;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 2px solid var(--border-color);
+    text-align: center;
+}
+.player-table td {
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    text-align: center;
+    font-size: 0.875rem;
+}
+.player-table .player-name {
+    text-align: left;
+    font-weight: 500;
+}
+.player-table tr:hover {
+    background: var(--primary-light);
+}
+
+/* Quarter Breakdown */
+.quarter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+.quarter-box {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+}
+.quarter-box .quarter-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.quarter-box .team-score {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+.quarter-box .opp-score {
+    font-size: 1rem;
+    color: #dc3545;
+}
+
+/* Score Progression */
+.score-worm {
+    background: #f8f9fa;
+    border-radius: 8px;
+    height: 200px;
+    position: relative;
+}
+
+/* Clutch Stats */
+.clutch-card {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+}
+.clutch-card .clutch-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+}
+.clutch-card .clutch-label {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    text-transform: uppercase;
+}
+
+/* Top Performer Card */
+.performer-card {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    border-left: 4px solid var(--primary);
+}
+.performer-card .performer-name {
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+.performer-card .performer-points {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+.performer-card .performer-stats {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Loading and Error States */
+.loading-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-muted);
+}
+.error-state {
+    text-align: center;
+    padding: 2rem;
+    color: #dc3545;
+    background: #f8d7da;
+    border-radius: 8px;
+}
+
+/* Progress Bar */
+.progress-container { margin: 1rem 0; }
+.progress { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+.progress-bar { height: 100%; background: var(--primary); transition: width 0.3s; }
+
+.shot-chart-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+}
+.shot-chart-wrapper svg {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+.shots-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+.shot-point {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+.shot-point:hover {
+    transform: translate(-50%, -50%) scale(1.5);
+    z-index: 20;
+}
+.shot-make { 
+    background-color: #28a745; 
+    border: 1px solid #fff;
+}
+.shot-miss { 
+    background-color: transparent; 
+    border: 2px solid #dc3545; 
+    box-sizing: border-box;
+}
+.chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 15px;
+    font-size: 13px;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .four-factors-grid { grid-template-columns: repeat(2, 1fr); }
+    .quarter-grid { grid-template-columns: repeat(2, 1fr); }
+    .zone-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Game Header -->
+    <div class="report-header" id="report-header">
+        <div class="game-date" id="game-date">Loading...</div>
+        <div class="game-title" id="game-title">vs <span id="game-opponent">Opponent</span></div>
+        <div class="score-display" id="score-display">
+            <span id="team-score">-</span> - <span id="opp-score">-</span>
+            <span id="game-result" style="font-size: 1rem; margin-left: 1rem;"></span>
+        </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-container" id="progress-container" style="display:none;">
+        <div class="progress">
+            <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+        </div>
+    </div>
+
+    <!-- Top Performers -->
+    <div class="row mb-4" id="top-performers-row">
+        <div class="col-12">
+            <h5 class="text-muted text-uppercase mb-3">Top Performers</h5>
+        </div>
+        <div class="col-md-4" id="performer-1">
+            <div class="performer-card">
+                <div class="performer-name">-</div>
+                <div class="performer-points">-</div>
+                <div class="performer-stats">-/- FG | - REB | - AST</div>
+            </div>
+        </div>
+        <div class="col-md-4" id="performer-2">
+            <div class="performer-card">
+                <div class="performer-name">-</div>
+                <div class="performer-points">-</div>
+                <div class="performer-stats">-/- FG | - REB | - AST</div>
+            </div>
+        </div>
+        <div class="col-md-4" id="performer-3">
+            <div class="performer-card">
+                <div class="performer-name">-</div>
+                <div class="performer-points">-</div>
+                <div class="performer-stats">-/- FG | - REB | - AST</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Four Factors -->
+    <div class="stat-card">
+        <h5>Four Factors Comparison</h5>
+        <div class="row mb-2">
+            <div class="col-md-6 text-center"><strong style="color: var(--primary);">Our Team</strong></div>
+            <div class="col-md-6 text-center"><strong style="color: #dc3545;">Opponent</strong></div>
+        </div>
+        <div class="four-factors-grid" id="four-factors-grid">
+            <div class="factor-item">
+                <div class="factor-name">eFG%</div>
+                <div class="factor-value" id="team-efg">--</div>
+                <div class="factor-bar"><div class="factor-bar-fill" id="team-efg-bar" style="width:0%"></div></div>
+            </div>
+            <div class="factor-item">
+                <div class="factor-name">TOV%</div>
+                <div class="factor-value" id="team-tov">--</div>
+                <div class="factor-bar"><div class="factor-bar-fill" id="team-tov-bar" style="width:0%"></div></div>
+            </div>
+            <div class="factor-item">
+                <div class="factor-name">ORB%</div>
+                <div class="factor-value" id="team-orb">--</div>
+                <div class="factor-bar"><div class="factor-bar-fill" id="team-orb-bar" style="width:0%"></div></div>
+            </div>
+            <div class="factor-item">
+                <div class="factor-name">FT Rate</div>
+                <div class="factor-value" id="team-ftr">--</div>
+                <div class="factor-bar"><div class="factor-bar-fill" id="team-ftr-bar" style="width:0%"></div></div>
+            </div>
+            <!-- Opponent -->
+            <div class="factor-item opponent">
+                <div class="factor-value" id="opp-efg">--</div>
+                <div class="factor-bar"><div class="factor-bar-fill" id="opp-efg-bar" style="width:0%"></div></div>
+            </div>
+            <div class="factor-item opponent">
+                <div class="factor-value" id="opp-tov">--</div>
+                <div class="factor-bar"><div class="factor-bar-fill" id="opp-tov-bar" style="width:0%"></div></div>
+            </div>
+            <div class="factor-item opponent">
+                <div class="factor-value" id="opp-orb">--</div>
+                <div class="factor-bar"><div class="factor-bar-fill" id="opp-orb-bar" style="width:0%"></div></div>
+            </div>
+            <div class="factor-item opponent">
+                <div class="factor-value" id="opp-ftr">--</div>
+                <div class="factor-bar"><div class="factor-bar-fill" id="opp-ftr-bar" style="width:0%"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Shot Chart -->
+        <div class="col-lg-8">
+            <div class="stat-card">
+                <h5>Shot Chart</h5>
+                <div class="shot-chart-container">
+                    <div id="shot-loading" class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading shot chart...</p>
+                    </div>
+                    <div class="shot-chart-wrapper" id="shot-chart-wrapper" style="display:none;">
+                        <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c; border-radius: 8px;">
+                            <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                            <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                            <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                            <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                            <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                            <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                            <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                        </svg>
+                        <div class="shots-layer" id="shots-layer"></div>
+                    </div>
+                    <div id="chart-legend" class="chart-legend" style="display:none;">
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background-color: #28a745; border: 1px solid #fff;"></span>
+                            <span>Made: <strong id="makes-count">0</strong></span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="border: 2px solid #dc3545;"></span>
+                            <span>Missed: <strong id="misses-count">0</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Zone Breakdown -->
+        <div class="col-lg-4">
+            <div class="stat-card">
+                <h5>Zone Efficiency</h5>
+                <div class="zone-grid" id="zone-grid">
+                    <div class="loading-state">Loading...</div>
+                </div>
+            </div>
+            
+            <!-- Clutch Performance -->
+            <div class="stat-card">
+                <h5>Clutch Performance</h5>
+                <div class="clutch-card">
+                    <div class="row">
+                        <div class="col-4">
+                            <div class="clutch-value" id="clutch-plays">-</div>
+                            <div class="clutch-label">Plays</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="clutch-value" id="clutch-pts">-</div>
+                            <div class="clutch-label">Points</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="clutch-value" id="clutch-fg">-</div>
+                            <div class="clutch-label">FG%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quarterly Breakdown -->
+    <div class="stat-card">
+        <h5>Quarterly Scoring</h5>
+        <div class="quarter-grid" id="quarter-grid">
+            <div class="quarter-box"><div class="quarter-label">Q1</div><div class="team-score" id="q1-team">-</div><div class="opp-score" id="q1-opp">-</div></div>
+            <div class="quarter-box"><div class="quarter-label">Q2</div><div class="team-score" id="q2-team">-</div><div class="opp-score" id="q2-opp">-</div></div>
+            <div class="quarter-box"><div class="quarter-label">Q3</div><div class="team-score" id="q3-team">-</div><div class="opp-score" id="q3-opp">-</div></div>
+            <div class="quarter-box"><div class="quarter-label">Q4</div><div class="team-score" id="q4-team">-</div><div class="opp-score" id="q4-opp">-</div></div>
+        </div>
+    </div>
+
+    <!-- Team Stats -->
+    <div class="stat-card">
+        <h5>Team Advanced Stats</h5>
+        <div class="row text-center">
+            <div class="col-md-3">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--primary);" id="team-poss">--</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Possessions</div>
+            </div>
+            <div class="col-md-3">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--primary);" id="team-oer">--</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">ORtg</div>
+            </div>
+            <div class="col-md-3">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--primary);" id="team-der">--</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">DRtg</div>
+            </div>
+            <div class="col-md-3">
+                <div style="font-size: 2rem; font-weight: 700;" id="team-net">--</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">NetRtg</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Player Stats Table -->
+    <div class="stat-card">
+        <h5>Player Statistics</h5>
+        <div class="table-responsive">
+            <table class="player-table">
+                <thead>
+                    <tr>
+                        <th class="player-name">Player</th>
+                        <th>MIN</th>
+                        <th>PTS</th>
+                        <th>FG</th>
+                        <th>3P</th>
+                        <th>FT</th>
+                        <th>REB</th>
+                        <th>AST</th>
+                        <th>STL</th>
+                        <th>BLK</th>
+                        <th>TOV</th>
+                        <th>TS%</th>
+                        <th>USG%</th>
+                    </tr>
+                </thead>
+                <tbody id="player-table-body">
+                    <tr><td colspan="13" class="loading-state">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+var gameId = {{ game_id }};
+
+function setProgress(pct) {
+    document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+function fetchData(url, callback) {
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) { callback(null, data); })
+        .catch(function(e) { callback(e, null); });
+}
+
+function drawShotChart(shots) {
+    var wrapper = document.getElementById('shot-chart-wrapper');
+    var layer = document.getElementById('shots-layer');
+    var legend = document.getElementById('chart-legend');
+    var loading = document.getElementById('shot-loading');
+    
+    layer.innerHTML = '';
+    
+    if (!shots || shots.length === 0) {
+        wrapper.style.display = 'none';
+        legend.style.display = 'none';
+        loading.innerHTML = '<div class="empty-state"><p>No shots recorded</p></div>';
+        loading.style.display = 'block';
+        return;
+    }
+    
+    loading.style.display = 'none';
+    wrapper.style.display = 'block';
+    legend.style.display = 'flex';
+    
+    var makes = 0, misses = 0;
+    for (var i = 0; i < shots.length; i++) {
+        var s = shots[i];
+        if (s.x === null || s.y === null) continue;
+        var x = s.x || 250;
+        var y = s.y || 50;
+        
+        var dot = document.createElement('div');
+        dot.className = 'shot-point ' + (s.result === 'made' ? 'shot-make' : 'shot-miss');
+        dot.style.left = x + '%';
+        dot.style.top = y + '%';
+        
+        var title = (s.player_name || 'Unknown') + ' - ' + (s.shot_type || 'Shot');
+        dot.title = title;
+        
+        layer.appendChild(dot);
+        
+        if (s.result === 'made') makes++;
+        else misses++;
+    }
+    
+    document.getElementById('makes-count').textContent = makes;
+    document.getElementById('misses-count').textContent = misses;
+}
+
+function loadReport() {
+    document.getElementById('progress-container').style.display = 'block';
+    setProgress(10);
+    
+    fetchData('/api/advanced/game/' + gameId + '/report', function(err, data) {
+        if (err || !data) {
+            document.getElementById('shot-chart-container').innerHTML = '<div class="error-state">Error loading report</div>';
+            return;
+        }
+        
+        setProgress(30);
+        
+        // Game info
+        var game = data.game || {};
+        document.getElementById('game-date').textContent = game.date + ' | ' + (game.type || 'Game');
+        document.getElementById('game-opponent').textContent = game.opponent;
+        document.getElementById('team-score').textContent = game.team_score;
+        document.getElementById('opp-score').textContent = game.opponent_score;
+        document.getElementById('game-result').textContent = game.result === 'W' ? 'WIN' : 'LOSS';
+        document.getElementById('score-display').className = 'score-display ' + (game.result === 'W' ? 'winner' : 'loser');
+        
+        setProgress(40);
+        
+        // Four factors
+        var ff = data.four_factors || {};
+        var tf = ff.team || {};
+        var of = ff.opponent || {};
+        
+        document.getElementById('team-efg').textContent = (tf.efg_pct || 0) + '%';
+        document.getElementById('team-tov').textContent = (tf.tov_pct || 0) + '%';
+        document.getElementById('team-orb').textContent = (tf.orb_pct || 0) + '%';
+        document.getElementById('team-ftr').textContent = (tf.ft_rate || 0) + '%';
+        document.getElementById('team-efg-bar').style.width = Math.min(tf.efg_pct || 0, 100) + '%';
+        document.getElementById('team-tov-bar').style.width = Math.min(tf.tov_pct || 0, 100) + '%';
+        document.getElementById('team-orb-bar').style.width = Math.min(tf.orb_pct || 0, 100) + '%';
+        document.getElementById('team-ftr-bar').style.width = Math.min(tf.ft_rate || 0, 100) + '%';
+        
+        document.getElementById('opp-efg').textContent = (of.efg_pct || 0) + '%';
+        document.getElementById('opp-tov').textContent = (of.tov_pct || 0) + '%';
+        document.getElementById('opp-orb').textContent = (of.orb_pct || 0) + '%';
+        document.getElementById('opp-ftr').textContent = (of.ft_rate || 0) + '%';
+        document.getElementById('opp-efg-bar').style.width = Math.min(of.efg_pct || 0, 100) + '%';
+        document.getElementById('opp-tov-bar').style.width = Math.min(of.tov_pct || 0, 100) + '%';
+        document.getElementById('opp-orb-bar').style.width = Math.min(of.orb_pct || 0, 100) + '%';
+        document.getElementById('opp-ftr-bar').style.width = Math.min(of.ft_rate || 0, 100) + '%';
+        
+        setProgress(50);
+        
+        // Team advanced
+        var team = data.team || {};
+        document.getElementById('team-poss').textContent = team.possessions || '--';
+        document.getElementById('team-oer').textContent = team.oer || '--';
+        document.getElementById('team-der').textContent = team.der || '--';
+        document.getElementById('team-net').textContent = (team.net >= 0 ? '+' : '') + (team.net || '--');
+        document.getElementById('team-net').style.color = team.net >= 0 ? '#28a745' : '#dc3545';
+        
+        setProgress(60);
+        
+        // Shot chart
+        drawShotChart(data.shots || []);
+        
+        // Zones
+        var zones = data.zones || {};
+        var zoneOrder = ['Rim', 'Paint', 'Midrange', 'Corner_3', 'Above_Break_3'];
+        var zoneHtml = '';
+        for (var i = 0; i < zoneOrder.length; i++) {
+            var z = zoneOrder[i];
+            var zs = zones[z] || {};
+            zoneHtml += '<div class="zone-item">';
+            zoneHtml += '<div class="zone-name">' + z.replace('_', ' ') + '</div>';
+            zoneHtml += '<div class="zone-value">' + (zs.fg_pct || 0) + '%</div>';
+            zoneHtml += '<div class="zone-detail">' + (zs.attempts || 0) + ' shots | ' + (zs.pps || 0) + ' PPS</div>';
+            zoneHtml += '</div>';
+        }
+        document.getElementById('zone-grid').innerHTML = zoneHtml;
+        
+        setProgress(70);
+        
+        // Quarters
+        var q = data.quarters || {};
+        for (var quarter = 1; quarter <= 4; quarter++) {
+            var qd = q[quarter] || {};
+            document.getElementById('q' + quarter + '-team').textContent = qd.team || 0;
+            document.getElementById('q' + quarter + '-opp').textContent = qd.opp || 0;
+        }
+        
+        // Clutch
+        var clutch = data.clutch || {};
+        document.getElementById('clutch-plays').textContent = clutch.plays || 0;
+        document.getElementById('clutch-pts').textContent = clutch.points || 0;
+        var clutchFg = clutch.fga > 0 ? Math.round(clutch.fgm / clutch.fga * 100) : 0;
+        document.getElementById('clutch-fg').textContent = clutchFg + '%';
+        
+        setProgress(80);
+        
+        // Top performers
+        var performers = data.top_performers || [];
+        for (var i = 0; i < 3; i++) {
+            var p = performers[i] || {};
+            var card = document.getElementById('performer-' + (i + 1));
+            if (card) {
+                card.innerHTML = '<div class="performer-card">' +
+                    '<div class="performer-name">' + (p.name || '-') + '</div>' +
+                    '<div class="performer-points">' + (p.pts || 0) + '</div>' +
+                    '<div class="performer-stats">' + (p.fgm || 0) + '/' + (p.fga || 0) + ' FG | ' + (p.reb || 0) + ' REB | ' + (p.ast || 0) + ' AST</div>' +
+                    '</div>';
+            }
+        }
+        
+        setProgress(90);
+        
+        // Player table
+        var players = data.players || [];
+        var tbody = document.getElementById('player-table-body');
+        var html = '';
+        for (var i = 0; i < players.length; i++) {
+            var p = players[i];
+            html += '<tr>';
+            html += '<td class="player-name">' + (p.name || '-') + '</td>';
+            html += '<td>' + (p.min || 0) + '</td>';
+            html += '<td><strong>' + (p.pts || 0) + '</strong></td>';
+            html += '<td>' + (p.fgm || 0) + '/' + (p.fga || 0) + '</td>';
+            html += '<td>' + (p.tpm || 0) + '/' + (p.tpa || 0) + '</td>';
+            html += '<td>' + (p.ftm || 0) + '/' + (p.fta || 0) + '</td>';
+            html += '<td>' + (p.reb || 0) + '</td>';
+            html += '<td>' + (p.ast || 0) + '</td>';
+            html += '<td>' + (p.stl || 0) + '</td>';
+            html += '<td>' + (p.blk || 0) + '</td>';
+            html += '<td>' + (p.tov || 0) + '</td>';
+            html += '<td>' + (p.ts_pct || 0) + '%</td>';
+            html += '<td>' + (p.usg_pct || 0) + '%</td>';
+            html += '</tr>';
+        }
+        tbody.innerHTML = html || '<tr><td colspan="13" class="text-center text-muted">No player data</td></tr>';
+        
+        setProgress(100);
+        setTimeout(function() {
+            document.getElementById('progress-container').style.display = 'none';
+        }, 500);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', loadReport);
+</script>
+{% endblock %}

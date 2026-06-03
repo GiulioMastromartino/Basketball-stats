@@ -3,9 +3,34 @@
 {% block title %}Upload Game - HoopsStats{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width: 900px; margin: 0 auto;">
-    <div class="panel-header">
-        <h3><i class="fas fa-upload" style="color: var(--primary)"></i> Upload Game (CSV / PDF)</h3>
+<!-- Progress Modal -->
+<div id="progressModal" class="progress-modal">
+    <div class="progress-content">
+        <div class="progress-icon">
+            <i class="fas fa-magic" style="color: #667eea;"></i>
+        </div>
+        <div class="progress-title">Generating Test Game</div>
+        <div class="progress-description">
+            Creating a comprehensive test game with all features enabled. This may take a moment...
+        </div>
+        <div class="progress-bar-container">
+            <div id="progressBarFill" class="progress-bar-fill"></div>
+        </div>
+        <div class="progress-text" id="progressText">0%</div>
+        <div class="progress-stage" id="progressStage">Initializing...</div>
+    </div>
+</div>
+
+<div class="page-hero" style="max-width: 900px; margin: 0 auto 1.25rem;">
+    <div>
+        <h1 class="page-hero__title"><i class="fas fa-cloud-arrow-up" aria-hidden="true"></i> Upload</h1>
+        <p class="page-hero__lead">CSV, PDF, or JSON — same pipeline</p>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm" style="max-width: 900px; margin: 0 auto;">
+    <div class="card-header bg-transparent">
+        <h3 class="mb-0 fs-5"><i class="fas fa-upload me-2" style="color: var(--hs-cool);" aria-hidden="true"></i> Game file</h3>
     </div>
 
     <!-- Flash Messages -->
@@ -37,23 +62,28 @@
             </div>
             <label style="margin-right: 16px; cursor: pointer;">
                 <input type="radio" name="import_type" value="csv" checked onchange="toggleImportType()" />
-                <span style="margin-left: 6px;"><i class="fas fa-file-csv"></i> CSV</span>
+                <span style="margin-left: 6px;"><i class="fas fa-file-csv"></i> CSV (Batch supported)</span>
+            </label>
+            <label style="margin-right: 16px; cursor: pointer;">
+                <input type="radio" name="import_type" value="pdf" onchange="toggleImportType()" />
+                <span style="margin-left: 6px;"><i class="fas fa-file-pdf"></i> PDF (Single file)</span>
             </label>
             <label style="cursor: pointer;">
-                <input type="radio" name="import_type" value="pdf" onchange="toggleImportType()" />
-                <span style="margin-left: 6px;"><i class="fas fa-file-pdf"></i> PDF</span>
+                <input type="radio" name="import_type" value="json" onchange="toggleImportType()" />
+                <span style="margin-left: 6px;"><i class="fas fa-file-code"></i> JSON (Batch supported)</span>
             </label>
         </div>
 
         <!-- CSV input -->
         <div id="csv-input" style="margin-bottom: 20px;">
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--secondary);">
-                <i class="fas fa-file-csv"></i> Select CSV File
+                <i class="fas fa-file-csv"></i> Select CSV File(s)
             </label>
             <input 
                 type="file" 
                 name="csv_file" 
                 accept=".csv" 
+                multiple
                 style="
                     width: 100%;
                     padding: 12px;
@@ -66,6 +96,9 @@
                 onmouseover="this.style.borderColor='var(--primary)'"
                 onmouseout="this.style.borderColor='var(--border-color)'"
             />
+            <p style="margin-top: 10px; color: var(--text-muted); font-size: 0.9rem;">
+                You can select multiple CSV files to upload at once.
+            </p>
         </div>
 
         <!-- PDF input -->
@@ -130,10 +163,55 @@
             </div>
         </div>
 
+        <!-- JSON input -->
+        <div id="json-input" style="margin-bottom: 20px; display: none;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--secondary);">
+                <i class="fas fa-file-code"></i> Select JSON File(s)
+            </label>
+            <input 
+                type="file" 
+                name="json_file" 
+                accept=".json" 
+                multiple
+                style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px dashed var(--border-color);
+                    border-radius: 8px;
+                    background: #f8f9fa;
+                    cursor: pointer;
+                    transition: 0.2s;
+                "
+                onmouseover="this.style.borderColor='var(--primary)'"
+                onmouseout="this.style.borderColor='var(--border-color)'"
+            />
+            <p style="margin-top: 10px; color: var(--text-muted); font-size: 0.9rem;">
+                Upload raw JSON files previously exported from this application. This is useful for backups or transferring data.
+            </p>
+        </div>
+
         <button type="submit" class="btn btn-primary" style="width: 100%;">
             <i class="fas fa-cloud-upload-alt"></i> Upload & Import Game
         </button>
     </form>
+
+    <!-- Admin: Create Test Game -->
+    {% if current_user.is_authenticated and current_user.is_manager %}
+    <div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+        <h4 style="margin-bottom: 10px;">
+            <i class="fas fa-flask"></i> Developer Tools
+        </h4>
+        <p style="margin-bottom: 15px; opacity: 0.9; font-size: 0.9rem;">
+            Create a comprehensive test game with all features enabled (lineups, shot locations, opponent events, etc.)
+        </p>
+        <form id="createTestGameForm" action="{{ url_for('main.create_test_game') }}" method="POST" style="display: inline;" onsubmit="return handleCreateTestGame(event)">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn btn-light" id="create-test-btn" style="font-weight: 600;">
+                <i class="fas fa-magic"></i> Create Test Game
+            </button>
+        </form>
+    </div>
+    {% endif %}
 
     <!-- Format Requirements -->
     <div style="
@@ -199,6 +277,13 @@
                 The PDF should contain a box score table with the same columns as the CSV. If the header is not detected, fill the overrides (Opponent, Date, Scores).
             </p>
         </div>
+        
+        <div>
+            <strong style="color: var(--secondary);">JSON Requirements:</strong>
+            <p style="margin-top: 8px; color: var(--text-muted); font-size: 0.9rem;">
+                JSON files must be valid raw exports generated by this system (via the "Export Raw Data" button).
+            </p>
+        </div>
     </div>
 
     <!-- Back Link -->
@@ -213,22 +298,173 @@
 function toggleImportType() {
     const csvInput = document.getElementById('csv-input');
     const pdfInput = document.getElementById('pdf-input');
+    const jsonInput = document.getElementById('json-input');
     const selected = document.querySelector('input[name="import_type"]:checked').value;
 
+    csvInput.style.display = 'none';
+    pdfInput.style.display = 'none';
+    jsonInput.style.display = 'none';
+
     if (selected === 'pdf') {
-        csvInput.style.display = 'none';
         pdfInput.style.display = 'block';
+    } else if (selected === 'json') {
+        jsonInput.style.display = 'block';
     } else {
         csvInput.style.display = 'block';
-        pdfInput.style.display = 'none';
     }
 }
 
 // Ensure correct state on load
 document.addEventListener('DOMContentLoaded', toggleImportType);
+
+async function handleCreateTestGame(event) {
+    event.preventDefault();
+    
+    if (!confirm('Generate a comprehensive test game? This may take a moment.')) {
+        return false;
+    }
+
+    const modal = document.getElementById('progressModal');
+    const progressBar = document.getElementById('progressBarFill');
+    const progressText = document.getElementById('progressText');
+    const progressStage = document.getElementById('progressStage');
+    const form = document.getElementById('createTestGameForm');
+    
+    // Show modal
+    modal.classList.add('active');
+    
+    // Initial stages - quick progress to 80%
+    const stages = [
+        { percent: 10, text: 'Initializing generator...', delay: 400 },
+        { percent: 25, text: 'Scaffolding roster and team metadata...', delay: 600 },
+        { percent: 45, text: 'Simulating chronological game events...', delay: 800 },
+        { percent: 65, text: 'Calculating spatial shot distributions...', delay: 700 },
+        { percent: 85, text: 'Finalizing JSON payload...', delay: 500 },
+        { percent: 95, text: 'Submitting to database engine...', delay: 300 }
+    ];
+    
+    // Animate through initial stages
+    for (const stage of stages) {
+        progressBar.style.width = stage.percent + '%';
+        progressText.textContent = stage.percent + '%';
+        progressStage.textContent = stage.text;
+        await new Promise(resolve => setTimeout(resolve, stage.delay));
+    }
+    
+    // Submit the form
+    form.submit();
+    return true;
+}
 </script>
 
 <style>
+/* Progress Modal Styles */
+.progress-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+}
+
+.progress-modal.active {
+    display: flex;
+}
+
+.progress-content {
+    background: white;
+    padding: 40px;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+}
+
+.progress-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+.progress-icon i {
+    animation: magic-glow 2s ease-in-out infinite;
+}
+
+@keyframes magic-glow {
+    0% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.1); opacity: 1; text-shadow: 0 0 20px rgba(102, 126, 234, 0.5); }
+    100% { transform: scale(1); opacity: 0.8; }
+}
+
+.progress-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 12px;
+}
+
+.progress-description {
+    color: #666;
+    margin-bottom: 30px;
+    font-size: 14px;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 20px;
+    background: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    position: relative;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    width: 0%;
+    transition: width 0.5s ease;
+    position: relative;
+}
+
+.progress-bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+    );
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.progress-text {
+    color: #333;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.progress-stage {
+    color: #999;
+    font-size: 12px;
+    margin-top: 10px;
+}
+
 .alert {
     animation: slideDown 0.3s ease;
 }

@@ -1,6 +1,9 @@
+[![Documentation](https://img.shields.io/badge/docs-view_site-blue)](https://giuliomastromartino.github.io/Basketball-stats/)
+
 # 🏀 Basketball Stats Analyzer
 
 A web application for tracking and analyzing basketball game statistics with advanced metrics.
+
 
 ## What It Does
 
@@ -19,7 +22,7 @@ A web application for tracking and analyzing basketball game statistics with adv
 4. **Analytics Engine**: Calculates advanced basketball metrics automatically
 5. **Web Display**: View everything through a clean web interface at http://localhost:8080
 
-## Quick Start
+## Quick Start (Local)
 
 ```bash
 # 1. Clone and enter directory
@@ -39,6 +42,56 @@ python quick_start.py
 # 5. Open browser to http://localhost:8080
 # Login: admin / admin123
 ```
+
+## Docker Deployment (TrueNAS Scale / General)
+
+This project includes Docker support for easy deployment on TrueNAS Scale or any Docker environment.
+
+### 1. Build the Image
+
+Since you cannot pull this directly from Docker Hub yet, you need to build the image and push it to your own registry (Docker Hub, GHCR, etc.).
+
+```bash
+# 1. Login to your registry
+docker login
+
+# 2. Build the image
+docker build -t your_username/basketball-stats:latest .
+
+# 3. Push to registry
+docker push your_username/basketball-stats:latest
+```
+
+### 2. Run with Docker Compose
+
+For a quick test or simple deployment using Docker Compose:
+
+```bash
+docker-compose up -d
+```
+Access the app at `http://localhost:8080`.
+
+### 3. Deploy on TrueNAS Scale (Custom App)
+
+1.  **Log in to TrueNAS Scale**.
+2.  Go to **Apps** -> **Discover Apps** -> **Custom App**.
+3.  **Application Name**: `basketball-stats`
+4.  **Image Configuration**:
+    *   **Repository**: `your_username/basketball-stats`
+    *   **Tag**: `latest`
+    *   **Pull Policy**: `Always`
+5.  **Environment Variables**:
+    *   **DATABASE_URL**: `sqlite:////app/data/basketball_stats.db`
+    *   **SECRET_KEY**: *(Generate a random string)*
+6.  **Storage (Volumes)**:
+    Map these Host Paths to your TrueNAS datasets to ensure data persists:
+    *   **Host Path**: `/mnt/pool/path/to/data` -> **Mount Path**: `/app/data`
+    *   **Host Path**: `/mnt/pool/path/to/Games` -> **Mount Path**: `/app/Games`
+    *   **Host Path**: `/mnt/pool/path/to/Output` -> **Mount Path**: `/app/Output`
+7.  **Networking**:
+    *   **Container Port**: `8080`
+    *   **Node Port**: `9080` (or any available port)
+8.  **Deploy**: Click Save/Install.
 
 ## CSV File Format
 
@@ -72,6 +125,23 @@ python cli_import.py
 - 🔐 Secure login system
 - 📈 Career statistics and averages
 - 🌐 REST API with Swagger documentation
+- 🎯 **NEW: Advanced Analytics Dashboard**
+  - Shot Charts with Court Mapping
+  - Hexbin/Heatmaps for Hot Zones
+  - True Usage Rate (USG%)
+  - Points Per Shot (PPS)
+  - Shot Quality Model with Expected Values
+  - Clutch Performance Analysis
+- 👥 **NEW: Lineup Analytics**
+  - On/Off Court Splits
+  - Duo/Trio Compatibility Matrix
+  - 5-Man Lineup Efficiency Rankings
+  - Rotation Analysis
+- 📄 **NEW: Advanced PDF Reports**
+  - Visual Game Report (Score Worm, Four Factors)
+  - Player Scouting Cards
+  - Season Trend Reports
+  - Clutch Time Reports
 
 ## Tech Stack
 
@@ -133,3 +203,26 @@ https://github.com/GiulioMastromartino/Basketball-stats
 ---
 
 **⭐ Star the repo if you find it useful!**
+
+## 🚀 Deployment on TrueNAS Scale
+
+This application can be deployed as a Custom App on TrueNAS Scale (Electric Eel or later).
+
+### Method 1: Docker Compose (Recommended)
+1. Navigate to **Apps** > **Discover Apps** > **Custom App** in the TrueNAS UI.
+2. Application Name: `basketball-stats`
+3. Select **Install via: Docker Compose**.
+4. Copy and paste the contents of `docker-compose.yml` from this repository.
+5. **Storage Configuration**:
+   - The compose file maps `./instance` to `/app/instance`.
+   - On TrueNAS, change `./instance` to a valid host path on your ZFS pool (e.g., `/mnt/tank/apps/basketball-stats`) to ensure your database persists across restarts.
+
+### Method 2: Manual CLI
+```bash
+# Note: Map only the database directory, not the entire app
+docker run -d \
+  -p 8080:8080 \
+  -v /mnt/your-pool/app-data:/app/instance \
+  --name basketball-stats \
+  giuliomastromartino/basketball-stats:latest
+```

@@ -1,0 +1,591 @@
+{% extends "plays/layout_fullscreen.html" %}
+
+{% block title %}Play Builder - HoopsStats{% endblock %}
+
+{% block content %}
+<style>
+    /* UI Theme Colors */
+    :root {
+        --primary-teal: #00a09d;
+        --sidebar-bg: #ffffff;
+        --canvas-bg: #f8f9fa;
+        --text-dark: #333;
+        --border-color: #e0e0e0;
+        --action-btn-bg: #2c3e50;
+    }
+
+    body {
+        background-color: var(--canvas-bg);
+        overflow: hidden; /* Prevent body scroll */
+    }
+
+    /* Top Navigation Bar */
+    .top-nav {
+        height: 60px;
+        background-color: var(--primary-teal);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        z-index: 1000;
+    }
+
+    .nav-tabs-custom {
+        display: flex;
+        height: 100%;
+    }
+
+    .nav-tab-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 0 20px;
+        color: rgba(255,255,255,0.8);
+        cursor: pointer;
+        font-size: 0.85rem;
+        border-bottom: 4px solid transparent;
+        transition: all 0.2s;
+    }
+
+    .nav-tab-item.active {
+        background-color: rgba(0,0,0,0.1);
+        color: white;
+        border-bottom-color: white;
+    }
+    
+    .nav-tab-item:hover {
+        color: white;
+        background-color: rgba(0,0,0,0.05);
+    }
+
+    /* Sub-header / Timeline Bar */
+    .sub-header {
+        height: 50px;
+        background-color: white;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+    }
+
+    .phase-indicator {
+        font-weight: bold;
+        color: #555;
+        background: #f0f2f5;
+        padding: 5px 15px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .toolbar-actions .btn-tool {
+        color: #666;
+        font-size: 0.8rem;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        margin-left: 15px;
+        background: none;
+        border: none;
+        cursor: pointer;
+    }
+    
+    .toolbar-actions .btn-tool:hover {
+        color: var(--primary-teal);
+    }
+
+    /* Main Layout */
+    .main-workspace {
+        display: flex;
+        height: calc(100vh - 110px); /* Total height - header - subheader */
+        position: relative; /* For overlays */
+    }
+
+    /* Canvas Area */
+    .canvas-area {
+        flex-grow: 1;
+        background-color: #f4f4f4;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: auto;
+        position: relative;
+    }
+    
+    /* Notes Overlay/Panel */
+    #notes-panel {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255,255,255,0.95);
+        z-index: 50;
+        padding: 40px;
+        display: none; /* Hidden by default */
+        overflow-y: auto;
+    }
+
+    .notes-container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    /* Delete button overlay for selected items */
+    #delete-overlay {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 100;
+        display: none; /* Hidden by default */
+    }
+    
+    .btn-delete-selected {
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        font-weight: 600;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .btn-delete-selected:hover {
+        background-color: #c82333;
+    }
+
+    /* Inline SVG court background */
+    #canvas-wrapper {
+        background-image: url('data:image/svg+xml;utf8,<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="500" fill="%23e8c89b"/><!-- Wood Floor Color --><!-- Main Court Boundary (50x47ft) --><rect x="150" y="15" width="500" height="470" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Key / Paint --><rect x="320" y="15" width="160" height="190" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Free Throw Circle --><path d="M 320 205 A 60 60 0 1 1 480 205" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Dashed lower arc --><path d="M 320 205 A 60 60 0 0 0 480 205" fill="none" stroke="%23ffffff" stroke-width="3" stroke-dasharray="10,10"/><!-- Backboard --><line x1="370" y1="55" x2="430" y2="55" stroke="%23ffffff" stroke-width="3"/><!-- Hoop --><circle cx="400" cy="67.5" r="7.5" fill="none" stroke="%23333" stroke-width="2"/><!-- 3-Point Line --><path d="M 180 15 L 180 157 A 237.5 237.5 0 0 0 620 157 L 620 15" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Center Circle --><path d="M 340 485 A 60 60 0 1 1 460 485" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Mid Court Line --><line x1="150" y1="485" x2="650" y2="485" stroke="%23ffffff" stroke-width="3"/></svg>');
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 800px 500px;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        border-radius: 4px;
+    }
+
+    /* Right Sidebar */
+    .right-sidebar {
+        width: 320px;
+        background-color: var(--sidebar-bg);
+        border-left: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    .sidebar-section {
+        margin-bottom: 30px;
+    }
+
+    .section-title {
+        font-size: 0.75rem;
+        font-weight: bold;
+        text-transform: uppercase;
+        color: #888;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    /* Action Buttons Grid - Custom Icons */
+    .action-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .btn-action {
+        background-color: var(--action-btn-bg);
+        color: white;
+        border: none;
+        padding: 8px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start; /* Left align for icon + text */
+        gap: 8px;
+        transition: background 0.2s;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .btn-action:hover {
+        background-color: #34495e;
+        color: white;
+        text-decoration: none;
+    }
+    
+    .btn-action.active {
+        box-shadow: 0 0 0 2px var(--primary-teal);
+    }
+    
+    /* Custom SVG Icons for Actions */
+    .icon-box {
+        width: 24px;
+        height: 16px; /* Adjust aspect ratio */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Dribble: Wave line */
+    .icon-dribble {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 10' fill='none' stroke='white' stroke-width='2'%3E%3Cpath d='M0 5 Q5 0 10 5 T20 5 T30 5 T40 5' /%3E%3Cpath d='M35 2 L40 5 L35 8' stroke='none' fill='white'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 30px; height: 12px;
+    }
+    
+    /* Pass: Dashed line */
+    .icon-pass {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 10' fill='none' stroke='white' stroke-width='2' stroke-dasharray='4,2'%3E%3Cline x1='0' y1='5' x2='35' y2='5' /%3E%3Cpath d='M35 2 L40 5 L35 8' stroke='none' fill='white'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 30px; height: 12px;
+    }
+    
+    /* Cut: Solid line */
+    .icon-cut {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 10' fill='none' stroke='white' stroke-width='2'%3E%3Cline x1='0' y1='5' x2='35' y2='5' /%3E%3Cpath d='M35 2 L40 5 L35 8' stroke='none' fill='white'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 30px; height: 12px;
+    }
+    
+    /* Screen: T-shape */
+    .icon-screen {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 16' fill='none' stroke='white' stroke-width='2'%3E%3Cline x1='0' y1='8' x2='32' y2='8' /%3E%3Cline x1='32' y1='2' x2='32' y2='14' /%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 30px; height: 16px;
+    }
+    
+    /* Shot: Dotted + Target */
+    .icon-shot {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 16' fill='none' stroke='white' stroke-width='2' stroke-dasharray='2,2'%3E%3Cline x1='0' y1='8' x2='30' y2='8' /%3E%3Ccircle cx='34' cy='8' r='4' stroke='white' stroke-width='1.5'/%3E%3Cline x1='30' y1='8' x2='38' y2='8' stroke-width='1.5'/%3E%3Cline x1='34' y1='4' x2='34' y2='12' stroke-width='1.5'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 30px; height: 16px;
+    }
+    
+    /* Handoff: Plus/H symbol */
+    .icon-handoff {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 16' fill='none' stroke='white' stroke-width='2'%3E%3Cline x1='5' y1='8' x2='15' y2='8' /%3E%3Cline x1='10' y1='3' x2='10' y2='13' /%3E%3Ctext x='22' y='12' fill='white' font-family='Arial' font-size='12' font-weight='bold'%3EHandoff%3C/text%3E%3C/svg%3E"); /* Simplified: Just text Handoff with symbol is hard in bg, using generic H icon */
+         background: none;
+    }
+
+    /* Player Icons Grid */
+    .player-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .player-icon {
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border: 1px solid #ddd;
+        transition: transform 0.1s;
+    }
+
+    .player-icon:hover {
+        transform: scale(1.1);
+    }
+
+    .p-offense-white { background: white; color: black; border-color: #333; }
+    .p-offense-square { background: white; color: black; border: 1px solid #333; border-radius: 4px; }
+    .p-defense-x { background: #f0f0f0; color: #333; font-family: monospace; }
+    .p-defense-dark { background: #333; color: white; border-color: #333; }
+
+    /* Misc Icons */
+    .misc-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+    }
+
+    .btn-misc {
+        aspect-ratio: 1;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: #555;
+        cursor: pointer;
+    }
+    
+    .btn-misc:hover {
+        border-color: var(--primary-teal);
+        color: var(--primary-teal);
+    }
+
+    /* Save Button */
+    .btn-save {
+        background-color: white;
+        color: #333;
+        border: none;
+        padding: 6px 15px;
+        border-radius: 4px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .btn-close-app {
+        background: rgba(0,0,0,0.15);
+        border: 1px solid rgba(255,255,255,0.2);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 4px;
+    }
+</style>
+
+<!-- Top Navigation -->
+<div class="top-nav">
+    <button class="btn btn-close-app" onclick="history.back()"><i class="fas fa-times"></i> Close</button>
+    
+    <div class="nav-tabs-custom">
+        <div class="nav-tab-item active" id="tab-draw" onclick="app.setMode('draw')">
+            <i class="fas fa-pencil-alt mb-1"></i> Draw
+        </div>
+        <div class="nav-tab-item" id="tab-animate" onclick="app.setMode('animate')">
+            <i class="fas fa-play mb-1"></i> Animate
+        </div>
+        <div class="nav-tab-item" id="tab-notes" onclick="app.setMode('notes')">
+            <i class="fas fa-sticky-note mb-1"></i> Notes
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-3">
+        <span id="status-bar" class="text-white-50 small mr-2"></span>
+        <button class="btn btn-link text-white p-0 mr-3" onclick="app.undo()"><i class="fas fa-undo"></i></button>
+        <button class="btn btn-link text-white p-0 mr-3" onclick="app.redo()"><i class="fas fa-redo"></i></button>
+        <button class="btn btn-save" id="save-btn"><i class="fas fa-save"></i> Save Play</button>
+    </div>
+</div>
+
+<!-- Sub-Header / Timeline Actions -->
+<div class="sub-header">
+    <div class="d-flex align-items-center">
+        <!-- Play Name Input -->
+        <input type="text" id="meta-name" class="form-control form-control-sm mr-2" placeholder="Play Name" style="width: 200px;" value="{{ play.name if play else '' }}">
+        
+        <!-- Play Type Select -->
+        <select id="meta-type" class="form-control form-control-sm" style="width: 120px;">
+            {% for pt in play_types %}
+            <option value="{{ pt.name }}" {% if play and play.play_type == pt.name %}selected{% endif %}>{{ pt.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="phase-indicator mx-3">
+        <i class="fas fa-arrow-left small cursor-pointer" onclick="app.sequence.prevFrame()"></i>
+        <span class="mx-2" id="frame-indicator">PHASE 1/1</span>
+        <i class="fas fa-arrow-right small cursor-pointer" onclick="app.sequence.nextFrame()"></i>
+    </div>
+    
+    <div class="toolbar-actions">
+        <button class="btn-tool" onclick="app.sequence.addFrame()">
+            <i class="fas fa-arrow-right mb-1"></i> Next
+        </button>
+        <button class="btn-tool" onclick="app.sequence.cloneFrame()">
+            <i class="fas fa-copy mb-1"></i> Clone
+        </button>
+        <button class="btn-tool" onclick="app.clearCanvas()">
+            <i class="fas fa-file mb-1"></i> Empty
+        </button>
+        <button class="btn-tool" onclick="app.mirror()">
+            <i class="fas fa-arrows-alt-h mb-1"></i> Mirror
+        </button>
+        <button class="btn-tool text-danger" onclick="app.sequence.deleteFrame()">
+            <i class="fas fa-trash mb-1"></i> Delete
+        </button>
+    </div>
+</div>
+
+<!-- Main Workspace -->
+<div class="main-workspace">
+    <!-- Notes Panel (Hidden by default) -->
+    <div id="notes-panel">
+        <div class="notes-container">
+            <h4 class="mb-3">Play Notes & Description</h4>
+            <div class="form-group">
+                <label class="text-muted small text-uppercase font-weight-bold">Description</label>
+                <textarea id="meta-description" class="form-control" rows="8" placeholder="Enter play details, key reads, or instructions here...">{{ play.description if play else '' }}</textarea>
+            </div>
+            <div class="form-group">
+                <label class="text-muted small text-uppercase font-weight-bold">Tags (comma separated)</label>
+                <input type="text" id="meta-tags" class="form-control" placeholder="e.g. baseline, late-game, vs-zone" value="{{ play.tags if play else '' }}">
+            </div>
+            <div class="text-right mt-3">
+                <button class="btn btn-primary" onclick="app.setMode('draw')">Return to Drawing</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Center Canvas -->
+    <div class="canvas-area">
+        <div id="canvas-wrapper">
+            <canvas id="playCanvas" width="800" height="500"></canvas>
+        </div>
+        
+        <!-- Contextual Delete Button Overlay -->
+        <div id="delete-overlay">
+            <button class="btn-delete-selected" onclick="app.deleteSelected()">
+                <i class="fas fa-trash-alt"></i> Delete Selected
+            </button>
+        </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="right-sidebar">
+        
+        <!-- Actions Section -->
+        <div class="sidebar-section">
+            <div class="section-title">
+                ADD ACTIONS <i class="far fa-question-circle ml-1"></i>
+            </div>
+            <div class="action-grid">
+                <button class="btn-action" onclick="app.tools['arrow'].setType('dribble'); app.selectTool('arrow');">
+                    <span class="icon-dribble"></span> Dribble
+                </button>
+                <button class="btn-action" onclick="app.tools['arrow'].setType('pass'); app.selectTool('arrow');">
+                    <span class="icon-pass"></span> Pass
+                </button>
+                <button class="btn-action" onclick="app.tools['arrow'].setType('cut'); app.selectTool('arrow');">
+                    <span class="icon-cut"></span> Cut
+                </button>
+                <button class="btn-action" onclick="app.tools['arrow'].setType('screen'); app.selectTool('arrow');">
+                    <span class="icon-screen"></span> Screen
+                </button>
+                <button class="btn-action" onclick="app.tools['arrow'].setType('shot'); app.selectTool('arrow');">
+                    <span class="icon-shot"></span> Shot
+                </button>
+                <button class="btn-action" onclick="app.tools['arrow'].setType('handoff'); app.selectTool('arrow');">
+                    <i class="fas fa-plus"></i> Handoff
+                </button>
+            </div>
+        </div>
+
+        <!-- Players Section -->
+        <div class="sidebar-section">
+            <div class="section-title">
+                ADD PLAYERS <i class="far fa-question-circle ml-1"></i>
+            </div>
+            
+            <!-- Row 1: Offense White Circles -->
+            <div class="player-grid">
+                {% for i in range(1, 6) %}
+                <div class="player-icon p-offense-white" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'offense', style: 'circle'});">{{i}}</div>
+                {% endfor %}
+                <div class="player-icon p-offense-white" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '?', team: 'offense', style: 'circle'});">?</div>
+            </div>
+
+            <!-- Row 2: Offense Squares -->
+            <div class="player-grid">
+                {% for i in range(1, 6) %}
+                <div class="player-icon p-offense-square" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'offense', style: 'square'});">{{i}}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Row 3: Defense X -->
+            <div class="player-grid">
+                {% for i in range(1, 6) %}
+                <div class="player-icon p-defense-x" onclick="app.selectTool('player'); app.tools['player'].setProps({label: 'x{{i}}', team: 'defense', style: 'text'});">x{{i}}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Row 4: Defense Dark Circles -->
+            <div class="player-grid">
+                {% for i in range(1, 6) %}
+                <div class="player-icon p-defense-dark" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'defense', style: 'dark-circle'});">{{i}}</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Misc Section -->
+        <div class="sidebar-section">
+            <div class="section-title">
+                ADD MISC <i class="far fa-question-circle ml-1"></i>
+            </div>
+            <div class="misc-grid">
+                <button class="btn-misc" onclick="app.tools['shape'].setType('cone'); app.selectTool('shape');" title="Cone"><i class="fas fa-map-marker-alt"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('cone-tall'); app.selectTool('shape');" title="Tall Cone"><i class="fas fa-cone"></i></button>
+                <button class="btn-misc" onclick="app.selectTool('text')" title="Text"><i class="fas fa-font"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('box'); app.selectTool('shape');" title="Box"><i class="far fa-square"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('circle'); app.selectTool('shape');" title="Circle"><i class="far fa-circle"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('triangle'); app.selectTool('shape');" title="Triangle"><i class="fas fa-caret-up"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('diamond'); app.selectTool('shape');" title="Diamond"><i class="fas fa-gem"></i></button>
+                <button class="btn-misc" onclick="app.tools['shape'].setType('line'); app.selectTool('shape');" title="Line"><i class="fas fa-minus"></i></button>
+                <button class="btn-misc" onclick="app.selectTool('image')" title="Image"><i class="far fa-image"></i></button>
+            </div>
+        </div>
+        
+        <div class="mt-auto text-center pt-4 border-top">
+            <div class="section-title justify-content-center">LET'S GET STARTED!</div>
+            <div class="d-flex justify-content-around mt-2">
+                <div class="text-center small cursor-pointer">
+                    <div class="p-2 bg-light rounded mb-1"><i class="fas fa-film text-success"></i></div>
+                    Watch Tutorial
+                </div>
+                <div class="text-center small cursor-pointer">
+                    <div class="p-2 bg-light rounded mb-1"><i class="fas fa-laptop text-primary"></i></div>
+                    Load Example
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Fabric.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+
+<!-- App Scripts -->
+<script>
+    window.PlayBuilderConfig = {
+        playId: "{{ play.id if play else '' }}",
+        apiBase: "/api/v1"
+    };
+</script>
+<script src="{{ url_for('static', filename='js/playbuilder/tools/tool_base.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/tools/select_tool.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/tools/player_tool.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/tools/arrow_tool.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/tools/text_tool.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/tools/shape_tool.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/tools/image_tool.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/state/history.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/state/sequence.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/services/layers.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/app.js') }}"></script>
+{% endblock %}

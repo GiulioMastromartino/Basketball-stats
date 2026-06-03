@@ -1,0 +1,827 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .page-loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(6px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 200ms ease;
+    }
+
+    .page-loading-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .page-loading-card {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 14px;
+        padding: 18px 22px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #333;
+        font-weight: 600;
+    }
+
+    .spinner {
+        width: 18px;
+        height: 18px;
+        border: 3px solid #e9ecef;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .page-hidden { visibility: hidden; }
+
+    .lineup-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .lineup-players {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 15px;
+    }
+
+    .player-chip {
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        padding: 10px 20px;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .player-chip i {
+        font-size: 14px;
+    }
+
+    .lineup-name-edit {
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        width: 250px;
+    }
+
+    .lineup-name-edit::placeholder {
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .lineup-name-edit:focus {
+        outline: none;
+        background: rgba(255, 255, 255, 0.25);
+        border-color: white;
+    }
+
+    .btn-save-name {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-save-name:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 18px;
+        margin-top: 20px;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 20px 16px;
+        border-radius: 10px;
+        text-align: center;
+        border: 1px solid #e0e0e0;
+        transition: all 0.3s ease;
+        position: relative;
+        min-height: 85px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-card.highlight {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+
+    .stat-card.highlight .stat-card-value,
+    .stat-card.highlight .stat-card-label,
+    .stat-card.highlight .stat-card-subvalue {
+        color: white;
+    }
+
+    .stat-card-value {
+        font-size: 26px;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 4px;
+        line-height: 1.2;
+    }
+
+    .stat-card-subvalue {
+        font-size: 11px;
+        color: #999;
+        margin-bottom: 6px;
+        line-height: 1.3;
+    }
+
+    .stat-card-label {
+        font-size: 11px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+
+    .section-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin: 35px 0 15px;
+        color: #2d3748;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 10px;
+    }
+
+    .chart-container {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    .chart-box {
+        position: relative;
+        width: 100%;
+        height: 280px;
+    }
+
+    .chart-box canvas {
+        width: 100% !important;
+        height: 100% !important;
+        display: block;
+    }
+
+    .game-log-table {
+        width: 100%;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .game-log-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .game-log-table th {
+        padding: 12px 8px;
+        font-weight: 600;
+        font-size: 12px;
+        text-align: center;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .game-log-table td {
+        padding: 10px 8px;
+        text-align: center;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 13px;
+    }
+
+    .game-log-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+
+    .result-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 11px;
+    }
+
+    .result-w { background: #d4edda; color: #155724; }
+    .result-l { background: #f8d7da; color: #721c24; }
+
+    .net-rating-pos { color: #15803d; }
+    .net-rating-neg { color: #b91c1c; }
+    .net-rating-neu { color: #6b7280; }
+
+    .starting-badge {
+        background: #fbbf24;
+        color: #78350f;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .toast-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 10000;
+    }
+</style>
+
+<div id="pageLoader" class="page-loading-overlay">
+    <div class="page-loading-card">
+        <span class="spinner"></span>
+        Loading lineup analytics...
+    </div>
+</div>
+
+<div id="lineupPage" class="container-fluid page-hidden">
+    <div class="lineup-header">
+        <div class="d-flex align-items-center justify-content-between">
+            <div style="flex: 1;">
+                <div class="d-flex align-items-center gap-3 mb-2">
+                    <h1 style="font-size: 28px; margin: 0;">Lineup</h1>
+                    <span id="startingBadge" class="starting-badge" style="display: none;">
+                        <i class="fas fa-star"></i> Starting
+                    </span>
+                </div>
+                <div class="d-flex align-items-center gap-2 mt-3">
+                    <input type="text" id="lineupDisplayName" class="lineup-name-edit" 
+                           placeholder="Add custom name for this lineup...">
+                    <button id="saveNameBtn" class="btn-save-name">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('main.advanced_analytics') }}" class="btn btn-light">
+                    <i class="fas fa-arrow-left"></i> Back to Analytics
+                </a>
+            </div>
+        </div>
+        
+        <div class="lineup-players" id="playersContainer">
+            <span class="spinner" style="width: 24px; height: 24px; border-width: 3px;"></span>
+        </div>
+    </div>
+
+    <!-- Main Stats -->
+    <div class="stat-grid" id="statsGrid">
+        <div class="stat-card">
+            <div class="stat-card-value" id="statMinutes">--</div>
+            <div class="stat-card-label">Total Minutes</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statGames">--</div>
+            <div class="stat-card-label">Games Played</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statPossessions">--</div>
+            <div class="stat-card-label">Possessions</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statPoints">--</div>
+            <div class="stat-card-subvalue" id="statPointsSub">Pts Scored / Allowed</div>
+            <div class="stat-card-label">Points</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statOrtg">--</div>
+            <div class="stat-card-label">ORTG</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statDrtg">--</div>
+            <div class="stat-card-label">DRTG</div>
+        </div>
+        <div class="stat-card highlight">
+            <div class="stat-card-value" id="statNetRtg">--</div>
+            <div class="stat-card-label">Net Rating</div>
+        </div>
+    </div>
+    
+    <div class="section-title">
+        <i class="fas fa-basketball-ball" style="color: #f5576c;"></i>
+        Shooting Stats
+    </div>
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-card-value" id="statFg">--</div>
+            <div class="stat-card-subvalue" id="statFgSub">--</div>
+            <div class="stat-card-label">FG%</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statTp">--</div>
+            <div class="stat-card-subvalue" id="statTpSub">--</div>
+            <div class="stat-card-label">3P%</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statFt">--</div>
+            <div class="stat-card-subvalue" id="statFtSub">--</div>
+            <div class="stat-card-label">FT%</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statEfg">--</div>
+            <div class="stat-card-label">eFG%</div>
+        </div>
+    </div>
+    
+    <div class="section-title">
+        <i class="fas fa-chart-bar" style="color: #20c997;"></i>
+        Counting Stats (Per Game)
+    </div>
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-card-value" id="statReb">--</div>
+            <div class="stat-card-subvalue" id="statRebSub">OREB / DREB</div>
+            <div class="stat-card-label">Rebounds</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statAst">--</div>
+            <div class="stat-card-label">Assists</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statStl">--</div>
+            <div class="stat-card-label">Steals</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statBlk">--</div>
+            <div class="stat-card-label">Blocks</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statTov">--</div>
+            <div class="stat-card-label">Turnovers</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-value" id="statAstTov">--</div>
+            <div class="stat-card-label">AST/TOV</div>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-chart-line" style="color: #667eea;"></i>
+        Net Rating Trend
+    </div>
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="chart-container">
+                <h5>Net Rating Across Games</h5>
+                <div class="chart-box">
+                    <canvas id="netRatingChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-users" style="color: #4a90e2;"></i>
+        Full Lineup Offensive Profile
+    </div>
+    <div class="row mb-4">
+        <div class="col-lg-8 mx-auto">
+            <div class="chart-container">
+                <h5 class="text-center mb-3">Total Lineup Shots <span id="lineupTotalShots" class="badge bg-primary">0</span></h5>
+                <div class="shot-chart-wrapper mx-auto" style="max-width: 500px;">
+                    <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" />
+                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                    </svg>
+                    <div id="fullLineupShotsLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+                </div>
+                <div class="d-flex justify-content-center gap-4 mt-3">
+                    <div class="text-center">
+                        <div class="h4 mb-0 fw-bold text-success" id="lineupTotalMakes">0</div>
+                        <div class="small text-muted">Makes</div>
+                    </div>
+                    <div class="text-center">
+                    </div>
+                    <div class="text-center">
+                        <div class="h4 mb-0 fw-bold text-primary" id="lineupTotalFgPct">0%</div>
+                        <div class="small text-muted">FG%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-user-friends" style="color: #20c997;"></i>
+        Individual Player Breakdown
+    </div>
+    <div id="playerBreakdownContainer" class="row">
+        <!-- Will be populated by JS -->
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-crosshairs" style="color: #e53e3e;"></i>
+        Opponent Shot Chart
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="chart-container">
+                <h5 class="text-center mb-3">Opponent Makes <span id="makesCount" class="badge bg-warning text-dark">0</span></h5>
+                <div class="shot-chart-wrapper" id="makesChartWrapper">
+                    <!-- Half Court SVG Background -->
+                    <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c;">
+                        <!-- Court Floor -->
+                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                        
+                        <!-- 3-Point Arc (Approximate) -->
+                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Key / Paint Area -->
+                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Free Throw Circle -->
+                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                        
+                        <!-- Hoop / Backboard -->
+                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                        
+                        <!-- Baseline -->
+                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                    </svg>
+                    <div id="opponentMakesLayer"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="chart-container">
+                <h5 class="text-center mb-3">Opponent Misses <span id="missesCount" class="badge bg-danger">0</span></h5>
+                <div class="shot-chart-wrapper" id="missesChartWrapper">
+                    <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c;">
+                        <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                        <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                        <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                    </svg>
+                    <div id="opponentMissesLayer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <i class="fas fa-list" style="color: #20c997;"></i>
+        Per-Game Segment Log
+    </div>
+    <div style="overflow-x: auto; margin-bottom: 40px;">
+        <table class="game-log-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Opponent</th>
+                    <th>Result</th>
+                    <th>Minutes</th>
+                    <th>Poss</th>
+                    <th>Pts For</th>
+                    <th>Pts Ag</th>
+                    <th>ORTG</th>
+                    <th>DRTG</th>
+                    <th>Net</th>
+                </tr>
+            </thead>
+            <tbody id="gamesTableBody">
+                <tr><td colspan="10" class="py-4 text-center text-muted">Loading game log...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const lineupId = {{ lineup.id | tojson }};
+    let netRatingChart;
+
+    function signed(value) {
+        const num = Number(value || 0);
+        return `${num >= 0 ? '+' : ''}${num.toFixed(1)}`;
+    }
+
+    function formatPct(made, attempts) {
+        if (!attempts) return '0.0%';
+        return `${((made / attempts) * 100).toFixed(1)}%`;
+    }
+
+    function hideLoader() {
+        document.getElementById('pageLoader').classList.add('hidden');
+        document.getElementById('lineupPage').classList.remove('page-hidden');
+    }
+
+    function renderCourtShots(layerId, shots, tone) {
+        const layer = document.getElementById(layerId);
+        if (!layer) return;
+
+        layer.innerHTML = '';
+        if (!shots.length) {
+            layer.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#777;font-size:12px;">No shots</div>';
+            return;
+        }
+
+        shots.forEach(shot => {
+            if (shot.x == null || shot.y == null) return;
+            const dot = document.createElement('div');
+            dot.className = 'shot-point';
+            dot.style.left = `${(shot.x / 500) * 100}%`;
+            dot.style.top = `${(shot.y / 470) * 100}%`;
+            if (tone === 'make') {
+                dot.style.backgroundColor = '#f59e0b';
+                dot.style.border = '1px solid #fff';
+            } else {
+                dot.style.backgroundColor = 'transparent';
+                dot.style.border = '2px solid #dc3545';
+                dot.style.boxSizing = 'border-box';
+            }
+            layer.appendChild(dot);
+        });
+    }
+
+    function renderPlayerBreakdown(playerShots) {
+        const container = document.getElementById('playerBreakdownContainer');
+        const players = Object.keys(playerShots || {});
+        const playerDomId = player => `player-shots-${player.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+
+        if (!players.length) {
+            container.innerHTML = '<div class="col-12"><div class="alert alert-light border">No player shot data available.</div></div>';
+            return;
+        }
+
+        container.innerHTML = players.map(player => {
+            const shots = playerShots[player] || [];
+            const attempts = shots.length;
+            const makes = shots.filter(shot => shot.result === 'made').length;
+            const points = shots.reduce((sum, shot) => {
+                if (shot.result !== 'made') return sum;
+                return sum + (shot.type === '3pt' ? 3 : 2);
+            }, 0);
+
+            return `
+                <div class="col-lg-6 mb-4">
+                    <div class="chart-container h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0">${player}</h5>
+                            <span class="badge bg-light text-dark">${makes}/${attempts} FG</span>
+                        </div>
+                        <div class="small text-muted mb-3">${points} pts • ${formatPct(makes, attempts)}</div>
+                        <div class="shot-chart-wrapper">
+                            <svg viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" style="background-color: #d2b48c;">
+                                <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+                                <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+                                <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+                                <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+                                <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+                                <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+                                <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+                            </svg>
+                            <div id="${playerDomId(player)}" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        players.forEach(player => {
+            const safeId = playerDomId(player);
+            const layer = document.getElementById(safeId);
+            const shots = playerShots[player] || [];
+            if (!layer) return;
+            if (!shots.length) {
+                layer.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#777;font-size:12px;">No shots</div>';
+                return;
+            }
+            shots.forEach(shot => {
+                if (shot.x == null || shot.y == null) return;
+                const dot = document.createElement('div');
+                dot.className = 'shot-point';
+                dot.style.left = `${(shot.x / 500) * 100}%`;
+                dot.style.top = `${(shot.y / 470) * 100}%`;
+                if (shot.result === 'made') {
+                    dot.style.backgroundColor = shot.type === '3pt' ? '#2563eb' : '#16a34a';
+                    dot.style.border = '1px solid #fff';
+                } else {
+                    dot.style.backgroundColor = 'transparent';
+                    dot.style.border = `2px solid ${shot.type === '3pt' ? '#2563eb' : '#dc3545'}`;
+                    dot.style.boxSizing = 'border-box';
+                }
+                layer.appendChild(dot);
+            });
+        });
+    }
+
+    function renderGamesTable(games) {
+        const tbody = document.getElementById('gamesTableBody');
+        if (!games || !games.length) {
+            tbody.innerHTML = '<tr><td colspan="10" class="py-4 text-center text-muted">No games found.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = games.map(game => {
+            const poss = Number(game.possessions || 0);
+            const ortg = poss > 0 ? ((Number(game.points_scored || 0) / poss) * 100) : 0;
+            const drtg = poss > 0 ? ((Number(game.points_allowed || 0) / poss) * 100) : 0;
+            const net = ortg - drtg;
+            const netClass = net > 0 ? 'net-rating-pos' : (net < 0 ? 'net-rating-neg' : 'net-rating-neu');
+            const resultClass = game.result === 'W' ? 'result-w' : 'result-l';
+            return `
+                <tr>
+                    <td>${game.date || '--'}</td>
+                    <td><strong>${game.opponent || 'Unknown'}</strong></td>
+                    <td><span class="result-badge ${resultClass}">${game.result || '-'} ${game.team_score || 0}-${game.opponent_score || 0}</span></td>
+                    <td>${((Number(game.total_seconds || 0)) / 60).toFixed(1)}</td>
+                    <td>${poss}</td>
+                    <td>${game.points_scored || 0}</td>
+                    <td>${game.points_allowed || 0}</td>
+                    <td>${ortg.toFixed(1)}</td>
+                    <td>${drtg.toFixed(1)}</td>
+                    <td class="${netClass}"><strong>${signed(net)}</strong></td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderTrendChart(games) {
+        const ctx = document.getElementById('netRatingChart');
+        const sortedGames = [...(games || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+        const netRatings = sortedGames.map(game => {
+            const poss = Number(game.possessions || 0);
+            if (!poss) return 0;
+            return ((Number(game.points_scored || 0) - Number(game.points_allowed || 0)) / poss) * 100;
+        });
+
+        if (netRatingChart) netRatingChart.destroy();
+        netRatingChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sortedGames.map(game => game.opponent || '--'),
+                datasets: [{
+                    label: 'Net Rating',
+                    data: netRatings,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.12)',
+                    fill: true,
+                    tension: 0.35,
+                    pointBackgroundColor: netRatings.map(value => value >= 0 ? '#16a34a' : '#dc2626')
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        grid: { color: 'rgba(0, 0, 0, 0.06)' }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderLineupCard(data) {
+        const lineup = data.lineup || {};
+        const stats = data.stats || {};
+        const games = data.games || [];
+        const opponentShots = data.opponent_shots || [];
+        const playerShots = data.player_shots || {};
+
+        document.querySelector('#lineupPage h1').textContent = lineup.display_name || 'Lineup';
+        document.getElementById('lineupDisplayName').value = lineup.display_name || '';
+        document.getElementById('startingBadge').style.display = lineup.is_starting ? 'inline-flex' : 'none';
+        document.getElementById('playersContainer').innerHTML = (lineup.players || []).map(player => `
+            <div class="player-chip"><i class="fas fa-user"></i>${player}</div>
+        `).join('');
+
+        document.getElementById('statMinutes').textContent = Number(stats.total_minutes || 0).toFixed(1);
+        document.getElementById('statGames').textContent = stats.games_played || 0;
+        document.getElementById('statPossessions').textContent = stats.possessions || 0;
+        document.getElementById('statPoints').textContent = `${stats.points_scored || 0} / ${stats.points_allowed || 0}`;
+        document.getElementById('statOrtg').textContent = Number(stats.ortg || 0).toFixed(1);
+        document.getElementById('statDrtg').textContent = Number(stats.drtg || 0).toFixed(1);
+        document.getElementById('statNetRtg').textContent = signed(stats.net_rating || 0);
+
+        document.getElementById('statFg').textContent = `${Number(stats.fg_pct || 0).toFixed(1)}%`;
+        document.getElementById('statFgSub').textContent = `${stats.fgm || 0}/${stats.fga || 0}`;
+        document.getElementById('statTp').textContent = `${Number(stats.tp_pct || 0).toFixed(1)}%`;
+        document.getElementById('statTpSub').textContent = `${stats.tpm || 0}/${stats.tpa || 0}`;
+        document.getElementById('statFt').textContent = `${Number(stats.ft_pct || 0).toFixed(1)}%`;
+        document.getElementById('statFtSub').textContent = `${stats.ftm || 0}/${stats.fta || 0}`;
+        const efg = Number(stats.fga || 0) > 0 ? (((Number(stats.fgm || 0) + 0.5 * Number(stats.tpm || 0)) / Number(stats.fga || 0)) * 100) : 0;
+        document.getElementById('statEfg').textContent = `${efg.toFixed(1)}%`;
+
+        document.getElementById('statReb').textContent = Number(stats.rpg || 0).toFixed(1);
+        document.getElementById('statRebSub').textContent = `${stats.oreb || 0} OREB / ${stats.dreb || 0} DREB`;
+        document.getElementById('statAst').textContent = Number(stats.apg || 0).toFixed(1);
+        document.getElementById('statStl').textContent = Number(stats.spg || 0).toFixed(1);
+        document.getElementById('statBlk').textContent = Number(stats.bpg || 0).toFixed(1);
+        document.getElementById('statTov').textContent = Number(stats.topg || 0).toFixed(1);
+        const astTov = Number(stats.tov || 0) > 0 ? (Number(stats.ast || 0) / Number(stats.tov || 0)) : Number(stats.ast || 0);
+        document.getElementById('statAstTov').textContent = astTov.toFixed(2);
+
+        const opponentMakes = opponentShots.filter(shot => shot.result === 'made');
+        const opponentMisses = opponentShots.filter(shot => shot.result !== 'made');
+        document.getElementById('makesCount').textContent = opponentMakes.length;
+        document.getElementById('missesCount').textContent = opponentMisses.length;
+        renderCourtShots('opponentMakesLayer', opponentMakes, 'make');
+        renderCourtShots('opponentMissesLayer', opponentMisses, 'miss');
+
+        renderPlayerBreakdown(playerShots);
+        renderGamesTable(games);
+        renderTrendChart(games);
+    }
+
+    function saveLineupName() {
+        const displayName = document.getElementById('lineupDisplayName').value.trim();
+        fetch(`/api/advanced/lineup/${lineupId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ display_name: displayName })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.success) {
+                    document.querySelector('#lineupPage h1').textContent = displayName || 'Lineup';
+                }
+            })
+            .catch(error => console.error('Failed to save lineup name', error));
+    }
+
+    function loadLineupCard() {
+        fetch(`/api/advanced/lineup/${lineupId}`)
+            .then(response => response.json())
+            .then(data => {
+                renderLineupCard(data);
+                hideLoader();
+            })
+            .catch(error => {
+                console.error('Failed to load lineup card', error);
+                document.getElementById('playersContainer').innerHTML = '<div class="alert alert-warning w-100">Failed to load lineup data.</div>';
+                hideLoader();
+            });
+    }
+
+    document.getElementById('saveNameBtn').addEventListener('click', saveLineupName);
+    window.addEventListener('load', loadLineupCard);
+</script>
+{% endblock %}
