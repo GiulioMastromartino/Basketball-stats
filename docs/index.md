@@ -1,79 +1,147 @@
-# Basketball Stats Tracker
+# HoopsLab
 
-![Status](https://img.shields.io/badge/status-active-success.svg)
-![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)
-![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)
+<div class="hoops-hero">
+  <p class="lead">Track the full game live. Print the halftime report in seconds.<br>
+  One tool for coaches who need instant intelligence — not post-game spreadsheets.</p>
+</div>
 
-A professional web application for tracking, analyzing, and visualizing basketball game statistics with advanced metrics and PDF reporting.
+<div class="hoops-metrics">
+  <div class="hoops-metric">
+    <div class="value">&lt;1s</div>
+    <div class="label">PDF render</div>
+  </div>
+  <div class="hoops-metric">
+    <div class="value">100%</div>
+    <div class="label">Game-day flow</div>
+  </div>
+  <div class="hoops-metric">
+    <div class="value">1 tool</div>
+    <div class="label">Track → Share</div>
+  </div>
+</div>
 
-## Overview
+<div class="feature-grid">
+  <div class="feature-card">
+    <div class="icon">🎥</div>
+    <h3>Live Command Center</h3>
+    <p>Real-time event logging with shot clock, quarter timer, player subs, and play tagging. Halftime-ready summaries in seconds.</p>
+  </div>
+  <div class="feature-card">
+    <div class="icon">📊</div>
+    <h3>Automatic Intelligence</h3>
+    <p>TS%, eFG%, Net Rating, lineup impact, duo/trio matrices, and shot quality models — calculated instantly from your tracking data.</p>
+  </div>
+  <div class="feature-card">
+    <div class="icon">📄</div>
+    <h3>Print & Share</h3>
+    <p>Server-side PDF reports for games, players, lineups, seasons, and clutch situations. Export as ZIP bundles or email to players.</p>
+  </div>
+  <div class="feature-card">
+    <div class="icon">🎯</div>
+    <h3>Shot Charts & Heatmaps</h3>
+    <p>Court-mapped shot locations with hexbin heatmaps and zone efficiency analysis. See hot and cold areas at a glance.</p>
+  </div>
+  <div class="feature-card">
+    <div class="icon">👥</div>
+    <h3>Lineup Analytics</h3>
+    <p>On/off court splits, duo/trio compatibility, 5-man unit rankings, and rotation analysis. Know who works with whom.</p>
+  </div>
+  <div class="feature-card">
+    <div class="icon">📋</div>
+    <h3>Digital Playbook</h3>
+    <p>65+ pre-loaded plays with a visual diagram builder. Track play effectiveness with points-per-possession analysis.</p>
+  </div>
+</div>
 
-Basketball Stats Tracker is designed for coaches, analysts, and enthusiasts who need deep insights into game performance. It goes beyond basic box scores to provide:
+---
 
-*   **Live Game Tracking**: Record shots, fouls, and plays in real-time.
-*   **Advanced Analytics**: True Shooting % (TS%), Effective Field Goal % (eFG%), and Game Score.
-*   **Playbook Management**: Manage offensive and defensive plays and track their effectiveness.
-*   **Professional Reporting**: Generate PDF reports for games, players, and teams.
+## Quick Start
 
-## Key Features
+<div class="step-card">
+  <div class="step-number">1</div>
+  <div class="step-content">
+    <pre><code>git clone https://github.com/GiulioMastromartino/Basketball-stats.git
+cd Basketball-stats</code></pre>
+  </div>
+</div>
 
-### 📊 Advanced Analytics
-Automatically calculates advanced metrics that matter:
-*   **True Shooting % (TS%)**: Measures shooting efficiency taking into account field goals, 3-pointers, and free throws.
-*   **Effective FG% (eFG%)**: Adjusts for the fact that a 3-point field goal is worth more than a 2-point field goal.
-*   **Game Score**: A holistic measure of a player's productivity for a single game.
-*   **NEW: True Usage Rate (USG%)**: Percentage of team plays used by a player.
-*   **NEW: Points Per Shot (PPS)**: Simple efficiency metric.
-*   **NEW: Shot Quality Model**: Expected values by court zone.
+<div class="step-card">
+  <div class="step-number">2</div>
+  <div class="step-content">
+    <pre><code>python -m venv venv && source venv/bin/activate
+pip install -r requirements-local.txt</code></pre>
+  </div>
+</div>
 
-### 🎯 Shot Charts & Visualizations
-*   **Court Mapping**: Visualize shot locations on a basketball court.
-*   **Hexbin Heatmaps**: "Hot Zones" colored by FG% relative to average.
-*   **Zone Efficiency**: Aggregated stats by court zone (Rim, Paint, Midrange, Corner 3, etc.).
+<div class="step-card">
+  <div class="step-number">3</div>
+  <div class="step-content">
+    <pre><code>python quick_start.py</code></pre>
+    <p>Open <a href="http://localhost:8080">http://localhost:8080</a> — login: <code>admin</code> / <code>admin123</code></p>
+  </div>
+</div>
 
-### 👥 Lineup Analytics
-*   **On/Off Court Splits**: Compare team performance when a player is on vs off court.
-*   **Duo/Trio Compatibility**: Matrix showing how player combinations perform together.
-*   **Lineup Efficiency Rankings**: 5-man units ranked by Net Rating.
-*   **Rotation Analysis**: Visualize substitution patterns.
+<p style="text-align:center;margin-top:1.5rem">
+  <a href="user-guide/getting-started.md" class="md-button md-button--hoops">Full Getting Started Guide</a>
+  <a href="user-guide/live-game.md" class="md-button md-button--cool">Live Game Tracking</a>
+</p>
+
+---
+
+## What's Inside
 
 ### 🎥 Live Game Tracking
-*   **Real-time Entry**: Optimized interface for mobile and tablet use.
-*   **Shot Charting**: Track shot locations and types.
-*   **Play Tagging**: Associate shots with specific plays from your playbook.
+- Real-time entry optimized for mobile and tablet
+- Shot charting with court location tracking
+- Play tagging — associate shots with specific plays
+- Halftime and final PDF summaries
+
+### 📊 Analytics Engine
+- True Shooting % (TS%), Effective FG% (eFG%), Game Score
+- True Usage Rate (USG%), Points Per Shot (PPS)
+- Shot Quality Model with expected values by zone
+- Clutch performance analysis (score within 5, under 5 minutes)
+- Four Factors analysis (Dean Oliver)
+
+### 👥 Lineup Intelligence
+- On/off court splits with Net Rating differential
+- Duo compatibility with Synergy Factor
+- 5-man lineup efficiency rankings
+- Rotation analysis with substitution patterns
 
 ### 📋 Playbook Management
-*   **Digital Playbook**: Store and organize 65+ pre-loaded plays.
-*   **Visual Diagrams**: Upload and view play diagrams.
-*   **Effectiveness Tracking**: Analyze which plays yield the highest points per possession.
+- 65+ pre-loaded offensive, defensive, and special plays
+- Visual diagram builder with Fabric.js canvas
+- Effectiveness tracking (PPP, FG% by play)
+- Animation sequences for player movement
 
-### 📄 Professional Exports
-*   **PDF Reports**: Download comprehensive game, player, and team reports.
-*   **Team Analysis**: Season-long performance tracking.
-*   **Shareable**: Ready-to-print formats for coaching staff and players.
-*   **NEW: Visual Game Report**: Score Worm, Quarterly Flow, Four Factors Dashboard.
-*   **NEW: Player Scouting Cards**: Shot charts, hot zones, advanced metrics.
-*   **NEW: Clutch Time Report**: High-pressure situation performance.
+### 📄 PDF Reports
+- Game Summary with shot charts
+- Player Scouting Cards with hot zones
+- Visual Game Report (Score Worm, Four Factors)
+- Season Trend Report with rolling averages
+- Clutch Time Report
+- Lineup Analysis Report
+- ZIP bundle export for entire team
 
-## Getting Started
-
-To get up and running quickly, check out the [Installation Guide](user-guide/getting-started.md).
-
-For detailed usage instructions:
-
-*   [Live Game Tracking](user-guide/live-game.md)
-*   [Plays Management](user-guide/plays.md)
-*   [PDF Exports](user-guide/pdf-exports.md)
-*   [Advanced Analytics](user-guide/advanced-analytics.md) **NEW!**
+---
 
 ## Technology Stack
 
-*   **Backend**: Python 3.8+, Flask 3.0, SQLAlchemy
-*   **Database**: SQLite (easy setup, reliable)
-*   **Frontend**: HTML5, Bootstrap 5, JavaScript
-*   **Analysis**: Pandas, NumPy
-*   **Reporting**: ReportLab (PDF generation)
+| Component | Technology |
+|-----------|------------|
+| **Backend** | Python 3.11+, Flask 3.1, SQLAlchemy 2.0 |
+| **Database** | SQLite (dev), PostgreSQL 16 (production) |
+| **Frontend** | Bootstrap 5.3, Jinja2, Fabric.js |
+| **Charts** | Matplotlib, Chart.js |
+| **PDF** | WeasyPrint, ReportLab |
+| **Performance** | Rust via PyO3 (shot quality, zone analysis) |
+| **Auth** | Flask-Login, WorkOS SSO |
+| **Container** | Docker, docker-compose |
+| **Mobile** | iOS native app (Swift/SwiftUI) |
+
+---
 
 ## License
 
-This project is licensed under the Apache License 2.0.
+Apache License 2.0

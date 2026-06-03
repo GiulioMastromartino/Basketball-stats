@@ -1,58 +1,108 @@
-# Advanced Analytics Guide
+# Analytics & Reports
 
-This guide covers the advanced analytics features available in Basketball Stats.
-
-## Table of Contents
-
-1. [Advanced Analytics Dashboard](#advanced-analytics-dashboard)
-2. [Player Statistics](#player-statistics)
-3. [Lineup Analytics](#lineup-analytics)
-4. [Shot Charts](#shot-charts)
-5. [PDF Reports](#pdf-reports)
+Advanced analytics engine providing deep insights into player performance, lineup efficiency, shot quality, and clutch performance.
 
 ---
 
-## Advanced Analytics Dashboard
+## Analytics Dashboard
 
-Access the advanced analytics dashboard at `/advanced-analytics` after logging in.
+Access the analytics dashboard at `/analytics` after logging in.
 
-### Features
+### Sections
 
-- **Shot Charts Tab**: Visualize shot locations on a basketball court
-- **Lineup Tab**: Analyze 5-man lineup efficiency and duo compatibility
-- **Clutch Tab**: View performance in high-pressure situations
-- **Four Factors Tab**: Dean Oliver's Four Factors analysis
-- **Player Stats Tab**: Advanced individual metrics
+| Tab | Description |
+|-----|-------------|
+| **Team Overview** | Season summary, top performers, scoring trends |
+| **Player Comparison** | Select 2+ players to compare stats side-by-side |
+| **Progression** | Per-game stat trends for individual players |
+| **Consistency** | Leaderboard ranked by consistency index |
+| **Shooting** | Shooting efficiency breakdown by player and zone |
+| **Roles** | Player role classification based on statistical profile |
 
 ---
 
-## Player Statistics
+## Advanced Metrics
+
+### True Shooting % (TS%)
+
+Measures shooting efficiency accounting for field goals, 3-pointers, and free throws.
+
+```
+TS% = PTS / (2 × (FGA + 0.44 × FTA))
+```
+
+| Range | Rating |
+|-------|--------|
+| 60%+ | Excellent |
+| 55–60% | Good |
+| 50–55% | Average |
+| <50% | Below average |
+
+### Effective FG% (eFG%)
+
+Adjusts FG% for the fact that 3-pointers are worth more than 2-pointers.
+
+```
+eFG% = (FGM + 0.5 × 3PM) / FGA
+```
 
 ### True Usage Rate (USG%)
 
-Measures the percentage of team plays used by a player while on the court.
+Percentage of team plays used by a player while on the court.
 
-**Formula**: `USG% = ((FGA + 0.44*FTA + TOV) * (Team Minutes / 5)) / (Minutes * Team Possessions) * 100`
+```
+USG% = ((FGA + 0.44 × FTA + TOV) × (Team Minutes / 5)) / (Minutes × Team Possessions) × 100
+```
 
-**Interpretation**:
-- 20%+ = High usage (primary scorer)
-- 15-20% = Average usage
-- <15% = Low usage (role player)
+| Range | Role |
+|-------|------|
+| 20%+ | High usage (primary scorer) |
+| 15–20% | Average usage |
+| <15% | Low usage (role player) |
 
 ### Points Per Shot (PPS)
 
 Simple efficiency metric measuring points scored per field goal attempt.
 
-**Formula**: `PPS = Points / FGA`
+```
+PPS = Points / FGA
+```
 
-**Interpretation**:
-- 1.10+ = Excellent efficiency
-- 1.00-1.10 = Good efficiency
-- <1.00 = Below average
+| Range | Rating |
+|-------|--------|
+| 1.10+ | Excellent |
+| 1.00–1.10 | Good |
+| <1.00 | Below average |
 
-### Shot Quality Model
+### Game Score
 
-Assigns expected point values to different court zones:
+Holistic measure of a player's single-game productivity (similar to NBA's Game Score).
+
+```
+Game Score = PTS + 0.4 × FG - 0.7 × FGA - 0.4 × (FTA - FT) + 0.7 × OREB + 0.3 × DREB
+             + STL + 0.7 × AST + 0.7 × BLK - 0.4 × PF - TOV
+```
+
+### Net Rating
+
+Points scored minus points allowed per 100 possessions.
+
+```
+Net Rating = ORtg - DRtg
+```
+
+| Range | Impact |
+|-------|--------|
+| +15+ | Elite impact |
+| +5 to +15 | Positive impact |
+| -5 to +5 | Neutral |
+| < -5 | Negative impact |
+
+---
+
+## Shot Quality Model
+
+Assigns expected point values to different court zones. Calculated in Rust via PyO3 for performance.
 
 | Zone | Expected Value |
 |------|---------------|
@@ -63,16 +113,14 @@ Assigns expected point values to different court zones:
 | Above Break 3 | 1.05 pts |
 | Free Throw | 0.75 pts |
 
-**Shot Quality Delta** = Actual Points - Expected Points
+### Shot Quality Delta
 
-- Positive = "Tough shot maker" (outperforming expectations)
-- Negative = "Poor shot selection" (underperforming expectations)
+```
+Shot Quality Delta = Actual Points - Expected Points
+```
 
-### Clutch Performance
-
-Stats filtered for "Crunch Time" situations:
-- Score within 5 points
-- Less than 5 minutes remaining
+- **Positive** = "Tough shot maker" (outperforming expectations)
+- **Negative** = "Poor shot selection" (underperforming expectations)
 
 ---
 
@@ -82,24 +130,33 @@ Stats filtered for "Crunch Time" situations:
 
 Compare team performance when a player is on vs off the court:
 
-- **ORtg**: Points scored per 100 possessions
-- **DRtg**: Points allowed per 100 possessions
-- **Net Rating**: ORtg - DRtg
+| Metric | Description |
+|--------|-------------|
+| **ORtg** | Points scored per 100 possessions |
+| **DRtg** | Points allowed per 100 possessions |
+| **Net Rating** | ORtg - DRtg |
+| **Net Differential** | On Court Net - Off Court Net |
 
-**Net Differential** = On Court Net - Off Court Net
-
-Positive differential indicates the player has a positive impact.
+Positive differential = player has a positive impact on team performance.
 
 ### Duo Compatibility
 
 Shows how two-player combinations perform together:
 
-- **Synergy Factor**: Combined net rating when both players are on court
-- **Compatibility Matrix**: Color-coded grid showing positive (green) vs negative (red) pairings
+- **Synergy Factor** — Combined net rating when both players are on court
+- **Compatibility Matrix** — Color-coded grid (green = positive, red = negative)
 
-### Lineup Efficiency Rankings
+### Trio Combinations
 
-5-man units ranked by Net Rating with minimum possession threshold.
+Three-player lineup combinations ranked by net rating.
+
+### 5-Man Lineup Rankings
+
+Full 5-man units ranked by Net Rating with minimum possession threshold.
+
+### Rotation Analysis
+
+Visualize substitution patterns and player minute distributions across a game.
 
 ---
 
@@ -107,131 +164,55 @@ Shows how two-player combinations perform together:
 
 ### Court Mapping
 
-Shots are plotted using x_loc and y_loc coordinates:
-- Court dimensions: 0-500 (x), 0-470 (y)
+Shots plotted using `x_loc` and `y_loc` coordinates:
+- Court dimensions: 0–500 (x), 0–470 (y)
 - Basket located at (250, 50)
 
 ### Visualization Types
 
-1. **Shot Markers**: Individual makes (green) and misses (red)
-2. **Hexbin Heatmap**: Grouped by zone with FG% coloring
-3. **Zone Efficiency**: Aggregated stats by court zone
+| Type | Description |
+|------|-------------|
+| **Shot Markers** | Individual makes (green) and misses (red) |
+| **Hexbin Heatmap** | Grouped by zone with FG% coloring |
+| **Zone Efficiency** | Aggregated stats by court zone |
 
 ### Filtering
 
 Filter shot charts by:
-- Player
-- Game type (Season/Friendly)
-- Play type (e.g., "Pick & Roll")
+- **Player** — View individual shot profiles
+- **Game Type** — Season, Friendly, or Playoff
+- **Play Type** — Shots from specific plays (e.g., "Pick & Roll")
 
 ---
 
-## PDF Reports
+## Four Factors (Dean Oliver)
 
-### Visual Game Report
+| Factor | Weight | Description |
+|--------|--------|-------------|
+| **Effective FG%** | 40% | Shooting efficiency (eFG%) |
+| **Turnover %** | 25% | Turnovers per possession |
+| **Offensive Rebound %** | 20% | OREB rate |
+| **Free Throw Rate** | 15% | FTA / FGA |
 
-**Endpoint**: `/reports/games/<game_id>/visual.pdf`
-
-Contains:
-- Score Worm (lead changes throughout game)
-- Quarterly Scoring Breakdown
-- Four Factors Dashboard
-- Top Performers
-- Team Totals
-
-### Lineup Analysis Report
-
-**Endpoint**: `/reports/lineup/report.pdf`
-
-Contains:
-- Top 5-Man Lineups by Net Rating
-- Duo Compatibility Matrix
-- Top Trio Combinations
-
-### Player Scouting Card
-
-**Endpoint**: `/reports/player/<player_name>/scouting.pdf`
-
-Contains:
-- Primary Stats (PPG, RPG, APG, FG%)
-- Advanced Metrics (USG%, PPS, TS%, eFG%)
-- Shot Quality Analysis
-- Zone Efficiency (Hot Zones)
-- Consistency Index
-
-### Season Trend Report
-
-**Endpoint**: `/reports/season/trends.pdf`
-
-Contains:
-- Rolling Averages (5-game, 10-game)
-- Consistency Index (Coefficient of Variation)
-- Performance variance visualization
-
-### Clutch Time Report
-
-**Endpoint**: `/reports/clutch/report.pdf`
-
-Contains:
-- Top Clutch Performers
-- Team Clutch Summary
-- Complete Clutch Statistics Table
+Each factor is displayed with your team's value vs. opponent value and a composite score.
 
 ---
 
-## API Endpoints
+## Clutch Performance
 
-All advanced analytics endpoints are under `/api/advanced/`:
+Stats filtered for "Crunch Time" situations:
+- Score within 5 points
+- Less than 5 minutes remaining in the 4th quarter or overtime
 
-### Player Stats
-- `GET /player/<name>/advanced` - Full advanced stats
-- `GET /player/<name>/usage` - Usage rate
-- `GET /player/<name>/pps` - Points per shot
-
-### Clutch
-- `GET /clutch/<game_id>` - Game clutch stats
-- `GET /clutch/season` - Season-wide clutch stats
-
-### Lineup
-- `GET /lineup/on-off/<player>` - On/off court splits
-- `GET /lineup/duos` - Duo compatibility
-- `GET /lineup/trios` - Trio compatibility
-- `GET /lineup/rankings` - Lineup efficiency rankings
-- `GET /rotation/<game_id>` - Rotation analysis
-
-### Shots
-- `GET /shots/chart` - Shot chart data
-- `GET /shots/heatmap` - Zone heatmap
-- `GET /shots/hexbin` - Hexbin data
-- `GET /shots/by-play/<play_id>` - Shots by play type
-
-### Other
-- `GET /plays/rankings` - Play effectiveness rankings
-- `GET /four-factors` - Dean Oliver's Four Factors
-- `GET /zones` - Shot zone definitions
+Available views:
+- **Player Clutch Stats** — Individual performance in clutch situations
+- **Team Clutch Summary** — Aggregate clutch performance
+- **Clutch Leaders** — Top performers ranked by clutch points
 
 ---
 
-## Database Migration
+## Related
 
-To enable advanced analytics features, run the migration:
-
-```bash
-# Using SQLite CLI
-sqlite3 basketball_stats.db < migrations/advanced_analytics_migration.sql
-
-# Or using Python
-python -c "
-import sqlite3
-conn = sqlite3.connect('basketball_stats.db')
-with open('migrations/advanced_analytics_migration.sql', 'r') as f:
-    conn.executescript(f.read())
-conn.close()
-"
-```
-
-This creates the following tables:
-- `lineup_segments` - Track 5-player units
-- `possessions` - Distinct possession tracking
-- `shot_zones` - Expected values by zone
-- `player_lineup_stats` - Player stats during lineup segments
+- [Live Game Tracking](live-game.md) — Tag plays and track shots
+- [PDF Exports](pdf-exports.md) — Generate report PDFs
+- [Architecture](../technical/architecture.md) — Analytics pipeline details

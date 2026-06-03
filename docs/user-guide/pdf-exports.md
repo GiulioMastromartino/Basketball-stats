@@ -1,62 +1,158 @@
 # PDF Exports
 
-The PDF export system generates professional, publication-ready reports for games, players, and teams, integrating detailed plays analysis.
+Generate professional, publication-ready PDF reports for games, players, teams, lineups, and seasons.
+
+---
 
 ## Available Reports
 
-### 1. Game Reports
-Individual game analysis with plays breakdown.
-*   **Access**: Go to any Game Detail page and click "Export PDF".
-*   **Content**:
-    *   Game Summary (Score, Opponent, Date)
-    *   Plays Analysis (Efficiency per play type)
-    *   Shot Events Analysis (Timeline)
-    *   Overall Shooting Stats
+### Game Reports
 
-### 2. Player Reports
-Career performance with plays-based efficiency.
-*   **Access**: Go to any Player Profile and click "Export Report".
-*   **Content**:
-    *   Career Statistics
-    *   Performance by Play (e.g., FG% on "Pick and Roll")
-    *   Shot Breakdown (2pt vs 3pt)
-    *   Recent Games Log
+| Report | Endpoint | Content |
+|--------|----------|---------|
+| **Game Summary** | `/reports/games/<id>/summary.pdf` | Box score, shooting stats, plays analysis |
+| **Advanced Summary** | `/reports/games/<id>/advanced_summary.pdf` | Advanced metrics, efficiency ratings |
+| **Visual Game Report** | `/reports/games/<id>/visual.pdf` | Score worm, quarterly flow, Four Factors |
+| **Evolution Report** | `/reports/games/<id>/evolution.pdf` | Team performance over time |
 
-### 3. Team Reports
-Seasonal statistics and plays effectiveness ranking.
-*   **Access**: From the main Dashboard or Team Stats page.
-*   **Content**:
-    *   Season Overview (Win/Loss, PPG)
-    *   Team Plays Analysis (Top 10 plays by usage)
-    *   Top Performers
-    *   Plays Effectiveness Ranking (Ranked by FG%)
+### Player Reports
 
-## Usage
+| Report | Endpoint | Content |
+|--------|----------|---------|
+| **Player Report** | `/reports/player/<name>/report.pdf` | Career stats, performance by play, shot breakdown |
+| **Scouting Card** | `/reports/player/<name>/scouting.pdf` | Shot chart, hot zones, advanced metrics, consistency |
 
-### Downloading Reports
+### Team Reports
 
-You can download reports directly from the web interface.
+| Report | Endpoint | Content |
+|--------|----------|---------|
+| **Team Report** | `/reports/team/report.pdf` | Season overview, top performers, plays analysis |
+| **Season Trends** | `/reports/season/trends.pdf` | Rolling averages, consistency index, trends |
 
-1.  Navigate to the specific game, player, or team page.
-2.  Look for the **Export PDF** button (usually top right).
-3.  The PDF will generate on-the-fly and download to your device.
+### Lineup Reports
 
-### Preview Mode
+| Report | Endpoint | Content |
+|--------|----------|---------|
+| **Lineup Report** | `/reports/lineup/report.pdf` | Top 5-man lineups, duo/trio matrices |
 
-Most reports offer a "Preview" button alongside the download option. This opens the PDF in a new browser tab for quick viewing without saving the file.
+### Clutch Reports
 
-## Technical Details
+| Report | Endpoint | Content |
+|--------|----------|---------|
+| **Clutch Time Report** | `/reports/clutch/report.pdf` | Clutch performers, team clutch summary |
 
-The reporting engine uses **ReportLab** to generate PDFs programmatically.
+### Halftime Summary
 
-*   **In-Memory Generation**: PDFs are built in RAM, ensuring fast response times and no server disk clutter.
-*   **Vector Graphics**: Charts and tables use vector graphics for crisp printing at any resolution.
-*   **Styles**: Custom stylesheets ensure consistent branding across all reports.
+| Report | Endpoint | Content |
+|--------|----------|---------|
+| **Halftime PDF** | `POST /reports/live/halftime-pdf` | First-half box score, +/- summary |
+
+---
+
+## Accessing Reports
+
+### From the Web Interface
+
+Every game, player, and team page has a **Export PDF** button (usually top right of the page):
+
+1. Navigate to the specific game, player, or team page
+2. Click the **Export PDF** or **Download Report** button
+3. The PDF generates on-the-fly and downloads to your device
+
+### Via Direct URL
+
+Reports are accessible at their direct URLs (requires authentication):
+
+```
+https://your-app.com/reports/games/42/visual.pdf
+https://your-app.com/reports/player/John%20Smith/scouting.pdf
+https://your-app.com/reports/team/report.pdf
+```
+
+### Bulk Download
+
+The **Download All** button on the analytics dashboard generates a ZIP bundle containing:
+- Team report
+- Individual player PDFs for all active players
+- Aggregated statistics
+
+---
+
+## Report Details
+
+### Visual Game Report
+
+The most comprehensive game report includes:
+
+- **Score Worm** — Lead changes visualized throughout the game
+- **Quarterly Scoring** — Per-quarter points breakdown (bar chart)
+- **Four Factors Dashboard** — EFG%, TOV%, OREB%, FTA Rate
+- **Top Performers** — Leading scorers, rebounders, playmakers
+- **Team Totals** — Aggregated team statistics
+- **Advanced Metrics** — TS%, eFG%, Game Score, Net Rating
+
+### Player Scouting Card
+
+A compact one-page player profile:
+
+- **Primary Stats** — PPG, RPG, APG, FG%, 3P%, FT%
+- **Advanced Metrics** — USG%, PPS, TS%, eFG%, Game Score
+- **Shot Quality Analysis** — Expected vs actual points by zone
+- **Zone Efficiency** — Hot zone heatmap with color coding
+- **Consistency Index** — Coefficient of variation across games
+
+### Game Summary
+
+Standard box score format:
+
+- Player-by-player stat line (MIN, PTS, REB, AST, STL, BLK, TOV, PF)
+- Team totals
+- Shooting percentages by player
+- + / - column
+
+### Season Trend Report
+
+Longitudinal analysis:
+
+- **Rolling Averages** — 5-game and 10-game rolling windows
+- **Consistency Index** — Coefficient of variation for key metrics
+- **Performance Variance** — Visualization of highs and lows
+
+### Clutch Time Report
+
+Pressure situation analysis:
+
+- **Crunch Time** — Score within 5 points, under 5 minutes remaining
+- **Top Clutch Performers** — Ranked by clutch points and efficiency
+- **Team Clutch Summary** — Aggregate clutch performance
+- **Complete Clutch Table** — All players with clutch stats
+
+---
 
 ## Troubleshooting
 
-**"PDF file is empty"**
-*   Ensure the game/player has data. A game with 0 shots cannot generate a meaningful chart.
+| Problem | Solution |
+|---------|----------|
+| **PDF is empty** | Ensure the game/player has data. A game with 0 shots cannot generate meaningful charts. |
+| **Generation failed** | Check application logs. Common issues: missing font definitions, database timeouts. |
+| **PDF won't download** | Check browser pop-up blocker settings. Try right-clicking the Export button and "Save Link As". |
+| **Slow generation** | Large games with 50+ shot events may take 2–3 seconds. Reports are cached for 5 minutes. |
+| **Missing reports** | Some report types require specific data (e.g., Clutch Report needs close-game data). |
 
-**"Generation Failed"**
-*   Check the application logs. Common issues include missing font definitions or database connection timeouts.
+---
+
+## Technical Details
+
+- **Engines**: ReportLab (structured reports) + WeasyPrint (visual reports)
+- **Generation**: In-memory — no temporary files on disk
+- **Graphics**: Vector-based for crisp printing at any resolution
+- **Caching**: Reports cached for 5 minutes (configurable via `CACHE_TIMEOUT`)
+- **Styles**: Custom stylesheets ensure consistent branding across all reports
+
+---
+
+## Related
+
+- [Getting Started](../user-guide/getting-started.md) — Set up the application
+- [Live Game Tracking](live-game.md) — Generate halftime PDFs
+- [Analytics & Reports](advanced-analytics.md) — Understand the metrics in your reports
