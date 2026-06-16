@@ -56,7 +56,7 @@ try:
     print(d.get('status', 'UNKNOWN'))
 except Exception:
     print('UNKNOWN')
-" 2>/dev/null || echo "UNKNOWN")
+" 2>&1 || echo "UNKNOWN")
 
 if [ "$SESSION_STATUS" = "WORKING" ]; then
     echo "[OK] OpenWA session is WORKING."

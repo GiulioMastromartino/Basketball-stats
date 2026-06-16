@@ -181,7 +181,11 @@ def add_notification_columns(app):
             if "notification_channel" not in user_cols:
                 conn.execute(text(
                     "ALTER TABLE users ADD COLUMN notification_channel "
-                    "VARCHAR(20) NOT NULL DEFAULT 'email'"
+                    "VARCHAR(20) DEFAULT 'email'"
+                ))
+                conn.execute(text(
+                    "UPDATE users SET notification_channel = 'email' "
+                    "WHERE notification_channel IS NULL"
                 ))
                 conn.commit()
                 print("  ✓ Added notification_channel to users")
@@ -196,7 +200,11 @@ def add_notification_columns(app):
             if "notification_channel" not in player_cols:
                 conn.execute(text(
                     "ALTER TABLE players ADD COLUMN notification_channel "
-                    "VARCHAR(20) NOT NULL DEFAULT 'email'"
+                    "VARCHAR(20) DEFAULT 'email'"
+                ))
+                conn.execute(text(
+                    "UPDATE players SET notification_channel = 'email' "
+                    "WHERE notification_channel IS NULL"
                 ))
                 conn.commit()
                 print("  ✓ Added notification_channel to players")

@@ -533,7 +533,10 @@ def update_player(player_id):
 @auth_bp.route("/settings/notifications", methods=["POST"])
 @login_required
 def update_notification_settings():
+    VALID_CHANNELS = {"email", "whatsapp", "whatsapp_group", "both", "all"}
     channel = request.form.get("notification_channel", "email")
+    if channel not in VALID_CHANNELS:
+        channel = "email"
     phone   = request.form.get("whatsapp_phone", "").strip() or None
     user = User.query.get(current_user.id)
     user.notification_channel = channel

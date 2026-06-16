@@ -17,6 +17,7 @@
                 <td>{{ '✅' if g.active else '⏸' }}</td>
                 <td>
                     <form method="POST" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="toggle">
                         <input type="hidden" name="group_id" value="{{ g.id }}">
                         <button class="btn btn-sm btn-secondary">
@@ -25,6 +26,7 @@
                     </form>
                     <form method="POST" style="display:inline"
                           onsubmit="return confirm('Delete this group?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="group_id" value="{{ g.id }}">
                         <button class="btn btn-sm btn-danger">Delete</button>
@@ -41,6 +43,7 @@
   -H "x-api-key: KEY" \
   | jq '.[] | select(.id | endswith("@g.us")) | {id, name}'</code></pre>
     <form method="POST" class="row g-2 mt-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="add">
         <div class="col-auto">
             <input type="text" name="group_name" class="form-control"

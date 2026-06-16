@@ -15,6 +15,9 @@ def _session() -> str:
 
 
 def _chat_id(phone: str) -> str:
+    if not phone:
+        current_app.logger.error("_chat_id called with empty/None phone")
+        return ""
     return f"{phone.lstrip('+').replace(' ', '')}@c.us"
 
 
@@ -23,6 +26,9 @@ def _group_chat_id(group_wa_id: str) -> str:
 
 
 def _send(chat_id: str, text: str, label: str = "") -> bool:
+    if not chat_id:
+        current_app.logger.warning("_send called with empty chat_id — skipping")
+        return False
     try:
         with _client() as c:
             r = c.post(
@@ -47,6 +53,8 @@ def send_game_notification(phones: list, game, pdf_attachment=None) -> None:
         f"Log in to view full details."
     )
     for phone in phones:
+        if not phone:
+            continue
         _send(_chat_id(phone), text, label=phone)
 
 

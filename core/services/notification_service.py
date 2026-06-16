@@ -51,5 +51,7 @@ def notify_otp(
     recipient_email: str, otp_code: str, whatsapp_phone: str = None
 ) -> bool:
     if whatsapp_phone:
-        return whatsapp_service.send_otp_whatsapp(whatsapp_phone, otp_code)
-    return email_service.send_otp_email(recipient_email, otp_code)
+        result = whatsapp_service.send_otp_whatsapp(whatsapp_phone, otp_code)
+    else:
+        result = email_service.send_otp_email(recipient_email, otp_code)
+    return result
