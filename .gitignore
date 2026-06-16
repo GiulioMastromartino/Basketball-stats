@@ -55,3 +55,4 @@ build/
 
 # Rust build artifacts
 basketball_stats_rust/target/
+openwa-integration-plan.md
