@@ -65,12 +65,10 @@ from core.utils import (
     normalize_date_to_display,
     normalize_shot_events,
 )
-from core.services.email_service import send_game_notification
+from core.services.notification_service import notify_game, notify_player_performance
 from core.services import create_game_from_live_data
 from core.services.analytics_service import AnalyticsService
 from web.decorators import gm_required, team_access_required
-from flask_mail import Message
-from core import mail
 
 main_bp = Blueprint("main", __name__)
 
@@ -243,97 +241,70 @@ def _calculate_player_season_averages(player_name: str, current_game_id: int) ->
 
 
 def _notify_users_game_saved(game: Game):
-    """Notify non-admin users that a game was saved (optional PDF attachment)."""
+    """Notify users/players that a game was saved, routing through notification_service."""
     try:
-        # Send notifications to users
+        # ── Game-addition notifications to users ──────────────────────────
         enabled = SystemSetting.get_value("notify_game_added", default="false")
         if enabled == "true":
             non_gm_users = User.query.filter(User.id.notin_(
                 db.session.query(OrganizationMembership.user_id).filter_by(is_gm=True)
             )).all()
-            recipients = [u.email for u in non_gm_users if u.email]
-            if recipients:
+
+            if non_gm_users:
                 pdf_attachment = None
                 attach_pdf = SystemSetting.get_value("attach_game_pdf", default="false")
                 if attach_pdf == "true":
                     try:
-                        # Use the professional ReportLab-based generator
                         from core.pdf_exports import PlaysBasedPDFGenerator
                         generator = PlaysBasedPDFGenerator()
                         pdf_buffer = generator.generate_game_report_pdf(game.id)
-                        
                         pdf_bytes = pdf_buffer.getvalue()
-                        filename = f"Game_Report_{game.opponent.replace(' ', '_')}_{game.date}.pdf"
-                        
+                        filename = (
+                            f"Game_Report_{game.opponent.replace(' ', '_')}_{game.date}.pdf"
+                        )
                         if pdf_bytes:
                             pdf_attachment = (filename, pdf_bytes)
                     except Exception as e:
                         current_app.logger.error(
-                            f"Failed to generate professional game PDF for email (Game ID {game.id}): {e}"
+                            f"Failed to generate PDF for game {game.id}: {e}"
                         )
 
-                send_game_notification(recipients, game, pdf_attachment=pdf_attachment)
+                notify_game(non_gm_users, game, pdf_attachment=pdf_attachment, team=game.team)
 
-        # Send player performance reports as PDF attachments
+        # ── Player performance reports ────────────────────────────────────
         send_player_reports = SystemSetting.get_value(
             "send_player_reports", default="true"
         )
         if send_player_reports == "true":
-            from core.services.report_service import generate_player_quarter_pdf_bytes
-
             players = Player.query.filter_by(active=True).all()
             for player in players:
-                if not player.email:
-                    continue
-
                 game_stat = PlayerStat.query.filter_by(
                     game_id=game.id, player_name=player.name
                 ).first()
-
                 if not game_stat:
                     continue
 
-                # Generate the quarter detail PDF for this player (FIX: pass game.id)
-                filename, pdf_bytes = generate_player_quarter_pdf_bytes(
-                    player.name, game.game_type, game_id=game.id
-                )
-                if not pdf_bytes:
-                    current_app.logger.warning(
-                        f"Failed to generate quarter PDF for {player.name}"
-                    )
-                    continue
-
-                # Send email with PDF attachment
-                subject = f"Your Performance Report: {player.name} vs {game.opponent} ({game.date})"
-                body = f"""Hi {player.name},
-
-Your performance report for the game against {game.opponent} on {game.date} is attached.
-
-Result: {game.result} ({game.team_score}-{game.opponent_score})
-Game Type: {game.game_type}
-
-The report includes your per-quarter breakdown and shooting efficiency.
-
-Keep up the great work!
-"""
-
-                msg = Message(
-                    subject,
-                    sender=current_app.config.get("MAIL_DEFAULT_SENDER"),
-                    recipients=[player.email],
-                )
-                msg.body = body
-                msg.attach(filename, "application/pdf", pdf_bytes)
-
-                try:
-                    mail.send(msg)
-                    current_app.logger.info(
-                        f"Player quarter report sent to {player.email}"
-                    )
-                except Exception as e:
-                    current_app.logger.error(
-                        f"Failed to send quarter report to {player.email}: {e}"
-                    )
+                game_stats = {
+                    "points": game_stat.points,
+                    "reb":    game_stat.reb,
+                    "oreb":   game_stat.oreb,
+                    "dreb":   game_stat.dreb,
+                    "ast":    game_stat.ast,
+                    "stl":    game_stat.stl,
+                    "blk":    game_stat.blk,
+                    "tov":    game_stat.tov,
+                    "fgm":    game_stat.fgm,
+                    "fga":    game_stat.fga,
+                    "fg_percent": game_stat.fg_percent,
+                    "tpm":    game_stat.tpm,
+                    "tpa":    game_stat.tpa,
+                    "tp_percent": game_stat.tp_percent,
+                    "ftm":    game_stat.ftm,
+                    "fta":    game_stat.fta,
+                    "ft_percent": game_stat.ft_percent,
+                }
+                season_avg = _calculate_player_season_averages(player.name, game.id)
+                notify_player_performance(player, player.name, game, game_stats, season_avg)
 
     except Exception as e:
         current_app.logger.error(

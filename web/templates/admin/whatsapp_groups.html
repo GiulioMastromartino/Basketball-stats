@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>WhatsApp Groups — {{ team.name }}</h2>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th><th>Group ID (@g.us)</th><th>Active</th><th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in groups %}
+            <tr>
+                <td>{{ g.group_name }}</td>
+                <td><code>{{ g.group_wa_id }}</code></td>
+                <td>{{ '✅' if g.active else '⏸' }}</td>
+                <td>
+                    <form method="POST" style="display:inline">
+                        <input type="hidden" name="action" value="toggle">
+                        <input type="hidden" name="group_id" value="{{ g.id }}">
+                        <button class="btn btn-sm btn-secondary">
+                            {{ 'Pause' if g.active else 'Activate' }}
+                        </button>
+                    </form>
+                    <form method="POST" style="display:inline"
+                          onsubmit="return confirm('Delete this group?')">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="group_id" value="{{ g.id }}">
+                        <button class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3 class="mt-4">Add Group</h3>
+    <p>Find the group ID first:</p>
+    <pre><code>curl -s http://SERVER:3000/api/sessions/basketball-bot/chats \
+  -H "x-api-key: KEY" \
+  | jq '.[] | select(.id | endswith("@g.us")) | {id, name}'</code></pre>
+    <form method="POST" class="row g-2 mt-2">
+        <input type="hidden" name="action" value="add">
+        <div class="col-auto">
+            <input type="text" name="group_name" class="form-control"
+                   placeholder="Group name" required>
+        </div>
+        <div class="col-auto">
+            <input type="text" name="group_wa_id" class="form-control"
+                   placeholder="120363XXX@g.us" required>
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">Add</button>
+        </div>
+    </form>
+
+    <a href="{{ url_for('main.admin_panel', section='settings') }}"
+       class="btn btn-outline-secondary mt-4">← Back to Admin</a>
+</div>
+{% endblock %}

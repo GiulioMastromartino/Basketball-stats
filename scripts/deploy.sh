@@ -44,6 +44,37 @@ echo ""
 echo "[STEP] Deploying services..."
 docker-compose -f "$COMPOSE_FILE" up -d
 
+# ── 3b. Check OpenWA session status ─────────────────────────────────────
+echo ""
+echo "[CHECK] OpenWA WhatsApp session status..."
+SESSION_CHECK=$(docker-compose -f "$COMPOSE_FILE" exec -T openwa \
+  wget -qO- http://localhost:3000/api/sessions/basketball-bot 2>/dev/null || true)
+SESSION_STATUS=$(echo "$SESSION_CHECK" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(d.get('status', 'UNKNOWN'))
+except Exception:
+    print('UNKNOWN')
+" 2>/dev/null || echo "UNKNOWN")
+
+if [ "$SESSION_STATUS" = "WORKING" ]; then
+    echo "[OK] OpenWA session is WORKING."
+elif [ "$SESSION_STATUS" = "SCAN_QR_CODE" ]; then
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║  ⚠ OPENWA NEEDS QR CODE PAIRING                            ║"
+    echo "║  WhatsApp notifications will be unavailable until paired.   ║"
+    echo "║                                                             ║"
+    echo "║  Follow Part 1.3 in openwa-integration-plan.md:             ║"
+    echo "║  1. Temporarily expose port 3000 on openwa service          ║"
+    echo "║  2. Run pairing commands from your Mac                      ║"
+    echo "║  3. Redeploy (this script) to verify                       ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+else
+    echo "[INFO] OpenWA session status: $SESSION_STATUS"
+    echo "[INFO] Run pairing when ready (see openwa-integration-plan.md Part 1.3)"
+fi
+
 # ── 4. Wait for health ──────────────────────────────────────────────────
 echo ""
 echo "[STEP] Waiting for services to stabilise..."

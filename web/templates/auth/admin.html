@@ -28,6 +28,13 @@
                 <i class="fas fa-cog"></i> Settings
             </a>
         </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link"
+               href="{{ url_for('auth.manage_whatsapp_groups',
+                                team_id=session.get('current_team_id', 1)) }}">
+                <i class="fab fa-whatsapp"></i> WhatsApp Groups
+            </a>
+        </li>
     </ul>
 
     <div class="tab-content">
@@ -210,6 +217,55 @@
                                     </label>
                                 </div>
                                 
+                                <hr>
+                                <h6 class="mb-2">My Notification Preferences</h6>
+                                <form method="POST" action="{{ url_for('auth.update_notification_settings') }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                    <div class="mb-3">
+                                        <label for="notification_channel" class="form-label">Delivery Channel</label>
+                                        <select id="notification_channel" name="notification_channel" class="form-select">
+                                            <option value="email"
+                                                {% if current_user.notification_channel == 'email' %}selected{% endif %}>
+                                                Email only</option>
+                                            <option value="whatsapp"
+                                                {% if current_user.notification_channel == 'whatsapp' %}selected{% endif %}>
+                                                WhatsApp (personal) only</option>
+                                            <option value="whatsapp_group"
+                                                {% if current_user.notification_channel == 'whatsapp_group' %}selected{% endif %}>
+                                                WhatsApp group only</option>
+                                            <option value="both"
+                                                {% if current_user.notification_channel == 'both' %}selected{% endif %}>
+                                                Email + personal WhatsApp</option>
+                                            <option value="all"
+                                                {% if current_user.notification_channel == 'all' %}selected{% endif %}>
+                                                All channels</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-3" id="phone-field">
+                                        <label for="whatsapp_phone" class="form-label">
+                                            WhatsApp Phone
+                                            <small class="text-muted">(international format, e.g. +393331234567)</small>
+                                        </label>
+                                        <input type="tel" id="whatsapp_phone" name="whatsapp_phone"
+                                               class="form-control"
+                                               value="{{ current_user.whatsapp_phone or '' }}"
+                                               placeholder="+39...">
+                                    </div>
+
+                                    <button type="submit" class="btn btn-primary">Save preferences</button>
+                                </form>
+
+                                <script>
+                                const sel = document.getElementById('notification_channel');
+                                const phoneField = document.getElementById('phone-field');
+                                function togglePhone() {
+                                    phoneField.style.display = sel.value === 'email' ? 'none' : '';
+                                }
+                                if (sel) { sel.addEventListener('change', togglePhone); togglePhone(); }
+                                </script>
+
                                 <hr>
                                 <h6 class="mb-2">Futures</h6>
                                 <div class="text-muted small mb-3">
