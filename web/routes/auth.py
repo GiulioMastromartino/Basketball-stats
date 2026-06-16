@@ -4,6 +4,7 @@ import os
 import secrets
 from flask import (
     Blueprint,
+    abort,
     flash,
     redirect,
     render_template,
@@ -20,9 +21,9 @@ from wtforms.validators import DataRequired, Email
 from core.models import (
     User, SystemSetting, Organization, Team,
     OrganizationMembership, TeamAssignment,
-    db, bcrypt, Player,
+    db, bcrypt, Player, WhatsAppGroup,
 )
-from core.services.email_service import send_otp_email
+from core.services.notification_service import notify_otp
 from core.services.workos_service import (
     get_auth_url,
     get_magic_link_url,
@@ -80,7 +81,10 @@ def login():
                     user.otp_expiry = datetime.utcnow() + timedelta(minutes=5)
                     db.session.commit()
                     session["otp_user_id"] = user.id
-                    send_otp_email(user.email, otp_code)
+                    notify_otp(
+                        user.email, otp_code,
+                        whatsapp_phone=getattr(user, "whatsapp_phone", None)
+                    )
                     flash("Verification code sent. Please check your email.", "info")
                     return redirect(url_for("auth.verify_otp"))
 
@@ -524,3 +528,50 @@ def update_player(player_id):
         flash(f"Player {player.name} updated.", "success")
 
     return redirect(url_for("main.admin_panel", section="players"))
+
+
+@auth_bp.route("/settings/notifications", methods=["POST"])
+@login_required
+def update_notification_settings():
+    VALID_CHANNELS = {"email", "whatsapp", "whatsapp_group", "both", "all"}
+    channel = request.form.get("notification_channel", "email")
+    if channel not in VALID_CHANNELS:
+        channel = "email"
+    phone   = request.form.get("whatsapp_phone", "").strip() or None
+    user = User.query.get(current_user.id)
+    user.notification_channel = channel
+    user.whatsapp_phone = phone
+    db.session.commit()
+    flash("Notification preferences saved.", "success")
+    return redirect(url_for("main.admin_panel", section="settings"))
+
+
+@auth_bp.route("/admin/teams/<int:team_id>/whatsapp-groups", methods=["GET", "POST"])
+@login_required
+@gm_required
+def manage_whatsapp_groups(team_id):
+    team = Team.query.get_or_404(team_id)
+    if team.organization_id != current_user.organization_id:
+        abort(403)
+
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "add":
+            db.session.add(WhatsAppGroup(
+                team_id=team_id,
+                group_name=request.form["group_name"],
+                group_wa_id=request.form["group_wa_id"].strip(),
+            ))
+        elif action == "toggle":
+            g = WhatsAppGroup.query.get_or_404(request.form["group_id"])
+            g.active = not g.active
+        elif action == "delete":
+            db.session.delete(WhatsAppGroup.query.get_or_404(request.form["group_id"]))
+        db.session.commit()
+        return redirect(url_for("auth.manage_whatsapp_groups", team_id=team_id))
+
+    groups = (WhatsAppGroup.query
+              .filter_by(team_id=team_id)
+              .order_by(WhatsAppGroup.created_at)
+              .all())
+    return render_template("admin/whatsapp_groups.html", groups=groups, team=team)

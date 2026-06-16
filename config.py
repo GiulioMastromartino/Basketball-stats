@@ -89,6 +89,11 @@ class Config:
         "WORKOS_REDIRECT_URI"
     )  # Must be set per environment
 
+    # OpenWA WhatsApp Gateway
+    OPENWA_API_URL    = os.getenv("OPENWA_API_URL", "")
+    OPENWA_API_KEY    = os.getenv("OPENWA_API_KEY", "")
+    OPENWA_SESSION_ID = os.getenv("OPENWA_SESSION_ID", "basketball-bot")
+
 
 class DevelopmentConfig(Config):
     DEBUG = True

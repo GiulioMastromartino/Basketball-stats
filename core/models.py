@@ -69,6 +69,12 @@ class User(UserMixin, db.Model):
     otp_code = db.Column(db.String(6), nullable=True)
     otp_expiry = db.Column(db.DateTime, nullable=True)
 
+    notification_channel = db.Column(
+        db.String(20), nullable=False, default="email",
+        server_default="email"
+    )
+    whatsapp_phone = db.Column(db.String(20), nullable=True)
+
     memberships = db.relationship("OrganizationMembership", backref="user", lazy=True)
     team_assignments = db.relationship("TeamAssignment", backref="user", lazy=True)
 
@@ -402,6 +408,20 @@ class PlayerLineupStats(db.Model):
     lineup_segment = db.relationship("LineupSegment", backref=db.backref("player_stats", lazy=True))
 
 
+class WhatsAppGroup(db.Model):
+    """WhatsApp groups registered per team for broadcasting notifications."""
+
+    __tablename__ = "whatsapp_groups"
+    id          = db.Column(db.Integer, primary_key=True)
+    team_id     = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    group_name  = db.Column(db.String(100), nullable=False)
+    group_wa_id = db.Column(db.String(50), nullable=False)
+    active      = db.Column(db.Boolean, nullable=False, default=True, server_default="1")
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    team = db.relationship("Team", backref=db.backref("whatsapp_groups", lazy=True))
+
+
 class Player(db.Model):
     """Player model for managing player information and performance reports"""
 
@@ -411,6 +431,11 @@ class Player(db.Model):
     name = db.Column(db.String(100), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=True)
     active = db.Column(db.Boolean, default=True, server_default="1", nullable=False)
+    notification_channel = db.Column(
+        db.String(20), nullable=False, default="email",
+        server_default="email"
+    )
+    whatsapp_phone = db.Column(db.String(20), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     team = db.relationship("Team", backref=db.backref("players", lazy=True))

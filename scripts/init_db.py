@@ -166,6 +166,56 @@ def add_missing_columns(app):
             print("  ✓ All columns up to date")
 
 
+def add_notification_columns(app):
+    """Add notification channel columns to users and players tables.
+
+    Safe to re-run — uses inspect() to check for column existence before ALTER.
+    The whatsapp_groups table is handled by db.create_all() via the model.
+    """
+    with app.app_context():
+        print("[Schema Check] Adding notification columns...")
+        inspector = inspect(db.engine)
+
+        with db.engine.connect() as conn:
+            user_cols = {c["name"] for c in inspector.get_columns("users")}
+            if "notification_channel" not in user_cols:
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN notification_channel "
+                    "VARCHAR(20) DEFAULT 'email'"
+                ))
+                conn.execute(text(
+                    "UPDATE users SET notification_channel = 'email' "
+                    "WHERE notification_channel IS NULL"
+                ))
+                conn.commit()
+                print("  ✓ Added notification_channel to users")
+            if "whatsapp_phone" not in user_cols:
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN whatsapp_phone VARCHAR(20) DEFAULT NULL"
+                ))
+                conn.commit()
+                print("  ✓ Added whatsapp_phone to users")
+
+            player_cols = {c["name"] for c in inspector.get_columns("players")}
+            if "notification_channel" not in player_cols:
+                conn.execute(text(
+                    "ALTER TABLE players ADD COLUMN notification_channel "
+                    "VARCHAR(20) DEFAULT 'email'"
+                ))
+                conn.execute(text(
+                    "UPDATE players SET notification_channel = 'email' "
+                    "WHERE notification_channel IS NULL"
+                ))
+                conn.commit()
+                print("  ✓ Added notification_channel to players")
+            if "whatsapp_phone" not in player_cols:
+                conn.execute(text(
+                    "ALTER TABLE players ADD COLUMN whatsapp_phone VARCHAR(20) DEFAULT NULL"
+                ))
+                conn.commit()
+                print("  ✓ Added whatsapp_phone to players")
+
+
 def backfill_lineups(app):
     """Backfill lineup data - create lineups and link segments."""
     with app.app_context():

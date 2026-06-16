@@ -26,6 +26,27 @@ services:
     networks:
       - backend
 
+   # ── OpenWA WhatsApp Gateway ─────────────────────────────────────────────
+  openwa:
+    image: ghcr.io/rmyndharis/openwa:latest
+    restart: unless-stopped
+    shm_size: "256mb"
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      API_KEY: ${OPENWA_API_KEY}
+    volumes:
+      - openwa_data:/app/.wwebjs_auth
+      - openwa_cache:/app/.wwebjs_cache
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
    # ── One-shot migrator (runs, then exits) ───────────────────────────
   migrator:
     build: .
@@ -59,6 +80,8 @@ services:
     depends_on:
       migrator:
         condition: service_completed_successfully
+      openwa:
+        condition: service_started
     env_file: .env.prod
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
@@ -82,6 +105,8 @@ services:
     depends_on:
       migrator:
         condition: service_completed_successfully
+      openwa:
+        condition: service_started
     env_file: .env.prod
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
@@ -105,6 +130,8 @@ services:
     depends_on:
       migrator:
         condition: service_completed_successfully
+      openwa:
+        condition: service_started
     env_file: .env.prod
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
@@ -212,6 +239,8 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
+  openwa_data:
+  openwa_cache:
 
 networks:
   backend:

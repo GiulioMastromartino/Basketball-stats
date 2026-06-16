@@ -33,7 +33,7 @@ from core.models import (
     Player, PlayerStat, User, Game, Play, PlayType, Lineup,
     SystemSetting,
 )
-from init_db import add_missing_columns
+from init_db import add_missing_columns, add_notification_columns
 from sqlalchemy import text
 
 
@@ -63,6 +63,14 @@ def run(app=None):
             print("[migrate] Missing columns added successfully.")
         except Exception as e:
             print(f"[migrate] Warning: add_missing_columns failed: {e}")
+
+        # ── 1c. Add notification columns to users and players ─────────────
+        print("[migrate] Adding notification columns...")
+        try:
+            add_notification_columns(app)
+            print("[migrate] Notification columns added successfully.")
+        except Exception as e:
+            print(f"[migrate] Warning: add_notification_columns failed: {e}")
 
         # ── 2. Seed players from player_stats (idempotent) ─────────────────
         try:
