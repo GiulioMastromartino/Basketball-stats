@@ -28,5 +28,5 @@ Flask-Mail
 python-dotenv
 reportlab>=4.0.0
 workos==5.45.0
-httpx==0.27.0
+httpx==0.28.1
 scipy>=1.11.0
