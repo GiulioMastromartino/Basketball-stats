@@ -1,5 +1,4 @@
 services:
-
    # ── Database ──────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
@@ -17,7 +16,6 @@ services:
       retries: 5
     networks:
       - backend
-
    # ── Redis ───────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
@@ -25,7 +23,6 @@ services:
     command: redis-server --save "" --appendonly no
     networks:
       - backend
-
    # ── OpenWA WhatsApp Gateway ─────────────────────────────────────────────
   openwa:
     image: ghcr.io/rmyndharis/openwa:latest
@@ -38,6 +35,7 @@ services:
     volumes:
       - openwa_data:/app/.wwebjs_auth
       - openwa_cache:/app/.wwebjs_cache
+      - openwa_appdata:/app/data
     networks:
       - backend
     healthcheck:
@@ -46,7 +44,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
-
    # ── One-shot migrator (runs, then exits) ───────────────────────────
   migrator:
     build: .
@@ -72,7 +69,6 @@ services:
     command: ["python", "scripts/migrate.py"]
     networks:
       - backend
-
    # ── App replica 1 ─────────────────────────────────────────────────────────
   web_1:
     build: .
@@ -97,7 +93,6 @@ services:
     command: ["gunicorn", "-c", "gunicorn_config.py", "run:app"]
     networks:
       - backend
-
    # ── App replica 2 ─────────────────────────────────────────────────────────
   web_2:
     build: .
@@ -122,7 +117,6 @@ services:
     command: ["gunicorn", "-c", "gunicorn_config.py", "run:app"]
     networks:
       - backend
-
    # ── App replica 3 ─────────────────────────────────────────────────────────
   web_3:
     build: .
@@ -147,7 +141,6 @@ services:
     command: ["gunicorn", "-c", "gunicorn_config.py", "run:app"]
     networks:
       - backend
-
    # ── Prometheus ──────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:latest
@@ -163,7 +156,6 @@ services:
       - prometheus_data:/prometheus
     networks:
       - backend
-
    # ── Loki ────────────────────────────────────────────────────────────────
   loki:
     image: grafana/loki:latest
@@ -178,7 +170,6 @@ services:
       - "3100:3100"
     networks:
       - backend
-
    # ── Promtail ────────────────────────────────────────────────────────────
   promtail:
     image: grafana/promtail:latest
@@ -193,7 +184,6 @@ services:
       - loki
     networks:
       - backend
-
    # ── Grafana ─────────────────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:latest
@@ -214,7 +204,6 @@ services:
       - loki
     networks:
       - backend
-
    # ── Nginx load balancer ───────────────────────────────────────────────
   nginx:
     image: nginx:1.27-alpine
@@ -230,7 +219,6 @@ services:
       - ./nginx/conf.d/basketball.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - backend
-
 volumes:
   postgres_data:
   games_data:
@@ -241,7 +229,7 @@ volumes:
   grafana_data:
   openwa_data:
   openwa_cache:
-
+  openwa_appdata:
 networks:
   backend:
     driver: bridge
