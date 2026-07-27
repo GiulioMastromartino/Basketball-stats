@@ -96,6 +96,14 @@
     }
     .page:last-child { page-break-after: avoid; break-after: avoid; }
 
+    .page-break {
+      break-after: page;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      border: none;
+    }
+
     /* scanline texture */
     .page::before {
       content: '';
@@ -492,7 +500,6 @@
 {%- macro pct_bar(r) -%}
   <div class="pct-row">
     <div class="pct-val u-white u-minw-16">#{{ r.rank }}/{{ r.total }}</div>
-    {{ rank_badge(r) }}
     <div class="pct-bar-wrap u-flex-1">
       <div class="pct-bar-fill" style="--pct:{{ r.percentile }};width:var(--pct);"></div>
       <div class="pct-marker" style="--pct:{{ r.percentile }};left:var(--pct);"></div>
@@ -543,7 +550,7 @@
 <div class="page">
   <div class="page-header">
     <div>
-      <div class="page-header-name">&#127944; {{ player_name }}</div>
+      <div class="page-header-name">{{ player_name }}</div>
       <div class="page-header-sub">{{ game_type }} &nbsp;|&nbsp; {{ games_played }} games &nbsp;|&nbsp; {{ "%.1f"|format(avg_stats.minutes) }} MPG</div>
     </div>
     <div class="page-header-badge">
@@ -623,6 +630,8 @@
     <div class="sc"><div class="sc-v cyan">{{ "%.2f"|format(advanced.ast_tov) }}</div><div class="sc-l">AST / TOV</div></div>
   </div>
 
+  <div class="page-break"></div>
+
   <div class="sec"><span class="sec-icon">&#128293;</span> Ortg vs Team</div>
   <table>
     <thead><tr><th>Metric</th><th>Player</th><th>Team Avg</th><th>Elite Ref.</th><th>Description</th></tr></thead>
@@ -657,12 +666,8 @@
       </tr>
     </tbody>
   </table>
-</div>
 
-
-{# ═══════════════════ PAGE 2 — TEAM RANKINGS ═══════════════════ #}
 {% if team_rankings %}
-<div class="page">
   <div class="page-header">
     <div>
       <div class="page-header-name">{{ player_name }}</div>
@@ -675,29 +680,29 @@
    {% for mk, mn in [('ppg','Points Per Game'),('rpg','Rebounds Per Game'),('apg','Assists Per Game'),('spg','Steals Per Game')] %}
      {% if team_rankings[mk] is defined and team_rankings[mk] %}
      {% set r = team_rankings[mk] %}
-     <div class="u-mb-8">
-       <div class="u-flex-sb u-mb-3">
-         <span class="u-mono u-fs-8 u-white">{{ mn }}</span>
-         {{ rank_badge(r) }}
+       <div class="u-mb-8">
+         <div class="u-flex-sb u-mb-3">
+           <span class="u-mono u-fs-8 u-white">{{ mn }}</span>
+           {{ rank_badge(r) }}
+         </div>
+         {{ pct_bar(r) }}
        </div>
-       {{ pct_bar(r) }}
-     </div>
-     {% endif %}
-   {% endfor %}
+       {% endif %}
+     {% endfor %}
 
-  <div class="sec"><span class="sec-icon">&#9889;</span> Advanced Metrics Rankings</div>
-   {% for mk, mn in [('ts_pct','True Shooting %'),('efg_pct','Effective FG %'),('ortg','Offensive Rating'),('ast_tov','AST/TOV Ratio')] %}
-     {% if team_rankings[mk] is defined and team_rankings[mk] %}
-     {% set r = team_rankings[mk] %}
-     <div class="u-mb-8">
-       <div class="u-flex-sb u-mb-3">
-         <span class="u-mono u-fs-8 u-white">{{ mn }}</span>
-         {{ rank_badge(r) }}
-       </div>
-       {{ pct_bar(r) }}
-     </div>
-     {% endif %}
-   {% endfor %}
+   <div class="sec"><span class="sec-icon">&#9889;</span> Advanced Metrics Rankings</div>
+    {% for mk, mn in [('ts_pct','True Shooting %'),('efg_pct','Effective FG %'),('ortg','Offensive Rating'),('ast_tov','AST/TOV Ratio')] %}
+      {% if team_rankings[mk] is defined and team_rankings[mk] %}
+      {% set r = team_rankings[mk] %}
+      <div class="u-mb-8">
+        <div class="u-flex-sb u-mb-3">
+          <span class="u-mono u-fs-8 u-white">{{ mn }}</span>
+          {{ rank_badge(r) }}
+        </div>
+        {{ pct_bar(r) }}
+      </div>
+      {% endif %}
+    {% endfor %}
 
   <div class="sec"><span class="sec-icon">&#128202;</span> Distribution Analysis</div>
   {% for mk, mn in [('ppg','PPG'),('ts_pct','TS%'),('ortg','ORTG')] %}
@@ -722,8 +727,8 @@
     </div>
     {% endif %}
   {% endfor %}
-</div>
 {% endif %}
+</div>
 
 
 {# ═══════════════════ PAGE 3 — SHOOTING & SHOT CHART ═══════════════════ #}
