@@ -62,6 +62,7 @@ from core.advanced_pdf_reports import (
 from core.advanced_analytics import (
     classify_shot_zone,
     ClutchPerformance,
+    DEFAULT_ZONE_VALUES,
     LineupAnalytics,
     parse_time_to_seconds,
 )
@@ -199,7 +200,8 @@ def _build_zone_summary(shots):
     if not shots:
         return {"available": False, "rows": [], "expected_available": False}
 
-    expected_values = {z.zone_name: z.expected_value for z in ShotZone.query.all()}
+    expected_values = {**DEFAULT_ZONE_VALUES}
+    expected_values.update({z.zone_name: z.expected_value for z in ShotZone.query.all()})
     zone_map = defaultdict(lambda: {"attempts": 0, "makes": 0, "points": 0})
 
     for shot in shots:
@@ -527,7 +529,7 @@ def _build_player_lineup_context(player_name, game_ids, session):
             qualified_summaries,
             key=lambda item: (item["net_rating"], -item["possessions"]),
         )
-        if qualified_summaries
+        if len(qualified_summaries) >= 2
         else None
     )
     most_used = sorted(summaries, key=lambda item: item["minutes"], reverse=True)[:3]
@@ -597,7 +599,7 @@ def _build_possession_summary(game_ids, events, team_stats):
                 )
             )
         )
-        total_opp_possessions = total_team_possessions
+        total_opp_possessions = None
         total_team_points = sum(s.points or 0 for s in team_stats)
         total_opp_points = sum(_opponent_event_points(event) for event in events)
         source = "estimated"
@@ -640,7 +642,11 @@ def _build_player_possession_context(player_name, game_ids, stats):
         .order_by(GameEvent.game_id.asc(), GameEvent.timestamp.asc())
         .all()
     )
-    summary = _build_possession_summary(game_ids, events, stats)
+    team_stats = PlayerStat.query.filter(
+        PlayerStat.game_id.in_(game_ids),
+        PlayerStat.minutes.notin_(("00:00", "0")),
+    ).all()
+    summary = _build_possession_summary(game_ids, events, team_stats)
     player_events = [event for event in events if event.player_name == player_name]
     clutch = {"plays": 0, "points": 0, "fgm": 0, "fga": 0, "tov": 0}
     for event in player_events:

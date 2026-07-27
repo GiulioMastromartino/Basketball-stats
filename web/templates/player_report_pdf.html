@@ -869,9 +869,9 @@
   <div class="info-box">
     <p><strong>Source:</strong> {{ possession_context.source|capitalize }} possessions &nbsp;|&nbsp;
        <strong>Team PPP:</strong> {{ "%.3f"|format(possession_context.team_ppp) }} &nbsp;|&nbsp;
-       <strong>Opp PPP:</strong> {{ "%.3f"|format(possession_context.opp_ppp) }}</p>
+       <strong>Opp PPP:</strong> {% if possession_context.opp_ppp is not none %}{{ "%.3f"|format(possession_context.opp_ppp) }}{% else %}N/A{% endif %}</p>
     <p><strong>Total Team Poss:</strong> {{ possession_context.total_team_possessions }} &nbsp;|&nbsp;
-       <strong>Total Opp Poss:</strong> {{ possession_context.total_opp_possessions }}</p>
+       <strong>Total Opp Poss:</strong> {% if possession_context.total_opp_possessions is not none %}{{ possession_context.total_opp_possessions }}{% else %}N/A{% endif %}</p>
   </div>
 
   {% if possession_context.quarter_rows %}
@@ -907,7 +907,7 @@
 
   {% if lineup_context.available %}
 
-  {% if lineup_context.top_lineups_available %}
+  {% if lineup_context.top_lineups_available and lineup_context.best_lineup %}
   <div class="sec"><span class="sec-icon">&#128200;</span> Best &amp; Worst Lineups</div>
   <div class="two-col">
     <div class="info-box u-border-left-green">
@@ -918,6 +918,7 @@
       <p>{{ "%.1f"|format(lineup_context.best_lineup.minutes) }} min &nbsp;|&nbsp; {{ lineup_context.best_lineup.possessions }} poss</p>
       <p class="u-dim">ORTG {{ "%.1f"|format(lineup_context.best_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.best_lineup.drtg) }}</p>
     </div>
+    {% if lineup_context.worst_lineup %}
     <div class="info-box u-border-left-red">
       <p><strong class="u-red">&#9660; Worst Lineup</strong></p>
       <p>{{ lineup_context.worst_lineup.players|join(' &middot; ') }}</p>
@@ -926,6 +927,7 @@
       <p>{{ "%.1f"|format(lineup_context.worst_lineup.minutes) }} min &nbsp;|&nbsp; {{ lineup_context.worst_lineup.possessions }} poss</p>
       <p class="u-dim">ORTG {{ "%.1f"|format(lineup_context.worst_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.worst_lineup.drtg) }}</p>
     </div>
+    {% endif %}
   </div>
   {% endif %}
 

@@ -417,13 +417,6 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
             ):
                 possession_ending_events.add(event.possession_number)
                 possessions += 1
-        elif event.event_type == "OPP_OREB" or event.event_type == "OPP_SCORE":
-            if (
-                event.possession_number
-                and event.possession_number not in possession_ending_events
-            ):
-                possession_ending_events.add(event.possession_number)
-                possessions += 1
 
     segment.points_scored = points_scored
     segment.points_allowed = points_allowed
@@ -669,7 +662,7 @@ def process_game_lineups(
                 elif et in ("DREB", "REBOUND_DEFENSIVE"): p_stats["dreb"] += 1
 
             # Possession tracking
-            if et in ["SHOT_2PT", "SHOT_3PT", "TURNOVER", "FT", "FT_MADE", "FT_MISS", "OPP_OREB", "OPP_SCORE"]:
+            if et in ["SHOT_2PT", "SHOT_3PT", "TURNOVER", "FT", "FT_MADE", "FT_MISS"]:
                 if event.possession_number and event.possession_number not in poss_ending:
                     poss_ending.add(event.possession_number)
                     poss += 1

@@ -415,13 +415,13 @@ class AnalyticsService:
                     "is_live": game.source == "LIVE",
                     "fgm": s.fgm,
                     "fga": s.fga,
-                    "fg_pct": round(s.fg_percent * 100, 1),
+                    "fg_pct": round((s.fgm / s.fga * 100) if s.fga else 0, 1),
                     "tpm": s.tpm,
                     "tpa": s.tpa,
-                    "tp_percent": round(s.tp_percent * 100, 1),
+                    "tp_percent": round((s.tpm / s.tpa * 100) if s.tpa else 0, 1),
                     "ftm": s.ftm,
                     "fta": s.fta,
-                    "ft_percent": round(s.ft_percent * 100, 1),
+                    "ft_percent": round((s.ftm / s.fta * 100) if s.fta else 0, 1),
                     "ortg": round(ortg, 1),
                     "gmsc": round(gmsc, 1),
                 }
@@ -531,19 +531,20 @@ class AnalyticsService:
             lambda: {"wins": 0, "losses": 0, "pf": 0, "pa": 0, "games": 0}
         )
         for g in games:
-            opp = g.opponent
-            stats[opp]["games"] += 1
-            stats[opp]["pf"] += g.team_score
-            stats[opp]["pa"] += g.opponent_score
+            key = g.opponent.strip().replace(" ", "_").lower()
+            stats[key]["games"] += 1
+            stats[key]["pf"] += g.team_score
+            stats[key]["pa"] += g.opponent_score
             if g.result == "W":
-                stats[opp]["wins"] += 1
+                stats[key]["wins"] += 1
             else:
-                stats[opp]["losses"] += 1
+                stats[key]["losses"] += 1
+            if "opponent" not in stats[key]:
+                stats[key]["opponent"] = g.opponent.strip()
 
         results = []
         for opp, s in stats.items():
             s["diff"] = s["pf"] - s["pa"]
-            s["opponent"] = opp
             results.append(s)
         return sorted(results, key=lambda x: x["diff"], reverse=True)
 
