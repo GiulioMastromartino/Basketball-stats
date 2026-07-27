@@ -740,8 +740,8 @@
     <h2>Possession Summary</h2>
     <div class="section-box">
       <p><strong>Source:</strong> {{ possession_summary.source|capitalize }} possessions</p>
-      <p><strong>Team PPP:</strong> {{ "%.3f"|format(possession_summary.team_ppp) }} | <strong>Opponent PPP:</strong> {{ "%.3f"|format(possession_summary.opp_ppp) }}</p>
-      <p><strong>Total Team Possessions:</strong> {{ possession_summary.total_team_possessions }} | <strong>Total Opp Possessions:</strong> {{ possession_summary.total_opp_possessions }}</p>
+      <p><strong>Team PPP:</strong> {{ "%.3f"|format(possession_summary.team_ppp) }} | <strong>Opponent PPP:</strong> {% if possession_summary.opp_ppp is not none %}{{ "%.3f"|format(possession_summary.opp_ppp) }}{% else %}N/A{% endif %}</p>
+      <p><strong>Total Team Possessions:</strong> {{ possession_summary.total_team_possessions }} | <strong>Total Opp Possessions:</strong> {% if possession_summary.total_opp_possessions is not none %}{{ possession_summary.total_opp_possessions }}{% else %}N/A{% endif %}</p>
     </div>
 
     {% if possession_summary.quarter_rows %}
