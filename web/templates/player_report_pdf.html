@@ -248,7 +248,7 @@
       letter-spacing: .3px;
       padding: 6px 5px;
       text-align: center;
-      border-bottom: 1px solid var(--border);
+      border: 1px solid var(--border);
     }
     td {
       font-family: var(--font-mono);
@@ -256,7 +256,7 @@
       color: var(--white);
       padding: 5px 5px;
       text-align: center;
-      border-bottom: 1px solid var(--border);
+      border: 1px solid var(--border);
     }
     tr:last-child td { border-bottom: none; }
     tr:nth-child(even) td { background: rgba(255,255,255,.025); }
@@ -430,6 +430,7 @@
     .u-white  { color: var(--white); }
     .u-red    { color: var(--red); }
     .u-green  { color: var(--green); }
+    .u-amber  { color: var(--gold); }
     .u-fs-sm  { font-size: 7px; }
     .u-fs-xs  { font-size: 7.5px; }
     .u-fs-8   { font-size: 8px; }
@@ -450,6 +451,7 @@
     .u-ellipsis     { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .u-border-left-green { border-left-color: var(--green) !important; }
     .u-border-left-red   { border-left-color: var(--red) !important; }
+    .u-border-left-amber { border-left-color: var(--gold) !important; }
     .u-bg-cell      { background: var(--bg-cell); }
     .u-radius-7     { border-radius: 7px; }
     .u-overflow-hidden { overflow: hidden; }
@@ -551,11 +553,11 @@
   <div class="page-header">
     <div>
       <div class="page-header-name">{{ player_name }}</div>
-      <div class="page-header-sub">{{ game_type }} &nbsp;|&nbsp; {{ games_played }} games &nbsp;|&nbsp; {{ "%.1f"|format(avg_stats.minutes) }} MPG</div>
+      <div class="page-header-sub">{{ game_type_label }} &nbsp;|&nbsp; {{ games_played }} games &nbsp;|&nbsp; {{ "%.1f"|format(avg_stats.minutes) }} MPG</div>
     </div>
     <div class="page-header-badge">
       {{ generated_date }}<br>
-      <span class="page-tag">Season Overview</span>
+      <span class="page-tag">{{ game_type_label }}</span>
     </div>
   </div>
 
@@ -572,27 +574,34 @@
       <div class="sc-v lg {% if advanced.avg_plus_minus is not none and advanced.avg_plus_minus > 0 %}pos{% elif advanced.avg_plus_minus is not none and advanced.avg_plus_minus < 0 %}neg{% endif %}">
         {{ pm_span(advanced.avg_plus_minus) }}
       </div>
-      <div class="sc-l">+/- avg</div>
+      <div class="sc-l">+/- avg (LIVE)</div>
+      {% if live_games_count is defined and live_games_count > 0 %}
+      <div class="sc-note">{{ live_games_count }} tracked</div>
+      {% endif %}
     </div>
   </div>
 
-  <div class="sec"><span class="sec-icon">&#128200;</span> Season Totals</div>
+  <div class="sec"><span class="sec-icon">&#128200;</span> {{ game_type_label }} Totals</div>
   <table>
     <thead><tr>
       <th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>PF</th><th>+/-</th>
     </tr></thead>
     <tbody><tr>
-      <td>{{ "%.0f"|format(avg_stats.minutes * games_played) }}</td>
-      <td class="hi">{{ "%.0f"|format(avg_stats.points * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.reb * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.ast * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.stl * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.blk * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.tov * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.pf  * games_played) }}</td>
-      <td>{{ pm_int(advanced.avg_plus_minus * box_detail.tracked_plus_minus_games if advanced.avg_plus_minus is not none else none) }}</td>
+      <td>{{ totals.minutes }}</td>
+      <td class="hi">{{ totals.points }}</td>
+      <td>{{ totals.reb }}</td>
+      <td>{{ totals.ast }}</td>
+      <td>{{ totals.stl }}</td>
+      <td>{{ totals.blk }}</td>
+      <td>{{ totals.tov }}</td>
+      <td>{{ totals.pf }}</td>
+      <td>{{ pm_int(totals.plus_minus) if advanced.has_live_plus_minus else none }}{% if box_detail.tracked_plus_minus_games > 0 %}<span class="u-dim">*</span>{% endif %}</td>
     </tr></tbody>
   </table>
+
+  <p class="u-mono u-fs-sm u-dim u-mb-8">
+    * +/- based on {{ box_detail.tracked_plus_minus_games }} LIVE game{% if box_detail.tracked_plus_minus_games != 1 %}s{% endif %} only
+  </p>
 
   <div class="two-col">
     <div>
@@ -600,10 +609,10 @@
       <table>
         <thead><tr><th>Type</th><th>M&ndash;A</th><th>%</th><th>Att/G</th></tr></thead>
         <tbody>
-          <tr><td class="td-left">2PT</td><td>{{ "%.0f"|format(shooting.two_pt.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.two_pt.att*games_played) }}</td><td>{{ "%.1f"|format(shooting.two_pt.pct) }}%</td><td>{{ "%.1f"|format(shooting.two_pt.att) }}</td></tr>
-          <tr><td class="td-left">3PT</td><td>{{ "%.0f"|format(shooting.three_pt.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.three_pt.att*games_played) }}</td><td>{{ "%.1f"|format(shooting.three_pt.pct) }}%</td><td>{{ "%.1f"|format(shooting.three_pt.att) }}</td></tr>
-          <tr><td class="td-left">FT</td><td>{{ "%.0f"|format(shooting.ft.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.ft.att*games_played) }}</td><td>{{ "%.1f"|format(shooting.ft.pct) }}%</td><td>{{ "%.1f"|format(shooting.ft.att) }}</td></tr>
-          <tr><td class="td-left td-bold">FG</td><td class="td-bold">{{ "%.0f"|format(shooting.fg.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.fg.att*games_played) }}</td><td class="td-bold">{{ "%.1f"|format(shooting.fg.pct) }}%</td><td>{{ "%.1f"|format(shooting.fg.att) }}</td></tr>
+          <tr><td class="td-left">2PT</td><td>{{ totals.fgm - totals.tpm }}&ndash;{{ totals.fga - totals.tpa }}</td><td>{{ "%.1f"|format(shooting.two_pt.pct) }}%</td><td>{{ "%.1f"|format(shooting.two_pt.att) }}</td></tr>
+          <tr><td class="td-left">3PT</td><td>{{ totals.tpm }}&ndash;{{ totals.tpa }}</td><td>{{ "%.1f"|format(shooting.three_pt.pct) }}%</td><td>{{ "%.1f"|format(shooting.three_pt.att) }}</td></tr>
+          <tr><td class="td-left">FT</td><td>{{ totals.ftm }}&ndash;{{ totals.fta }}</td><td>{{ "%.1f"|format(shooting.ft.pct) }}%</td><td>{{ "%.1f"|format(shooting.ft.att) }}</td></tr>
+          <tr><td class="td-left td-bold">FG</td><td class="td-bold">{{ totals.fgm }}&ndash;{{ totals.fga }}</td><td class="td-bold">{{ "%.1f"|format(shooting.fg.pct) }}%</td><td>{{ "%.1f"|format(shooting.fg.att) }}</td></tr>
         </tbody>
       </table>
     </div>
@@ -612,9 +621,9 @@
       <table>
         <thead><tr><th>Total</th><th>OREB</th><th>DREB</th><th>OREB%</th><th>DREB%</th></tr></thead>
         <tbody><tr>
-          <td>{{ "%.0f"|format(avg_stats.reb*games_played) }}</td>
-          <td>{{ "%.0f"|format(avg_stats.oreb*games_played) }}</td>
-          <td>{{ "%.0f"|format(avg_stats.dreb*games_played) }}</td>
+          <td>{{ totals.reb }}</td>
+          <td>{{ totals.oreb }}</td>
+          <td>{{ totals.dreb }}</td>
           <td>{{ "%.1f"|format(advanced.oreb_pct if advanced.oreb_pct else 0) }}%</td>
           <td>{{ "%.1f"|format(advanced.dreb_pct if advanced.dreb_pct else 0) }}%</td>
         </tr></tbody>
@@ -742,10 +751,10 @@
   </div>
 
   <div class="sg sg-4">
-    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.fg.pct) }}%</div><div class="sc-l">FG %</div><div class="sc-note">{{ "%.0f"|format(shooting.fg.made*games_played) }}/{{ "%.0f"|format(shooting.fg.att*games_played) }}</div></div>
-    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.two_pt.pct) }}%</div><div class="sc-l">2PT %</div><div class="sc-note">{{ "%.0f"|format(shooting.two_pt.made*games_played) }}/{{ "%.0f"|format(shooting.two_pt.att*games_played) }}</div></div>
-    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.three_pt.pct) }}%</div><div class="sc-l">3PT %</div><div class="sc-note">{{ "%.0f"|format(shooting.three_pt.made*games_played) }}/{{ "%.0f"|format(shooting.three_pt.att*games_played) }}</div></div>
-    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.ft.pct) }}%</div><div class="sc-l">FT %</div><div class="sc-note">{{ "%.0f"|format(shooting.ft.made*games_played) }}/{{ "%.0f"|format(shooting.ft.att*games_played) }}</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.fg.pct) }}%</div><div class="sc-l">FG %</div><div class="sc-note">{{ totals.fgm }}/{{ totals.fga }}</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.two_pt.pct) }}%</div><div class="sc-l">2PT %</div><div class="sc-note">{{ totals.fgm - totals.tpm }}/{{ totals.fga - totals.tpa }}</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.three_pt.pct) }}%</div><div class="sc-l">3PT %</div><div class="sc-note">{{ totals.tpm }}/{{ totals.tpa }}</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.ft.pct) }}%</div><div class="sc-l">FT %</div><div class="sc-note">{{ totals.ftm }}/{{ totals.fta }}</div></div>
   </div>
 
   {% if shot_chart %}
@@ -806,7 +815,7 @@
         <td class="td-left">+/- avg</td>
         <td class="hi">{{ pm_span(advanced.avg_plus_minus) }}</td>
         <td>—</td><td>&gt;+5</td>
-        <td class="td-left u-dim">On-court differential</td>
+        <td class="td-left u-dim">On-court differential ({{ box_detail.tracked_plus_minus_games }} LIVE games)</td>
       </tr>
     </tbody>
   </table>
@@ -910,20 +919,22 @@
   {% if lineup_context.top_lineups_available and lineup_context.best_lineup %}
   <div class="sec"><span class="sec-icon">&#128200;</span> Best &amp; Worst Lineups</div>
   <div class="two-col">
-    <div class="info-box u-border-left-green">
-      <p><strong class="u-green">&#9650; Best Lineup</strong></p>
+    {% set best_negative = lineup_context.best_net_is_negative %}
+    {% set worst_positive = lineup_context.worst_net_is_positive %}
+    <div class="info-box {% if best_negative %}u-border-left-amber{% else %}u-border-left-green{% endif %}">
+      <p><strong class="{% if best_negative %}u-amber{% else %}u-green{% endif %}">{% if best_negative %}&#9650; Least Bad{% else %}&#9650; Best Lineup{% endif %}</strong></p>
       <p>{{ lineup_context.best_lineup.players|join(' &middot; ') }}</p>
       <p class="u-dim">Teammates: {{ lineup_context.best_lineup.teammates|join(', ') }}</p>
-      <p>Net Rating: <span class="pos">{{ "%+.1f"|format(lineup_context.best_lineup.net_rating) }}</span></p>
+      <p>Net Rating: <span class="{% if best_negative %}neg{% else %}pos{% endif %}">{{ "%+.1f"|format(lineup_context.best_lineup.net_rating) }}</span></p>
       <p>{{ "%.1f"|format(lineup_context.best_lineup.minutes) }} min &nbsp;|&nbsp; {{ lineup_context.best_lineup.possessions }} poss</p>
       <p class="u-dim">ORTG {{ "%.1f"|format(lineup_context.best_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.best_lineup.drtg) }}</p>
     </div>
     {% if lineup_context.worst_lineup %}
-    <div class="info-box u-border-left-red">
-      <p><strong class="u-red">&#9660; Worst Lineup</strong></p>
+    <div class="info-box {% if worst_positive %}u-border-left-amber{% else %}u-border-left-red{% endif %}">
+      <p><strong class="{% if worst_positive %}u-amber{% else %}u-red{% endif %}">{% if worst_positive %}&#9660; Least Good{% else %}&#9660; Worst Lineup{% endif %}</strong></p>
       <p>{{ lineup_context.worst_lineup.players|join(' &middot; ') }}</p>
       <p class="u-dim">Teammates: {{ lineup_context.worst_lineup.teammates|join(', ') }}</p>
-      <p>Net Rating: <span class="neg">{{ "%+.1f"|format(lineup_context.worst_lineup.net_rating) }}</span></p>
+      <p>Net Rating: <span class="{% if worst_positive %}pos{% else %}neg{% endif %}">{{ "%+.1f"|format(lineup_context.worst_lineup.net_rating) }}</span></p>
       <p>{{ "%.1f"|format(lineup_context.worst_lineup.minutes) }} min &nbsp;|&nbsp; {{ lineup_context.worst_lineup.possessions }} poss</p>
       <p class="u-dim">ORTG {{ "%.1f"|format(lineup_context.worst_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.worst_lineup.drtg) }}</p>
     </div>

@@ -303,13 +303,13 @@
     <h1>🏆 Team Report</h1>
     
     <div class="header-info">
-      <p><strong>Report Type:</strong> {{ game_type }}</p>
+      <p><strong>Report Type:</strong> {{ game_type_label }}</p>
       <p><strong>Total Games:</strong> {{ total_games }}</p>
-      <p><strong>Season Record:</strong> {{ wins }}-{{ losses }}</p>
+      <p><strong>Record:</strong> {{ wins }}-{{ losses }}</p>
       <p><strong>Generated:</strong> {{ generated_date }}</p>
     </div>
 
-    <h2>Season Record</h2>
+    <h2>Record ({{ game_type_label }})</h2>
     <div class="record-label">WINS - LOSSES</div>
     <div class="record-display">{{ wins }} - {{ losses }}</div>
     
@@ -485,7 +485,7 @@
   <div class="page">
     <h1>🎯 Team Shooting Analysis</h1>
 
-    <h2>Season Shooting Averages</h2>
+    <h2>Shooting Averages ({{ game_type_label }})</h2>
     {% if team_shooting %}
     <div class="stat-grid">
       <div class="stat-card">
@@ -542,7 +542,7 @@
     <h1>📈 Plus/Minus Analysis</h1>
 
     {% if plus_minus_leaders %}
-    <h2>Season +/- Leaders (LIVE Games Only)</h2>
+    <h2>+/- Leaders (LIVE Games Only)</h2>
     <table>
       <tr>
         <th>Rank</th>
@@ -707,6 +707,8 @@
         <td class="{% if lineup_summary.top_offensive[0].net_rating >= 0 %}pm-pos{% else %}pm-neg{% endif %}">{{ "%+.1f"|format(lineup_summary.top_offensive[0].net_rating) }}</td>
         <td>{{ lineup_summary.top_offensive[0].games_played }}</td>
       </tr>
+      {% else %}
+      <tr><td colspan="8" class="u-dim" style="text-align:center;padding:12px 4px;">Insufficient data — minimum 50 possessions required per lineup</td></tr>
       {% endif %}
       {% if lineup_summary.top_defensive %}
       <tr>
@@ -719,6 +721,8 @@
         <td class="{% if lineup_summary.top_defensive[0].net_rating >= 0 %}pm-pos{% else %}pm-neg{% endif %}">{{ "%+.1f"|format(lineup_summary.top_defensive[0].net_rating) }}</td>
         <td>{{ lineup_summary.top_defensive[0].games_played }}</td>
       </tr>
+      {% else %}
+      <tr><td colspan="8" class="u-dim" style="text-align:center;padding:12px 4px;">Insufficient data — minimum 50 possessions required per lineup</td></tr>
       {% endif %}
       {% if lineup_summary.most_used %}
       <tr>
@@ -828,7 +832,7 @@
   <div class="page">
     <h1>Game-by-Game Results</h1>
 
-    <h2>Complete Season Log</h2>
+    <h2>Complete Game Log ({{ game_type_label }})</h2>
     <table class="game-log-table">
       <thead>
         <tr>
@@ -869,7 +873,7 @@
 
   <!-- PAGE 7: TRENDS & INSIGHTS -->
   <div class="page">
-    <h1>Season Trends & Insights</h1>
+    <h1>Trends & Insights ({{ game_type_label }})</h1>
 
     <h2>Win/Loss Patterns</h2>
     <div class="section-box">
@@ -884,6 +888,7 @@
         </tr>
         {% set season_games = games | selectattr('game_type', 'equalto', 'Season') | list %}
         {% set friendly_games = games | selectattr('game_type', 'equalto', 'Friendly') | list %}
+        {% set playoff_games = games | selectattr('game_type', 'equalto', 'Playoff') | list %}
         {% if season_games | length > 0 %}
         <tr>
           <td>Season</td>
@@ -900,6 +905,15 @@
           <td>{{ friendly_games | selectattr('result', 'equalto', 'W') | list | length }}</td>
           <td>{{ friendly_games | selectattr('result', 'equalto', 'L') | list | length }}</td>
           <td>{{ "%.1f"|format((friendly_games | selectattr('result', 'equalto', 'W') | list | length) / (friendly_games | length) * 100) }}%</td>
+        </tr>
+        {% endif %}
+        {% if playoff_games | length > 0 %}
+        <tr>
+          <td>Playoff</td>
+          <td>{{ playoff_games | length }}</td>
+          <td>{{ playoff_games | selectattr('result', 'equalto', 'W') | list | length }}</td>
+          <td>{{ playoff_games | selectattr('result', 'equalto', 'L') | list | length }}</td>
+          <td>{{ "%.1f"|format((playoff_games | selectattr('result', 'equalto', 'W') | list | length) / (playoff_games | length) * 100) }}%</td>
         </tr>
         {% endif %}
       </table>

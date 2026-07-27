@@ -72,10 +72,13 @@ from flask import render_template, current_app
 # Constants for lineup filtering
 MIN_TOP_LINEUP_MINUTES = 10
 MIN_TOP_LINEUP_SECONDS = MIN_TOP_LINEUP_MINUTES * 60
+MIN_TOP_LINEUP_POSSESSIONS = 15  # Minimum possessions for lineup rating reliability
 
 
 def _safe_ppp(points, possessions):
-    return round(points / possessions, 3) if possessions else 0.0
+    if not possessions:
+        return 0.0
+    return round(points / possessions, 3)
 
 
 def _seconds_to_minutes(seconds):
@@ -216,10 +219,14 @@ def _build_zone_summary(shots):
     for zone, values in sorted(
         zone_map.items(), key=lambda item: item[1]["attempts"], reverse=True
     ):
+        if zone == "FT" or zone == "Unknown":
+            continue
         attempts = values["attempts"]
         makes = values["makes"]
         actual_pps = round(values["points"] / attempts, 2) if attempts else 0.0
-        expected_value = expected_values.get(zone)
+        # Normalize zone name for expected value lookup (handle variants)
+        zone_key = zone.replace(" ", "_").replace("-", "_")
+        expected_value = expected_values.get(zone_key) or expected_values.get(zone)
         rows.append(
             {
                 "zone": zone,
@@ -511,10 +518,14 @@ def _build_player_lineup_context(player_name, game_ids, session):
 
     summary_records = list(lineup_map.values())
     summaries = [_serialize_lineup_summary(item) for item in summary_records]
-    qualified_summaries = [
+    min_qualified = [
         _serialize_lineup_summary(item)
         for item in summary_records
         if _meets_top_lineup_minutes(item)
+    ]
+    qualified_summaries = [
+        s for s in min_qualified
+        if s["possessions"] >= MIN_TOP_LINEUP_POSSESSIONS
     ]
     best = (
         max(
@@ -524,14 +535,14 @@ def _build_player_lineup_context(player_name, game_ids, session):
         if qualified_summaries
         else None
     )
-    worst = (
-        min(
+    worst = None
+    if len(qualified_summaries) >= 2:
+        candidate_worst = min(
             qualified_summaries,
             key=lambda item: (item["net_rating"], -item["possessions"]),
         )
-        if len(qualified_summaries) >= 2
-        else None
-    )
+        if candidate_worst["players"] != best["players"]:
+            worst = candidate_worst
     most_used = sorted(summaries, key=lambda item: item["minutes"], reverse=True)[:3]
     starting = [item for item in most_used + summaries if item["is_starting"]]
 
@@ -539,7 +550,9 @@ def _build_player_lineup_context(player_name, game_ids, session):
         "available": True,
         "top_lineups_available": bool(qualified_summaries),
         "best_lineup": best,
+        "best_net_is_negative": best["net_rating"] < 0 if best else False,
         "worst_lineup": worst,
+        "worst_net_is_positive": worst["net_rating"] > 0 if worst else False,
         "most_used_lineups": most_used,
         "starting_units": starting[:3],
     }
@@ -599,9 +612,14 @@ def _build_possession_summary(game_ids, events, team_stats):
                 )
             )
         )
-        total_opp_possessions = None
         total_team_points = sum(s.points or 0 for s in team_stats)
-        total_opp_points = sum(_opponent_event_points(event) for event in events)
+        # Estimate opponent totals from Game records (authoritative for score)
+        games = Game.query.filter(Game.id.in_(game_ids)).all()
+        total_opp_points = sum(g.opponent_score or 0 for g in games)
+        # Estimate opponent possessions using same pace as team
+        num_games = len(games) if games else 1
+        team_poss_per_game = total_team_possessions / num_games if num_games else 0
+        total_opp_possessions = int(round(team_poss_per_game * num_games)) if team_poss_per_game else None
         source = "estimated"
 
     clutch = {"plays": 0, "points": 0, "fgm": 0, "fga": 0, "tov": 0}
@@ -624,6 +642,11 @@ def _build_possession_summary(game_ids, events, team_stats):
 
     clutch["fg_pct"] = safe_percentage(clutch["fgm"], clutch["fga"])
 
+    opp_ppp_value = (
+        _safe_ppp(total_opp_points, total_opp_possessions)
+        if total_opp_possessions is not None
+        else None
+    )
     return {
         "available": True,
         "source": source,
@@ -631,7 +654,7 @@ def _build_possession_summary(game_ids, events, team_stats):
         "total_team_possessions": total_team_possessions,
         "total_opp_possessions": total_opp_possessions,
         "team_ppp": _safe_ppp(total_team_points, total_team_possessions),
-        "opp_ppp": _safe_ppp(total_opp_points, total_opp_possessions),
+        "opp_ppp": opp_ppp_value,
         "clutch": clutch,
     }
 
@@ -834,13 +857,18 @@ def _build_team_lineup_summary(game_ids, session):
         for item in summary_records
         if _meets_top_lineup_minutes(item)
     ]
+    ranked_summaries = [
+        s for s in qualified_summaries
+        if s["possessions"] >= MIN_TOP_LINEUP_POSSESSIONS
+    ]
     top_offensive = sorted(
-        qualified_summaries,
+        ranked_summaries,
         key=lambda item: (item["ortg"], item["possessions"]),
         reverse=True,
     )[:5]
     top_defensive = sorted(
-        qualified_summaries, key=lambda item: (item["drtg"], -item["possessions"])
+        ranked_summaries,
+        key=lambda item: (item["drtg"], -item["possessions"])
     )[:5]
     most_used = sorted(summaries, key=lambda item: item["minutes"], reverse=True)[:5]
     starting_units = [item for item in summaries if item["is_starting"]]
@@ -855,6 +883,11 @@ def _build_team_lineup_summary(game_ids, session):
         "most_used": most_used,
         "starting_units": starting_units,
     }
+
+
+def _game_type_label(game_type):
+    labels = {"ALL": "Full Season (incl. Playoffs)", "Season": "Regular Season", "Friendly": "Friendly"}
+    return labels.get(game_type, game_type)
 
 
 def _build_team_report_context(game_type, games, game_ids):
@@ -874,6 +907,7 @@ def _build_team_report_context(game_type, games, game_ids):
 
     return {
         "game_type": game_type,
+        "game_type_label": _game_type_label(game_type),
         "generated_date": datetime.now().strftime("%B %d, %Y"),
         **team_data,
         "team_box_detail": _build_team_box_detail(game_ids, games),
@@ -1707,6 +1741,7 @@ def _generate_player_report_data(
     return {
         "player_name": player_name,
         "game_type": game_type,
+        "game_type_label": _game_type_label(game_type),
         "generated_date": datetime.now().strftime("%B %d, %Y"),
         "team_avg": team_avg,
         "team_rankings": team_rankings,

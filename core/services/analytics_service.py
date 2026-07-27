@@ -273,6 +273,28 @@ class AnalyticsService:
         """Calculate comprehensive player metrics"""
         avg_stats = get_player_stats_averages(stats)
 
+        # Compute totals directly from raw stats
+        total_minutes = sum(parse_minutes(s.minutes) for s in stats)
+        totals = {
+            "points": sum(s.points for s in stats),
+            "fgm": sum(s.fgm for s in stats),
+            "fga": sum(s.fga for s in stats),
+            "tpm": sum(s.tpm for s in stats),
+            "tpa": sum(s.tpa for s in stats),
+            "ftm": sum(s.ftm for s in stats),
+            "fta": sum(s.fta for s in stats),
+            "oreb": sum(s.oreb for s in stats),
+            "dreb": sum(s.dreb for s in stats),
+            "reb": sum(s.reb for s in stats),
+            "ast": sum(s.ast for s in stats),
+            "stl": sum(s.stl for s in stats),
+            "blk": sum(s.blk for s in stats),
+            "tov": sum(s.tov for s in stats),
+            "pf": sum(s.pf for s in stats),
+            "minutes": round(total_minutes),
+            "plus_minus": sum(s.plus_minus or 0 for s in stats),
+        }
+
         pm_game_stats = [
             s
             for s in stats
@@ -292,35 +314,35 @@ class AnalyticsService:
 
         per_100_stats = {
             "points": normalize_per_100_possessions(
-                avg_stats["points"] * games_played, total_poss
+                totals["points"], total_poss
             )
             if total_poss
             else 0,
             "reb": normalize_per_100_possessions(
-                avg_stats["reb"] * games_played, total_poss
+                totals["reb"], total_poss
             )
             if total_poss
             else 0,
             "ast": normalize_per_100_possessions(
-                avg_stats["ast"] * games_played, total_poss
+                totals["ast"], total_poss
             )
             if total_poss
             else 0,
             "stl": normalize_per_100_possessions(
-                avg_stats["stl"] * games_played, total_poss
+                totals["stl"], total_poss
             )
             if total_poss
             else 0,
             "blk": normalize_per_100_possessions(
-                avg_stats["blk"] * games_played, total_poss
+                totals["blk"], total_poss
             )
             if total_poss
             else 0,
         }
 
-        # Shooting
-        two_pt_made = avg_stats["fgm"] - avg_stats["tpm"]
-        two_pt_att = avg_stats["fga"] - avg_stats["tpa"]
+        # Shooting (percentages from totals to avoid rounding errors)
+        two_pt_made = totals["fgm"] - totals["tpm"]
+        two_pt_att = totals["fga"] - totals["tpa"]
         shooting_data = {
             "fg": {
                 "made": avg_stats["fgm"],
@@ -338,36 +360,30 @@ class AnalyticsService:
                 "pct": avg_stats["ft_percent"],
             },
             "two_pt": {
-                "made": round(two_pt_made, 1),
-                "att": round(two_pt_att, 1),
+                "made": avg_stats["fgm"] - avg_stats["tpm"],
+                "att": avg_stats["fga"] - avg_stats["tpa"],
                 "pct": safe_percentage(two_pt_made, two_pt_att),
             },
         }
 
-        # Advanced
-        total_pts = avg_stats["points"] * games_played
-        total_fga = avg_stats["fga"] * games_played
-        total_fta = avg_stats["fta"] * games_played
-        total_fgm = avg_stats["fgm"] * games_played
-        total_tpm = avg_stats["tpm"] * games_played
-
+        # Advanced (from totals)
         advanced_stats = {
-            "ts_pct": calculate_ts_percent(total_pts, total_fga, total_fta),
-            "efg_pct": calculate_efg_percent(total_fgm, total_tpm, total_fga),
-            "ortg": calculate_ortg(total_pts, total_poss),
-            "ppp": calculate_ppp(total_pts, total_poss) if total_poss else 0,
-            "ast_tov": avg_stats["ast"] / avg_stats["tov"]
-            if avg_stats["tov"] > 0
-            else avg_stats["ast"],
+            "ts_pct": calculate_ts_percent(totals["points"], totals["fga"], totals["fta"]),
+            "efg_pct": calculate_efg_percent(totals["fgm"], totals["tpm"], totals["fga"]),
+            "ortg": calculate_ortg(totals["points"], total_poss),
+            "ppp": calculate_ppp(totals["points"], total_poss) if total_poss else 0,
+            "ast_tov": totals["ast"] / totals["tov"]
+            if totals["tov"] > 0
+            else totals["ast"],
             "avg_plus_minus": round(avg_plus_minus, 1)
             if avg_plus_minus is not None
             else None,
             "has_live_plus_minus": len(pm_game_stats) > 0,
-            "oreb_pct": safe_percentage(avg_stats["oreb"], avg_stats["reb"])
-            if avg_stats["reb"]
+            "oreb_pct": safe_percentage(totals["oreb"], totals["reb"])
+            if totals["reb"]
             else 0,
-            "dreb_pct": safe_percentage(avg_stats["dreb"], avg_stats["reb"])
-            if avg_stats["reb"]
+            "dreb_pct": safe_percentage(totals["dreb"], totals["reb"])
+            if totals["reb"]
             else 0,
         }
 
@@ -429,6 +445,7 @@ class AnalyticsService:
 
         return {
             "avg_stats": avg_stats,
+            "totals": totals,
             "per_100": per_100_stats,
             "shooting": shooting_data,
             "advanced": advanced_stats,
