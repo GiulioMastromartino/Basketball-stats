@@ -4,203 +4,295 @@
   <meta charset="utf-8">
   <title>Team Report - Basketball Stats</title>
   <style>
+    /* ── Fonts ── */
+    @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Work+Sans:wght@400;600&display=swap');
+
+    /* ── Page setup ── */
     @page {
       size: A4;
-      margin: 1.5cm;
+      margin: 0;
       @bottom-right {
-        content: "Page " counter(page) " of " counter(pages);
-        font-size: 9px;
-        color: #666;
+        content: counter(page) " / " counter(pages);
+        font-family: 'Space Mono', monospace;
+        font-size: 7px;
+        color: #4a5568;
+        margin-right: 15mm;
+        margin-bottom: 8mm;
       }
     }
-    
+
+    /* ── Tokens ── */
+    :root {
+      --bg:        #0a0a0c;
+      --bg-card:   #141417;
+      --bg-cell:   #1c1c1f;
+      --border:    #2a2a30;
+      --cyan:      #00f2ff;
+      --green:     #00e676;
+      --red:       #ff1744;
+      --gold:      #fbbf24;
+      --white:     #e2e8f0;
+      --dim:       #64748b;
+      --font-h:    'Archivo Black', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+      --font-body: 'Work Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: 'Helvetica', 'Arial', sans-serif;
-      font-size: 10px;
-      line-height: 1.4;
-      color: #333;
+      background: var(--bg);
+      color: var(--white);
+      font-family: var(--font-body);
+      font-size: 9px;
+      line-height: 1.5;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-    
+
+    /* ── Page wrapper ── */
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 12mm 14mm 14mm;
+      background: var(--bg);
+      position: relative;
+    }
+    .page:last-child { break-after: avoid; }
+
+    /* scanline texture */
+    .page::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0,0,0,.18) 3px,
+        rgba(0,0,0,.18) 4px
+      );
+      pointer-events: none;
+      z-index: 0;
+    }
+    .page > * { position: relative; z-index: 1; }
+
     h1 {
-      font-size: 24px;
-      margin: 0 0 8px 0;
-      color: #1a1a1a;
-      border-bottom: 3px solid #28a745;
-      padding-bottom: 8px;
+      font-family: var(--font-h);
+      font-size: 22px;
+      text-transform: uppercase;
+      letter-spacing: -0.5px;
+      color: var(--white);
+      border-bottom: 2px solid var(--cyan);
+      padding-bottom: 6px;
+      margin: 0 0 10px 0;
     }
-    
+
     h2 {
-      font-size: 16px;
-      margin: 20px 0 10px 0;
-      color: #28a745;
-      border-bottom: 1px solid #ccc;
+      font-family: var(--font-h);
+      font-size: 14px;
+      text-transform: uppercase;
+      color: var(--white);
+      border-bottom: 1px solid var(--border);
       padding-bottom: 4px;
-      page-break-after: avoid;
+      margin: 16px 0 8px 0;
     }
-    
+
     h3 {
-      font-size: 13px;
-      margin: 12px 0 6px 0;
-      color: #333;
-      font-weight: 600;
+      font-family: var(--font-h);
+      font-size: 11px;
+      color: var(--white);
+      margin: 10px 0 5px 0;
     }
-    
+
     .page-break {
-      page-break-after: always;
+      break-after: page;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      border: none;
     }
-    
+
     .header-info {
-      background: #f5f5f5;
-      padding: 10px;
-      margin: 10px 0;
-      border-left: 4px solid #28a745;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--cyan);
+      border-radius: 4px;
+      padding: 8px 10px;
+      margin: 8px 0;
     }
-    
+
     .header-info p {
       margin: 2px 0;
-      font-size: 11px;
+      font-size: 9px;
+      color: var(--white);
+      font-family: var(--font-mono);
     }
-    
+
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 10px 0;
-      font-size: 9px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0;
+      font-size: 8px;
     }
-    
+
     th, td {
-      border: 1px solid #ddd;
-      padding: 6px 4px;
+      border: 1px solid var(--border);
+      padding: 5px 4px;
       text-align: center;
     }
-    
+
     th {
-      background: #28a745;
-      color: white;
+      background: var(--bg-cell);
+      color: var(--cyan);
       font-weight: 600;
-      font-size: 9px;
+      font-size: 7.5px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
-    
-    tr:nth-child(even) {
-      background: #f9f9f9;
+
+    td {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: var(--white);
     }
-    
+
+    tr:nth-child(even) td {
+      background: rgba(255,255,255,.025);
+    }
+
     .highlight {
-      background: #d4edda !important;
-      font-weight: bold;
+      background: rgba(251,191,36,.15) !important;
+      font-weight: 700;
     }
-    
+
     .section-box {
-      background: #f8f9fa;
-      border: 1px solid #dee2e6;
-      padding: 12px;
-      margin: 10px 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
       border-radius: 4px;
+      padding: 10px;
+      margin: 8px 0;
     }
-    
+
     .stat-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      margin: 10px 0;
+      gap: 6px;
+      margin: 8px 0;
     }
-    
+
     .stat-card {
-      background: white;
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
       border-radius: 4px;
+      padding: 6px 8px;
+      text-align: center;
     }
-    
+
     .stat-label {
-      font-size: 8px;
-      color: #666;
+      font-family: var(--font-mono);
+      font-size: 6.5px;
+      color: var(--dim);
       text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
-    
+
     .stat-value {
+      font-family: var(--font-mono);
       font-size: 18px;
-      font-weight: bold;
-      color: #28a745;
-      margin: 4px 0;
+      font-weight: 700;
+      color: var(--white);
+      margin: 2px 0;
     }
-    
+
     .note {
-      font-size: 8px;
-      color: #666;
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--dim);
       font-style: italic;
-      margin-top: 4px;
+      margin-top: 3px;
     }
-    
+
     .game-log-table {
-      font-size: 8px;
+      font-size: 7.5px;
     }
-    
+
     .game-log-table th {
-      font-size: 8px;
+      font-size: 7.5px;
     }
-    
+
     .win {
-      color: #28a745;
-      font-weight: bold;
+      color: var(--green) !important;
+      font-weight: 700;
     }
-    
+
     .loss {
-      color: #dc3545;
-      font-weight: bold;
+      color: var(--red) !important;
+      font-weight: 700;
     }
-    
+
     .record-display {
-      font-size: 48px;
-      font-weight: bold;
-      color: #28a745;
+      font-family: var(--font-mono);
+      font-size: 42px;
+      font-weight: 700;
+      color: var(--cyan);
       text-align: center;
-      margin: 20px 0;
-      line-height: 1.2;
+      margin: 10px 0;
+      line-height: 1.1;
     }
-    
+
     .record-label {
-      font-size: 14px;
-      color: #666;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--dim);
       text-align: center;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
     }
 
     .chart-container {
       text-align: center;
-      margin: 15px 0;
+      margin: 10px 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px;
     }
 
-    /* UPDATED: Uses width:100% instead of max-width to allow upscaling while maintaining aspect ratio */
     .chart-container img {
       width: 100%;
       height: auto;
-      max-height: 16cm;
+      max-height: 14cm;
       object-fit: contain;
     }
 
     .two-column {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin: 10px 0;
+      gap: 6px;
+      margin: 8px 0;
     }
 
     .pm-pos {
-      color: #28a745;
-      font-weight: bold;
+      color: var(--green) !important;
+      font-weight: 700;
     }
 
     .pm-neg {
-      color: #dc3545;
-      font-weight: bold;
+      color: var(--red) !important;
+      font-weight: 700;
     }
 
     .summary-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      gap: 6px;
     }
   </style>
 </head>
@@ -211,13 +303,13 @@
     <h1>🏆 Team Report</h1>
     
     <div class="header-info">
-      <p><strong>Report Type:</strong> {{ game_type }}</p>
+      <p><strong>Report Type:</strong> {{ game_type_label }}</p>
       <p><strong>Total Games:</strong> {{ total_games }}</p>
-      <p><strong>Season Record:</strong> {{ wins }}-{{ losses }}</p>
+      <p><strong>Record:</strong> {{ wins }}-{{ losses }}</p>
       <p><strong>Generated:</strong> {{ generated_date }}</p>
     </div>
 
-    <h2>Season Record</h2>
+    <h2>Record ({{ game_type_label }})</h2>
     <div class="record-label">WINS - LOSSES</div>
     <div class="record-display">{{ wins }} - {{ losses }}</div>
     
@@ -393,7 +485,7 @@
   <div class="page">
     <h1>🎯 Team Shooting Analysis</h1>
 
-    <h2>Season Shooting Averages</h2>
+    <h2>Shooting Averages ({{ game_type_label }})</h2>
     {% if team_shooting %}
     <div class="stat-grid">
       <div class="stat-card">
@@ -450,7 +542,7 @@
     <h1>📈 Plus/Minus Analysis</h1>
 
     {% if plus_minus_leaders %}
-    <h2>Season +/- Leaders (LIVE Games Only)</h2>
+    <h2>+/- Leaders (LIVE Games Only)</h2>
     <table>
       <tr>
         <th>Rank</th>
@@ -615,6 +707,8 @@
         <td class="{% if lineup_summary.top_offensive[0].net_rating >= 0 %}pm-pos{% else %}pm-neg{% endif %}">{{ "%+.1f"|format(lineup_summary.top_offensive[0].net_rating) }}</td>
         <td>{{ lineup_summary.top_offensive[0].games_played }}</td>
       </tr>
+      {% else %}
+      <tr><td colspan="8" class="u-dim" style="text-align:center;padding:12px 4px;">Insufficient data — minimum 50 possessions required per lineup</td></tr>
       {% endif %}
       {% if lineup_summary.top_defensive %}
       <tr>
@@ -627,6 +721,8 @@
         <td class="{% if lineup_summary.top_defensive[0].net_rating >= 0 %}pm-pos{% else %}pm-neg{% endif %}">{{ "%+.1f"|format(lineup_summary.top_defensive[0].net_rating) }}</td>
         <td>{{ lineup_summary.top_defensive[0].games_played }}</td>
       </tr>
+      {% else %}
+      <tr><td colspan="8" class="u-dim" style="text-align:center;padding:12px 4px;">Insufficient data — minimum 50 possessions required per lineup</td></tr>
       {% endif %}
       {% if lineup_summary.most_used %}
       <tr>
@@ -648,8 +744,8 @@
     <h2>Possession Summary</h2>
     <div class="section-box">
       <p><strong>Source:</strong> {{ possession_summary.source|capitalize }} possessions</p>
-      <p><strong>Team PPP:</strong> {{ "%.3f"|format(possession_summary.team_ppp) }} | <strong>Opponent PPP:</strong> {{ "%.3f"|format(possession_summary.opp_ppp) }}</p>
-      <p><strong>Total Team Possessions:</strong> {{ possession_summary.total_team_possessions }} | <strong>Total Opp Possessions:</strong> {{ possession_summary.total_opp_possessions }}</p>
+      <p><strong>Team PPP:</strong> {{ "%.3f"|format(possession_summary.team_ppp) }} | <strong>Opponent PPP:</strong> {% if possession_summary.opp_ppp is not none %}{{ "%.3f"|format(possession_summary.opp_ppp) }}{% else %}N/A{% endif %}</p>
+      <p><strong>Total Team Possessions:</strong> {{ possession_summary.total_team_possessions }} | <strong>Total Opp Possessions:</strong> {% if possession_summary.total_opp_possessions is not none %}{{ possession_summary.total_opp_possessions }}{% else %}N/A{% endif %}</p>
     </div>
 
     {% if possession_summary.quarter_rows %}
@@ -736,7 +832,7 @@
   <div class="page">
     <h1>Game-by-Game Results</h1>
 
-    <h2>Complete Season Log</h2>
+    <h2>Complete Game Log ({{ game_type_label }})</h2>
     <table class="game-log-table">
       <thead>
         <tr>
@@ -777,7 +873,7 @@
 
   <!-- PAGE 7: TRENDS & INSIGHTS -->
   <div class="page">
-    <h1>Season Trends & Insights</h1>
+    <h1>Trends & Insights ({{ game_type_label }})</h1>
 
     <h2>Win/Loss Patterns</h2>
     <div class="section-box">
@@ -792,6 +888,7 @@
         </tr>
         {% set season_games = games | selectattr('game_type', 'equalto', 'Season') | list %}
         {% set friendly_games = games | selectattr('game_type', 'equalto', 'Friendly') | list %}
+        {% set playoff_games = games | selectattr('game_type', 'equalto', 'Playoff') | list %}
         {% if season_games | length > 0 %}
         <tr>
           <td>Season</td>
@@ -808,6 +905,15 @@
           <td>{{ friendly_games | selectattr('result', 'equalto', 'W') | list | length }}</td>
           <td>{{ friendly_games | selectattr('result', 'equalto', 'L') | list | length }}</td>
           <td>{{ "%.1f"|format((friendly_games | selectattr('result', 'equalto', 'W') | list | length) / (friendly_games | length) * 100) }}%</td>
+        </tr>
+        {% endif %}
+        {% if playoff_games | length > 0 %}
+        <tr>
+          <td>Playoff</td>
+          <td>{{ playoff_games | length }}</td>
+          <td>{{ playoff_games | selectattr('result', 'equalto', 'W') | list | length }}</td>
+          <td>{{ playoff_games | selectattr('result', 'equalto', 'L') | list | length }}</td>
+          <td>{{ "%.1f"|format((playoff_games | selectattr('result', 'equalto', 'W') | list | length) / (playoff_games | length) * 100) }}%</td>
         </tr>
         {% endif %}
       </table>

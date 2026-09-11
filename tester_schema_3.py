@@ -18,7 +18,7 @@ def test_import_schema_3():
     app = create_app("development")
     with app.app_context():
         # Load test payload
-        payload_path = Path("test_game_payload.json")
+        payload_path = Path(__file__).parent / "tests" / "fixtures" / "test_game_payload.json"
         if not payload_path.exists():
             print("test_game_payload.json not found")
             return

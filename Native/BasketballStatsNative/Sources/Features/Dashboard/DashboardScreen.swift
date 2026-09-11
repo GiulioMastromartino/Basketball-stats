@@ -4,82 +4,58 @@ struct DashboardScreen: View {
     @Environment(AppModel.self) private var appModel
 
     var body: some View {
-        NavigationStack {
+        HSPage {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    DashboardHeader(summary: appModel.dashboardSummary, currentUser: appModel.currentUser, syncSummary: appModel.syncSummary)
-                    DashboardHighlights(summary: appModel.dashboardSummary, overview: appModel.teamOverview)
+                    hero
+                    metrics
                     TopScorersSection(players: appModel.teamOverview.topScorers)
-                    RecentGamesSection(games: Array(appModel.games.prefix(5)))
+                    RecentGamesSection(games: Array(appModel.games.prefix(6)))
                 }
                 .padding(24)
+                .frame(maxWidth: 1100, alignment: .leading)
+                .frame(maxWidth: .infinity)
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Basketball Stats")
         }
+        .background(HSToken.bgMain)
+        .navigationTitle("Dashboard")
     }
-}
 
-private struct DashboardHeader: View {
-    let summary: DashboardSummary
-    let currentUser: User?
-    let syncSummary: String
-
-    var body: some View {
+    private var hero: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Native iPad Control Room")
-                .font(.system(.largeTitle, design: .rounded, weight: .bold))
-            Text("Signed in as \(currentUser?.username ?? "unknown") • \(currentUser?.role.rawValue.capitalized ?? "viewer")")
-                .font(.headline)
-            Text(syncSummary)
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.85))
+            Text("Dashboard")
+                .font(.bebas(size: 44))
+                .foregroundStyle(HSToken.ink)
+            HStack(spacing: 8) {
+                Text("Signed in as \(appModel.currentUser?.username ?? "unknown") • \(appModel.currentUser?.role.rawValue.capitalized ?? "viewer")")
+                    .font(.outfit(size: 13, weight: .semibold))
+                Spacer()
+                HSBadge(text: appModel.syncSummary, color: .cool)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(24)
-        .background(
-            LinearGradient(
-                colors: [.orange.opacity(0.85), .red.opacity(0.75)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+        .padding(22)
+        .background(HSToken.bgElevated, in: RoundedRectangle(cornerRadius: HSToken.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: HSToken.radius, style: .continuous)
+                .stroke(HSToken.line, lineWidth: 1)
         )
-        .foregroundStyle(.white)
-    }
-}
-
-private struct DashboardHighlights: View {
-    let summary: DashboardSummary
-    let overview: TeamOverview
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-            MetricCard(title: "Games", value: "\(summary.totalGames)", tint: .blue)
-            MetricCard(title: "Win Rate", value: summary.winRateText, tint: .green)
-            MetricCard(title: "Avg Points", value: summary.averagePointsText, tint: .orange)
-            MetricCard(title: "Avg Margin", value: overview.averageMargin.formatted(.number.precision(.fractionLength(1))), tint: .purple)
+        .overlay(alignment: .topTrailing) {
+            LinearGradient(colors: HSToken.accentGradient, startPoint: .topLeading, endPoint: .bottomTrailing)
+                .frame(width: 120, height: 6)
+                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                .padding(.top, 0)
         }
     }
-}
 
-private struct MetricCard: View {
-    let title: String
-    let value: String
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased())
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.system(.title, design: .rounded, weight: .bold))
-                .foregroundStyle(tint)
+    private var metrics: some View {
+        let summary = appModel.dashboardSummary
+        let overview = appModel.teamOverview
+        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+            HSMetricCard(title: "Games", value: "\(summary.totalGames)", tint: HSToken.accent)
+            HSMetricCard(title: "Win Rate", value: summary.winRateText, tint: HSToken.win)
+            HSMetricCard(title: "Avg Points", value: summary.averagePointsText, tint: HSToken.cool)
+            HSMetricCard(title: "Avg Margin", value: overview.averageMargin.formatted(.number.precision(.fractionLength(1))), tint: HSToken.gold)
         }
-        .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
-        .padding(20)
-        .background(.background, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }
 
@@ -88,23 +64,30 @@ private struct TopScorersSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Top Scorers")
-                .font(.title2.weight(.bold))
-            ForEach(players) { player in
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(player.playerName)
-                            .font(.headline)
-                        Text("TS \(player.trueShooting.formatted(.percent.precision(.fractionLength(0))))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            HSSectionHeader(title: "Top Scorers", icon: "trophy.fill")
+            VStack(spacing: 8) {
+                ForEach(players.prefix(5)) { player in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(player.playerName)
+                                .font(.outfit(size: 14, weight: .semibold))
+                            Text("TS \(player.trueShooting.formatted(.percent.precision(.fractionLength(0))))")
+                                .font(.outfit(size: 12))
+                                .foregroundStyle(HSToken.inkMuted)
+                        }
+                        Spacer()
+                        Text(player.points.formatted(.number.precision(.fractionLength(1))))
+                            .font(.bebas(size: 24))
+                            .foregroundStyle(HSToken.accent)
                     }
-                    Spacer()
-                    Text(player.points.formatted(.number.precision(.fractionLength(1))))
-                        .font(.title3.monospacedDigit().weight(.semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(HSToken.surface, in: RoundedRectangle(cornerRadius: HSToken.radiusSmall, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: HSToken.radiusSmall, style: .continuous)
+                            .stroke(HSToken.line, lineWidth: 1)
+                    )
                 }
-                .padding(16)
-                .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
         }
     }
@@ -115,26 +98,32 @@ private struct RecentGamesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Games")
-                .font(.title2.weight(.bold))
-            ForEach(games) { game in
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(game.opponent)
-                            .font(.headline)
-                        Text(game.displayDate)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+            HSSectionHeader(title: "Recent Games", icon: HSIcon.games)
+            VStack(spacing: 8) {
+                ForEach(games) { game in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(game.opponent)
+                                .font(.outfit(size: 14, weight: .semibold))
+                            Text(game.displayDate)
+                                .font(.outfit(size: 12))
+                                .foregroundStyle(HSToken.inkMuted)
+                        }
+                        Spacer()
+                        Text(game.scoreDisplay)
+                            .font(.bebas(size: 22))
+                            .foregroundStyle(HSToken.ink)
+                        HSBadge(text: game.result.rawValue, color: game.result == .win ? .win : .loss)
+                            .frame(width: 56)
                     }
-                    Spacer()
-                    Text(game.scoreDisplay)
-                        .font(.title3.monospacedDigit().weight(.semibold))
-                    Text(game.result.rawValue)
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(game.result == .win ? .green : .red)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(HSToken.surface, in: RoundedRectangle(cornerRadius: HSToken.radiusSmall, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: HSToken.radiusSmall, style: .continuous)
+                            .stroke(HSToken.line, lineWidth: 1)
+                    )
                 }
-                .padding(18)
-                .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
         }
     }

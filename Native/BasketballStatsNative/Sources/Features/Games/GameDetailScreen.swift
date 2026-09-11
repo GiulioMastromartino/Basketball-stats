@@ -12,29 +12,32 @@ struct GameDetailScreen: View {
     var body: some View {
         Group {
             if let game {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        ScoreHeader(game: game)
-                        PlayerStatsSection(playerStats: game.playerStats)
-                        ShotProfileSection(shots: game.shotEvents)
-                        LineupSegmentSection(segments: game.lineupSegments)
-                        NotesSection(notes: game.notes)
+                HSPage {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            ScoreHeader(game: game)
+                            PlayerStatsSection(playerStats: game.playerStats)
+                            ShotProfileSection(shots: game.shotEvents)
+                            LineupSegmentSection(segments: game.lineupSegments)
+                            NotesSection(notes: game.notes)
+                        }
+                        .padding(24)
+                        .frame(maxWidth: 1000, alignment: .leading)
+                        .frame(maxWidth: .infinity)
                     }
-                    .padding(24)
-                }
-                .navigationTitle(game.opponent)
-                .background(Color(.systemGroupedBackground))
-                .toolbar {
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button("Edit") { isEditing = true }
-                        Button(role: .destructive, action: appModel.deleteSelectedGame) {
-                            Image(systemName: "trash")
+                    .navigationTitle(game.opponent)
+                    .toolbar {
+                        ToolbarItemGroup(placement: .primaryAction) {
+                            Button("Edit") { isEditing = true }
+                            Button(role: .destructive, action: appModel.deleteSelectedGame) {
+                                Image(systemName: "trash")
+                            }
                         }
                     }
-                }
-                .sheet(isPresented: $isEditing) {
-                    GameEditorSheet(game: game) { updated in
-                        appModel.updateGame(updated)
+                    .sheet(isPresented: $isEditing) {
+                        GameEditorSheet(game: game) { updated in
+                            appModel.updateGame(updated)
+                        }
                     }
                 }
             } else {
@@ -49,22 +52,37 @@ private struct ScoreHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(game.date.formatted(date: .complete, time: .omitted))
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline) {
+            HStack {
+                Text(game.date.formatted(date: .complete, time: .omitted))
+                    .font(.outfit(size: 13, weight: .semibold))
+                    .foregroundStyle(HSToken.inkMuted)
+                Spacer()
+                HSBadge(text: game.result.rawValue, color: game.result == .win ? .win : .loss)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
                 Text(game.scoreDisplay)
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
-                Text(game.result.rawValue)
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(game.result == .win ? .green : .red)
+                    .font(.bebas(size: 52))
+                    .foregroundStyle(HSToken.ink)
+                Text(game.result == .win ? "WIN" : "LOSS")
+                    .font(.bebas(size: 24))
+                    .foregroundStyle(game.result == .win ? HSToken.win : HSToken.loss)
             }
             Label("\(game.gameType.rawValue) • \(game.source.rawValue) • schema \(game.schemaVersion)", systemImage: "chart.bar.doc.horizontal")
-                .font(.subheadline)
+                .font(.outfit(size: 12))
+                .foregroundStyle(HSToken.inkMuted)
         }
-        .padding(24)
+        .padding(22)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(HSToken.bgElevated, in: RoundedRectangle(cornerRadius: HSToken.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: HSToken.radius, style: .continuous)
+                .stroke(HSToken.line, lineWidth: 1)
+        )
+        .overlay(alignment: .topTrailing) {
+            LinearGradient(colors: game.result == .win ? HSToken.coolGradient : [HSToken.loss], startPoint: .leading, endPoint: .trailing)
+                .frame(width: 120, height: 6)
+                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+        }
     }
 }
 
@@ -73,24 +91,26 @@ private struct PlayerStatsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Player Stats")
-                .font(.title2.weight(.bold))
-            ForEach(playerStats) { stat in
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(stat.playerName)
-                            .font(.headline)
-                        Text("TS \(stat.trueShootingPercentage.formatted(.percent.precision(.fractionLength(0))))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            HSSectionHeader(title: "Player Stats", icon: HSIcon.players)
+            VStack(spacing: 8) {
+                ForEach(playerStats) { stat in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(stat.playerName)
+                                .font(.outfit(size: 14, weight: .semibold))
+                            Text("TS \(stat.trueShootingPercentage.formatted(.percent.precision(.fractionLength(0))))")
+                                .font(.outfit(size: 12))
+                                .foregroundStyle(HSToken.inkMuted)
+                        }
+                        Spacer()
+                        StatPill(title: "PTS", value: "\(stat.points)")
+                        StatPill(title: "REB", value: "\(stat.rebounds)")
+                        StatPill(title: "AST", value: "\(stat.assists)")
                     }
-                    Spacer()
-                    StatPill(title: "PTS", value: "\(stat.points)")
-                    StatPill(title: "REB", value: "\(stat.rebounds)")
-                    StatPill(title: "AST", value: "\(stat.assists)")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(HSCardRow())
                 }
-                .padding(16)
-                .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
         }
     }
@@ -101,14 +121,17 @@ private struct StatPill: View {
     let value: String
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 3) {
             Text(title)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .font(.outfit(size: 10, weight: .semibold))
+                .foregroundStyle(HSToken.inkMuted)
             Text(value)
-                .font(.headline.monospacedDigit())
+                .font(.bebas(size: 18))
+                .foregroundStyle(HSToken.accent)
         }
         .frame(width: 56)
+        .padding(.vertical, 4)
+        .background(HSToken.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -117,10 +140,9 @@ private struct ShotProfileSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Shot Profile")
-                .font(.title2.weight(.bold))
+            HSSectionHeader(title: "Shot Profile", icon: "scope")
             if shots.isEmpty {
-                EmptyCard(text: "No shot chart data captured for this game.")
+                HSCard { Text("No shot chart data captured for this game.").foregroundStyle(HSToken.inkMuted) }
             } else {
                 let grouped = Dictionary(grouping: shots, by: \.zone)
                 ForEach(grouped.keys.sorted(by: { $0.rawValue < $1.rawValue }), id: \.self) { zone in
@@ -128,12 +150,15 @@ private struct ShotProfileSection: View {
                     let attempts = grouped[zone]?.count ?? 0
                     HStack {
                         Text(zone.rawValue)
+                            .font(.outfit(size: 13, weight: .semibold))
                         Spacer()
                         Text("\(made)/\(attempts)")
-                            .font(.headline.monospacedDigit())
+                            .font(.bebas(size: 18))
+                            .foregroundStyle(HSToken.accent)
                     }
-                    .padding(16)
-                    .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(HSCardRow())
                 }
             }
         }
@@ -145,28 +170,27 @@ private struct LineupSegmentSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Lineup Segments")
-                .font(.title2.weight(.bold))
+            HSSectionHeader(title: "Lineup Segments", icon: HSIcon.lineups)
             if segments.isEmpty {
-                EmptyCard(text: "No lineup data captured for this game.")
+                HSCard { Text("No lineup data captured for this game.").foregroundStyle(HSToken.inkMuted) }
             } else {
                 ForEach(segments) { segment in
                     VStack(alignment: .leading, spacing: 8) {
                         Text(segment.displayName ?? "Quarter \(segment.quarter)")
-                            .font(.headline)
+                            .font(.outfit(size: 14, weight: .semibold))
                         Text(segment.players.joined(separator: ", "))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        HStack {
-                            Label("\(segment.pointsScored) scored", systemImage: "plus.circle")
-                            Label("\(segment.pointsAllowed) allowed", systemImage: "minus.circle")
+                            .font(.outfit(size: 12))
+                            .foregroundStyle(HSToken.inkMuted)
+                        HStack(spacing: 16) {
+                            Label("\(segment.pointsScored) scored", systemImage: "plus.circle").foregroundStyle(HSToken.win)
+                            Label("\(segment.pointsAllowed) allowed", systemImage: "minus.circle").foregroundStyle(HSToken.loss)
                             Label("\(segment.possessions) poss.", systemImage: "arrow.left.arrow.right")
-                            Label(segment.netRatingValue.formatted(.number.precision(.fractionLength(1))), systemImage: "chart.line.uptrend.xyaxis")
+                            Label(segment.netRatingValue.formatted(.number.precision(.fractionLength(1))), systemImage: "chart.line.uptrend.xyaxis").foregroundStyle(HSToken.cool)
                         }
-                        .font(.caption.weight(.semibold))
+                        .font(.outfit(size: 12, weight: .semibold))
                     }
                     .padding(16)
-                    .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .background(HSCardRow())
                 }
             }
         }
@@ -178,21 +202,21 @@ private struct NotesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Coach Notes")
-                .font(.title2.weight(.bold))
-            EmptyCard(text: notes.isEmpty ? "No notes" : notes)
+            HSSectionHeader(title: "Coach Notes", icon: "note.text")
+            HSCard { Text(notes.isEmpty ? "No notes" : notes).foregroundStyle(HSToken.inkMuted) }
         }
     }
 }
 
-private struct EmptyCard: View {
-    let text: String
-
+/// Cream card row background + border used by list rows.
+private struct HSCardRow: View {
     var body: some View {
-        Text(text)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(18)
-            .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        RoundedRectangle(cornerRadius: HSToken.radiusSmall, style: .continuous)
+            .fill(HSToken.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: HSToken.radiusSmall, style: .continuous)
+                    .stroke(HSToken.line, lineWidth: 1)
+            )
     }
 }
 

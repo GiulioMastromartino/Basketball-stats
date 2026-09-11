@@ -16,6 +16,9 @@ struct LiveGameScreen: View {
     @State private var showStatsSheet = false
     @State private var showPlaySelector = true
     @State private var showShotPosition = true
+    @State private var pendingSheet: PendingSheet?
+    @State private var pendingDialog: PendingDialog?
+    @State private var recentPlayIDs: [UUID] = []
 
     var body: some View {
         NavigationStack {
@@ -50,14 +53,19 @@ struct LiveGameScreen: View {
                             selectedPlayer: $selectedPlayer,
                             showPlaySelector: $showPlaySelector,
                             showShotPosition: $showShotPosition,
+                            recentPlayIDs: recentPlayIDs,
                             onToggleClock: appModel.toggleClock,
-                            onAdvanceQuarter: appModel.nextQuarter,
+                            onAdvanceQuarter: advanceQuarter,
                             onUndo: appModel.undoLiveEvent,
-                            onShowSubs: { showSubstitutionSheet = true },
+                            onShowSubs: showSubs,
                             onShowStats: { showStatsSheet = true },
-                            onComplete: appModel.completeLiveGame,
+                            onComplete: { pendingDialog = .finishGame },
+                            onOppShot: { pendingDialog = .oppShot(kind: $0) },
+                            onRemoveOppAction: { pendingSheet = .removeOppAction },
                             onSelectPlay: appModel.selectPlay,
-                            onRecordEvent: recordEvent,
+                            onShootingAction: shootingAction,
+                            onStatAction: statAction,
+                            onFT: { pendingSheet = .ftTrip(player: $0) },
                             onSelectPlayer: { selectedPlayer = $0 }
                         )
                     }
@@ -86,6 +94,14 @@ struct LiveGameScreen: View {
                     .presentationDetents([.large])
             }
         }
+        .sheet(item: $pendingSheet) { action in
+            sheetContent(for: action)
+        }
+        .confirmationDialog(dialogTitle, isPresented: dialogIsPresented, titleVisibility: .visible) {
+            dialogButtons
+        } message: {
+            Text(dialogMessage)
+        }
         .onAppear(perform: bootstrapDraftState)
         .onChange(of: appModel.liveSession) { _, newValue in
             if newValue.isConfigured {
@@ -98,6 +114,159 @@ struct LiveGameScreen: View {
             }
         }
     }
+
+    // MARK: - Sheets & dialogs
+
+    @ViewBuilder
+    private func sheetContent(for action: PendingSheet) -> some View {
+        switch action {
+        case .assistPicker(let shooter, let kind, let points):
+            PlayerPickerSheet(
+                title: "Assist?",
+                subtitle: "\(shooter) \(points)PT MADE",
+                tag: "AST",
+                players: appModel.liveSession.activeLineup.filter { $0 != shooter },
+                skipOption: (label: "No Assist", subtitle: "Unassisted", tag: "SKIP"),
+                onPick: { assister in
+                    pickAssister(shooter: shooter, kind: kind, points: points, assister: assister)
+                }
+            )
+            .presentationDetents([.medium, .large])
+        case .shotLocation(let player, let kind, let points, let assister, _):
+            NavigationStack {
+                ShotLocationPicker(
+                    title: kind.isMiss ? "\(player) \(kind.ptsLabel) MISS" : "\(player) (\(points)PT) MADE",
+                    shotType: kind.shotType
+                ) { x, y in
+                    recordShot(player: player, kind: kind, points: points, assister: assister, xLocation: x, yLocation: y)
+                } onSkip: {
+                    recordShot(player: player, kind: kind, points: points, assister: assister, xLocation: nil, yLocation: nil)
+                }
+                .frame(maxWidth: 560)
+            }
+            .presentationDetents([.medium, .large])
+        case .playSelection(let eventID, _):
+            PlaySelectionSheet(
+                plays: appModel.plays,
+                recentPlayIDs: recentPlayIDs,
+                selectedPlayID: appModel.liveSession.selectedPlayID,
+                onSelect: finishPlaySelection,
+                onSkip: skipPlaySelection
+            )
+            .presentationDetents([.medium, .large])
+        case .orebPicker(let shooter, let kind):
+            PlayerPickerSheet(
+                title: "Offensive Rebound?",
+                subtitle: shooter.isEmpty ? "\(kind.title) — defensive possession" : "\(shooter) \(kind.ptsLabel) MISS",
+                tag: "OREB",
+                players: appModel.liveSession.activeLineup,
+                skipOption: (label: "No O-Reb", subtitle: "Defensive possession change", tag: "DEF"),
+                onPick: { rebounder in
+                    guard let rebounder else { return }
+                    appModel.addEvent(.offensiveRebound, playerName: rebounder)
+                }
+            )
+            .presentationDetents([.medium, .large])
+        case .ftTrip(let player):
+            FTSheet(player: player) { totalFt, made in
+                recordFT(player: player, totalFt: totalFt, made: made)
+            }
+            .presentationDetents([.medium, .large])
+        case .oppShotLocation(let kind, let eventID):
+            NavigationStack {
+                ShotLocationPicker(
+                    title: "OPP \(kind.ptsLabel) MADE (\(kind.pointsValue)PT)",
+                    shotType: kind.shotType
+                ) { x, y in
+                    appModel.attachOpponentShotLocation(x: x, y: y, toEventID: eventID)
+                } onSkip: {}
+                .frame(maxWidth: 560)
+            }
+            .presentationDetents([.medium, .large])
+        case .drebPlayer:
+            PlayerPickerSheet(
+                title: "Defensive Rebound",
+                subtitle: "Who grabbed the rebound?",
+                tag: "DREB",
+                players: appModel.liveSession.activeLineup,
+                skipOption: (label: "Team", subtitle: "Unknown rebounder", tag: "TEAM"),
+                onPick: { player in
+                    guard let player else { return }
+                    appModel.addEvent(.rebound, playerName: player)
+                }
+            )
+            .presentationDetents([.medium, .large])
+        case .removeOppAction:
+            RemoveOppActionSheet(
+                actions: appModel.liveSession.oppRecentActions,
+                onRemove: { eventID in
+                    appModel.removeOpponentAction(eventID: eventID)
+                    pendingSheet = nil
+                }
+            )
+            .presentationDetents([.medium, .large])
+        }
+    }
+
+    private var dialogIsPresented: Binding<Bool> {
+        Binding(
+            get: { pendingDialog != nil },
+            set: { if !$0 { pendingDialog = nil } }
+        )
+    }
+
+    private var dialogTitle: String {
+        guard let pendingDialog else { return "" }
+        switch pendingDialog {
+        case .oppShot(let kind): return "Opponent \(kind.ptsLabel)"
+        case .oppRebound: return "Rebound?"
+        case .finishGame: return "Finish Game"
+        case .halftimePDF: return "End of Q2"
+        }
+    }
+
+    private var dialogMessage: String {
+        guard let pendingDialog else { return "" }
+        switch pendingDialog {
+        case .oppShot: return "Did the opponent make the shot?"
+        case .oppRebound: return "Who got the rebound?"
+        case .finishGame: return "Are you sure you want to finish and save the game against \(appModel.liveSession.opponent)?"
+        case .halftimePDF: return "Generate a Half-Time Summary PDF?"
+        }
+    }
+
+    @ViewBuilder
+    private var dialogButtons: some View {
+        switch pendingDialog {
+        case .oppShot(let kind):
+            Button("Made") { oppShotMade(kind) }
+            Button("Missed") { oppShotMissed(kind) }
+            Button("Cancel", role: .cancel) { pendingDialog = nil }
+        case .oppRebound(let kind):
+            Button("Offensive (Opp kept it)") { oppReboundOffensive() }
+            Button("Defensive (We rebounded)") { pendingSheet = .drebPlayer }
+            Button("Cancel", role: .cancel) { pendingDialog = nil }
+        case .finishGame:
+            Button("Finish and Save") {
+                appModel.completeLiveGame()
+                resetDraftState()
+            }
+            Button("Cancel", role: .cancel) { pendingDialog = nil }
+        case .halftimePDF:
+            Button("Generate PDF") {
+                appModel.generateHalftimePDF()
+                appModel.nextQuarter()
+            }
+            Button("Skip") {
+                appModel.nextQuarter()
+            }
+            Button("Cancel", role: .cancel) { pendingDialog = nil }
+        case nil:
+            EmptyView()
+        }
+    }
+
+    // MARK: - Draft flow
 
     private var currentStage: DraftStage {
         appModel.liveSession.isConfigured ? .tracker : stage
@@ -130,6 +299,9 @@ struct LiveGameScreen: View {
         selectedStarters = []
         draftPlayerName = ""
         selectedPlayer = ""
+        pendingSheet = nil
+        pendingDialog = nil
+        recentPlayIDs = []
     }
 
     private func addDraftPlayer() {
@@ -189,13 +361,114 @@ struct LiveGameScreen: View {
         selectedPlayer = selectedStarters.first ?? selectedRoster.first ?? ""
     }
 
-    private func recordEvent(_ kind: LiveGameEventKind, playerName: String?) {
-        let detail = appModel.liveSession.selectedPlayID == nil ? "" : "Tagged from playbook"
-        let resolvedPlayer = kind.requiresPlayerTag ? playerName : nil
-        appModel.addEvent(kind, playerName: resolvedPlayer, detail: detail)
-        if let resolvedPlayer {
-            selectedPlayer = resolvedPlayer
+    private func showSubs() {
+        if appModel.liveSession.isClockRunning {
+            appModel.toggleClock()
         }
+        showSubstitutionSheet = true
+    }
+
+    private func advanceQuarter() {
+        if appModel.liveSession.quarter == 2 {
+            pendingDialog = .halftimePDF
+        } else {
+            appModel.nextQuarter()
+        }
+    }
+
+    // MARK: - Action chains
+
+    private func statAction(_ kind: LiveGameEventKind, player: String) {
+        if kind == .turnover {
+            let eventID = appModel.addEvent(.turnover, playerName: player)
+            if showPlaySelector, let eventID {
+                pendingSheet = .playSelection(eventID: eventID, nextAfter: nil)
+            }
+            return
+        }
+        appModel.addEvent(kind, playerName: player)
+    }
+
+    private func shootingAction(_ kind: LiveGameEventKind, player: String) {
+        if kind.isMiss {
+            missedShot(player, kind)
+        } else {
+            madeShot(player, kind, kind.pointsValue)
+        }
+    }
+
+    private func madeShot(_ player: String, _ kind: LiveGameEventKind, _ points: Int) {
+        pendingSheet = .assistPicker(shooter: player, kind: kind, points: points)
+    }
+
+    private func missedShot(_ player: String, _ kind: LiveGameEventKind) {
+        if showShotPosition {
+            pendingSheet = .shotLocation(player: player, kind: kind, points: 0, assister: nil, isMiss: true)
+        } else {
+            recordShot(player: player, kind: kind, points: 0, assister: nil, xLocation: nil, yLocation: nil)
+        }
+    }
+
+    private func pickAssister(shooter: String, kind: LiveGameEventKind, points: Int, assister: String?) {
+        if showShotPosition {
+            pendingSheet = .shotLocation(player: shooter, kind: kind, points: points, assister: assister, isMiss: false)
+        } else {
+            recordShot(player: shooter, kind: kind, points: points, assister: assister, xLocation: nil, yLocation: nil)
+        }
+    }
+
+    private func recordShot(player: String, kind: LiveGameEventKind, points: Int, assister: String?, xLocation: Double?, yLocation: Double?) {
+        if let assister, !assister.isEmpty {
+            appModel.addEvent(.assist, playerName: assister)
+        }
+        let eventID = appModel.addEvent(kind, playerName: player, xLocation: xLocation, yLocation: yLocation)
+        var nextAfter: PendingSheet?
+        if kind.isMiss {
+            nextAfter = .orebPicker(shooter: player, kind: kind)
+        }
+        if showPlaySelector, let eventID {
+            pendingSheet = .playSelection(eventID: eventID, nextAfter: nextAfter)
+        } else {
+            pendingSheet = nextAfter
+        }
+    }
+
+    private func finishPlaySelection(playID: UUID?) {
+        guard case let .playSelection(eventID, nextAfter)? = pendingSheet else { return }
+        appModel.attachPlay(playID, toEventID: eventID)
+        if let playID {
+            recentPlayIDs.removeAll { $0 == playID }
+            recentPlayIDs.insert(playID, at: 0)
+            if recentPlayIDs.count > 3 { recentPlayIDs.removeLast() }
+        }
+        pendingSheet = nextAfter
+    }
+
+    private func skipPlaySelection() {
+        finishPlaySelection(playID: nil)
+    }
+
+    private func recordFT(player: String, totalFt: Int, made: Int) {
+        appModel.recordFreeThrowTrip(player: player, totalFt: totalFt, made: made)
+        let eventID = appModel.liveSession.events.last?.id
+        if showPlaySelector, let eventID {
+            pendingSheet = .playSelection(eventID: eventID, nextAfter: nil)
+        }
+    }
+
+    private func oppShotMade(_ kind: LiveGameEventKind) {
+        let eventID = appModel.addEvent(kind, playerName: nil)
+        guard kind != .awayFreeThrowMade, let eventID else { return }
+        pendingSheet = .oppShotLocation(kind: kind, eventID: eventID)
+    }
+
+    private func oppShotMissed(_ kind: LiveGameEventKind) {
+        appModel.addEvent(kind, playerName: nil)
+        pendingDialog = .oppRebound(kind: kind)
+    }
+
+    private func oppReboundOffensive() {
+        appModel.addEvent(.opponentOffensiveRebound, playerName: nil)
     }
 }
 
@@ -205,14 +478,54 @@ private enum DraftStage {
     case tracker
 }
 
+private indirect enum PendingSheet: Identifiable {
+    case assistPicker(shooter: String, kind: LiveGameEventKind, points: Int)
+    case shotLocation(player: String, kind: LiveGameEventKind, points: Int, assister: String?, isMiss: Bool)
+    case playSelection(eventID: UUID, nextAfter: PendingSheet?)
+    case orebPicker(shooter: String, kind: LiveGameEventKind)
+    case ftTrip(player: String)
+    case oppShotLocation(kind: LiveGameEventKind, eventID: UUID)
+    case drebPlayer
+    case removeOppAction
+
+    var id: String {
+        switch self {
+        case .assistPicker(let shooter, let kind, _): "assist-\(shooter)-\(kind.rawValue)"
+        case .shotLocation(let player, let kind, _, _, _): "shotloc-\(player)-\(kind.rawValue)"
+        case .playSelection(let eventID, _): "play-\(eventID.uuidString)"
+        case .orebPicker(let shooter, _): "oreb-\(shooter)"
+        case .ftTrip(let player): "ft-\(player)"
+        case .oppShotLocation(_, let eventID): "opploc-\(eventID.uuidString)"
+        case .drebPlayer: "dreb"
+        case .removeOppAction: "removeopp"
+        }
+    }
+}
+
+private enum PendingDialog: Identifiable {
+    case oppShot(kind: LiveGameEventKind)
+    case oppRebound(kind: LiveGameEventKind)
+    case finishGame
+    case halftimePDF
+
+    var id: String {
+        switch self {
+        case .oppShot(let kind): "oppshot-\(kind.rawValue)"
+        case .oppRebound(let kind): "oppreb-\(kind.rawValue)"
+        case .finishGame: "finish"
+        case .halftimePDF: "halftime"
+        }
+    }
+}
+
 private enum LiveGamePalette {
-    static let page = Color(red: 0.94, green: 0.96, blue: 0.98)
-    static let card = Color.white
-    static let dark = Color(red: 0.10, green: 0.13, blue: 0.18)
-    static let blue = Color(red: 0.12, green: 0.38, blue: 0.84)
-    static let yellow = Color(red: 0.96, green: 0.75, blue: 0.16)
-    static let red = Color(red: 0.82, green: 0.20, blue: 0.22)
-    static let green = Color(red: 0.15, green: 0.60, blue: 0.33)
+    static let page = HSToken.bgMain
+    static let card = HSToken.surface
+    static let dark = Color(hex: 0x1A2029)
+    static let blue = HSToken.accent
+    static let yellow = HSToken.gold
+    static let red = HSToken.loss
+    static let green = HSToken.win
 }
 
 private struct SetupPanel: View {
@@ -229,7 +542,7 @@ private struct SetupPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Game Setup")
-                .font(.title2.weight(.bold))
+                .font(.bebas(size: 28))
             DatePicker("Date", selection: $gameDate, displayedComponents: .date)
                 .datePickerStyle(.compact)
             Picker("Game Type", selection: $gameType) {
@@ -287,7 +600,7 @@ private struct LineupSelectionPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Select Starters (5)")
-                .font(.title2.weight(.bold))
+                .font(.bebas(size: 28))
             Text("Choose the opening lineup for vs \(opponent).")
                 .foregroundStyle(.secondary)
             SelectableChipGrid(
@@ -319,14 +632,19 @@ private struct TrackerConsole: View {
     @Binding var selectedPlayer: String
     @Binding var showPlaySelector: Bool
     @Binding var showShotPosition: Bool
+    let recentPlayIDs: [UUID]
     let onToggleClock: () -> Void
     let onAdvanceQuarter: () -> Void
     let onUndo: () -> Void
     let onShowSubs: () -> Void
     let onShowStats: () -> Void
     let onComplete: () -> Void
+    let onOppShot: (LiveGameEventKind) -> Void
+    let onRemoveOppAction: () -> Void
     let onSelectPlay: (UUID?) -> Void
-    let onRecordEvent: (LiveGameEventKind, String?) -> Void
+    let onShootingAction: (LiveGameEventKind, String) -> Void
+    let onStatAction: (LiveGameEventKind, String) -> Void
+    let onFT: (String) -> Void
     let onSelectPlayer: (String) -> Void
 
     private let grid = [GridItem(.adaptive(minimum: 300), spacing: 16)]
@@ -343,7 +661,8 @@ private struct TrackerConsole: View {
                 onShowSubs: onShowSubs,
                 onShowStats: onShowStats,
                 onComplete: onComplete,
-                onOpponentEvent: { onRecordEvent($0, nil) }
+                onOppShot: onOppShot,
+                onRemoveOppAction: onRemoveOppAction
             )
 
             if showPlaySelector {
@@ -358,18 +677,28 @@ private struct TrackerConsole: View {
                 ForEach(session.activeLineup, id: \.self) { player in
                     PlayerActionCard(
                         player: player,
+                        session: session,
                         summary: LivePlayerSummary(player: player, session: session),
                         isSelected: selectedPlayer == player,
-                        shotPositionEnabled: showShotPosition,
                         selectedPlayName: selectedPlayName,
                         onSelectPlayer: {
                             selectedPlayer = player
                             onSelectPlayer(player)
                         },
-                        onAction: { kind in
+                        onShootingAction: { kind in
                             selectedPlayer = player
                             onSelectPlayer(player)
-                            onRecordEvent(kind, player)
+                            onShootingAction(kind, player)
+                        },
+                        onStatAction: { kind in
+                            selectedPlayer = player
+                            onSelectPlayer(player)
+                            onStatAction(kind, player)
+                        },
+                        onFT: {
+                            selectedPlayer = player
+                            onSelectPlayer(player)
+                            onFT(player)
                         }
                     )
                 }
@@ -403,18 +732,27 @@ private struct ScoreboardCard: View {
     let onShowSubs: () -> Void
     let onShowStats: () -> Void
     let onComplete: () -> Void
-    let onOpponentEvent: (LiveGameEventKind) -> Void
+    let onOppShot: (LiveGameEventKind) -> Void
+    let onRemoveOppAction: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(session.homeScore) - \(session.awayScore)")
-                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .font(.bebas(size: 44))
                         .foregroundStyle(LiveGamePalette.yellow)
                     Text("vs \(session.opponent)")
                         .font(.headline)
                         .foregroundStyle(.white.opacity(0.86))
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Q Clock \(LiveGameSession.clockString(seconds: session.displayedQuarterSeconds(at: context.date))) / 10:00")
+                            Text("Game \(LiveGameSession.clockString(seconds: session.displayedGameSeconds(at: context.date)))")
+                        }
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.7))
+                    }
                 }
                 Spacer()
                 VStack(spacing: 6) {
@@ -424,7 +762,7 @@ private struct ScoreboardCard: View {
                         .padding(.vertical, 6)
                         .background(session.isClockRunning ? LiveGamePalette.green : .white.opacity(0.14), in: Capsule())
                     Text("Q\(session.quarter)")
-                        .font(.title2.weight(.bold))
+                        .font(.bebas(size: 26))
                     Text(session.gameType.rawValue)
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.8))
@@ -441,8 +779,9 @@ private struct ScoreboardCard: View {
                         Button("Undo", action: onUndo)
                             .buttonStyle(TrackerButtonStyle(fill: .white.opacity(0.16)))
                             .disabled(session.events.isEmpty)
-                        Button("Next Q", action: onAdvanceQuarter)
+                        Button("Undo Opp", action: onRemoveOppAction)
                             .buttonStyle(TrackerButtonStyle(fill: .white.opacity(0.16)))
+                            .disabled(session.oppRecentActions.isEmpty)
                     }
                 }
             }
@@ -452,13 +791,13 @@ private struct ScoreboardCard: View {
             HStack(alignment: .center, spacing: 16) {
                 HStack(spacing: 8) {
                     OpponentActionButton(label: "OPP 2PT", tint: LiveGamePalette.red) {
-                        onOpponentEvent(.awayTwoMade)
+                        onOppShot(.awayTwoMade)
                     }
                     OpponentActionButton(label: "OPP 3PT", tint: LiveGamePalette.red) {
-                        onOpponentEvent(.awayThreeMade)
+                        onOppShot(.awayThreeMade)
                     }
                     OpponentActionButton(label: "OPP FT", tint: LiveGamePalette.red) {
-                        onOpponentEvent(.awayFreeThrowMade)
+                        onOppShot(.awayFreeThrowMade)
                     }
                 }
 
@@ -469,6 +808,8 @@ private struct ScoreboardCard: View {
                     TogglePill(title: "Shot Position", isOn: $showShotPosition)
                     Button("Stats", action: onShowStats)
                         .buttonStyle(TrackerButtonStyle(fill: LiveGamePalette.blue))
+                    Button("Next Q", action: onAdvanceQuarter)
+                        .buttonStyle(TrackerButtonStyle(fill: .white.opacity(0.16)))
                     Button("Finish Game", action: onComplete)
                         .buttonStyle(TrackerButtonStyle(fill: LiveGamePalette.yellow, foreground: .black))
                         .disabled(session.events.isEmpty)
@@ -484,12 +825,14 @@ private struct ScoreboardCard: View {
 
 private struct PlayerActionCard: View {
     let player: String
+    let session: LiveGameSession
     let summary: LivePlayerSummary
     let isSelected: Bool
-    let shotPositionEnabled: Bool
     let selectedPlayName: String?
     let onSelectPlayer: () -> Void
-    let onAction: (LiveGameEventKind) -> Void
+    let onShootingAction: (LiveGameEventKind) -> Void
+    let onStatAction: (LiveGameEventKind) -> Void
+    let onFT: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -516,7 +859,20 @@ private struct PlayerActionCard: View {
 
             shootingRow(label: "2PT", value: "\(summary.twoPointMade)/\(summary.twoPointAttempts)", missKind: .homeTwoMissed, makeKind: .homeTwoMade, makeLabel: "+2")
             shootingRow(label: "3PT", value: "\(summary.threePointMade)/\(summary.threePointAttempts)", missKind: .homeThreeMissed, makeKind: .homeThreeMade, makeLabel: "+3")
-            shootingRow(label: "FT", value: "\(summary.freeThrowMade)/\(summary.freeThrowAttempts)", missKind: .homeFreeThrowMissed, makeKind: .homeFreeThrowMade, makeLabel: "+1")
+
+            HStack(spacing: 10) {
+                Text("FT")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .frame(width: 36, alignment: .leading)
+                Spacer()
+                Text("\(summary.freeThrowMade)/\(summary.freeThrowAttempts)")
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(.white)
+                Spacer()
+                Button("FT", action: onFT)
+                    .buttonStyle(SmallActionStyle(fill: LiveGamePalette.yellow))
+            }
 
             VStack(spacing: 8) {
                 statButtonRow(items: [
@@ -534,13 +890,15 @@ private struct PlayerActionCard: View {
                 ])
             }
 
-            HStack {
-                Text(shotPositionEnabled ? "Shot map tagging ON" : "Shot map tagging OFF")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.78))
-                Spacer()
-                Button(isSelected ? "Current Player" : "Select Player", action: onSelectPlayer)
-                    .buttonStyle(TrackerButtonStyle(fill: isSelected ? LiveGamePalette.blue : .white.opacity(0.12)))
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                HStack {
+                    Text("TOTAL: \(LiveGameSession.clockString(seconds: session.displayedSeconds(for: player, at: context.date)))")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.78))
+                    Spacer()
+                    Button(isSelected ? "Current Player" : "Select Player", action: onSelectPlayer)
+                        .buttonStyle(TrackerButtonStyle(fill: isSelected ? LiveGamePalette.blue : .white.opacity(0.12)))
+                }
             }
         }
         .padding(16)
@@ -569,9 +927,9 @@ private struct PlayerActionCard: View {
                 .foregroundStyle(.white)
             Spacer()
             HStack(spacing: 6) {
-                Button("Miss") { onAction(missKind) }
+                Button("Miss") { onShootingAction(missKind) }
                     .buttonStyle(SmallActionStyle(fill: .white.opacity(0.14)))
-                Button(makeLabel) { onAction(makeKind) }
+                Button(makeLabel) { onShootingAction(makeKind) }
                     .buttonStyle(SmallActionStyle(fill: LiveGamePalette.green))
             }
         }
@@ -581,7 +939,7 @@ private struct PlayerActionCard: View {
         HStack(spacing: 8) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 Button {
-                    onAction(item.2)
+                    onStatAction(item.2)
                 } label: {
                     VStack(spacing: 4) {
                         Text(item.0)
@@ -621,7 +979,7 @@ private struct LiveSidePanel: View {
                     }
                 }
                 .padding(14)
-                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(Color.hsSecondarySystemBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -642,7 +1000,7 @@ private struct LiveSidePanel: View {
                             .padding(.vertical, 10)
                         }
                         .buttonStyle(.plain)
-                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color.hsSecondarySystemBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                 }
             }
@@ -673,7 +1031,7 @@ private struct LiveSidePanel: View {
                             }
                         }
                         .padding(12)
-                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color.hsSecondarySystemBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                 }
             }
@@ -716,6 +1074,396 @@ private struct PlaySelectorStrip: View {
         .shadow(color: .black.opacity(0.06), radius: 12, y: 6)
     }
 }
+
+// MARK: - Popup sheets
+
+private struct PlayerPickerSheet: View {
+    let title: String
+    let subtitle: String
+    let tag: String
+    let players: [String]
+    let skipOption: (label: String, subtitle: String, tag: String)?
+    let onPick: (String?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 10) {
+                    Text(subtitle)
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.bottom, 4)
+                    if let skipOption {
+                        OptionRow(
+                            label: skipOption.label,
+                            subtitle: skipOption.subtitle,
+                            tag: skipOption.tag,
+                            tint: Color.hsSecondarySystemBackground
+                        ) {
+                            dismiss()
+                            onPick(nil)
+                        }
+                    }
+                    ForEach(players, id: \.self) { player in
+                        OptionRow(
+                            label: player,
+                            subtitle: "\(tag) recorded",
+                            tag: tag,
+                            tint: LiveGamePalette.blue
+                        ) {
+                            dismiss()
+                            onPick(player)
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .navigationTitle(title)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct OptionRow: View {
+    let label: String
+    let subtitle: String
+    let tag: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(tag)
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(tint, in: Capsule())
+            }
+            .padding(14)
+            .background(Color.hsSecondarySystemBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(tint, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct FTSheet: View {
+    let player: String
+    let onConfirm: (Int, Int) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var totalFt = 2
+    @State private var made = 0
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                Text("\(player)")
+                    .font(.title2.weight(.bold))
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Free Throw Attempts")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.secondary)
+                    Picker("Attempts", selection: $totalFt) {
+                        Text("2 Attempts").tag(2)
+                        Text("3 Attempts").tag(3)
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: totalFt) { _, newValue in
+                        if made > newValue { made = newValue }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Made")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 10) {
+                        ForEach(0...totalFt, id: \.self) { n in
+                            Button("\(n)") { made = n }
+                                .buttonStyle(
+                                    FTCountStyle(isSelected: made == n)
+                                )
+                        }
+                    }
+                }
+
+                Text("\(made)/\(totalFt) made • +\(made) points")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(24)
+            .frame(maxWidth: 420)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Confirm") {
+                        dismiss()
+                        onConfirm(totalFt, made)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct FTCountStyle: ButtonStyle {
+    let isSelected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title3.weight(.bold))
+            .frame(minWidth: 56, minHeight: 48)
+            .foregroundStyle(isSelected ? .white : .primary)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? LiveGamePalette.blue : Color.hsSecondarySystemBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isSelected ? LiveGamePalette.blue : Color.hsSeparator, lineWidth: 1)
+            )
+    }
+}
+
+private struct PlaySelectionSheet: View {
+    let plays: [Play]
+    let recentPlayIDs: [UUID]
+    let selectedPlayID: UUID?
+    let onSelect: (UUID?) -> Void
+    let onSkip: () -> Void
+
+    @State private var showSpecial = false
+
+    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 10)]
+
+    private var filteredPlays: [Play] {
+        plays.filter { $0.playType == (showSpecial ? "Special" : "Offense") }
+    }
+
+    private var recentPlays: [Play] {
+        recentPlayIDs.compactMap { id in plays.first { $0.id == id } }
+    }
+
+    private struct PlayGroup: Identifiable {
+        let name: String
+        let plays: [Play]
+        var id: String { name }
+    }
+
+    private var grouped: [PlayGroup] {
+        var map: [String: [Play]] = [:]
+        for play in filteredPlays {
+            let parts = play.name.split(separator: "-")
+            let macro = parts.count > 1 ? String(parts[0]).trimmingCharacters(in: .whitespaces) : play.name
+            map[macro, default: []].append(play)
+        }
+        return map.keys.sorted().map { PlayGroup(name: $0, plays: map[$0] ?? []) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if !showSpecial, !recentPlays.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("RECENT")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.secondary)
+                            LazyVGrid(columns: columns, spacing: 10) {
+                                ForEach(recentPlays) { play in
+                                    PlayCard(play: play, isMacro: false, isRecent: true, isSelected: play.id == selectedPlayID) {
+                                        onSelect(play.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if !showSpecial, !recentPlays.isEmpty {
+                        Divider()
+                    }
+
+                    ForEach(grouped) { group in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Text(group.name)
+                                    .font(.headline)
+                                if group.plays.count > 1 {
+                                    Text("Group")
+                                        .font(.caption2.weight(.bold))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.hsSecondarySystemBackground, in: Capsule())
+                                }
+                            }
+                            LazyVGrid(columns: columns, spacing: 10) {
+                                ForEach(group.plays) { play in
+                                    PlayCard(play: play, isMacro: group.plays.count > 1, isRecent: false, isSelected: play.id == selectedPlayID) {
+                                        onSelect(play.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if filteredPlays.isEmpty {
+                        Text("No \(showSpecial ? "Special" : "Offense") plays found")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, 24)
+                    }
+                }
+                .padding(16)
+            }
+            .navigationTitle("Select Play")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Skip") { onSkip() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(showSpecial ? "Hide Special" : "Show Special") {
+                        showSpecial.toggle()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct PlayCard: View {
+    let play: Play
+    let isMacro: Bool
+    let isRecent: Bool
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Text(play.name)
+                    .font(.subheadline.weight(.bold))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(minHeight: 36)
+                HStack(spacing: 4) {
+                    if isMacro {
+                        Image(systemName: "layer.3d")
+                            .font(.caption2)
+                    }
+                    if isRecent {
+                        Image(systemName: "star.fill")
+                            .font(.caption2)
+                            .foregroundStyle(LiveGamePalette.yellow)
+                    }
+                    if isSelected {
+                        Text("SELECTED")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 66)
+            .foregroundStyle(isSelected ? .white : .primary)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? LiveGamePalette.blue : Color.hsSecondarySystemBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isSelected ? LiveGamePalette.blue : Color.hsSeparator, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct RemoveOppActionSheet: View {
+    let actions: [OpponentAction]
+    let onRemove: (UUID) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var recent: [OpponentAction] {
+        Array(actions.suffix(3).reversed())
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 10) {
+                    if recent.isEmpty {
+                        Text("No recent opponent actions to remove.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, 24)
+                    } else {
+                        ForEach(recent) { action in
+                            Button {
+                                onRemove(action.eventID)
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(action.label)
+                                            .font(.headline)
+                                            .foregroundStyle(.primary)
+                                        Text(action.subtitle)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Text("REMOVE")
+                                        .font(.caption2.weight(.bold))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(LiveGamePalette.red, in: Capsule())
+                                        .foregroundStyle(.white)
+                                }
+                                .padding(14)
+                                .background(Color.hsSecondarySystemBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .navigationTitle("Remove Opp. Action")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Existing sheets
 
 private struct SubstitutionSheet: View {
     let roster: [String]
@@ -789,36 +1537,44 @@ private struct CurrentStatsSheet: View {
                             Text(row.player)
                                 .font(.headline)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                            statPill("PTS", row.points)
-                            statPill("REB", row.totalRebounds)
-                            statPill("AST", row.assists)
-                            statPill("STL", row.steals)
-                            statPill("BLK", row.blocks)
-                            statPill("TOV", row.turnovers)
-                            statPill("PF", row.personalFouls)
+                            statPill("MIN", row.displayMinutes)
+                            statPill("PTS", "\(row.points)")
+                            statPill("REB", "\(row.totalRebounds)")
+                            statPill("AST", "\(row.assists)")
+                            statPill("STL", "\(row.steals)")
+                            statPill("BLK", "\(row.blocks)")
+                            statPill("TOV", "\(row.turnovers)")
+                            statPill("PF", "\(row.personalFouls)")
                             Text("\(row.twoPointMade + row.threePointMade)/\(row.twoPointAttempts + row.threePointAttempts) FG")
                                 .font(.caption.monospacedDigit())
                                 .frame(width: 90)
                         }
                         .padding(14)
-                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(Color.hsSecondarySystemBackground, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
                 }
                 .padding(20)
             }
             .navigationTitle("Current Game Stats")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
         }
     }
 
-    private func statPill(_ label: String, _ value: Int) -> some View {
+    @Environment(\.dismiss) private var dismiss
+
+    private func statPill(_ label: String, _ value: String) -> some View {
         VStack(spacing: 2) {
             Text(label)
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(.secondary)
-            Text("\(value)")
+            Text(value)
                 .font(.subheadline.monospacedDigit())
         }
-        .frame(width: 42)
+        .frame(width: 44)
     }
 }
 
@@ -842,11 +1598,11 @@ private struct SelectableChipGrid: View {
                 .foregroundStyle(isSelected ? .white : .primary)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(isSelected ? tint : Color(.secondarySystemBackground))
+                        .fill(isSelected ? tint : Color.hsSecondarySystemBackground)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(isSelected ? tint : Color(.separator), lineWidth: 1)
+                        .stroke(isSelected ? tint : Color.hsSeparator, lineWidth: 1)
                 )
             }
         }
@@ -940,7 +1696,7 @@ private struct PlayChipStyle: ButtonStyle {
             .foregroundStyle(isSelected ? .white : .primary)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isSelected ? LiveGamePalette.blue : Color(.secondarySystemBackground))
+                    .fill(isSelected ? LiveGamePalette.blue : Color.hsSecondarySystemBackground)
             )
             .opacity(configuration.isPressed ? 0.8 : 1)
     }
@@ -963,6 +1719,7 @@ private struct LivePlayerSummary {
     var turnovers = 0
     var personalFouls = 0
     var plusMinus = 0
+    var displayMinutes = "0:00"
 
     init(player: String, session: LiveGameSession) {
         self.player = player
@@ -987,6 +1744,13 @@ private struct LivePlayerSummary {
                 freeThrowAttempts += 1
             case .homeFreeThrowMissed:
                 freeThrowAttempts += 1
+            case .freeThrowTrip:
+                let parts = event.detail.split(separator: "/")
+                let made = Int(parts.first ?? "") ?? 0
+                let total = Int((parts.last ?? "").trimmingCharacters(in: CharacterSet(charactersIn: " FT"))) ?? 0
+                points += made
+                freeThrowMade += made
+                freeThrowAttempts += total
             case .offensiveRebound:
                 offensiveRebounds += 1
             case .rebound:
@@ -1009,6 +1773,8 @@ private struct LivePlayerSummary {
         for segment in session.lineupSegments where segment.players.contains(player) {
             plusMinus += segment.pointsScored - segment.pointsAllowed
         }
+
+        displayMinutes = LiveGameSession.clockString(seconds: session.displayedSeconds(for: player, at: .now))
     }
 
     var totalRebounds: Int {
@@ -1022,16 +1788,69 @@ private struct LivePlayerSummary {
     var plusMinusColor: Color {
         if plusMinus > 0 { return LiveGamePalette.green }
         if plusMinus < 0 { return LiveGamePalette.red }
-        return Color(.systemGray4)
+        return Color.hsSystemGray4
+    }
+}
+
+private extension OpponentAction {
+    var label: String {
+        if kind.isScoringEvent {
+            return "OPP \(kind.pointsValue)PT \(result.rawValue.uppercased())"
+        }
+        if kind == .opponentOffensiveRebound {
+            return "OPP OREB"
+        }
+        return kind.title
+    }
+
+    var subtitle: String {
+        if kind.isScoringEvent, result == .made {
+            return "Subtract \(points) points"
+        }
+        if kind == .opponentOffensiveRebound {
+            return "Remove offensive rebound"
+        }
+        return "Remove event"
     }
 }
 
 private extension LiveGameEventKind {
+    var isMiss: Bool {
+        switch self {
+        case .homeTwoMissed, .homeThreeMissed, .homeFreeThrowMissed, .awayTwoMissed, .awayThreeMissed, .awayFreeThrowMissed:
+            true
+        default:
+            false
+        }
+    }
+
+    var ptsLabel: String {
+        switch self {
+        case .homeThreeMade, .homeThreeMissed, .awayThreeMade, .awayThreeMissed:
+            "3PT"
+        case .homeFreeThrowMade, .homeFreeThrowMissed, .awayFreeThrowMade, .awayFreeThrowMissed:
+            "FT"
+        default:
+            "2PT"
+        }
+    }
+
+    var shotType: ShotType {
+        switch self {
+        case .homeThreeMade, .homeThreeMissed, .awayThreeMade, .awayThreeMissed:
+            .threePoint
+        case .homeFreeThrowMade, .homeFreeThrowMissed, .awayFreeThrowMade, .awayFreeThrowMissed:
+            .freeThrow
+        default:
+            .twoPoint
+        }
+    }
+
     var requiresPlayerTag: Bool {
         switch self {
-        case .awayTwoMade, .awayThreeMade, .awayFreeThrowMade, .awayTwoMissed, .awayThreeMissed, .awayFreeThrowMissed:
+        case .awayTwoMade, .awayThreeMade, .awayFreeThrowMade, .awayTwoMissed, .awayThreeMissed, .awayFreeThrowMissed, .opponentOffensiveRebound:
             false
-        case .substitution:
+        case .substitution, .freeThrowTrip:
             false
         default:
             true

@@ -4,7 +4,7 @@ struct SettingsScreen: View {
     @Environment(AppModel.self) private var appModel
 
     var body: some View {
-        NavigationStack {
+        HSPage {
             List {
                 Section("Signed In User") {
                     Picker("User", selection: currentUserID) {
@@ -19,23 +19,83 @@ struct SettingsScreen: View {
                 }
                 Section("Sync") {
                     Text(appModel.syncSummary)
+                    if let lastSyncedAt = appModel.lastSyncedAt {
+                        Text("Last synced \(lastSyncedAt.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.outfit(size: 12))
+                            .foregroundStyle(HSToken.inkMuted)
+                    }
+                    Button {
+                        Task { await appModel.syncWithServer() }
+                    } label: {
+                        HStack {
+                            Text("Sync Now")
+                            if appModel.isSyncing {
+                                Spacer()
+                                ProgressView().controlSize(.small)
+                            }
+                        }
+                    }
+                    .disabled(appModel.isSyncing || !serverConnected)
+                    if let syncMessage = appModel.syncMessage {
+                        Text(syncMessage)
+                            .font(.outfit(size: 12))
+                            .foregroundStyle(HSToken.inkMuted)
+                    }
                     ForEach(appModel.syncIssues) { issue in
                         VStack(alignment: .leading) {
                             Text(issue.entityName)
-                                .font(.headline)
+                                .font(.outfit(size: 14, weight: .semibold))
                             Text(issue.reason)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.outfit(size: 12))
+                                .foregroundStyle(HSToken.inkMuted)
                         }
                     }
                 }
                 Section("Migration Status") {
                     Label("Foundation, persistence, import/export, live game, analytics, playbook, reports, and role-aware settings implemented", systemImage: "checkmark.seal.fill")
-                    Label("Remote sync boundary still local-first", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Server-first sync: Flask DB is the source of truth; local-only games are preserved", systemImage: "arrow.triangle.2.circlepath")
+                }
+                Section("Flask API Server") {
+                    HStack {
+                        switch appModel.serverStatus {
+                        case .checking:
+                            ProgressView().controlSize(.small)
+                            Text("Checking…").font(.outfit(size: 14))
+                        case .connected:
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(HSToken.win)
+                            VStack(alignment: .leading) {
+                                Text("Connected").font(.outfit(size: 14, weight: .semibold))
+                                Text(appModel.webClient.baseURL.absoluteString)
+                                    .font(.outfit(size: 12))
+                                    .foregroundStyle(HSToken.inkMuted)
+                            }
+                        case .unreachable(let message):
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(HSToken.loss)
+                            VStack(alignment: .leading) {
+                                Text("Unreachable").font(.outfit(size: 14, weight: .semibold))
+                                Text(message)
+                                    .font(.outfit(size: 12))
+                                    .foregroundStyle(HSToken.inkMuted)
+                            }
+                        }
+                        Spacer()
+                        Button("Retry") {
+                            Task { await appModel.refreshServerStatus() }
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
+            .scrollContentBackground(.hidden)
             .navigationTitle("Settings")
         }
+    }
+
+    private var serverConnected: Bool {
+        if case .connected = appModel.serverStatus { return true }
+        return false
     }
 
     private var currentUserID: Binding<UUID?> {

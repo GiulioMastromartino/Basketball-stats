@@ -4,6 +4,10 @@ import SwiftUI
 struct BasketballStatsNativeApp: App {
     @State private var appModel = AppModel()
 
+    init() {
+        FontRegistration.registerBundledFonts()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

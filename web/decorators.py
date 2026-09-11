@@ -1,10 +1,15 @@
 from functools import wraps
-from flask import abort, flash, redirect, url_for, session
+from flask import abort, flash, redirect, url_for, session, current_app
 from flask_login import current_user
+
+def _auth_disabled():
+    return current_app.config.get("LOGIN_DISABLED", False)
 
 def gm_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        if _auth_disabled():
+            return f(*args, **kwargs)
         if not current_user.is_authenticated or not current_user.is_gm:
             flash("You do not have permission to perform this action.", "danger")
             return redirect(url_for('main.index'))
@@ -14,6 +19,8 @@ def gm_required(f):
 def team_access_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        if _auth_disabled():
+            return f(*args, **kwargs)
         if not current_user.is_authenticated:
             flash("Please log in to access this page.", "danger")
             return redirect(url_for('main.landing'))

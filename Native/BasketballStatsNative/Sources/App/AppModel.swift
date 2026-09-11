@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class AppModel {
     private let services: AppServices
+    let webClient = WebAPIClient()
 
     private(set) var games: [Game] = []
     private(set) var liveSession = LiveGameSession.empty
@@ -22,6 +23,18 @@ final class AppModel {
     var selectedPlayID: UUID?
     var selectedSidebarItem: SidebarItem = .dashboard
     var errorMessage: String?
+    var importResultMessage: String?
+    private(set) var isSyncing = false
+    private(set) var lastSyncedAt: Date?
+    private(set) var syncMessage: String?
+
+    enum ServerStatus: Equatable {
+        case checking
+        case connected
+        case unreachable(String)
+    }
+
+    private(set) var serverStatus: ServerStatus = .checking
 
     init(services: AppServices = .live) {
         self.services = services
@@ -74,6 +87,53 @@ final class AppModel {
             errorMessage = error.localizedDescription
             apply(bundle: SampleData.bundle)
         }
+        await refreshServerStatus()
+        if case .connected = serverStatus {
+            await syncWithServer()
+        }
+    }
+
+    func refreshServerStatus() async {
+        serverStatus = .checking
+        do {
+            let _: WebTeamOverview = try await webClient.teamOverview()
+            serverStatus = .connected
+        } catch {
+            serverStatus = .unreachable(error.localizedDescription)
+        }
+    }
+
+    func syncWithServer() async {
+        guard !isSyncing else { return }
+        isSyncing = true
+        defer { isSyncing = false }
+
+        do {
+            let pending = games.filter { $0.syncState == .pendingUpload }
+            if !pending.isEmpty {
+                let pushResult = try await webClient.importRawGames(pending)
+                let realErrors = pushResult.errors.filter { !$0.contains("already exists") }
+                if !realErrors.isEmpty {
+                    syncMessage = realErrors.joined(separator: "\n")
+                }
+            }
+
+            let payload = try await webClient.syncPayload()
+            let syncedGames = services.importExport.games(fromSync: payload.games)
+            let serverKeys = Set(syncedGames.map { "\($0.sortDate)-\($0.opponent)" })
+            let localOnly = games.filter {
+                !serverKeys.contains("\($0.sortDate)-\($0.opponent)")
+            }
+            games = (syncedGames + localOnly).sorted { $0.date > $1.date }
+            plays = services.importExport.plays(fromSync: payload.plays)
+            playTypes = services.importExport.playTypes(fromSync: payload.playTypes)
+            syncIssues = []
+            lastSyncedAt = .now
+            if selectedGameID == nil { selectedGameID = games.first?.id }
+            saveAll()
+        } catch {
+            errorMessage = "Sync failed: \(error.localizedDescription)"
+        }
     }
 
     func selectGame(_ gameID: UUID?) {
@@ -112,6 +172,28 @@ final class AppModel {
             } catch {
                 await MainActor.run {
                     errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func webImport(from urls: [URL]) {
+        Task {
+            do {
+                let result = try await webClient.importFiles(urls)
+                await MainActor.run {
+                    var parts: [String] = []
+                    if result.successCount > 0 {
+                        parts.append("Imported \(result.successCount) game(s) to the server.")
+                    }
+                    if !result.errors.isEmpty {
+                        parts.append(result.errors.joined(separator: "\n"))
+                    }
+                    importResultMessage = parts.isEmpty ? "Nothing to import." : parts.joined(separator: "\n")
+                }
+            } catch {
+                await MainActor.run {
+                    importResultMessage = "Web import failed: \(error.localizedDescription)"
                 }
             }
         }
@@ -166,9 +248,62 @@ final class AppModel {
         saveAll()
     }
 
-    func addEvent(_ event: LiveGameEventKind, playerName: String? = nil, detail: String = "") {
-        liveSession = services.liveGame.recordEvent(in: liveSession, kind: event, playerName: playerName, detail: detail, playID: liveSession.selectedPlayID)
+    @discardableResult
+    func addEvent(_ event: LiveGameEventKind, playerName: String? = nil, detail: String = "", xLocation: Double? = nil, yLocation: Double? = nil) -> UUID? {
+        liveSession = services.liveGame.recordEvent(
+            in: liveSession,
+            kind: event,
+            playerName: playerName,
+            detail: detail,
+            playID: liveSession.selectedPlayID,
+            xLocation: xLocation,
+            yLocation: yLocation
+        )
         saveAll()
+        return liveSession.events.last?.id
+    }
+
+    func recordFreeThrowTrip(player: String, totalFt: Int, made: Int) {
+        liveSession = services.liveGame.recordFreeThrowTrip(
+            in: liveSession,
+            player: player,
+            totalFt: totalFt,
+            made: made,
+            playID: liveSession.selectedPlayID
+        )
+        saveAll()
+    }
+
+    func removeOpponentAction(eventID: UUID) {
+        liveSession = services.liveGame.removeOpponentAction(in: liveSession, eventID: eventID)
+        saveAll()
+    }
+
+    func attachPlay(_ playID: UUID?, toEventID: UUID) {
+        liveSession = services.liveGame.attachPlay(in: liveSession, playID: playID, toEventID: toEventID)
+        saveAll()
+    }
+
+    func attachOpponentShotLocation(x: Double, y: Double, toEventID: UUID) {
+        liveSession = services.liveGame.attachOpponentShotLocation(in: liveSession, x: x, y: y, toEventID: toEventID)
+        saveAll()
+    }
+
+    func generateHalftimePDF() {
+        var session = liveSession
+        let game = session.makeCompletedGame()
+        Task {
+            do {
+                let url = try await services.reports.summaryPDF(for: game)
+                await MainActor.run {
+                    lastReportURL = url
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
     }
 
     func substitutePlayer(outgoing: String, incoming: String) {
@@ -277,8 +412,14 @@ enum SidebarItem: String, CaseIterable, Hashable, Identifiable {
     case dashboard
     case games
     case liveGame
+    case players
+    case lineups
     case analytics
+    case advanced
     case playbook
+    case glossary
+    case gm
+    case admin
     case reports
     case settings
 
@@ -289,8 +430,14 @@ enum SidebarItem: String, CaseIterable, Hashable, Identifiable {
         case .dashboard: "Dashboard"
         case .games: "Games"
         case .liveGame: "Live Game"
+        case .players: "Players"
+        case .lineups: "Lineups"
         case .analytics: "Analytics"
-        case .playbook: "Playbook"
+        case .advanced: "Advanced"
+        case .playbook: "Plays"
+        case .glossary: "Glossary"
+        case .gm: "GM Dashboard"
+        case .admin: "Admin Panel"
         case .reports: "Reports"
         case .settings: "Settings"
         }
@@ -298,12 +445,18 @@ enum SidebarItem: String, CaseIterable, Hashable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .dashboard: "rectangle.grid.2x2"
-        case .games: "list.bullet.rectangle"
-        case .liveGame: "sportscourt"
-        case .analytics: "chart.xyaxis.line"
-        case .playbook: "play.rectangle.on.rectangle"
-        case .reports: "doc.richtext"
+        case .dashboard: HSIcon.dashboard
+        case .games: HSIcon.games
+        case .liveGame: HSIcon.liveGame
+        case .players: HSIcon.players
+        case .lineups: HSIcon.lineups
+        case .analytics: HSIcon.analytics
+        case .advanced: HSIcon.advanced
+        case .playbook: HSIcon.plays
+        case .glossary: HSIcon.glossary
+        case .gm: HSIcon.gm
+        case .admin: HSIcon.admin
+        case .reports: HSIcon.report
         case .settings: "gearshape"
         }
     }

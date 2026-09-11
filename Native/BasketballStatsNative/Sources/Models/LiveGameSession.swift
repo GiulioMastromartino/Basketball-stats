@@ -1,5 +1,26 @@
 import Foundation
 
+struct OpponentAction: Codable, Hashable, Identifiable {
+    let id: UUID
+    var eventID: UUID
+    var kind: LiveGameEventKind
+    var points: Int
+    var result: ShotResult
+    var detail: String
+}
+
+func inferShotZone(x: Double, y: Double, shotType: ShotType) -> ShotZone {
+    let dx = x - 250
+    let dy = y - 50
+    let distance = (dx * dx + dy * dy).squareRoot()
+    if distance <= 40 { return .rim }
+    if distance <= 100 { return .paint }
+    if shotType == .threePoint {
+        return y < 140 ? .cornerThree : .aboveBreakThree
+    }
+    return .midrange
+}
+
 struct LiveGameSession: Codable, Hashable {
     var id: UUID
     var createdAt: Date
@@ -18,6 +39,15 @@ struct LiveGameSession: Codable, Hashable {
     var events: [RecordedGameEvent]
     var lineupSegments: [LineupSegment]
     var syncState: SyncState
+
+    var quarterSeconds: Int = 0
+    var gameSeconds: Int = 0
+    var clockStartedAt: Date?
+    var playerSeconds: [String: Int] = [:]
+    var stintStartedAt: [String: Date] = [:]
+    var oppRecentActions: [OpponentAction] = []
+
+    static let quarterLengthSeconds = 600
 
     static let empty = LiveGameSession(
         id: UUID(),
@@ -96,14 +126,81 @@ struct LiveGameSession: Codable, Hashable {
         selectedPlayID = playID
     }
 
+    // MARK: - Clock
+
     mutating func toggleClock() {
-        isClockRunning.toggle()
+        if isClockRunning {
+            commitClockTime()
+            commitPlayerMinutes()
+            isClockRunning = false
+            clockStartedAt = nil
+        } else {
+            let now = Date.now
+            clockStartedAt = now
+            for player in activeLineup { stintStartedAt[player] = now }
+            isClockRunning = true
+        }
     }
 
+    mutating func commitClockTime() {
+        guard isClockRunning, let start = clockStartedAt else { return }
+        let delta = max(0, Int(Date.now.timeIntervalSince(start)))
+        if delta > 0 {
+            quarterSeconds += delta
+            gameSeconds += delta
+        }
+        clockStartedAt = nil
+    }
+
+    mutating func commitPlayerMinutes() {
+        for player in activeLineup {
+            if let start = stintStartedAt[player] {
+                playerSeconds[player, default: 0] += max(0, Int(Date.now.timeIntervalSince(start)))
+            }
+        }
+        stintStartedAt.removeAll()
+    }
+
+    func displayedQuarterSeconds(at date: Date) -> Int {
+        quarterSeconds + runningDelta(at: date)
+    }
+
+    func displayedGameSeconds(at date: Date) -> Int {
+        gameSeconds + runningDelta(at: date)
+    }
+
+    func displayedSeconds(for player: String, at date: Date) -> Int {
+        var total = playerSeconds[player] ?? 0
+        if activeLineup.contains(player), isClockRunning, let start = stintStartedAt[player] {
+            total += max(0, Int(date.timeIntervalSince(start)))
+        }
+        return total
+    }
+
+    func timeRemaining(at date: Date) -> String {
+        let remaining = max(0, Self.quarterLengthSeconds - displayedQuarterSeconds(at: date))
+        return Self.clockString(seconds: remaining)
+    }
+
+    private func runningDelta(at date: Date) -> Int {
+        guard isClockRunning, let start = clockStartedAt else { return 0 }
+        return max(0, Int(date.timeIntervalSince(start)))
+    }
+
+    static func clockString(seconds: Int) -> String {
+        "\(seconds / 60):\(String(format: "%02d", seconds % 60))"
+    }
+
+    // MARK: - Lineup
+
     mutating func advanceQuarter() {
+        guard quarter < 5 else { return }
+        commitClockTime()
+        commitAndRestartStints()
         closeCurrentLineupSegmentIfNeeded()
         quarter += 1
         isClockRunning = false
+        quarterSeconds = 0
         possessions.append(
             Possession(
                 id: UUID(),
@@ -133,6 +230,8 @@ struct LiveGameSession: Codable, Hashable {
         guard let outgoingIndex = activeLineup.firstIndex(of: outgoing), !incoming.isEmpty else { return }
         guard !activeLineup.contains(incoming) else { return }
 
+        commitClockTime()
+        commitAndRestartStints()
         closeCurrentLineupSegmentIfNeeded()
         activeLineup[outgoingIndex] = incoming
         recordEvent(
@@ -140,8 +239,7 @@ struct LiveGameSession: Codable, Hashable {
             playerName: incoming,
             detail: "IN:\(incoming) OUT:\(outgoing)",
             playID: selectedPlayID,
-            createsPossession: false,
-            shotEvent: nil
+            createsPossession: false
         )
         lineupSegments.append(
             LineupSegment(
@@ -167,6 +265,8 @@ struct LiveGameSession: Codable, Hashable {
         guard Set(normalized).count == 5 else { return }
         guard normalized != activeLineup else { return }
 
+        commitClockTime()
+        commitAndRestartStints()
         closeCurrentLineupSegmentIfNeeded()
         activeLineup = normalized
         recordEvent(
@@ -174,8 +274,7 @@ struct LiveGameSession: Codable, Hashable {
             playerName: nil,
             detail: "LINEUP:\(normalized.joined(separator: ", "))",
             playID: selectedPlayID,
-            createsPossession: false,
-            shotEvent: nil
+            createsPossession: false
         )
         lineupSegments.append(
             LineupSegment(
@@ -192,6 +291,8 @@ struct LiveGameSession: Codable, Hashable {
         )
     }
 
+    // MARK: - Events
+
     mutating func undoLastEvent() {
         guard let removed = events.popLast() else { return }
         selectedPlayID = removed.playID
@@ -203,6 +304,8 @@ struct LiveGameSession: Codable, Hashable {
             homeScore -= 3
         case .homeFreeThrowMade:
             homeScore -= 1
+        case .freeThrowTrip:
+            homeScore -= freeThrowMadeCount(from: removed.detail)
         case .awayTwoMade:
             awayScore -= 2
         case .awayThreeMade:
@@ -213,21 +316,23 @@ struct LiveGameSession: Codable, Hashable {
             break
         }
 
-        if removed.kind.isShotEvent, !shotEvents.isEmpty {
-            shotEvents.removeLast()
-        }
+        shotEvents.removeAll { $0.eventID == removed.id }
+        oppRecentActions.removeAll { $0.eventID == removed.id }
 
         rebuildDerivedSegments()
     }
 
+    @discardableResult
     mutating func recordEvent(
         _ kind: LiveGameEventKind,
         playerName: String?,
         detail: String = "",
         playID: UUID?,
         createsPossession: Bool = true,
-        shotEvent: ShotEvent? = nil
-    ) {
+        xLocation: Double? = nil,
+        yLocation: Double? = nil
+    ) -> UUID {
+        commitClockTime()
         applyScore(for: kind)
 
         let event = RecordedGameEvent(
@@ -237,7 +342,7 @@ struct LiveGameSession: Codable, Hashable {
             playerName: playerName,
             kind: kind,
             timestamp: .now,
-            timeRemaining: nil,
+            timeRemaining: timeRemaining(at: .now),
             scoreMargin: homeScore - awayScore,
             detail: detail,
             playID: playID,
@@ -247,8 +352,12 @@ struct LiveGameSession: Codable, Hashable {
 
         events.append(event)
 
-        if let shotEvent {
-            self.shotEvents.append(shotEvent)
+        if kind.isShotEvent, !kind.isOpponentEvent {
+            shotEvents.append(makeShotEvent(for: kind, playerName: playerName, eventID: event.id, playID: playID, xLocation: xLocation, yLocation: yLocation))
+        }
+
+        if kind.isOpponentEvent {
+            trackOpponentAction(for: event)
         }
 
         if createsPossession {
@@ -256,12 +365,100 @@ struct LiveGameSession: Codable, Hashable {
         }
 
         rebuildDerivedSegments()
+        return event.id
     }
 
-    func makeCompletedGame() -> Game {
-        let byPlayer = events.reduce(into: [String: PlayerStat]()) { partial, event in
-            guard let playerName = event.playerName, !playerName.isEmpty else { return }
-            var stat = partial[playerName] ?? PlayerStat(id: UUID(), playerName: playerName, points: 0, minutes: 0, rebounds: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0, fieldGoalsMade: 0, fieldGoalAttempts: 0, threePointsMade: 0, threePointAttempts: 0, freeThrowsMade: 0, freeThrowAttempts: 0, offensiveRebounds: 0, defensiveRebounds: 0, plusMinus: 0, reboundsConceded: 0)
+    mutating func recordFreeThrowTrip(player: String, totalFt: Int, made: Int, playID: UUID?) -> UUID {
+        commitClockTime()
+        let clampedMade = min(max(made, 0), totalFt)
+        homeScore += clampedMade
+
+        let event = RecordedGameEvent(
+            id: UUID(),
+            quarter: quarter,
+            eventIndex: events.count + 1,
+            playerName: player,
+            kind: .freeThrowTrip,
+            timestamp: .now,
+            timeRemaining: timeRemaining(at: .now),
+            scoreMargin: homeScore - awayScore,
+            detail: "\(clampedMade)/\(totalFt) FT",
+            playID: playID,
+            lineupSegmentID: lineupSegments.last?.id,
+            taggedLineup: activeLineup
+        )
+
+        events.append(event)
+
+        for attempt in 0..<totalFt {
+            let madeAttempt = attempt < clampedMade
+            shotEvents.append(
+                ShotEvent(
+                    id: UUID(),
+                    gameID: nil,
+                    playerName: player,
+                    shotType: .freeThrow,
+                    result: madeAttempt ? .made : .missed,
+                    points: madeAttempt ? 1 : 0,
+                    xLocation: nil,
+                    yLocation: nil,
+                    zone: .freeThrow,
+                    quarter: quarter,
+                    playID: playID,
+                    eventID: event.id
+                )
+            )
+        }
+
+        possessions.append(
+            Possession(
+                id: UUID(),
+                gameID: nil,
+                number: possessions.count + 1,
+                quarter: quarter,
+                startingLineup: activeLineup,
+                result: .score
+            )
+        )
+
+        rebuildDerivedSegments()
+        return event.id
+    }
+
+    mutating func attachPlay(_ playID: UUID?, toEventID eventID: UUID) {
+        guard let index = events.firstIndex(where: { $0.id == eventID }) else { return }
+        events[index].playID = playID
+        for i in shotEvents.indices where shotEvents[i].eventID == eventID {
+            shotEvents[i].playID = playID
+        }
+        selectedPlayID = playID
+    }
+
+    mutating func attachOpponentShotLocation(x: Double, y: Double, toEventID eventID: UUID) {
+        guard let index = events.firstIndex(where: { $0.id == eventID }) else { return }
+        events[index].detail = "x_loc:\(Int(x)) y_loc:\(Int(y))"
+    }
+
+    mutating func removeOpponentAction(eventID: UUID) {
+        guard let index = events.firstIndex(where: { $0.id == eventID }) else { return }
+        let event = events.remove(at: index)
+
+        if event.kind.pointsValue > 0 {
+            awayScore = max(0, awayScore - event.kind.pointsValue)
+        }
+
+        shotEvents.removeAll { $0.eventID == event.id }
+        oppRecentActions.removeAll { $0.eventID == eventID }
+
+        rebuildDerivedSegments()
+    }
+
+    mutating func makeCompletedGame() -> Game {
+        commitClockTime()
+        commitPlayerMinutes()
+
+        var byPlayer = events.reduce(into: [String: PlayerStat]()) { partial, event in
+            var stat = partial[event.playerName ?? ""] ?? PlayerStat(id: UUID(), playerName: event.playerName ?? "", points: 0, minutes: 0, rebounds: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, fouls: 0, fieldGoalsMade: 0, fieldGoalAttempts: 0, threePointsMade: 0, threePointAttempts: 0, freeThrowsMade: 0, freeThrowAttempts: 0, offensiveRebounds: 0, defensiveRebounds: 0, plusMinus: 0, reboundsConceded: 0)
 
             switch event.kind {
             case .homeTwoMade:
@@ -278,6 +475,12 @@ struct LiveGameSession: Codable, Hashable {
                 stat.points += 1
                 stat.freeThrowsMade += 1
                 stat.freeThrowAttempts += 1
+            case .freeThrowTrip:
+                let made = freeThrowMadeCount(from: event.detail)
+                let total = freeThrowTotalCount(from: event.detail)
+                stat.points += made
+                stat.freeThrowsMade += made
+                stat.freeThrowAttempts += total
             case .homeTwoMissed:
                 stat.fieldGoalAttempts += 1
             case .homeThreeMissed:
@@ -305,13 +508,28 @@ struct LiveGameSession: Codable, Hashable {
                 break
             }
 
-            partial[playerName] = stat
+            partial[event.playerName ?? ""] = stat
         }
 
-        let playerStats = byPlayer.values.sorted { lhs, rhs in
-            if lhs.points == rhs.points { return lhs.playerName < rhs.playerName }
-            return lhs.points > rhs.points
+        for event in events where event.kind == .opponentOffensiveRebound {
+            for name in event.taggedLineup {
+                guard var stat = byPlayer[name] else { continue }
+                stat.reboundsConceded += 1
+                byPlayer[name] = stat
+            }
         }
+
+        let playerStats = byPlayer.values
+            .filter { !$0.playerName.isEmpty }
+            .map { stat -> PlayerStat in
+                var stat = stat
+                stat.minutes = Int(Double(playerSeconds[stat.playerName] ?? 0) / 60)
+                return stat
+            }
+            .sorted { lhs, rhs in
+                if lhs.points == rhs.points { return lhs.playerName < rhs.playerName }
+                return lhs.points > rhs.points
+            }
 
         return Game(
             id: id,
@@ -333,6 +551,79 @@ struct LiveGameSession: Codable, Hashable {
             createdAt: createdAt,
             updatedAt: .now
         )
+    }
+
+    // MARK: - Private helpers
+
+    private mutating func commitAndRestartStints() {
+        commitPlayerMinutes()
+        if isClockRunning {
+            let now = Date.now
+            for player in activeLineup { stintStartedAt[player] = now }
+        }
+    }
+
+    private func makeShotEvent(for kind: LiveGameEventKind, playerName: String?, eventID: UUID, playID: UUID?, xLocation: Double?, yLocation: Double?) -> ShotEvent {
+        let shotType: ShotType
+        let result: ShotResult
+
+        switch kind {
+        case .homeTwoMade, .homeTwoMissed:
+            shotType = .twoPoint
+            result = kind == .homeTwoMade ? .made : .missed
+        case .homeThreeMade, .homeThreeMissed:
+            shotType = .threePoint
+            result = kind == .homeThreeMade ? .made : .missed
+        default:
+            shotType = .freeThrow
+            result = kind == .homeFreeThrowMade ? .made : .missed
+        }
+
+        let zone: ShotZone
+        if let xLocation, let yLocation {
+            zone = inferShotZone(x: xLocation, y: yLocation, shotType: shotType)
+        } else {
+            zone = shotType == .threePoint ? .aboveBreakThree : (shotType == .twoPoint ? .paint : .freeThrow)
+        }
+
+        return ShotEvent(
+            id: UUID(),
+            gameID: nil,
+            playerName: playerName,
+            shotType: shotType,
+            result: result,
+            points: kind.pointsValue,
+            xLocation: xLocation,
+            yLocation: yLocation,
+            zone: zone,
+            quarter: quarter,
+            playID: playID,
+            eventID: eventID
+        )
+    }
+
+    private mutating func trackOpponentAction(for event: RecordedGameEvent) {
+        let action = OpponentAction(
+            id: UUID(),
+            eventID: event.id,
+            kind: event.kind,
+            points: event.kind.pointsValue,
+            result: event.kind.isScoringEvent ? .made : .missed,
+            detail: event.detail
+        )
+        oppRecentActions.append(action)
+        if oppRecentActions.count > 10 {
+            oppRecentActions.removeFirst()
+        }
+    }
+
+    private func freeThrowMadeCount(from detail: String) -> Int {
+        Int(detail.split(separator: "/").first ?? "") ?? 0
+    }
+
+    private func freeThrowTotalCount(from detail: String) -> Int {
+        let totalPart = detail.split(separator: "/").last ?? ""
+        return Int(totalPart.trimmingCharacters(in: CharacterSet(charactersIn: " FT"))) ?? 0
     }
 
     private mutating func applyScore(for kind: LiveGameEventKind) {
@@ -397,6 +688,8 @@ struct LiveGameSession: Codable, Hashable {
                 rebuilt[index].pointsScored += 3
             case .homeFreeThrowMade:
                 rebuilt[index].pointsScored += 1
+            case .freeThrowTrip:
+                rebuilt[index].pointsScored += freeThrowMadeCount(from: event.detail)
             case .awayTwoMade:
                 rebuilt[index].pointsAllowed += 2
             case .awayThreeMade:
@@ -437,6 +730,8 @@ enum LiveGameEventKind: String, Codable, CaseIterable, Hashable, Identifiable {
     case block
     case foul
     case substitution
+    case freeThrowTrip
+    case opponentOffensiveRebound
 
     var id: String { rawValue }
 
@@ -462,6 +757,8 @@ enum LiveGameEventKind: String, Codable, CaseIterable, Hashable, Identifiable {
         case .block: "Block"
         case .foul: "Foul"
         case .substitution: "Substitution"
+        case .freeThrowTrip: "Free Throws"
+        case .opponentOffensiveRebound: "Opp O-Rebound"
         }
     }
 
@@ -478,6 +775,8 @@ enum LiveGameEventKind: String, Codable, CaseIterable, Hashable, Identifiable {
         case .block: "shield.fill"
         case .foul: "exclamationmark.triangle.fill"
         case .substitution: "arrow.left.arrow.right.circle.fill"
+        case .freeThrowTrip: "target"
+        case .opponentOffensiveRebound: "arrow.up.forward.circle"
         }
     }
 
@@ -492,7 +791,7 @@ enum LiveGameEventKind: String, Codable, CaseIterable, Hashable, Identifiable {
 
     var createsPossession: Bool {
         switch self {
-        case .assist, .rebound, .offensiveRebound, .block, .steal, .turnover, .foul, .homeTwoMade, .homeThreeMade, .homeFreeThrowMade, .homeTwoMissed, .homeThreeMissed, .homeFreeThrowMissed, .awayTwoMade, .awayThreeMade, .awayFreeThrowMade, .awayTwoMissed, .awayThreeMissed, .awayFreeThrowMissed:
+        case .assist, .rebound, .offensiveRebound, .block, .steal, .turnover, .foul, .homeTwoMade, .homeThreeMade, .homeFreeThrowMade, .homeTwoMissed, .homeThreeMissed, .homeFreeThrowMissed, .awayTwoMade, .awayThreeMade, .awayFreeThrowMade, .awayTwoMissed, .awayThreeMissed, .awayFreeThrowMissed, .freeThrowTrip, .opponentOffensiveRebound:
             true
         case .substitution:
             false
@@ -501,7 +800,7 @@ enum LiveGameEventKind: String, Codable, CaseIterable, Hashable, Identifiable {
 
     var possessionResult: PossessionResult {
         switch self {
-        case .homeTwoMade, .homeThreeMade, .homeFreeThrowMade, .awayTwoMade, .awayThreeMade, .awayFreeThrowMade:
+        case .homeTwoMade, .homeThreeMade, .homeFreeThrowMade, .awayTwoMade, .awayThreeMade, .awayFreeThrowMade, .freeThrowTrip:
             .score
         case .homeTwoMissed, .homeThreeMissed, .homeFreeThrowMissed, .awayTwoMissed, .awayThreeMissed, .awayFreeThrowMissed:
             .miss
@@ -521,6 +820,19 @@ enum LiveGameEventKind: String, Codable, CaseIterable, Hashable, Identifiable {
         default:
             false
         }
+    }
+
+    var isOpponentEvent: Bool {
+        switch self {
+        case .awayTwoMade, .awayThreeMade, .awayFreeThrowMade, .awayTwoMissed, .awayThreeMissed, .awayFreeThrowMissed, .opponentOffensiveRebound:
+            true
+        default:
+            false
+        }
+    }
+
+    var isScoringEvent: Bool {
+        pointsValue > 0
     }
 }
 

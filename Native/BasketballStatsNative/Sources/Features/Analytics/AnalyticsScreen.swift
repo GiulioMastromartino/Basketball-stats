@@ -5,7 +5,7 @@ struct AnalyticsScreen: View {
     @State private var selectedPlayer = ""
 
     var body: some View {
-        NavigationStack {
+        HSPage {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     AnalyticsOverviewSection(overview: appModel.teamOverview)
@@ -18,8 +18,9 @@ struct AnalyticsScreen: View {
                     LineupRankingsSection(rankings: appModel.lineupRankings)
                 }
                 .padding(24)
+                .frame(maxWidth: 1100, alignment: .leading)
+                .frame(maxWidth: .infinity)
             }
-            .background(Color(.systemGroupedBackground))
             .navigationTitle("Analytics")
             .onAppear {
                 if selectedPlayer.isEmpty {
@@ -35,32 +36,13 @@ private struct AnalyticsOverviewSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Team Overview")
-                .font(.title2.weight(.bold))
-            HStack {
-                AnalyticsMetric(title: "PPG", value: overview.pointsPerGame.formatted(.number.precision(.fractionLength(1))))
-                AnalyticsMetric(title: "PAPG", value: overview.pointsAllowedPerGame.formatted(.number.precision(.fractionLength(1))))
-                AnalyticsMetric(title: "Margin", value: overview.averageMargin.formatted(.number.precision(.fractionLength(1))))
+            HSSectionHeader(title: "Team Overview", icon: "chart.bar.fill")
+            HStack(spacing: 16) {
+                HSMetricCard(title: "PPG", value: overview.pointsPerGame.formatted(.number.precision(.fractionLength(1))), tint: HSToken.accent)
+                HSMetricCard(title: "PAPG", value: overview.pointsAllowedPerGame.formatted(.number.precision(.fractionLength(1))), tint: HSToken.loss)
+                HSMetricCard(title: "Margin", value: overview.averageMargin.formatted(.number.precision(.fractionLength(1))), tint: HSToken.cool)
             }
         }
-    }
-}
-
-private struct AnalyticsMetric: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.title3.monospacedDigit().weight(.bold))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -69,18 +51,23 @@ private struct UsageSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Usage And PPS")
-                .font(.title2.weight(.bold))
-            ForEach(usages.prefix(8)) { snapshot in
-                HStack {
-                    Text(snapshot.playerName)
-                        .font(.headline)
-                    Spacer()
-                    Text("USG \(snapshot.usageRate.formatted(.percent.precision(.fractionLength(1))))")
-                    Text("PPS \(snapshot.pointsPerShot.formatted(.number.precision(.fractionLength(2))))")
+            HSSectionHeader(title: "Usage And PPS", icon: "bolt.fill")
+            VStack(spacing: 8) {
+                ForEach(usages.prefix(8)) { snapshot in
+                    HStack {
+                        Text(snapshot.playerName)
+                            .font(.outfit(size: 14, weight: .semibold))
+                        Spacer()
+                        Text("USG \(snapshot.usageRate.formatted(.percent.precision(.fractionLength(1))))")
+                            .font(.outfit(size: 13, weight: .medium))
+                        Text("PPS \(snapshot.pointsPerShot.formatted(.number.precision(.fractionLength(2))))")
+                            .font(.outfit(size: 13, weight: .medium))
+                            .foregroundStyle(HSToken.cool)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(HSCardRow())
                 }
-                .padding(16)
-                .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
         }
     }
@@ -93,24 +80,29 @@ private struct PlayerProgressionSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Player Progression")
-                .font(.title2.weight(.bold))
+            HSSectionHeader(title: "Player Progression", icon: "chart.line.uptrend.xyaxis")
             Picker("Player", selection: $selectedPlayer) {
                 ForEach(availablePlayers, id: \.self) { player in
                     Text(player).tag(player)
                 }
             }
             .pickerStyle(.menu)
-            ForEach(progression) { point in
-                HStack {
-                    Text(point.date)
-                    Spacer()
-                    Text("PTS \(point.points)")
-                    Text("REB \(point.rebounds)")
-                    Text("AST \(point.assists)")
+            VStack(spacing: 8) {
+                ForEach(progression) { point in
+                    HStack {
+                        Text(point.date)
+                            .font(.outfit(size: 13, weight: .semibold))
+                        Spacer()
+                        Text("PTS \(point.points)").foregroundStyle(HSToken.accent)
+                        Text("REB \(point.rebounds)").foregroundStyle(HSToken.cool)
+                        Text("AST \(point.assists)").foregroundStyle(HSToken.gold)
+                    }
+                    .font(.outfit(size: 13, weight: .medium))
+                    .monospacedDigit()
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(HSCardRow())
                 }
-                .padding(16)
-                .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
         }
     }
@@ -121,22 +113,39 @@ private struct LineupRankingsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Lineup Rankings")
-                .font(.title2.weight(.bold))
-            ForEach(rankings.prefix(8)) { lineup in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(lineup.players.joined(separator: ", "))
-                        .font(.headline)
+            HSSectionHeader(title: "Lineup Rankings", icon: HSIcon.lineups)
+            VStack(spacing: 8) {
+                ForEach(rankings.prefix(8)) { lineup in
                     HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(lineup.players.joined(separator: ", "))
+                                .font(.outfit(size: 13, weight: .semibold))
+                            Text("Poss \(lineup.possessions)")
+                                .font(.outfit(size: 11))
+                                .foregroundStyle(HSToken.inkMuted)
+                        }
+                        Spacer()
                         Text("Net \(lineup.netRating.formatted(.number.precision(.fractionLength(1))))")
-                        Text("Poss \(lineup.possessions)")
+                            .font(.bebas(size: 20))
+                            .foregroundStyle(lineup.netRating >= 0 ? HSToken.win : HSToken.loss)
                     }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(HSCardRow())
                 }
-                .padding(16)
-                .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
         }
+    }
+}
+
+/// Cream card row background + border used by list rows.
+private struct HSCardRow: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: HSToken.radiusSmall, style: .continuous)
+            .fill(HSToken.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: HSToken.radiusSmall, style: .continuous)
+                    .stroke(HSToken.line, lineWidth: 1)
+            )
     }
 }
