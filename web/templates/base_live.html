@@ -110,7 +110,8 @@
                 flex: 1;
                 padding: var(--spacing-xl);
                 overflow-y: auto;
-                background-color: #f8f9fa; /* Bootstrap light bg */
+                background-color: var(--hs-bg-main);
+                color: #f4efe4;
             }
 
             /* Responsive */
@@ -128,18 +129,51 @@
                 }
             }
 
-            /* Clean up Bootstrap conflicts with custom vars if needed */
+            /* HoopsLab dark theme (do not override with light values) */
             :root {
-                --bg-body: #f3f4f6;
-                --bg-header: #ffffff;
-                --border-color: #e5e7eb;
-                --text-main: #1f2937;
-                --text-muted: #6b7280;
+                --bg-body: var(--hs-bg-main);
+                --bg-header: #151a22;
+                --border-color: rgba(255, 248, 235, 0.1);
+                --text-main: #f4efe4;
+                --text-muted: #a8a094;
                 --text-light: #ffffff;
-                --secondary: #4f46e5;
-                --accent: #f97316;
+                --secondary: #232b36;
+                --accent: var(--hs-accent);
                 --spacing-md: 1rem;
                 --spacing-xl: 2rem;
+            }
+
+            body.legacy-shell {
+                background-color: var(--hs-bg-main);
+                color: #f4efe4;
+                color-scheme: dark;
+            }
+
+            body.legacy-shell .sidebar {
+                background: linear-gradient(165deg, #151a22 0%, #0d1015 100%);
+                border-right: 1px solid rgba(255, 248, 235, 0.08);
+            }
+
+            body.legacy-shell .sidebar-brand {
+                color: #f4efe4;
+            }
+
+            body.legacy-shell .nav-item a {
+                color: #a8a094;
+            }
+
+            body.legacy-shell .nav-item a:hover {
+                background-color: rgba(255, 248, 235, 0.06);
+                color: #ffffff;
+            }
+
+            body.legacy-shell .nav-item a.active {
+                background-color: rgba(46, 196, 182, 0.14);
+                color: #ffffff;
+            }
+
+            body.legacy-shell .nav-item a.active i {
+                color: #2ec4b6;
             }
 
             /* Remove text-decoration from all links by default in sidebar */
