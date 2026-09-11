@@ -553,7 +553,10 @@ def update_notification_settings():
 @gm_required
 def manage_whatsapp_groups(team_id):
     team = Team.query.get_or_404(team_id)
-    if team.organization_id != current_user.organization_id:
+    if (
+        not current_app.config.get("LOGIN_DISABLED")
+        and team.organization_id != current_user.organization_id
+    ):
         abort(403)
 
     if request.method == "POST":

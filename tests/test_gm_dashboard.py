@@ -58,3 +58,33 @@ class TestGMDashboardWithoutOrg:
     def test_gm_with_org_still_works(self, admin_client, default_team):
         resp = admin_client.get("/gm/dashboard")
         assert resp.status_code == 200
+
+    def test_dev_mode_whatsapp_groups_allowed(self, monkeypatch):
+        from core.models import WhatsAppGroup
+
+        app = _dev_app(monkeypatch)
+        client = app.test_client()
+        ctx = app.app_context()
+        ctx.push()
+        db.create_all()
+        try:
+            org = Organization(name="Dev Org", slug="dev-org")
+            db.session.add(org)
+            db.session.flush()
+            team = Team(name="Dev Team", organization_id=org.id, slug="dev-team")
+            db.session.add(team)
+            db.session.commit()
+            resp = client.get(f"/auth/admin/teams/{team.id}/whatsapp-groups")
+            assert resp.status_code == 200
+            resp = client.post(
+                f"/auth/admin/teams/{team.id}/whatsapp-groups",
+                data={"action": "add", "group_name": "Parents",
+                      "group_wa_id": "12345@g.us"},
+                follow_redirects=False,
+            )
+            assert resp.status_code == 302
+            assert WhatsAppGroup.query.filter_by(team_id=team.id).count() == 1
+        finally:
+            db.session.remove()
+            db.drop_all()
+            ctx.pop()
