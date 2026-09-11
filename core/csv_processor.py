@@ -107,13 +107,23 @@ class CSVProcessor:
     ]
 
     @staticmethod
+    def _normalize_opponent(name):
+        """Normalize opponent name: strip, collapse internal whitespace, remove non-printable chars."""
+        if not name:
+            return "Unknown"
+        name = name.strip()
+        name = re.sub(r'\s+', ' ', name)
+        name = ''.join(c for c in name if c.isprintable())
+        return name
+
+    @staticmethod
     def parse_filename(filename):
         # Try standard pattern first
         match = re.match(Config.FILENAME_PATTERN, os.path.splitext(filename)[0])
         if match:
             opp, t_score, o_score, d, m, y, type_code = match.groups()
             return {
-                'opponent': opp,
+                'opponent': CSVProcessor._normalize_opponent(opp),
                 'team_score': int(t_score),
                 'opponent_score': int(o_score),
                 'date': f"{d}/{m}",
@@ -131,7 +141,7 @@ class CSVProcessor:
         if match:
             opp, t_score, o_score, y, m, d, type_code = match.groups()
             return {
-                'opponent': opp,
+                'opponent': CSVProcessor._normalize_opponent(opp),
                 'team_score': int(t_score),
                 'opponent_score': int(o_score),
                 'date': f"{d}/{m}",
@@ -146,7 +156,7 @@ class CSVProcessor:
         if match:
             d, m, y, opp, t_score, o_score = match.groups()
             return {
-                'opponent': opp,
+                'opponent': CSVProcessor._normalize_opponent(opp),
                 'team_score': int(t_score),
                 'opponent_score': int(o_score),
                 'date': f"{d}/{m}",
@@ -161,7 +171,7 @@ class CSVProcessor:
         if match:
             opp, t_score, o_score, d, m, y = match.groups()
             return {
-                'opponent': opp.strip(),
+                'opponent': CSVProcessor._normalize_opponent(opp),
                 'team_score': int(t_score),
                 'opponent_score': int(o_score),
                 'date': f"{d}/{m}",
@@ -176,7 +186,7 @@ class CSVProcessor:
         if match:
             opp, d, m, y = match.groups()
             return {
-                'opponent': opp,
+                'opponent': CSVProcessor._normalize_opponent(opp),
                 'team_score': 0,  # Will need to be calculated from player stats
                 'opponent_score': 0,  # Will need to be provided separately
                 'date': f"{d}/{m}",
