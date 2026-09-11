@@ -186,6 +186,8 @@ def callback():
 @login_required
 def onboarding():
     """First-time setup: create or join an organization."""
+    if current_app.config.get("LOGIN_DISABLED"):
+        return redirect(url_for("main.index"))
     if current_user.organization_id:
         return redirect(url_for("main.index"))
 

@@ -1464,8 +1464,16 @@ def create_test_game():
 @gm_required
 def gm_dashboard():
     """GM dashboard showing org-wide overview with all teams."""
-    org = Organization.query.get(current_user.organization_id)
-    teams = current_user.assigned_teams
+    org = Organization.query.get(getattr(current_user, "organization_id", None) or 0)
+    if org is None:
+        org = Organization.query.order_by(Organization.id).first()
+    if org is None:
+        flash("No organization exists yet.", "warning")
+        return redirect(url_for("main.index"))
+    teams = list(current_user.assigned_teams)
+    if not teams and current_app.config.get("LOGIN_DISABLED"):
+        # Dev/no-auth mode acts as GM without assignments: show the org's teams.
+        teams = Team.query.filter_by(organization_id=org.id).order_by(Team.name).all()
     team_data = []
     for team in teams:
         games_q = Game.query.filter_by(team_id=team.id)
