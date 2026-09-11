@@ -29,6 +29,23 @@ class Team(db.Model):
 
     __table_args__ = (db.UniqueConstraint("organization_id", "slug"),)
 
+    seasons = db.relationship("Season", backref="team", lazy=True)
+
+
+class Season(db.Model):
+    """A season (e.g. 2025/26) scoping a team's games and stats."""
+
+    __tablename__ = "seasons"
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    start_date = db.Column(db.String(10), nullable=False)  # YYYY-MM-DD
+    end_date = db.Column(db.String(10), nullable=False)  # YYYY-MM-DD
+    is_active = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("team_id", "name"),)
+
 
 class OrganizationMembership(db.Model):
     __tablename__ = "organization_memberships"
@@ -162,8 +179,10 @@ class Game(db.Model):
     sort_date = db.Column(db.String(10), nullable=False)
     source = db.Column(db.String(20), default="IMPORT")
     schema_version = db.Column(db.Integer, default=1)
+    season_id = db.Column(db.Integer, db.ForeignKey("seasons.id"), nullable=True)
 
     team = db.relationship("Team", backref=db.backref("games", lazy=True))
+    season = db.relationship("Season", backref=db.backref("games", lazy=True))
 
     @property
     def score_display(self):

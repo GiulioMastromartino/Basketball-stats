@@ -298,6 +298,25 @@ def run(app=None):
             if unassigned_lineups:
                 print(f"[migrate] Assigned {len(unassigned_lineups)} lineup(s) to default team.")
 
+            # Assign season-less games: date-range match, else active season.
+            # Seasons are per-team; ensure one exists for the game’s team.
+            from core.services.season_service import (
+                ensure_default_season,
+                match_season_for_date,
+            )
+            unassigned_season_games = Game.query.filter(Game.season_id.is_(None)).all()
+            assigned = 0
+            for g in unassigned_season_games:
+                if g.team_id is None:
+                    continue
+                matched = match_season_for_date(g.team_id, g.sort_date)
+                if matched is None:
+                    matched = ensure_default_season(g.team_id)
+                g.season_id = matched.id
+                assigned += 1
+            if assigned:
+                print(f"[migrate] Assigned {assigned} game(s) to seasons.")
+
             # Assign unassigned players
             unassigned_players = Player.query.filter(Player.team_id.is_(None)).all()
             for p in unassigned_players:

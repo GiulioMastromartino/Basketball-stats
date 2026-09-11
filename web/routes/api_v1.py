@@ -264,7 +264,9 @@ def import_games():
                         ).first():
                             errors.append(f"{file.filename}: game already exists")
                             continue
-                        create_game_from_live_data(payload, team_id=team_id)
+                        create_game_from_live_data(payload, team_id=team_id, season_id=(
+                            request.args.get("season") if (request.args.get("season") or "ALL") != "ALL" else None
+                        ))
                         success_count += 1
                         continue
 

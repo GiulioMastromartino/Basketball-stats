@@ -41,6 +41,14 @@ from core.models import (
     OrganizationMembership,
     Organization,
     Team,
+    Season,
+)
+from core.services.season_service import (
+    create_season as create_team_season,
+    delete_season as delete_team_season,
+    list_seasons,
+    resolve_request_season_id,
+    set_active_season as activate_team_season,
 )
 from core.csv_processor import CSVProcessor
 from core.charts import (
@@ -428,7 +436,10 @@ def save_live_game():
 
     try:
         team_id = session.get("current_team_id")
-        game = create_game_from_live_data(data, team_id=team_id)
+        game = create_game_from_live_data(
+            data, team_id=team_id,
+            season_id=session.get("current_season_id") if session.get("current_season_id") != "ALL" else None,
+        )
         current_app.logger.info(f"Live game saved successfully: Game ID {game.id}")
 
         # Notify non-admin users (optional PDF attachment)
@@ -829,7 +840,11 @@ def upload_game():
                             continue
 
                         # Use service to handle the heavy lifting (supports Schema 4, lineups, plays, etc.)
-                        create_game_from_live_data(data, team_id=session.get("current_team_id"))
+                        create_game_from_live_data(
+                            data,
+                            team_id=session.get("current_team_id"),
+                            season_id=session.get("current_season_id") if session.get("current_season_id") != "ALL" else None,
+                        )
                         success_count += 1
 
                     except Exception as e:
@@ -992,8 +1007,11 @@ def player_detail(player_name):
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
         game_type = "ALL"
+    season_id = resolve_request_season_id(session.get("current_team_id"))
     try:
-        context = AnalyticsService.build_player_detail(player_name, game_type)
+        context = AnalyticsService.build_player_detail(
+            player_name, game_type, season_id=season_id
+        )
     except ValueError as e:
         flash(str(e) + " for " + player_name, "warning")
         return redirect(url_for("main.players"))
@@ -1001,9 +1019,9 @@ def player_detail(player_name):
         "player_detail.html",
         **context,
         report_url=url_for(
-            "analytics.player_report_pdf", player_name=player_name, game_type=game_type
+            "analytics.player_report_pdf", player_name=player_name, game_type=game_type, season=season_id
         ),
-        back_url=url_for("main.players", game_type=game_type),
+        back_url=url_for("main.players", game_type=game_type, season=season_id),
         back_label="Back to Players",
     )
 
@@ -1016,8 +1034,11 @@ def player_game_detail(player_name):
     game_type = request.args.get("game_type", "ALL")
     if game_type not in VALID_GAME_TYPES:
         game_type = "ALL"
+    season_id = resolve_request_season_id(session.get("current_team_id"))
     try:
-        context = AnalyticsService.build_player_game_detail(player_name, game_type)
+        context = AnalyticsService.build_player_game_detail(
+            player_name, game_type, season_id=season_id
+        )
     except ValueError:
         flash("No stats available for this player", "warning")
         return redirect(url_for("main.players", game_type=game_type))
@@ -1025,9 +1046,9 @@ def player_game_detail(player_name):
         "player_game_detail.html",
         **context,
         report_url=url_for(
-            "reports.player_report_pdf", player_name=player_name, game_type=game_type
+            "reports.player_report_pdf", player_name=player_name, game_type=game_type, season=season_id
         ),
-        back_url=url_for("main.players", game_type=game_type),
+        back_url=url_for("main.players", game_type=game_type, season=season_id),
         back_label="Back to Players",
     )
 
@@ -1041,7 +1062,10 @@ def team_detail():
     if game_type not in VALID_GAME_TYPES:
         game_type = "ALL"
     excluded_player = (request.args.get("exclude_player") or "").strip()
-    context = AnalyticsService.build_team_detail_context(game_type, excluded_player)
+    season_id = resolve_request_season_id(session.get("current_team_id"))
+    context = AnalyticsService.build_team_detail_context(
+        game_type, excluded_player, season_id=season_id
+    )
     return render_template("player_detail.html", **context)
 
 
@@ -1065,9 +1089,10 @@ def players():
     sort_by = request.args.get("sort", "ppg")
     order = request.args.get("order", "desc")
     excluded_player = (request.args.get("exclude_player") or "").strip()
+    season_id = resolve_request_season_id(session.get("current_team_id"))
 
     context = AnalyticsService.build_players_listing_context(
-        game_type, limit, sort_by, order, excluded_player
+        game_type, limit, sort_by, order, excluded_player, season_id=season_id
     )
 
     template = "players_table.html" if view == "table" else "players.html"
@@ -1101,7 +1126,8 @@ def players_cards_pdf():
     excluded_player = (request.args.get("exclude_player") or "").strip()
 
     context = AnalyticsService.build_players_listing_context(
-        game_type, limit, sort_by, order, excluded_player
+        game_type, limit, sort_by, order, excluded_player,
+        season_id=resolve_request_season_id(session.get("current_team_id")),
     )
 
     html = render_template("players_cards_pdf.html", **context)
@@ -1136,15 +1162,16 @@ def players_pages_zip():
     sort_by = request.args.get("sort", "ppg")
     order = request.args.get("order", "desc")
     excluded_player = (request.args.get("exclude_player") or "").strip()
+    season_id = resolve_request_season_id(session.get("current_team_id"))
 
-    listing = AnalyticsService.build_players_listing_context(
-        game_type, limit, sort_by, order, excluded_player
+    context = AnalyticsService.build_players_listing_context(
+        game_type, limit, sort_by, order, excluded_player, season_id=season_id
     )
     zip_buffer = BytesIO()
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
         team_context = AnalyticsService.build_team_detail_context(
-            game_type, excluded_player
+            game_type, excluded_player, season_id=season_id
         )
         team_html = render_template(
             "player_detail.html",
@@ -1156,9 +1183,9 @@ def players_pages_zip():
         team_pdf = HTML(string=team_html, base_url=request.host_url).write_pdf()
         zipf.writestr("Team_Total_Page.pdf", team_pdf)
 
-        for player in listing["stats"]:
+        for player in context["stats"]:
             detail_context = AnalyticsService.build_player_detail(
-                player["player_name"], game_type
+                player["player_name"], game_type, season_id=season_id
             )
             html = render_template(
                 "player_detail.html",
@@ -1186,12 +1213,19 @@ def players_pages_zip():
 def games():
     """Summary of performance against opponents (formerly teams)"""
     team_id = session.get("current_team_id")
-    results = db.session.query(Game.opponent).filter(Game.team_id == team_id).distinct().all()
+    season_id = resolve_request_season_id(team_id)
+    opp_query = Game.query.filter(Game.team_id == team_id)
+    if season_id != "ALL":
+        opp_query = opp_query.filter(Game.season_id == int(season_id))
+    results = opp_query.with_entities(Game.opponent).distinct().all()
 
     team_stats = []
     for r in results:
         opp_name = r[0]
-        opp_games = Game.query.filter_by(opponent=opp_name, team_id=team_id).all()
+        opp_q = Game.query.filter_by(opponent=opp_name, team_id=team_id)
+        if season_id != "ALL":
+            opp_q = opp_q.filter(Game.season_id == int(season_id))
+        opp_games = opp_q.all()
         wins = sum(1 for g in opp_games if g.result == "W")
         losses = len(opp_games) - wins
 
@@ -1220,11 +1254,11 @@ def games():
 def opponent_games(opponent_name):
     """Detailed performance view against a specific opponent"""
     team_id = session.get("current_team_id")
-    opp_games = (
-        Game.query.filter_by(opponent=opponent_name, team_id=team_id)
-        .order_by(Game.sort_date.desc())
-        .all()
-    )
+    season_id = resolve_request_season_id(team_id)
+    opp_q = Game.query.filter_by(opponent=opponent_name, team_id=team_id)
+    if season_id != "ALL":
+        opp_q = opp_q.filter(Game.season_id == int(season_id))
+    opp_games = opp_q.order_by(Game.sort_date.desc()).all()
     context = AnalyticsService.build_opponent_detail_context(opponent_name, opp_games)
     return render_template("opponent_detail.html", **context)
 
@@ -1396,7 +1430,11 @@ def create_test_game():
         # After payload is ready, try to free any generation-time overhead
         gc.collect()
 
-        game = create_game_from_live_data(payload, team_id=session.get("current_team_id"))
+        game = create_game_from_live_data(
+            payload,
+            team_id=session.get("current_team_id"),
+            season_id=session.get("current_season_id") if session.get("current_season_id") != "ALL" else None,
+        )
 
         # Clear payload from memory after import
         del payload
@@ -1481,7 +1519,7 @@ def switch_team():
 # ADMIN PANEL
 # =============================================================================
 
-VALID_SECTIONS = {"users", "players", "settings"}
+VALID_SECTIONS = {"users", "players", "settings", "seasons"}
 
 
 @main_bp.route("/admin")
@@ -1489,13 +1527,14 @@ VALID_SECTIONS = {"users", "players", "settings"}
 @login_required
 @gm_required
 def admin_panel(section="users"):
-    """Admin panel - manage users, players and settings"""
+    """Admin panel - manage users, players, settings and seasons"""
     if section not in VALID_SECTIONS:
         section = "users"
 
     users = User.query.order_by(User.username).all()
     team_id = session.get("current_team_id")
     players = Player.query.filter_by(team_id=team_id).order_by(Player.name).all()
+    seasons = list_seasons(team_id) if team_id else []
 
     settings_data = db.session.query(SystemSetting).all()
     settings = {s.key: s.value for s in settings_data}
@@ -1504,6 +1543,80 @@ def admin_panel(section="users"):
         "auth/admin.html",
         users=users,
         players=players,
+        seasons=seasons,
         settings=settings,
         section=section,
     )
+
+
+@main_bp.route("/seasons/create", methods=["POST"])
+@login_required
+@gm_required
+def create_season():
+    """Create a new season for the current team."""
+    team_id = session.get("current_team_id")
+    try:
+        season = create_team_season(
+            team_id,
+            name=request.form.get("name", ""),
+            start_date=request.form.get("start_date", ""),
+            end_date=request.form.get("end_date", ""),
+            set_active=bool(request.form.get("set_active")),
+        )
+        flash(f"Season '{season.name}' created.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect(url_for("main.admin_panel", section="seasons"))
+
+
+@main_bp.route("/seasons/<int:season_id>/activate", methods=["POST"])
+@login_required
+@gm_required
+def activate_season(season_id):
+    """Set a season as the active one."""
+    try:
+        season = activate_team_season(session.get("current_team_id"), season_id)
+        session["current_season_id"] = season.id
+        flash(f"Season '{season.name}' is now active.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect(url_for("main.admin_panel", section="seasons"))
+
+
+@main_bp.route("/seasons/<int:season_id>/delete", methods=["POST"])
+@login_required
+@gm_required
+def delete_season(season_id):
+    """Delete an empty season."""
+    try:
+        delete_team_season(session.get("current_team_id"), season_id)
+        if session.get("current_season_id") == season_id:
+            session.pop("current_season_id", None)
+        flash("Season deleted.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect(url_for("main.admin_panel", section="seasons"))
+
+
+@main_bp.route("/season/switch")
+@login_required
+def switch_season():
+    """Switch the session's season scope (id or ALL)."""
+    raw = (request.args.get("season") or "ALL").strip()
+    team_id = session.get("current_team_id")
+    if raw == "ALL":
+        session["current_season_id"] = "ALL"
+    else:
+        try:
+            candidate = int(raw)
+        except (TypeError, ValueError):
+            candidate = None
+        from core.services.season_service import get_season
+
+        if candidate and get_season(candidate, team_id):
+            session["current_season_id"] = candidate
+        else:
+            session["current_season_id"] = "ALL"
+            flash("Unknown season.", "warning")
+    next_url = request.args.get("next") or request.referrer or url_for("main.index")
+    return redirect(next_url)

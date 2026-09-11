@@ -29,6 +29,13 @@
             </a>
         </li>
         <li class="nav-item" role="presentation">
+            <a class="nav-link {% if section == 'seasons' %}active{% endif %}"
+               href="{{ url_for('main.admin_panel', section='seasons') }}"
+               role="tab">
+                <i class="fas fa-calendar-alt"></i> Seasons
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
             <a class="nav-link"
                href="{{ url_for('auth.manage_whatsapp_groups',
                                 team_id=session.get('current_team_id', 1)) }}">
@@ -282,6 +289,72 @@
                             </form>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane {% if section == 'seasons' %}show active{% endif %}" role="tabpanel">
+            <div class="row">
+                <div class="col-md-7 mb-4">
+                    <h4>Seasons</h4>
+                    <p class="text-muted small">Scope games, stats and reports to a season. Games are auto-assigned by date; new games default to the active season.</p>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr><th>Name</th><th>Range</th><th>Games</th><th>Status</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            {% for s in seasons %}
+                            <tr>
+                                <td><strong>{{ s.name }}</strong></td>
+                                <td>{{ s.start_date }} &ndash; {{ s.end_date }}</td>
+                                <td>{{ s.games|length }}</td>
+                                <td>{% if s.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Archived</span>{% endif %}</td>
+                                <td class="text-end">
+                                    {% if not s.is_active %}
+                                    <form method="POST" action="{{ url_for('main.activate_season', season_id=s.id) }}" style="display:inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Set active</button>
+                                    </form>
+                                    {% endif %}
+                                    {% if not s.games|length %}
+                                    <form method="POST" action="{{ url_for('main.delete_season', season_id=s.id) }}" style="display:inline" onsubmit="return confirm('Delete season {{ s.name }}?')">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-muted">No seasons yet — create the first one below.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-md-5 mb-4">
+                    <h4>New season</h4>
+                    <form method="POST" action="{{ url_for('main.create_season') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="mb-2">
+                            <label class="form-label">Name (e.g. 2025/26)</label>
+                            <input type="text" class="form-control" name="name" required maxlength="50"/>
+                        </div>
+                        <div class="row">
+                            <div class="col mb-2">
+                                <label class="form-label">Start date</label>
+                                <input type="date" class="form-control" name="start_date" required/>
+                            </div>
+                            <div class="col mb-2">
+                                <label class="form-label">End date</label>
+                                <input type="date" class="form-control" name="end_date" required/>
+                            </div>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" name="set_active" id="seasonActive" checked/>
+                            <label class="form-check-label" for="seasonActive">Set as active season</label>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Create season</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

@@ -282,7 +282,7 @@ def advanced_game_summary_pdf(game_id):
 def team_report_pdf():
     """Generate enhanced team-level PDF report"""
     game_type = _get_game_type()
-    games, game_ids = _get_games(game_type)
+    games, game_ids = _get_games(game_type, _get_season_id())
 
     if not games:
         return jsonify({"error": "No games for selected filter"}), 404
@@ -300,7 +300,7 @@ def team_report_pdf():
 def player_report_pdf(player_name):
     """Generate multi-page PDF report for a player"""
     game_type = _get_game_type()
-    games, game_ids = _get_games(game_type)
+    games, game_ids = _get_games(game_type, _get_season_id())
 
     if not games:
         return jsonify({"error": "No games"}), 404
@@ -327,7 +327,7 @@ def download_all_reports():
 
     current_app.logger.info("Starting memory-optimized bulk player report download...")
     game_type = _get_game_type()
-    games, game_ids = _get_games(game_type)
+    games, game_ids = _get_games(game_type, _get_season_id())
 
     if not games:
         return jsonify({"error": "No games"}), 404
@@ -447,12 +447,19 @@ def _get_game_type(default="ALL"):
     return game_type if game_type in VALID_GAME_TYPES else "ALL"
 
 
-def _get_games(game_type):
+def _get_season_id():
+    from core.services.season_service import resolve_request_season_id
+    return resolve_request_season_id(session.get("current_team_id"))
+
+
+def _get_games(game_type, season_id="ALL"):
     query = Game.query.filter(Game.team_id == session['current_team_id']).order_by(Game.sort_date.asc())
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
         query = query.filter(Game.game_type == "Friendly")
+    if season_id != "ALL":
+        query = query.filter(Game.season_id == int(season_id))
     games = query.all()
     return games, [g.id for g in games]
 
@@ -498,7 +505,7 @@ def visual_game_report_pdf(game_id):
 def lineup_report_pdf():
     """Generate lineup analysis report with top lineups, duo matrix."""
     game_type = _get_game_type()
-    games, game_ids = _get_games(game_type)
+    games, game_ids = _get_games(game_type, _get_season_id())
 
     filename, pdf_bytes = generate_lineup_report_bytes(
         game_ids=game_ids if game_type != "ALL" else None, min_possessions=5
