@@ -1,5 +1,7 @@
-# Environment
+# Environment - never commit real secrets
 .env
+.env.prod
+.env.local
 venv/
 
 # Python cache
@@ -12,6 +14,7 @@ __pycache__/
 # Testing
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
 .nox/
@@ -20,17 +23,28 @@ htmlcov/
 .ruff_cache/
 .mypy_cache/
 
-# Flask instance
+# Flask instance + local runtime data
 instance/
+uploads/
+Output/
 
 # Database
 *.db
 *.db.bak
+*.sqlite
+*.sqlite3
 
 # Logs
 *.log
 *.log.*
 basketball_stats.log
+
+# MkDocs build output
+site/
+
+# Local plans / agent scratch
+.plans/
+.kilo/
 
 # OS files
 .DS_Store
@@ -46,16 +60,17 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+.cursor/
 
 # Build/dist
 dist/
 build/
 *.egg-info/
-/.kilo
 
 # Rust build artifacts
 basketball_stats_rust/target/
-openwa-integration-plan.md
+
+# Large local sample reports (regenerate via app)
 Fernandez_report_Season.pdf
 Team_Report_ALL.pdf
-basketball_stats.db
+template.pdf
