@@ -384,8 +384,18 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
             points_scored += 2
         elif event.event_type == "SHOT_3PT" and event.shot_attempt == "made":
             points_scored += 3
-        elif event.event_type == "FT_MADE":
-            points_scored += 1
+        elif event.event_type == "FT":
+            if event.shot_attempt == "made":
+                pts = 1
+                if event.detail:
+                    try:
+                        import json
+                        detail_data = json.loads(event.detail) if isinstance(event.detail, str) else event.detail
+                        if isinstance(detail_data, dict):
+                            pts = int(detail_data.get("ftm", 1))
+                    except (ValueError, TypeError, json.JSONDecodeError):
+                        pts = 1
+                points_scored += pts
         elif event.event_type == "OPP_SCORE":
             pts = 2
             if event.detail:
@@ -417,13 +427,6 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
             ):
                 possession_ending_events.add(event.possession_number)
                 possessions += 1
-        elif event.event_type == "OPP_OREB" or event.event_type == "OPP_SCORE":
-            if (
-                event.possession_number
-                and event.possession_number not in possession_ending_events
-            ):
-                possession_ending_events.add(event.possession_number)
-                possessions += 1
 
     segment.points_scored = points_scored
     segment.points_allowed = points_allowed
@@ -431,7 +434,7 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
     segment.reb_conceded = reb_conceded
 
     if all_events:
-        segment.duration_seconds = calculate_segment_duration(segment, all_events)
+        segment.duration_seconds = calculate_segment_duration(events)
 
     db.session.commit()
 
@@ -669,7 +672,7 @@ def process_game_lineups(
                 elif et in ("DREB", "REBOUND_DEFENSIVE"): p_stats["dreb"] += 1
 
             # Possession tracking
-            if et in ["SHOT_2PT", "SHOT_3PT", "TURNOVER", "FT", "FT_MADE", "FT_MISS", "OPP_OREB", "OPP_SCORE"]:
+            if et in ["SHOT_2PT", "SHOT_3PT", "TURNOVER", "FT", "FT_MADE", "FT_MISS"]:
                 if event.possession_number and event.possession_number not in poss_ending:
                     poss_ending.add(event.possession_number)
                     poss += 1

@@ -133,6 +133,7 @@ struct ShotEvent: Identifiable, Codable, Hashable {
     var zone: ShotZone
     var quarter: Int
     var playID: UUID?
+    var eventID: UUID?
 }
 
 struct Possession: Identifiable, Codable, Hashable {
@@ -148,7 +149,7 @@ struct LineupSegment: Identifiable, Codable, Hashable {
     let id: UUID
     var quarter: Int
     var players: [String]
-    var startEventIndex: Int
+    var startEventIndex: Int?
     var endEventIndex: Int?
     var pointsScored: Int
     var pointsAllowed: Int

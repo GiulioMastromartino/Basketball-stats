@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Tuple
 
 import sys
 import os
+from pathlib import Path
 sys.path.append(os.getcwd())
 from core import rust_analytics
 
@@ -1135,7 +1136,7 @@ if __name__ == "__main__":
     )
     print(f"  - Players: {len(payload['players'])}")
 
-    output_path = "/Users/giuliomastromartino/Documents/basket/Game_STATS/Basketball_Stats/Basketball-stats/test_game_payload.json"
+    output_path = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "test_game_payload.json"
     with open(output_path, "w") as f:
         json.dump(payload, f, indent=2)
     print(f"\nPayload saved to: {output_path}")
