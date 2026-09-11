@@ -483,3 +483,4 @@ class TestProductionMigration:
         client = app.test_client()
         resp = client.get("/landing")
         assert resp.status_code in (200, 302), f"Got {resp.status_code}"
+
