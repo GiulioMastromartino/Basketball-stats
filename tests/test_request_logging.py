@@ -24,6 +24,9 @@ class TestRequestId:
 
     def test_request_id_in_log_output(self, client, caplog):
         import logging
+        # Alembic's env.py (run by migration tests earlier in the suite)
+        # disables pre-existing loggers via fileConfig; re-enable ours.
+        logging.getLogger("access").disabled = False
         caplog.set_level(logging.DEBUG)
         client.get("/health/live")
         found = False

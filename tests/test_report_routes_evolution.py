@@ -2,7 +2,7 @@ from core.models import Game, PlayerStat
 
 
 def test_evolution_pdf_uses_schema4_builder_for_schema4_games(
-    auth_client, db_session, mocker
+    auth_client, db_session, default_team, mocker
 ):
     game = Game(
         date="05-03-2026",
@@ -14,6 +14,7 @@ def test_evolution_pdf_uses_schema4_builder_for_schema4_games(
         sort_date="2026-03-05",
         source="IMPORT_JSON",
         schema_version=4,
+        team_id=default_team.id,
     )
     db_session.add(game)
     db_session.commit()
@@ -49,7 +50,7 @@ def test_evolution_pdf_uses_schema4_builder_for_schema4_games(
 
 
 def test_evolution_pdf_keeps_legacy_builder_for_old_schemas(
-    auth_client, db_session, mocker
+    auth_client, db_session, default_team, mocker
 ):
     game = Game(
         date="05-03-2026",
@@ -61,6 +62,7 @@ def test_evolution_pdf_keeps_legacy_builder_for_old_schemas(
         sort_date="2026-03-05",
         source="IMPORT_JSON",
         schema_version=3,
+        team_id=default_team.id,
     )
     db_session.add(game)
     db_session.commit()
@@ -96,7 +98,7 @@ def test_evolution_pdf_keeps_legacy_builder_for_old_schemas(
 
 
 def test_download_all_reports_filters_players_by_selected_game_type(
-    auth_client, db_session, mocker
+    auth_client, db_session, default_team, mocker
 ):
     season_game = Game(
         date="06-03-2026",
@@ -107,6 +109,7 @@ def test_download_all_reports_filters_players_by_selected_game_type(
         game_type="Season",
         sort_date="2026-03-06",
         source="MANUAL",
+        team_id=default_team.id,
     )
     friendly_game = Game(
         date="07-03-2026",
@@ -117,6 +120,7 @@ def test_download_all_reports_filters_players_by_selected_game_type(
         game_type="Friendly",
         sort_date="2026-03-07",
         source="MANUAL",
+        team_id=default_team.id,
     )
     db_session.add_all([season_game, friendly_game])
     db_session.flush()
@@ -193,7 +197,7 @@ def test_download_all_reports_filters_players_by_selected_game_type(
 
 
 def test_advanced_game_summary_pdf_handles_invalid_minutes(
-    auth_client, db_session, mocker
+    auth_client, db_session, default_team, mocker
 ):
     game = Game(
         date="08-03-2026",
@@ -204,6 +208,7 @@ def test_advanced_game_summary_pdf_handles_invalid_minutes(
         game_type="Season",
         sort_date="2026-03-08",
         source="MANUAL",
+        team_id=default_team.id,
     )
     db_session.add(game)
     db_session.flush()

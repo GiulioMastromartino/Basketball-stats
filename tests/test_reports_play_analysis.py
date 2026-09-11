@@ -1,6 +1,7 @@
 import pytest
 
 from core.models import Game, GameEvent, Play, PlayerStat, ShotEvent
+from core.services import report_service as report_service_module
 from web.routes import reports as reports_module
 
 
@@ -128,8 +129,8 @@ def test_generate_game_pdf_bytes_uses_summary_play_metrics(db_session, mocker):
     html_instance = mocker.MagicMock()
     html_instance.write_pdf.return_value = b"pdf"
 
-    mocker.patch.object(reports_module, "render_template", side_effect=fake_render)
-    mocker.patch.object(reports_module, "HTML", return_value=html_instance)
+    mocker.patch.object(report_service_module, "render_template", side_effect=fake_render)
+    mocker.patch.object(report_service_module, "HTML", return_value=html_instance)
 
     filename, pdf_bytes = reports_module.generate_game_pdf_bytes(game.id)
 

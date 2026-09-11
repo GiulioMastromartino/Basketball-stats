@@ -194,6 +194,9 @@ def create_app(config_name: str = None) -> Flask:
         login_manager.login_view = "auth.login"
         login_manager.login_message = "Please log in to access this page."
         login_manager.login_message_category = "info"
+        # login_manager is process-global: a previous DISABLE_AUTH app may
+        # have set anonymous_user to NoAuthUser. Always reset explicitly.
+        login_manager.anonymous_user = AnonymousUserMixin
 
     @login_manager.user_loader
     def load_user(user_id):

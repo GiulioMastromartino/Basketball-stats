@@ -51,6 +51,7 @@ def add_missing_columns(app):
                 "organization_id": "INTEGER",
                 "workos_id": "VARCHAR(255)",
                 "email_verified": "BOOLEAN DEFAULT 0",
+                "role": "VARCHAR(20) DEFAULT 'editor'",
                 "otp_code": "VARCHAR(6)",
                 "otp_expiry": "DATETIME",
             },

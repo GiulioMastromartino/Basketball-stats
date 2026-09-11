@@ -17,6 +17,7 @@ from core.utils import (
     format_total_minutes,
     get_player_stats_averages,
     normalize_per_100_possessions,
+    safe_divide,
     safe_percentage,
     calculate_per_100_minutes,
     calculate_pace,

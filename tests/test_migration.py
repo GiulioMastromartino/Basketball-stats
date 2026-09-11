@@ -248,13 +248,15 @@ NEW_COLUMNS = {
 
 
 @pytest.fixture
-def pre_migration_db():
+def pre_migration_db(monkeypatch):
     """
     Create an in-memory SQLite database that has the OLD schema only
     (without multi-tenant tables/columns). After migration, the new
     tables and columns must appear.
     """
-    os.environ.setdefault("DISABLE_AUTH", "1")
+    # Scoped to this fixture: must not leak into other tests (it disables
+    # auth, which would otherwise break permission tests running after).
+    monkeypatch.setenv("DISABLE_AUTH", "1")
 
     from web import create_app as _create_app
     from core.models import db as _db
