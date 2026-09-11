@@ -1,0 +1,124 @@
+# Basketball Stats Refactoring Plan - Complete 3-Phase Strategy
+
+## Overview
+This document outlines the comprehensive refactoring plan for `web/routes/analytics.py` in the Basketball-stats repository. The goal is to reduce the file size (currently ~1000 lines, 68KB) by extracting chart generation, business logic, and PDF reporting into dedicated modules.
+
+## Architecture Change
+**Current:** Monolithic `analytics.py` handling routes, logic, charts, and PDF generation.
+**Target:**
+- `web/routes/analytics.py`: ~200 lines (API routes + redirects only)
+- `web/routes/reports.py`: ~300 lines (PDF generation routes)
+- `core/services/analytics_service.py`: ~600 lines (Pure business logic)
+- `core/charts.py`: ~300 lines (Matplotlib generation)
+
+---
+
+## Phase 1: Extract Chart Generation
+**Goal:** Remove `matplotlib` dependency from web routes and isolate visualization logic.
+
+### 1. Create `core/charts.py`
+Create a new module containing all plotting logic.
+- **Dependencies:** `matplotlib`, `io`, `base64`, `sqlalchemy`
+- **Key Functions:**
+  - `generate_shot_chart(player_name, game_ids, db_session)`
+  - `generate_team_shot_chart(game_ids, db_session)`
+  - `generate_player_scoring_chart(stats, game_map, player_name)`
+  - `generate_team_scoring_trend(games)`
+- **Improvements:**
+  - Add explicit `db_session` parameter (Dependency Injection)
+  - Add `MAX_SHOTS_PER_CHART` constant to prevent memory exhaustion
+  - Add error handling (try/except) returning empty strings on failure
+
+### 2. Update `web/routes/analytics.py`
+- Remove imports: `matplotlib`, `pyplot`, `patches`
+- Import new functions: `from core.charts import ...`
+- Update calls to pass `db.session` explicitly
+
+### 3. Verification
+- Test PDF generation endpoints (visual check of charts)
+- Verify no `matplotlib` imports remain in analytics.py
+
+---
+
+## Phase 2: Extract Business Logic
+**Goal:** Decouple statistical calculations from Flask request context.
+
+### 1. Create `core/services/analytics_service.py`
+Create a `AnalyticsService` class with static methods.
+- **Dependencies:** `sqlalchemy`, `statistics`, `core.models`, `core.utils`
+- **Key Methods:**
+  - `calculate_player_metrics(stats, game_map, games_played)`
+  - `calculate_team_averages(game_ids, db_session)`
+  - `calculate_team_rankings(player_name, game_ids, report_data, db_session)`
+  - `calculate_enhanced_team_metrics(games, game_ids)`
+  - `calculate_game_stats(stats)`
+  - `get_game_top_performers(stats)`
+  - `get_game_alerts(stats)`
+
+### 2. Critical Optimizations
+- **N+1 Query Fix:** In `calculate_team_rankings`, fetch ALL stats in one query and use `itertools.groupby` instead of querying inside a loop.
+- **Session Injection:** All methods interacting with DB must accept `db_session` as an argument.
+- **Error Handling:** Add logging and graceful error returns for edge cases (e.g., zero division).
+
+### 3. Update `web/routes/analytics.py`
+- Remove helper functions: `_calculate_*`, `_get_*`
+- Import service: `from core.services.analytics_service import AnalyticsService`
+- Update route handlers to use service methods
+
+---
+
+## Phase 3: Split PDF Routes
+**Goal:** Separate interactive analytics API from heavy PDF generation.
+
+### 1. Create `web/routes/reports.py`
+Create a new Blueprint `reports_bp`.
+- **Prefix:** `/reports`
+- **Routes:**
+  - `/games/<id>/summary.pdf` -> `game_summary_pdf`
+  - `/team/report.pdf` -> `team_report_pdf`
+  - `/player/<name>/report.pdf` -> `player_report_pdf`
+  - `/download-all` -> `download_all_reports`
+
+### 2. Implementation Details
+- Move `weasyprint` and `zipfile` imports here.
+- Use `AnalyticsService` and `core.charts` for data.
+- **Optimization:** Add limit check to ZIP generation to prevent OOM.
+- **DRY:** Extract common logic for player report generation into a private helper `_generate_player_report_data`.
+
+### 3. Register Blueprint
+- Update `web/__init__.py` to register `reports_bp`.
+
+### 4. Backward Compatibility (Redirects)
+- In `web/routes/analytics.py`, keep the old PDF route URLs but convert them to **301 Redirects** pointing to the new `/reports/...` endpoints.
+- This prevents breaking existing bookmarks or links.
+
+---
+
+## Testing Plan
+
+### Unit Tests (`tests/test_analytics_service.py`)
+- Test `calculate_player_metrics` with mock data (no DB).
+- Test `calculate_team_averages` with in-memory SQLite DB.
+- Verify `calculate_team_rankings` executes only 1 SQL query (using mock spy).
+
+### Integration Tests (`scripts/test_pdf_routes.sh`)
+- `curl` new endpoints to verify 200 OK and PDF content type.
+- `curl` old endpoints to verify 301 Redirects.
+- Verify ZIP download works and contains valid PDFs.
+
+### Validation Script (`scripts/refactoring_checklist.sh`)
+- Check file existence (`charts.py`, `analytics_service.py`, `reports.py`).
+- Grep for forbidden imports in `analytics.py`.
+- Verify line count of `analytics.py` is < 300.
+
+---
+
+## Execution Order
+1. **Phase 1 (Charts):** Low risk, high line-count reduction.
+2. **Phase 2 (Service):** Medium risk, critical for testing/performance.
+3. **Phase 3 (Routes):** Medium risk (URL changes), architectural cleanup.
+
+## Risk Mitigation
+- **Database Sessions:** Explicitly pass sessions to avoid "detached instance" errors.
+- **Memory:** Enforce `MAX_SHOTS_PER_CHART` and `MAX_PLAYERS_IN_ZIP`.
+- **URLs:** Use 301 redirects for all moved PDF routes.

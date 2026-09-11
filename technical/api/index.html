@@ -1,0 +1,2621 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Professional Basketball Statistics Tracking & Analytics Platform — Track the full game live. Print the halftime report in seconds.">
+      
+      
+        <meta name="author" content="Giulio Mastromartino">
+      
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/basketball_icon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>API Reference - HoopsLab</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-orange" data-md-color-accent="teal">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="HoopsLab" class="md-header__button md-logo" aria-label="HoopsLab" data-md-component="logo">
+      
+  <img src="../../assets/basketball_icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            HoopsLab
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-orange" data-md-color-accent="teal"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-orange" data-md-color-accent="teal"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/GiulioMastromartino/Basketball-stats" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../user-guide/getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quick Start
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../user-guide/live-game/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../deployment/" class="md-tabs__link">
+          
+  
+  
+  Technical
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="HoopsLab" class="md-nav__button md-logo" aria-label="HoopsLab" data-md-component="logo">
+      
+  <img src="../../assets/basketball_icon.svg" alt="logo">
+
+    </a>
+    HoopsLab
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/GiulioMastromartino/Basketball-stats" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/live-game/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Live Game Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/plays/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plays Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/advanced-analytics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analytics & Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/pdf-exports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PDF Exports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Technical
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Technical
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#base-urls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Base URLs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#game-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Game Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Game Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#game-detail-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Game Detail Page
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#game-raw-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Game Raw Data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-game" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delete Game
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create-test-game" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create Test Game
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#player-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Player Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#player-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#player-game-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Game Detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#player-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#players-listing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Players Listing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#team-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Team Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#team-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team Detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#games-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Games List
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opponent-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Opponent Detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analytics-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Analytics Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Analytics Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#analytics-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Analytics Dashboard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#team-overview-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team Overview (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-player-comparison-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Player Comparison (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#player-progression-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Progression (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consistency-leaderboard-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consistency Leaderboard (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shooting-breakdown-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shooting Breakdown (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#role-analysis-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Role Analysis (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#playbook-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Playbook Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Playbook Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list-plays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        List Plays
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#play-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Play Detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create-play" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create Play
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edit-play" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edit Play
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-play" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delete Play
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clear-all-plays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clear All Plays
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#play-builder-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Play Builder API
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Play Builder API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#save-canvas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Save Canvas
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#load-canvas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Load Canvas
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#play-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Play Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-analytics-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Analytics API
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Advanced Analytics API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#player-advanced-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Advanced Stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clutch-performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clutch Performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lineup-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lineup Analysis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shot-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shot Analysis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#four-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Four Factors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#play-rankings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Play Rankings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shot-zones" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shot Zones
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#possessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Possessions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#team-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team Stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pdf-export-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PDF Export Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PDF Export Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#game-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Game Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#player-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#team-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lineup-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lineup Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#season-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Season Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clutch-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clutch Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#halftime-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Halftime Summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#download-all-zip-bundle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Download All (ZIP Bundle)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#live-game-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live Game Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Live Game Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#live-game-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live Game Page
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plays-api-for-live-game-selectors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plays API (for live game selectors)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#save-live-game" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Save Live Game
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-upload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Upload
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#health-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Health Endpoints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#base-urls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Base URLs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#game-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Game Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Game Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#game-detail-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Game Detail Page
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#game-raw-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Game Raw Data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-game" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delete Game
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create-test-game" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create Test Game
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#player-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Player Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#player-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#player-game-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Game Detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#player-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#players-listing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Players Listing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#team-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Team Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#team-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team Detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#games-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Games List
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opponent-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Opponent Detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analytics-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Analytics Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Analytics Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#analytics-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Analytics Dashboard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#team-overview-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team Overview (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-player-comparison-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Player Comparison (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#player-progression-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Progression (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consistency-leaderboard-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consistency Leaderboard (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shooting-breakdown-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shooting Breakdown (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#role-analysis-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Role Analysis (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#playbook-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Playbook Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Playbook Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list-plays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        List Plays
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#play-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Play Detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create-play" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create Play
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edit-play" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edit Play
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-play" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delete Play
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clear-all-plays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clear All Plays
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#play-builder-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Play Builder API
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Play Builder API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#save-canvas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Save Canvas
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#load-canvas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Load Canvas
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#play-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Play Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-analytics-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Analytics API
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Advanced Analytics API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#player-advanced-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Advanced Stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clutch-performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clutch Performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lineup-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lineup Analysis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shot-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shot Analysis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#four-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Four Factors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#play-rankings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Play Rankings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shot-zones" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shot Zones
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#possessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Possessions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#team-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team Stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pdf-export-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PDF Export Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PDF Export Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#game-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Game Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#player-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#team-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lineup-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lineup Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#season-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Season Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clutch-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clutch Reports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#halftime-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Halftime Summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#download-all-zip-bundle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Download All (ZIP Bundle)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#live-game-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live Game Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Live Game Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#live-game-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live Game Page
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plays-api-for-live-game-selectors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plays API (for live game selectors)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#save-live-game" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Save Live Game
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-upload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Upload
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#health-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Health Endpoints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
+<p>HoopsLab provides JSON API endpoints for programmatic access to games, players, analytics, and playbook data.</p>
+<hr />
+<h2 id="base-urls">Base URLs<a class="headerlink" href="#base-urls" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Environment</th>
+<th>URL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Local dev</td>
+<td><code>http://localhost:8080</code></td>
+</tr>
+<tr>
+<td>Production</td>
+<td><code>https://your-domain.com</code></td>
+</tr>
+</tbody>
+</table>
+<p>All API routes that don't start with <code>/api/</code> render HTML pages.</p>
+<hr />
+<h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
+<p>Most API endpoints require authentication via Flask-Login session cookie.</p>
+<p>For programmatic access, use the login endpoint first:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8080/auth/login<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>-d<span class="w"> </span><span class="s2">"username=admin&amp;password=admin123"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>-c<span class="w"> </span>cookies.txt
+</code></pre></div>
+<p>Then include the cookie in subsequent requests:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>http://localhost:8080/api/v1/plays<span class="w"> </span>-b<span class="w"> </span>cookies.txt
+</code></pre></div>
+<hr />
+<h2 id="game-endpoints">Game Endpoints<a class="headerlink" href="#game-endpoints" title="Permanent link">&para;</a></h2>
+<h3 id="game-detail-page">Game Detail Page<a class="headerlink" href="#game-detail-page" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>GET /game/&lt;game_id&gt;
+</code></pre></div>
+<p>Renders the full game detail page with box score, advanced stats, shot chart, and plays analysis.</p>
+<h3 id="game-raw-data">Game Raw Data<a class="headerlink" href="#game-raw-data" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>GET /game/&lt;game_id&gt;/export-raw
+</code></pre></div>
+<p>Returns complete game data as JSON download including all player stats, shot events, and game events.</p>
+<h3 id="delete-game">Delete Game<a class="headerlink" href="#delete-game" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>POST /game/&lt;game_id&gt;/delete
+</code></pre></div>
+<p>Deletes a game and all associated data.</p>
+<h3 id="create-test-game">Create Test Game<a class="headerlink" href="#create-test-game" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>POST /create-test-game
+</code></pre></div>
+<p>Creates a sample test game with randomized data for development/testing.</p>
+<hr />
+<h2 id="player-endpoints">Player Endpoints<a class="headerlink" href="#player-endpoints" title="Permanent link">&para;</a></h2>
+<h3 id="player-detail">Player Detail<a class="headerlink" href="#player-detail" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>GET /player/&lt;player_name&gt;
+</code></pre></div>
+<p>Renders player profile with stats cards, scoring breakdown, shooting splits, per-36 estimates, game log, and shot chart.</p>
+<p>Query parameters:
+- <code>game_type</code> — Filter by game type (<code>Season</code>, <code>Friendly</code>, <code>Playoff</code>)</p>
+<h3 id="player-game-detail">Player Game Detail<a class="headerlink" href="#player-game-detail" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>GET /player/&lt;player_name&gt;/game-detail
+</code></pre></div>
+<p>Single game performance breakdown for a specific player.</p>
+<h3 id="player-stats">Player Stats<a class="headerlink" href="#player-stats" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>GET /player/&lt;player_name&gt;/stats
+</code></pre></div>
+<p>Full statistical summary for a player across all games.</p>
+<h3 id="players-listing">Players Listing<a class="headerlink" href="#players-listing" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>GET /players
+</code></pre></div>
+<p>Player list with two view modes:
+- Default: Card view with 8 key metrics
+- <code>?view=table</code> — Full data table with 28+ advanced metrics</p>
+<p>Query parameters:
+- <code>view</code> — <code>card</code> or <code>table</code>
+- <code>game_type</code> — Filter by game type
+- <code>exclude</code> — Player name to exclude from listing
+- <code>search</code> — Search by player name</p>
+<hr />
+<h2 id="team-endpoints">Team Endpoints<a class="headerlink" href="#team-endpoints" title="Permanent link">&para;</a></h2>
+<h3 id="team-detail">Team Detail<a class="headerlink" href="#team-detail" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>GET /team-detail
+</code></pre></div>
+<p>Aggregated team stats rendered on the player detail template, showing team totals across all games.</p>
+<h3 id="games-list">Games List<a class="headerlink" href="#games-list" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>GET /games-list
+</code></pre></div>
+<p>Lists all opponents with record, games played, and average score.</p>
+<h3 id="opponent-detail">Opponent Detail<a class="headerlink" href="#opponent-detail" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>GET /teams/&lt;opponent_name&gt;
+</code></pre></div>
+<p>Detailed stats against a specific opponent including game log.</p>
+<hr />
+<h2 id="analytics-endpoints">Analytics Endpoints<a class="headerlink" href="#analytics-endpoints" title="Permanent link">&para;</a></h2>
+<h3 id="analytics-dashboard">Analytics Dashboard<a class="headerlink" href="#analytics-dashboard" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>GET /analytics
+</code></pre></div>
+<p>Renders the analytics dashboard with team overview, top performers, scoring trends, and player comparison.</p>
+<h3 id="team-overview-json">Team Overview (JSON)<a class="headerlink" href="#team-overview-json" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>GET /api/analytics/team_overview
+</code></pre></div>
+<p>Returns JSON with team-wide statistics.</p>
+<h3 id="multi-player-comparison-json">Multi-Player Comparison (JSON)<a class="headerlink" href="#multi-player-comparison-json" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>GET /api/analytics/multi_compare?players=Player1,Player2
+</code></pre></div>
+<p>Compare multiple players side-by-side.</p>
+<h3 id="player-progression-json">Player Progression (JSON)<a class="headerlink" href="#player-progression-json" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>GET /api/analytics/player_progression?player=&lt;name&gt;
+</code></pre></div>
+<p>Returns per-game stat progression for a player.</p>
+<h3 id="consistency-leaderboard-json">Consistency Leaderboard (JSON)<a class="headerlink" href="#consistency-leaderboard-json" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>GET /api/analytics/consistency_leaderboard
+</code></pre></div>
+<p>Players ranked by consistency index (coefficient of variation).</p>
+<h3 id="shooting-breakdown-json">Shooting Breakdown (JSON)<a class="headerlink" href="#shooting-breakdown-json" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>GET /api/analytics/shooting_breakdown
+</code></pre></div>
+<p>Shooting efficiency breakdown by player and zone.</p>
+<h3 id="role-analysis-json">Role Analysis (JSON)<a class="headerlink" href="#role-analysis-json" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>GET /api/analytics/role_analysis
+</code></pre></div>
+<p>Player role classification based on statistical profile.</p>
+<hr />
+<h2 id="playbook-endpoints">Playbook Endpoints<a class="headerlink" href="#playbook-endpoints" title="Permanent link">&para;</a></h2>
+<h3 id="list-plays">List Plays<a class="headerlink" href="#list-plays" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>GET /plays/
+</code></pre></div>
+<p>Renders playbook grid with filter buttons (All, Offense, Defense, Special).</p>
+<h3 id="play-detail">Play Detail<a class="headerlink" href="#play-detail" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>GET /plays/&lt;play_id&gt;
+</code></pre></div>
+<p>View single play with SVG diagram and metadata.</p>
+<h3 id="create-play">Create Play<a class="headerlink" href="#create-play" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>POST /plays/add
+</code></pre></div>
+<p>Add a new play to the playbook.</p>
+<h3 id="edit-play">Edit Play<a class="headerlink" href="#edit-play" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>POST /plays/edit/&lt;play_id&gt;
+</code></pre></div>
+<p>Update play metadata.</p>
+<h3 id="delete-play">Delete Play<a class="headerlink" href="#delete-play" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>POST /plays/delete/&lt;play_id&gt;
+</code></pre></div>
+<p>Remove a play from the playbook.</p>
+<h3 id="clear-all-plays">Clear All Plays<a class="headerlink" href="#clear-all-plays" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>POST /plays/clear-all
+</code></pre></div>
+<p>Remove all plays (use with caution).</p>
+<hr />
+<h2 id="play-builder-api">Play Builder API<a class="headerlink" href="#play-builder-api" title="Permanent link">&para;</a></h2>
+<h3 id="save-canvas">Save Canvas<a class="headerlink" href="#save-canvas" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>POST /api/v1/plays
+</code></pre></div>
+<p>Save play diagram from the Fabric.js canvas.</p>
+<h3 id="load-canvas">Load Canvas<a class="headerlink" href="#load-canvas" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>GET /api/v1/plays
+</code></pre></div>
+<p>Load all plays with canvas data.</p>
+<h3 id="play-types">Play Types<a class="headerlink" href="#play-types" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>POST /plays/types/add
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>GET  /plays/types/&lt;type_id&gt;/delete
+</code></pre></div>
+<p>Manage play categories.</p>
+<hr />
+<h2 id="advanced-analytics-api">Advanced Analytics API<a class="headerlink" href="#advanced-analytics-api" title="Permanent link">&para;</a></h2>
+<p>All endpoints under <code>/api/advanced/</code> return JSON.</p>
+<h3 id="player-advanced-stats">Player Advanced Stats<a class="headerlink" href="#player-advanced-stats" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>GET /api/advanced/player/&lt;name&gt;/advanced
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>GET /api/advanced/player/&lt;name&gt;/usage
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>GET /api/advanced/player/&lt;name&gt;/pps
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>GET /api/advanced/player/&lt;name&gt;/shot-chart?game_type=&lt;type&gt;
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>GET /api/advanced/player/&lt;name&gt;/zone-stats
+</code></pre></div>
+<h3 id="clutch-performance">Clutch Performance<a class="headerlink" href="#clutch-performance" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>GET /api/advanced/clutch/&lt;game_id&gt;
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>GET /api/advanced/clutch/season
+</code></pre></div>
+<h3 id="lineup-analysis">Lineup Analysis<a class="headerlink" href="#lineup-analysis" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>GET /api/advanced/lineup/on-off/&lt;player&gt;
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>GET /api/advanced/lineup/duos
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>GET /api/advanced/lineup/trios
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>GET /api/advanced/lineup/rankings
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>GET /api/advanced/rotation/&lt;game_id&gt;
+</code></pre></div>
+<h3 id="shot-analysis">Shot Analysis<a class="headerlink" href="#shot-analysis" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>GET /api/advanced/shots/chart?player=&lt;name&gt;&amp;game_type=&lt;type&gt;
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>GET /api/advanced/shots/heatmap?player=&lt;name&gt;
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>GET /api/advanced/shots/hexbin?player=&lt;name&gt;
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>GET /api/advanced/shots/by-play/&lt;play_id&gt;
+</code></pre></div>
+<h3 id="four-factors">Four Factors<a class="headerlink" href="#four-factors" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>GET /api/advanced/four-factors
+</code></pre></div>
+<h3 id="play-rankings">Play Rankings<a class="headerlink" href="#play-rankings" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>GET /api/advanced/plays/rankings
+</code></pre></div>
+<h3 id="shot-zones">Shot Zones<a class="headerlink" href="#shot-zones" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>GET /api/advanced/zones
+</code></pre></div>
+<h3 id="possessions">Possessions<a class="headerlink" href="#possessions" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>GET /api/advanced/possessions
+</code></pre></div>
+<h3 id="team-stats">Team Stats<a class="headerlink" href="#team-stats" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>GET /api/advanced/player/&lt;name&gt;/zones
+</code></pre></div>
+<hr />
+<h2 id="pdf-export-endpoints">PDF Export Endpoints<a class="headerlink" href="#pdf-export-endpoints" title="Permanent link">&para;</a></h2>
+<h3 id="game-reports">Game Reports<a class="headerlink" href="#game-reports" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>GET /reports/games/&lt;game_id&gt;/summary.pdf
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>GET /reports/games/&lt;game_id&gt;/advanced_summary.pdf
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>GET /reports/games/&lt;game_id&gt;/visual.pdf
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>GET /reports/games/&lt;game_id&gt;/evolution.pdf
+</code></pre></div>
+<h3 id="player-reports">Player Reports<a class="headerlink" href="#player-reports" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>GET /reports/player/&lt;name&gt;/report.pdf
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>GET /reports/player/&lt;name&gt;/scouting.pdf
+</code></pre></div>
+<h3 id="team-reports">Team Reports<a class="headerlink" href="#team-reports" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>GET /reports/team/report.pdf
+</code></pre></div>
+<h3 id="lineup-reports">Lineup Reports<a class="headerlink" href="#lineup-reports" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>GET /reports/lineup/report.pdf
+</code></pre></div>
+<h3 id="season-reports">Season Reports<a class="headerlink" href="#season-reports" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>GET /reports/season/trends.pdf
+</code></pre></div>
+<h3 id="clutch-reports">Clutch Reports<a class="headerlink" href="#clutch-reports" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>GET /reports/clutch/report.pdf
+</code></pre></div>
+<h3 id="halftime-summary">Halftime Summary<a class="headerlink" href="#halftime-summary" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>POST /reports/live/halftime-pdf
+</code></pre></div>
+<h3 id="download-all-zip-bundle">Download All (ZIP Bundle)<a class="headerlink" href="#download-all-zip-bundle" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>GET /reports/download-all
+</code></pre></div>
+<p>Downloads a ZIP containing team report + all player PDFs.</p>
+<hr />
+<h2 id="live-game-endpoints">Live Game Endpoints<a class="headerlink" href="#live-game-endpoints" title="Permanent link">&para;</a></h2>
+<h3 id="live-game-page">Live Game Page<a class="headerlink" href="#live-game-page" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>GET /live-game
+</code></pre></div>
+<p>Renders the full-screen live tracking interface.</p>
+<h3 id="plays-api-for-live-game-selectors">Plays API (for live game selectors)<a class="headerlink" href="#plays-api-for-live-game-selectors" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>GET /api/plays
+</code></pre></div>
+<p>Returns JSON list of plays for the play selector dropdown.</p>
+<h3 id="save-live-game">Save Live Game<a class="headerlink" href="#save-live-game" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>POST /live-game/save
+</code></pre></div>
+<p>Saves the current live game state.</p>
+<hr />
+<h2 id="file-upload">File Upload<a class="headerlink" href="#file-upload" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>GET  /upload-game
+<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a>POST /upload-game
+</code></pre></div>
+<p>Upload game data from CSV, PDF, or JSON files. Accepts multipart form data with a <code>file</code> field.</p>
+<hr />
+<h2 id="health-endpoints">Health Endpoints<a class="headerlink" href="#health-endpoints" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>GET /health/live
+<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a>GET /health/ready
+</code></pre></div>
+<p>Returns <code>{"status": "healthy"}</code> when the application is running. Used by orchestration systems for liveness and readiness probes.</p>
+<hr />
+<h2 id="metrics">Metrics<a class="headerlink" href="#metrics" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>GET /metrics
+</code></pre></div>
+<p>Prometheus-formatted metrics for monitoring (requires authentication in production).</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 Giulio Mastromartino
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/GiulioMastromartino/Basketball-stats" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="mailto:giulio@example.com" target="_blank" rel="noopener" title="" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M48 64C21.5 64 0 85.5 0 112c0 15.1 7.1 29.3 19.2 38.4l208 156a48 48 0 0 0 57.6 0l208-156c12.1-9.1 19.2-23.3 19.2-38.4 0-26.5-21.5-48-48-48zM0 196v188c0 35.3 28.7 64 64 64h384c35.3 0 64-28.7 64-64V196L313.6 344.8c-34.1 25.6-81.1 25.6-115.2 0z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
