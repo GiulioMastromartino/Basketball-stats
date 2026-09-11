@@ -589,9 +589,9 @@ class TestCreateGameFromLiveData:
         assert all(event.play_id == synced_play.id for event in events)
 
     @pytest.mark.integration
-    def test_import_sync_reuses_existing_play_name_and_remaps_payload_id(self, db_session):
+    def test_import_sync_reuses_existing_play_name_and_remaps_payload_id(self, db_session, default_team):
         """Payload play ids should map to an existing DB play when the name already exists."""
-        existing = Play(name="Horns Twist", play_type="Offense", description="Existing")
+        existing = Play(name="Horns Twist", play_type="Offense", description="Existing", team_id=default_team.id)
         db_session.add(existing)
         db_session.commit()
 

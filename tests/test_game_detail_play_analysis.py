@@ -4,7 +4,7 @@ from core.models import Game, GameEvent, Play, PlayerStat, ShotEvent
 
 
 @pytest.mark.integration
-def test_game_detail_renders_legacy_play_metrics(auth_client, db_session):
+def test_game_detail_renders_legacy_play_metrics(auth_client, db_session, default_team):
     game = Game(
         date="20-03-2026",
         opponent="Rendered Opponent",
@@ -14,6 +14,7 @@ def test_game_detail_renders_legacy_play_metrics(auth_client, db_session):
         game_type="Season",
         sort_date="2026-03-20",
         source="MANUAL",
+        team_id=default_team.id,
     )
     db_session.add(game)
     db_session.flush()

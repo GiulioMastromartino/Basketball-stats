@@ -10,7 +10,39 @@ Handles all lineup segment processing including:
 """
 
 from core import rust_analytics
-from core.models import db, GameEvent, Lineup, LineupSegment, PlayerLineupStats
+from core.models import (
+    db,
+    GameEvent,
+    Lineup,
+    LineupSegment,
+    Organization,
+    PlayerLineupStats,
+    Team,
+)
+
+
+def resolve_team_id(team_id: int = None) -> int:
+    """Return explicit team_id, falling back to the default team.
+
+    Production callers always pass an explicit team. The fallback exists so
+    scripts and tests that create games without team context keep working
+    instead of violating the NOT NULL constraint on team_id. When no team
+    exists at all, a default organization/team is provisioned (mirroring
+    the production migration behavior).
+    """
+    if team_id is not None:
+        return team_id
+    team = Team.query.order_by(Team.id).first()
+    if team is None:
+        org = Organization.query.first()
+        if org is None:
+            org = Organization(name="Default Organization", slug="default-organization")
+            db.session.add(org)
+            db.session.flush()
+        team = Team(name="Default Team", slug="default-team", organization_id=org.id)
+        db.session.add(team)
+        db.session.flush()
+    return team.id
 
 def generate_lineup_hash(players: list) -> str:
     """Use high-performance Rust implementation for lineup hashing."""
@@ -50,6 +82,7 @@ def get_or_create_lineup(players: list, is_starting: bool = False, team_id: int 
     if len(players) != 5:
         return None
 
+    team_id = resolve_team_id(team_id)
     lineup_hash = generate_lineup_hash(players)
     lineup = Lineup.query.filter_by(lineup_hash=lineup_hash).first()
 
@@ -153,7 +186,7 @@ def update_lineup_cached_stats(lineup_id: int):
 
 
 def build_lineup_segments(
-    game_id: int, events: list, starting_lineup: list = None
+    game_id: int, events: list, starting_lineup: list = None, team_id: int = None
 ) -> list:
     """
     Process events chronologically to create LineupSegment records.
@@ -163,6 +196,7 @@ def build_lineup_segments(
         events: List of GameEvent objects sorted chronologically by timestamp
         starting_lineup: Optional list of 5 player names as initial lineup.
                         If None, extracts from first 5 SUB_IN events in Q1.
+        team_id: Team ID propagated to created Lineup rows (required by schema).
 
     Returns:
         List of created segment IDs
@@ -216,7 +250,7 @@ def build_lineup_segments(
                 segment_start_timestamp = event.timestamp
                 current_quarter = event.quarter
                 lineup = get_or_create_lineup(
-                    current_lineup, is_starting=True
+                    current_lineup, is_starting=True, team_id=team_id
                 )
 
                 current_segment = LineupSegment(
@@ -254,7 +288,7 @@ def build_lineup_segments(
 
                     current_lineup.append(sub_in_event.player_name)
 
-                    lineup = get_or_create_lineup(current_lineup)
+                    lineup = get_or_create_lineup(current_lineup, team_id=team_id)
 
                     current_segment = LineupSegment(
                         game_id=game_id,
@@ -384,8 +418,18 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
             points_scored += 2
         elif event.event_type == "SHOT_3PT" and event.shot_attempt == "made":
             points_scored += 3
-        elif event.event_type == "FT_MADE":
-            points_scored += 1
+        elif event.event_type == "FT":
+            if event.shot_attempt == "made":
+                pts = 1
+                if event.detail:
+                    try:
+                        import json
+                        detail_data = json.loads(event.detail) if isinstance(event.detail, str) else event.detail
+                        if isinstance(detail_data, dict):
+                            pts = int(detail_data.get("ftm", 1))
+                    except (ValueError, TypeError, json.JSONDecodeError):
+                        pts = 1
+                points_scored += pts
         elif event.event_type == "OPP_SCORE":
             pts = 2
             if event.detail:
@@ -417,13 +461,6 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
             ):
                 possession_ending_events.add(event.possession_number)
                 possessions += 1
-        elif event.event_type == "OPP_OREB" or event.event_type == "OPP_SCORE":
-            if (
-                event.possession_number
-                and event.possession_number not in possession_ending_events
-            ):
-                possession_ending_events.add(event.possession_number)
-                possessions += 1
 
     segment.points_scored = points_scored
     segment.points_allowed = points_allowed
@@ -431,7 +468,7 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
     segment.reb_conceded = reb_conceded
 
     if all_events:
-        segment.duration_seconds = calculate_segment_duration(segment, all_events)
+        segment.duration_seconds = calculate_segment_duration(events)
 
     db.session.commit()
 
@@ -561,14 +598,14 @@ def populate_player_lineup_stats(segment_id: int) -> None:
 
 
 def process_game_lineups(
-    game_id: int, events: list, starting_lineup: list = None
+    game_id: int, events: list, starting_lineup: list = None, team_id: int = None
 ) -> None:
     """
     Optimized entry point for lineup processing.
     Uses batch operations to avoid timeouts.
     """
     # 1. Build segments
-    segment_ids = build_lineup_segments(game_id, events, starting_lineup)
+    segment_ids = build_lineup_segments(game_id, events, starting_lineup, team_id)
     if not segment_ids:
         return
 
@@ -669,7 +706,7 @@ def process_game_lineups(
                 elif et in ("DREB", "REBOUND_DEFENSIVE"): p_stats["dreb"] += 1
 
             # Possession tracking
-            if et in ["SHOT_2PT", "SHOT_3PT", "TURNOVER", "FT", "FT_MADE", "FT_MISS", "OPP_OREB", "OPP_SCORE"]:
+            if et in ["SHOT_2PT", "SHOT_3PT", "TURNOVER", "FT", "FT_MADE", "FT_MISS"]:
                 if event.possession_number and event.possession_number not in poss_ending:
                     poss_ending.add(event.possession_number)
                     poss += 1

@@ -4,7 +4,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from core.models import Game, PlayerStat, ShotEvent, GameEvent, Play, db
-from core.services.lineup_service import process_game_lineups
+from core.services.lineup_service import process_game_lineups, resolve_team_id
 from core.utils import normalize_date_to_display
 from flask import current_app
 
@@ -665,6 +665,10 @@ def create_game_from_live_data(data, team_id: int = None):
     if not data:
         raise ValueError("No data received")
 
+    # team_id is required by the schema; fall back to the first team so
+    # scripts/tests without team context keep working (routes pass it explicitly).
+    team_id = resolve_team_id(team_id)
+
     # Extract format metadata for post-processing decisions
     schema_version = data.get("schema_version", 1)  # Default to v1 if not present
     features = data.get("features", {})  # Feature flags dict
@@ -835,7 +839,7 @@ def create_game_from_live_data(data, team_id: int = None):
         elif existing_by_name:
             synced_play = existing_by_name
         elif payload_play_name:
-            synced_play = Play(name=payload_play_name, play_type=payload_play_type, source="imported")
+            synced_play = Play(name=payload_play_name, play_type=payload_play_type, source="imported", team_id=team_id)
             db.session.add(synced_play)
             db.session.flush()
         else:
@@ -853,7 +857,7 @@ def create_game_from_live_data(data, team_id: int = None):
             return play_cache[name]
         
         # Create new if not in cache
-        new_p = Play(name=name, play_type="Offense", source="imported")
+        new_p = Play(name=name, play_type="Offense", source="imported", team_id=team_id)
         db.session.add(new_p)
         db.session.flush()
         play_cache[name] = new_p.id
@@ -878,7 +882,7 @@ def create_game_from_live_data(data, team_id: int = None):
         name = (play_name or "").strip()
         if not name:
             return None
-        new_p = Play(name=name, play_type="Offense", source="imported")
+        new_p = Play(name=name, play_type="Offense", source="imported", team_id=team_id)
         db.session.add(new_p)
         db.session.flush()
         play_id_cache[new_p.id] = new_p.id
@@ -1308,7 +1312,7 @@ def create_game_from_live_data(data, team_id: int = None):
 
     if saved_events and has_lineup_tracking:
         try:
-            process_game_lineups(game.id, saved_events, starting_lineup)
+            process_game_lineups(game.id, saved_events, starting_lineup, team_id)
         except Exception as e:
             current_app.logger.warning(f"Failed to process lineup segments: {e}")
 

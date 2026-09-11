@@ -5,7 +5,41 @@
   <title>{{ player_name }} — Player Report</title>
   <style>
     /* ── Fonts ── */
-    @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Work+Sans:wght@400;600&display=swap');
+    @font-face {
+      font-family: 'Archivo Black';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url("web/static/fonts/ArchivoBlack.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: 'Space Mono';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url("web/static/fonts/SpaceMono-Regular.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: 'Space Mono';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url("web/static/fonts/SpaceMono-Bold.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: 'Work Sans';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url("web/static/fonts/WorkSans-Regular.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: 'Work Sans';
+      font-style: normal;
+      font-weight: 600;
+      font-display: swap;
+      src: url("web/static/fonts/WorkSans-SemiBold.woff2") format("woff2");
+    }
 
     /* ── Page setup ── */
     @page {
@@ -61,6 +95,14 @@
       break-after: page;
     }
     .page:last-child { page-break-after: avoid; break-after: avoid; }
+
+    .page-break {
+      break-after: page;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      border: none;
+    }
 
     /* scanline texture */
     .page::before {
@@ -206,7 +248,7 @@
       letter-spacing: .3px;
       padding: 6px 5px;
       text-align: center;
-      border-bottom: 1px solid var(--border);
+      border: 1px solid var(--border);
     }
     td {
       font-family: var(--font-mono);
@@ -214,7 +256,7 @@
       color: var(--white);
       padding: 5px 5px;
       text-align: center;
-      border-bottom: 1px solid var(--border);
+      border: 1px solid var(--border);
     }
     tr:last-child td { border-bottom: none; }
     tr:nth-child(even) td { background: rgba(255,255,255,.025); }
@@ -268,6 +310,7 @@
     .pct-bar-fill {
       height: 100%;
       background: linear-gradient(90deg, var(--red) 0%, var(--gold) 50%, var(--green) 100%);
+      width: var(--pct, 0%);
     }
     .pct-marker {
       position: absolute;
@@ -275,6 +318,7 @@
       width: 2px;
       background: var(--white);
       border-radius: 1px;
+      left: var(--pct, 0%);
     }
     .pct-val {
       width: 30px;
@@ -378,6 +422,49 @@
 
     /* ── No-split ── */
     .ns { break-inside: avoid; page-break-inside: avoid; }
+
+    /* ── Utility classes ── */
+    .u-mono   { font-family: var(--font-mono); }
+    .u-dim    { color: var(--dim); }
+    .u-cyan   { color: var(--cyan); }
+    .u-white  { color: var(--white); }
+    .u-red    { color: var(--red); }
+    .u-green  { color: var(--green); }
+    .u-amber  { color: var(--gold); }
+    .u-fs-sm  { font-size: 7px; }
+    .u-fs-xs  { font-size: 7.5px; }
+    .u-fs-8   { font-size: 8px; }
+    .u-fw-bold{ font-weight: 700; }
+    .u-mt-0   { margin-top: 0; }
+    .u-mt-8   { margin-top: 8px; }
+    .u-mt-10  { margin-top: 10px; }
+    .u-mt-14  { margin-top: 14px; }
+    .u-mb-3   { margin-bottom: 3px; }
+    .u-mb-8   { margin-bottom: 8px; }
+    .u-mb-10  { margin-bottom: 10px; }
+    .u-flex   { display: flex; }
+    .u-flex-ac{ display: flex; align-items: center; }
+    .u-flex-jc{ display: flex; justify-content: center; }
+    .u-flex-sb{ display: flex; align-items: center; justify-content: space-between; }
+    .u-text-center { text-align: center; }
+    .u-text-right   { text-align: right; }
+    .u-ellipsis     { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .u-border-left-green { border-left-color: var(--green) !important; }
+    .u-border-left-red   { border-left-color: var(--red) !important; }
+    .u-border-left-amber { border-left-color: var(--gold) !important; }
+    .u-bg-cell      { background: var(--bg-cell); }
+    .u-radius-7     { border-radius: 7px; }
+    .u-overflow-hidden { overflow: hidden; }
+    .u-relative     { position: relative; }
+    .u-absolute     { position: absolute; }
+    .u-top-0        { top: 0; }
+    .u-bottom-0     { bottom: 0; }
+    .u-width-full   { width: 100%; }
+    .u-height-full  { height: 100%; }
+    .u-bg-cyan-tint { background: rgba(0,242,255,.12); }
+    .u-minw-16 { min-width: 16px; }
+    .u-flex-1 { flex: 1; }
+    .u-height-14 { height: 14px; }
   </style>
 </head>
 <body>
@@ -414,11 +501,10 @@
 
 {%- macro pct_bar(r) -%}
   <div class="pct-row">
-    <div class="pct-val" style="width:auto;color:var(--white);min-width:16px;">#{{ r.rank }}/{{ r.total }}</div>
-    {{ rank_badge(r) }}
-    <div class="pct-bar-wrap" style="flex:1;">
-      <div class="pct-bar-fill" style="width:{{ r.percentile }}%;"></div>
-      <div class="pct-marker" style="left:{{ r.percentile }}%;"></div>
+    <div class="pct-val u-white u-minw-16">#{{ r.rank }}/{{ r.total }}</div>
+    <div class="pct-bar-wrap u-flex-1">
+      <div class="pct-bar-fill" style="--pct:{{ r.percentile }};width:var(--pct);"></div>
+      <div class="pct-marker" style="--pct:{{ r.percentile }};left:var(--pct);"></div>
     </div>
     <div class="pct-val">{{ r.percentile|int }}%</div>
   </div>
@@ -466,12 +552,12 @@
 <div class="page">
   <div class="page-header">
     <div>
-      <div class="page-header-name">&#127944; {{ player_name }}</div>
-      <div class="page-header-sub">{{ game_type }} &nbsp;|&nbsp; {{ games_played }} games &nbsp;|&nbsp; {{ "%.1f"|format(avg_stats.minutes) }} MPG</div>
+      <div class="page-header-name">{{ player_name }}</div>
+      <div class="page-header-sub">{{ game_type_label }} &nbsp;|&nbsp; {{ games_played }} games &nbsp;|&nbsp; {{ "%.1f"|format(avg_stats.minutes) }} MPG</div>
     </div>
     <div class="page-header-badge">
       {{ generated_date }}<br>
-      <span class="page-tag">Season Overview</span>
+      <span class="page-tag">{{ game_type_label }}</span>
     </div>
   </div>
 
@@ -488,49 +574,56 @@
       <div class="sc-v lg {% if advanced.avg_plus_minus is not none and advanced.avg_plus_minus > 0 %}pos{% elif advanced.avg_plus_minus is not none and advanced.avg_plus_minus < 0 %}neg{% endif %}">
         {{ pm_span(advanced.avg_plus_minus) }}
       </div>
-      <div class="sc-l">+/- avg</div>
+      <div class="sc-l">+/- avg (LIVE)</div>
+      {% if live_games_count is defined and live_games_count > 0 %}
+      <div class="sc-note">{{ live_games_count }} tracked</div>
+      {% endif %}
     </div>
   </div>
 
-  <div class="sec"><span class="sec-icon">&#128200;</span> Season Totals</div>
+  <div class="sec"><span class="sec-icon">&#128200;</span> {{ game_type_label }} Totals</div>
   <table>
     <thead><tr>
       <th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>PF</th><th>+/-</th>
     </tr></thead>
     <tbody><tr>
-      <td>{{ "%.0f"|format(avg_stats.minutes * games_played) }}</td>
-      <td class="hi">{{ "%.0f"|format(avg_stats.points * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.reb * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.ast * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.stl * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.blk * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.tov * games_played) }}</td>
-      <td>{{ "%.0f"|format(avg_stats.pf  * games_played) }}</td>
-      <td>{{ pm_int(advanced.avg_plus_minus * box_detail.tracked_plus_minus_games if advanced.avg_plus_minus is not none else none) }}</td>
+      <td>{{ totals.minutes }}</td>
+      <td class="hi">{{ totals.points }}</td>
+      <td>{{ totals.reb }}</td>
+      <td>{{ totals.ast }}</td>
+      <td>{{ totals.stl }}</td>
+      <td>{{ totals.blk }}</td>
+      <td>{{ totals.tov }}</td>
+      <td>{{ totals.pf }}</td>
+      <td>{{ pm_int(totals.plus_minus) if advanced.has_live_plus_minus else none }}{% if box_detail.tracked_plus_minus_games > 0 %}<span class="u-dim">*</span>{% endif %}</td>
     </tr></tbody>
   </table>
 
+  <p class="u-mono u-fs-sm u-dim u-mb-8">
+    * +/- based on {{ box_detail.tracked_plus_minus_games }} LIVE game{% if box_detail.tracked_plus_minus_games != 1 %}s{% endif %} only
+  </p>
+
   <div class="two-col">
     <div>
-      <div class="sec" style="margin-top:0;"><span class="sec-icon">&#127919;</span> Shooting Totals</div>
+      <div class="sec u-mt-0"><span class="sec-icon">&#127919;</span> Shooting Totals</div>
       <table>
         <thead><tr><th>Type</th><th>M&ndash;A</th><th>%</th><th>Att/G</th></tr></thead>
         <tbody>
-          <tr><td class="td-left">2PT</td><td>{{ "%.0f"|format(shooting.two_pt.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.two_pt.att*games_played) }}</td><td>{{ "%.1f"|format(shooting.two_pt.pct) }}%</td><td>{{ "%.1f"|format(shooting.two_pt.att) }}</td></tr>
-          <tr><td class="td-left">3PT</td><td>{{ "%.0f"|format(shooting.three_pt.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.three_pt.att*games_played) }}</td><td>{{ "%.1f"|format(shooting.three_pt.pct) }}%</td><td>{{ "%.1f"|format(shooting.three_pt.att) }}</td></tr>
-          <tr><td class="td-left">FT</td><td>{{ "%.0f"|format(shooting.ft.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.ft.att*games_played) }}</td><td>{{ "%.1f"|format(shooting.ft.pct) }}%</td><td>{{ "%.1f"|format(shooting.ft.att) }}</td></tr>
-          <tr><td class="td-left td-bold">FG</td><td class="td-bold">{{ "%.0f"|format(shooting.fg.made*games_played) }}&ndash;{{ "%.0f"|format(shooting.fg.att*games_played) }}</td><td class="td-bold">{{ "%.1f"|format(shooting.fg.pct) }}%</td><td>{{ "%.1f"|format(shooting.fg.att) }}</td></tr>
+          <tr><td class="td-left">2PT</td><td>{{ totals.fgm - totals.tpm }}&ndash;{{ totals.fga - totals.tpa }}</td><td>{{ "%.1f"|format(shooting.two_pt.pct) }}%</td><td>{{ "%.1f"|format(shooting.two_pt.att) }}</td></tr>
+          <tr><td class="td-left">3PT</td><td>{{ totals.tpm }}&ndash;{{ totals.tpa }}</td><td>{{ "%.1f"|format(shooting.three_pt.pct) }}%</td><td>{{ "%.1f"|format(shooting.three_pt.att) }}</td></tr>
+          <tr><td class="td-left">FT</td><td>{{ totals.ftm }}&ndash;{{ totals.fta }}</td><td>{{ "%.1f"|format(shooting.ft.pct) }}%</td><td>{{ "%.1f"|format(shooting.ft.att) }}</td></tr>
+          <tr><td class="td-left td-bold">FG</td><td class="td-bold">{{ totals.fgm }}&ndash;{{ totals.fga }}</td><td class="td-bold">{{ "%.1f"|format(shooting.fg.pct) }}%</td><td>{{ "%.1f"|format(shooting.fg.att) }}</td></tr>
         </tbody>
       </table>
     </div>
     <div>
-      <div class="sec" style="margin-top:0;"><span class="sec-icon">&#128218;</span> Rebounding Breakdown</div>
+      <div class="sec u-mt-0"><span class="sec-icon">&#128218;</span> Rebounding Breakdown</div>
       <table>
         <thead><tr><th>Total</th><th>OREB</th><th>DREB</th><th>OREB%</th><th>DREB%</th></tr></thead>
         <tbody><tr>
-          <td>{{ "%.0f"|format(avg_stats.reb*games_played) }}</td>
-          <td>{{ "%.0f"|format(avg_stats.oreb*games_played) }}</td>
-          <td>{{ "%.0f"|format(avg_stats.dreb*games_played) }}</td>
+          <td>{{ totals.reb }}</td>
+          <td>{{ totals.oreb }}</td>
+          <td>{{ totals.dreb }}</td>
           <td>{{ "%.1f"|format(advanced.oreb_pct if advanced.oreb_pct else 0) }}%</td>
           <td>{{ "%.1f"|format(advanced.dreb_pct if advanced.dreb_pct else 0) }}%</td>
         </tr></tbody>
@@ -546,6 +639,8 @@
     <div class="sc"><div class="sc-v cyan">{{ "%.2f"|format(advanced.ast_tov) }}</div><div class="sc-l">AST / TOV</div></div>
   </div>
 
+  <div class="page-break"></div>
+
   <div class="sec"><span class="sec-icon">&#128293;</span> Ortg vs Team</div>
   <table>
     <thead><tr><th>Metric</th><th>Player</th><th>Team Avg</th><th>Elite Ref.</th><th>Description</th></tr></thead>
@@ -555,37 +650,33 @@
         <td class="hi">{{ "%.1f"|format(advanced.ortg) }}</td>
         <td>{{ "%.1f"|format(team_avg.ortg) }}</td>
         <td>&gt;110</td>
-        <td class="td-left" style="color:var(--dim);">Pts per 100 possessions</td>
+        <td class="td-left u-dim">Pts per 100 possessions</td>
       </tr>
       <tr>
         <td class="td-left">True Shooting %</td>
         <td class="hi">{{ "%.1f"|format(advanced.ts_pct) }}%</td>
         <td>{{ "%.1f"|format(team_avg.ts_pct) }}%</td>
         <td>&gt;55%</td>
-        <td class="td-left" style="color:var(--dim);">FG / 3PT / FT efficiency</td>
+        <td class="td-left u-dim">FG / 3PT / FT efficiency</td>
       </tr>
       <tr>
         <td class="td-left">Effective FG %</td>
         <td class="hi">{{ "%.1f"|format(advanced.efg_pct) }}%</td>
         <td>{{ "%.1f"|format(team_avg.efg_pct) }}%</td>
         <td>&gt;50%</td>
-        <td class="td-left" style="color:var(--dim);">FG% weighting 3PT</td>
+        <td class="td-left u-dim">FG% weighting 3PT</td>
       </tr>
       <tr>
         <td class="td-left">AST / TOV Ratio</td>
         <td class="hi">{{ "%.2f"|format(advanced.ast_tov) }}</td>
         <td>{{ "%.2f"|format(team_avg.ast_tov) }}</td>
         <td>&gt;2.0</td>
-        <td class="td-left" style="color:var(--dim);">Decision quality</td>
+        <td class="td-left u-dim">Decision quality</td>
       </tr>
     </tbody>
   </table>
-</div>
 
-
-{# ═══════════════════ PAGE 2 — TEAM RANKINGS ═══════════════════ #}
 {% if team_rankings %}
-<div class="page">
   <div class="page-header">
     <div>
       <div class="page-header-name">{{ player_name }}</div>
@@ -595,32 +686,32 @@
   </div>
 
   <div class="sec"><span class="sec-icon">&#127942;</span> Core Stats Rankings</div>
-  {% for mk, mn in [('ppg','Points Per Game'),('rpg','Rebounds Per Game'),('apg','Assists Per Game'),('spg','Steals Per Game')] %}
-    {% if team_rankings[mk] is defined and team_rankings[mk] %}
-    {% set r = team_rankings[mk] %}
-    <div style="margin-bottom:8px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
-        <span style="font-family:var(--font-mono);font-size:8px;color:var(--white);">{{ mn }}</span>
-        {{ rank_badge(r) }}
-      </div>
-      {{ pct_bar(r) }}
-    </div>
-    {% endif %}
-  {% endfor %}
+   {% for mk, mn in [('ppg','Points Per Game'),('rpg','Rebounds Per Game'),('apg','Assists Per Game'),('spg','Steals Per Game')] %}
+     {% if team_rankings[mk] is defined and team_rankings[mk] %}
+     {% set r = team_rankings[mk] %}
+       <div class="u-mb-8">
+         <div class="u-flex-sb u-mb-3">
+           <span class="u-mono u-fs-8 u-white">{{ mn }}</span>
+           {{ rank_badge(r) }}
+         </div>
+         {{ pct_bar(r) }}
+       </div>
+       {% endif %}
+     {% endfor %}
 
-  <div class="sec"><span class="sec-icon">&#9889;</span> Advanced Metrics Rankings</div>
-  {% for mk, mn in [('ts_pct','True Shooting %'),('efg_pct','Effective FG %'),('ortg','Offensive Rating'),('ast_tov','AST/TOV Ratio')] %}
-    {% if team_rankings[mk] is defined and team_rankings[mk] %}
-    {% set r = team_rankings[mk] %}
-    <div style="margin-bottom:8px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
-        <span style="font-family:var(--font-mono);font-size:8px;color:var(--white);">{{ mn }}</span>
-        {{ rank_badge(r) }}
+   <div class="sec"><span class="sec-icon">&#9889;</span> Advanced Metrics Rankings</div>
+    {% for mk, mn in [('ts_pct','True Shooting %'),('efg_pct','Effective FG %'),('ortg','Offensive Rating'),('ast_tov','AST/TOV Ratio')] %}
+      {% if team_rankings[mk] is defined and team_rankings[mk] %}
+      {% set r = team_rankings[mk] %}
+      <div class="u-mb-8">
+        <div class="u-flex-sb u-mb-3">
+          <span class="u-mono u-fs-8 u-white">{{ mn }}</span>
+          {{ rank_badge(r) }}
+        </div>
+        {{ pct_bar(r) }}
       </div>
-      {{ pct_bar(r) }}
-    </div>
-    {% endif %}
-  {% endfor %}
+      {% endif %}
+    {% endfor %}
 
   <div class="sec"><span class="sec-icon">&#128202;</span> Distribution Analysis</div>
   {% for mk, mn in [('ppg','PPG'),('ts_pct','TS%'),('ortg','ORTG')] %}
@@ -630,23 +721,23 @@
     {% set mx_v = r.distribution|max %}
     {% set rng  = mx_v - mn_v %}
     {% set ppos = ((r.player_value - mn_v) / rng * 100) if rng > 0 else 50 %}
-    <div style="margin:10px 0;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-        <span style="font-family:var(--font-mono);font-size:8px;font-weight:700;color:var(--cyan);">{{ mn }}</span>
-        <span style="font-family:var(--font-mono);font-size:7px;color:var(--dim);">{{ "%.1f"|format(mn_v) }} &rarr; {{ "%.1f"|format(mx_v) }}</span>
+    <div class="u-mb-10">
+      <div class="u-flex-sb u-mb-3">
+        <span class="u-mono u-fs-8 u-fw-bold u-cyan">{{ mn }}</span>
+        <span class="u-mono u-fs-sm u-dim">{{ "%.1f"|format(mn_v) }} &rarr; {{ "%.1f"|format(mx_v) }}</span>
       </div>
-      <div style="position:relative;height:14px;background:var(--bg-cell);border-radius:7px;overflow:hidden;">
-        <div style="height:100%;background:rgba(0,242,255,.12);width:100%;"></div>
-        <div style="position:absolute;top:0;bottom:0;left:{{ ppos }}%;width:3px;background:var(--red);border-radius:2px;"></div>
+      <div class="u-relative u-bg-cell u-radius-7 u-overflow-hidden u-height-14" style="--ppos:{{ ppos }}%;">
+        <div class="u-height-full u-bg-cyan-tint u-width-full"></div>
+        <div class="u-absolute u-top-0 u-bottom-0" style="left:var(--ppos);width:3px;background:var(--red);border-radius:2px;"></div>
       </div>
-      <div style="font-family:var(--font-mono);font-size:7px;color:var(--red);text-align:center;margin-top:2px;">
+      <div class="u-mono u-fs-sm u-red u-text-center u-mt-8">
         &#9650; {{ player_name }}: {{ "%.1f"|format(r.player_value) }}
       </div>
     </div>
     {% endif %}
   {% endfor %}
-</div>
 {% endif %}
+</div>
 
 
 {# ═══════════════════ PAGE 3 — SHOOTING & SHOT CHART ═══════════════════ #}
@@ -660,10 +751,10 @@
   </div>
 
   <div class="sg sg-4">
-    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.fg.pct) }}%</div><div class="sc-l">FG %</div><div class="sc-note">{{ "%.0f"|format(shooting.fg.made*games_played) }}/{{ "%.0f"|format(shooting.fg.att*games_played) }}</div></div>
-    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.two_pt.pct) }}%</div><div class="sc-l">2PT %</div><div class="sc-note">{{ "%.0f"|format(shooting.two_pt.made*games_played) }}/{{ "%.0f"|format(shooting.two_pt.att*games_played) }}</div></div>
-    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.three_pt.pct) }}%</div><div class="sc-l">3PT %</div><div class="sc-note">{{ "%.0f"|format(shooting.three_pt.made*games_played) }}/{{ "%.0f"|format(shooting.three_pt.att*games_played) }}</div></div>
-    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.ft.pct) }}%</div><div class="sc-l">FT %</div><div class="sc-note">{{ "%.0f"|format(shooting.ft.made*games_played) }}/{{ "%.0f"|format(shooting.ft.att*games_played) }}</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.fg.pct) }}%</div><div class="sc-l">FG %</div><div class="sc-note">{{ totals.fgm }}/{{ totals.fga }}</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.two_pt.pct) }}%</div><div class="sc-l">2PT %</div><div class="sc-note">{{ totals.fgm - totals.tpm }}/{{ totals.fga - totals.tpa }}</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.three_pt.pct) }}%</div><div class="sc-l">3PT %</div><div class="sc-note">{{ totals.tpm }}/{{ totals.tpa }}</div></div>
+    <div class="sc"><div class="sc-v cyan">{{ "%.1f"|format(shooting.ft.pct) }}%</div><div class="sc-l">FT %</div><div class="sc-note">{{ totals.ftm }}/{{ totals.fta }}</div></div>
   </div>
 
   {% if shot_chart %}
@@ -693,7 +784,7 @@
     </tbody>
   </table>
   {% else %}
-  <div class="info-box"><p style="color:var(--dim);">No zone data available.</p></div>
+  <div class="info-box"><p class="u-dim">No zone data available.</p></div>
   {% endif %}
 </div>
 
@@ -711,20 +802,20 @@
   <div class="sec"><span class="sec-icon">&#9889;</span> Performance Benchmarks</div>
   {{ bench_block('', advanced.ts_pct, team_avg.ts_pct, advanced.ast_tov, team_avg.ast_tov, advanced.avg_plus_minus) }}
 
-  <div class="sec" style="margin-top:14px;"><span class="sec-icon">&#128200;</span> Detailed Metrics vs Team</div>
+  <div class="sec u-mt-14"><span class="sec-icon">&#128200;</span> Detailed Metrics vs Team</div>
   <table>
     <thead><tr><th class="td-left">Metric</th><th>Player</th><th>Team Avg</th><th>Elite Ref.</th><th class="td-left">Description</th></tr></thead>
     <tbody>
-      <tr><td class="td-left">ORTG</td><td class="hi">{{ "%.1f"|format(advanced.ortg) }}</td><td>{{ "%.1f"|format(team_avg.ortg) }}</td><td>&gt;110</td><td class="td-left" style="color:var(--dim);">Pts / 100 poss</td></tr>
-      <tr><td class="td-left">PPP</td><td class="hi">{{ "%.3f"|format(advanced.ppp if advanced.ppp else 0) }}</td><td>—</td><td>&gt;1.10</td><td class="td-left" style="color:var(--dim);">Pts per possession</td></tr>
-      <tr><td class="td-left">TS%</td><td class="hi">{{ "%.1f"|format(advanced.ts_pct) }}%</td><td>{{ "%.1f"|format(team_avg.ts_pct) }}%</td><td>&gt;55%</td><td class="td-left" style="color:var(--dim);">True shooting eff.</td></tr>
-      <tr><td class="td-left">eFG%</td><td class="hi">{{ "%.1f"|format(advanced.efg_pct) }}%</td><td>{{ "%.1f"|format(team_avg.efg_pct) }}%</td><td>&gt;50%</td><td class="td-left" style="color:var(--dim);">3PT-weighted FG%</td></tr>
-      <tr><td class="td-left">AST/TOV</td><td class="hi">{{ "%.2f"|format(advanced.ast_tov) }}</td><td>{{ "%.2f"|format(team_avg.ast_tov) }}</td><td>&gt;2.0</td><td class="td-left" style="color:var(--dim);">Decision quality</td></tr>
+      <tr><td class="td-left">ORTG</td><td class="hi">{{ "%.1f"|format(advanced.ortg) }}</td><td>{{ "%.1f"|format(team_avg.ortg) }}</td><td>&gt;110</td>        <td class="td-left u-dim">Pts / 100 poss</td></tr>
+      <tr><td class="td-left">PPP</td><td class="hi">{{ "%.3f"|format(advanced.ppp if advanced.ppp else 0) }}</td><td>—</td><td>&gt;1.10</td>        <td class="td-left u-dim">Pts per possession</td></tr>
+      <tr><td class="td-left">TS%</td><td class="hi">{{ "%.1f"|format(advanced.ts_pct) }}%</td><td>{{ "%.1f"|format(team_avg.ts_pct) }}%</td><td>&gt;55%</td>        <td class="td-left u-dim">True shooting eff.</td></tr>
+      <tr><td class="td-left">eFG%</td><td class="hi">{{ "%.1f"|format(advanced.efg_pct) }}%</td><td>{{ "%.1f"|format(team_avg.efg_pct) }}%</td><td>&gt;50%</td>        <td class="td-left u-dim">3PT-weighted FG%</td></tr>
+      <tr><td class="td-left">AST/TOV</td><td class="hi">{{ "%.2f"|format(advanced.ast_tov) }}</td><td>{{ "%.2f"|format(team_avg.ast_tov) }}</td><td>&gt;2.0</td>        <td class="td-left u-dim">Decision quality</td></tr>
       <tr>
         <td class="td-left">+/- avg</td>
         <td class="hi">{{ pm_span(advanced.avg_plus_minus) }}</td>
         <td>—</td><td>&gt;+5</td>
-        <td class="td-left" style="color:var(--dim);">On-court differential</td>
+        <td class="td-left u-dim">On-court differential ({{ box_detail.tracked_plus_minus_games }} LIVE games)</td>
       </tr>
     </tbody>
   </table>
@@ -740,15 +831,15 @@
   <table>
     <thead><tr><th class="td-left">Metric</th><th>Total</th><th>Per Game</th><th class="td-left">Notes</th></tr></thead>
     <tbody>
-      <tr><td class="td-left">Offensive Rebounds</td><td>{{ box_detail.totals.oreb }}</td><td>{{ "%.1f"|format(box_detail.per_game.oreb) }}</td><td class="td-left" style="color:var(--dim);">2nd-chance creation</td></tr>
-      <tr><td class="td-left">Defensive Rebounds</td><td>{{ box_detail.totals.dreb }}</td><td>{{ "%.1f"|format(box_detail.per_game.dreb) }}</td><td class="td-left" style="color:var(--dim);">Possession-ending</td></tr>
-      <tr><td class="td-left">Personal Fouls</td><td>{{ box_detail.totals.pf }}</td><td>{{ "%.1f"|format(box_detail.per_game.pf) }}</td><td class="td-left" style="color:var(--dim);">Discipline &amp; availability</td></tr>
-      <tr><td class="td-left">REB Conceded</td><td>{{ box_detail.totals.reb_conceded }}</td><td>{{ "%.1f"|format(box_detail.per_game.reb_conceded) }}</td><td class="td-left" style="color:var(--dim);">{% if box_detail.has_reb_conceded %}Tracked {{ box_detail.tracked_reb_conceded_games }} games{% else %}Unavailable{% endif %}</td></tr>
+      <tr><td class="td-left">Offensive Rebounds</td><td>{{ box_detail.totals.oreb }}</td><td>{{ "%.1f"|format(box_detail.per_game.oreb) }}</td>        <td class="td-left u-dim">2nd-chance creation</td></tr>
+      <tr><td class="td-left">Defensive Rebounds</td><td>{{ box_detail.totals.dreb }}</td><td>{{ "%.1f"|format(box_detail.per_game.dreb) }}</td>        <td class="td-left u-dim">Possession-ending</td></tr>
+      <tr><td class="td-left">Personal Fouls</td><td>{{ box_detail.totals.pf }}</td><td>{{ "%.1f"|format(box_detail.per_game.pf) }}</td>        <td class="td-left u-dim">Discipline &amp; availability</td></tr>
+      <tr><td class="td-left">REB Conceded</td><td>{{ box_detail.totals.reb_conceded }}</td><td>{{ "%.1f"|format(box_detail.per_game.reb_conceded) }}</td>        <td class="td-left u-dim">{% if box_detail.has_reb_conceded %}Tracked {{ box_detail.tracked_reb_conceded_games }} games{% else %}Unavailable{% endif %}</td></tr>
       <tr>
         <td class="td-left">Plus / Minus</td>
         <td>{{ pm_int(box_detail.totals.plus_minus) }}</td>
         <td>{{ pm_span(box_detail.per_game.plus_minus) }}</td>
-        <td class="td-left" style="color:var(--dim);">{% if box_detail.has_live_plus_minus %}Tracked {{ box_detail.tracked_plus_minus_games }} games{% else %}Unavailable{% endif %}</td>
+        <td class="td-left u-dim">{% if box_detail.has_live_plus_minus %}Tracked {{ box_detail.tracked_plus_minus_games }} games{% else %}Unavailable{% endif %}</td>
       </tr>
     </tbody>
   </table>
@@ -772,7 +863,7 @@
     <div class="chart-cap">Cyan area = points per game &nbsp;|&nbsp; Gold dashed = 3-game MA &nbsp;|&nbsp; Green/red shading = +/- trend (LIVE games only)</div>
   </div>
   {% else %}
-  <div class="info-box"><p style="color:var(--dim);">Chart data not available.</p></div>
+  <div class="info-box"><p class="u-dim">Chart data not available.</p></div>
   {% endif %}
 
   <div class="sec"><span class="sec-icon">&#128202;</span> Clutch Snapshot</div>
@@ -787,9 +878,9 @@
   <div class="info-box">
     <p><strong>Source:</strong> {{ possession_context.source|capitalize }} possessions &nbsp;|&nbsp;
        <strong>Team PPP:</strong> {{ "%.3f"|format(possession_context.team_ppp) }} &nbsp;|&nbsp;
-       <strong>Opp PPP:</strong> {{ "%.3f"|format(possession_context.opp_ppp) }}</p>
+       <strong>Opp PPP:</strong> {% if possession_context.opp_ppp is not none %}{{ "%.3f"|format(possession_context.opp_ppp) }}{% else %}N/A{% endif %}</p>
     <p><strong>Total Team Poss:</strong> {{ possession_context.total_team_possessions }} &nbsp;|&nbsp;
-       <strong>Total Opp Poss:</strong> {{ possession_context.total_opp_possessions }}</p>
+       <strong>Total Opp Poss:</strong> {% if possession_context.total_opp_possessions is not none %}{{ possession_context.total_opp_possessions }}{% else %}N/A{% endif %}</p>
   </div>
 
   {% if possession_context.quarter_rows %}
@@ -825,25 +916,29 @@
 
   {% if lineup_context.available %}
 
-  {% if lineup_context.top_lineups_available %}
+  {% if lineup_context.top_lineups_available and lineup_context.best_lineup %}
   <div class="sec"><span class="sec-icon">&#128200;</span> Best &amp; Worst Lineups</div>
   <div class="two-col">
-    <div class="info-box" style="border-left-color:var(--green);">
-      <p><strong style="color:var(--green);">&#9650; Best Lineup</strong></p>
+    {% set best_negative = lineup_context.best_net_is_negative %}
+    {% set worst_positive = lineup_context.worst_net_is_positive %}
+    <div class="info-box {% if best_negative %}u-border-left-amber{% else %}u-border-left-green{% endif %}">
+      <p><strong class="{% if best_negative %}u-amber{% else %}u-green{% endif %}">{% if best_negative %}&#9650; Least Bad{% else %}&#9650; Best Lineup{% endif %}</strong></p>
       <p>{{ lineup_context.best_lineup.players|join(' &middot; ') }}</p>
-      <p style="color:var(--dim);">Teammates: {{ lineup_context.best_lineup.teammates|join(', ') }}</p>
-      <p>Net Rating: <span class="pos">{{ "%+.1f"|format(lineup_context.best_lineup.net_rating) }}</span></p>
+      <p class="u-dim">Teammates: {{ lineup_context.best_lineup.teammates|join(', ') }}</p>
+      <p>Net Rating: <span class="{% if best_negative %}neg{% else %}pos{% endif %}">{{ "%+.1f"|format(lineup_context.best_lineup.net_rating) }}</span></p>
       <p>{{ "%.1f"|format(lineup_context.best_lineup.minutes) }} min &nbsp;|&nbsp; {{ lineup_context.best_lineup.possessions }} poss</p>
-      <p style="color:var(--dim);">ORTG {{ "%.1f"|format(lineup_context.best_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.best_lineup.drtg) }}</p>
+      <p class="u-dim">ORTG {{ "%.1f"|format(lineup_context.best_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.best_lineup.drtg) }}</p>
     </div>
-    <div class="info-box" style="border-left-color:var(--red);">
-      <p><strong style="color:var(--red);">&#9660; Worst Lineup</strong></p>
+    {% if lineup_context.worst_lineup %}
+    <div class="info-box {% if worst_positive %}u-border-left-amber{% else %}u-border-left-red{% endif %}">
+      <p><strong class="{% if worst_positive %}u-amber{% else %}u-red{% endif %}">{% if worst_positive %}&#9660; Least Good{% else %}&#9660; Worst Lineup{% endif %}</strong></p>
       <p>{{ lineup_context.worst_lineup.players|join(' &middot; ') }}</p>
-      <p style="color:var(--dim);">Teammates: {{ lineup_context.worst_lineup.teammates|join(', ') }}</p>
-      <p>Net Rating: <span class="neg">{{ "%+.1f"|format(lineup_context.worst_lineup.net_rating) }}</span></p>
+      <p class="u-dim">Teammates: {{ lineup_context.worst_lineup.teammates|join(', ') }}</p>
+      <p>Net Rating: <span class="{% if worst_positive %}pos{% else %}neg{% endif %}">{{ "%+.1f"|format(lineup_context.worst_lineup.net_rating) }}</span></p>
       <p>{{ "%.1f"|format(lineup_context.worst_lineup.minutes) }} min &nbsp;|&nbsp; {{ lineup_context.worst_lineup.possessions }} poss</p>
-      <p style="color:var(--dim);">ORTG {{ "%.1f"|format(lineup_context.worst_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.worst_lineup.drtg) }}</p>
+      <p class="u-dim">ORTG {{ "%.1f"|format(lineup_context.worst_lineup.ortg) }} | DRTG {{ "%.1f"|format(lineup_context.worst_lineup.drtg) }}</p>
     </div>
+    {% endif %}
   </div>
   {% endif %}
 
@@ -867,7 +962,7 @@
   </table>
 
   {% else %}
-  <div class="info-box"><p style="color:var(--dim);">No lineup data available for this filter.</p></div>
+  <div class="info-box"><p class="u-dim">No lineup data available for this filter.</p></div>
   {% endif %}
 
   <div class="sec"><span class="sec-icon">&#127918;</span> Top Tagged Plays</div>
@@ -878,7 +973,7 @@
       {% for play in shot_play_context.play_summary.top_volume %}
       <tr>
         <td class="td-left">{{ play.play_name }}</td>
-        <td class="td-left" style="color:var(--dim);">{{ play.play_type }}</td>
+        <td class="td-left u-dim">{{ play.play_type }}</td>
         <td>{{ play.points }}</td>
         <td>{{ play.attempts }}</td>
         <td>{{ "%.1f"|format(play.fg_pct) }}%</td>
@@ -889,7 +984,7 @@
     </tbody>
   </table>
   {% else %}
-  <div class="info-box"><p style="color:var(--dim);">No play-tagged events available.</p></div>
+  <div class="info-box"><p class="u-dim">No play-tagged events available.</p></div>
   {% endif %}
 </div>
 
@@ -904,7 +999,7 @@
     <div class="page-header-badge"><span class="page-tag">Game Log</span></div>
   </div>
 
-  <table style="font-size:7.5px;">
+  <table class="u-fs-xs">
     <thead>
       <tr>
         <th>Date</th>
@@ -930,14 +1025,14 @@
     </thead>
     <tbody>
       {% for game in game_logs %}
-      <tr style="break-inside:avoid;page-break-inside:avoid;">
+      <tr class="ns">
         <td>{{ game.date }}</td>
         <td class="td-left"><strong>{{ game.opponent }}</strong></td>
         <td class="{% if game.result == 'W' %}win{% else %}loss{% endif %}">{{ game.result }}</td>
         <td>{{ game.minutes }}</td>
         <td class="{% if game.pts >= 20 %}hi{% endif %} td-bold">{{ game.pts }}</td>
         <td>{{ game.reb }}</td>
-        <td style="color:var(--dim);">{{ game.oreb }}/{{ game.dreb }}</td>
+        <td class="u-dim">{{ game.oreb }}/{{ game.dreb }}</td>
         <td>{{ game.ast }}</td>
         <td>{{ game.stl }}</td>
         <td>{{ game.blk }}</td>
@@ -960,7 +1055,7 @@
       {% endfor %}
     </tbody>
   </table>
-  <p style="font-family:var(--font-mono);font-size:7px;color:var(--dim);margin-top:8px;">
+  <p class="u-mono u-fs-sm u-dim u-mt-8">
     * 20+ point games are highlighted &nbsp;|&nbsp; +/- = point differential while on court
   </p>
 </div>

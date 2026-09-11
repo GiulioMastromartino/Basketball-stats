@@ -1,5 +1,6 @@
 import ast
 import json
+import os
 import zipfile
 from collections import defaultdict
 from io import BytesIO
@@ -457,7 +458,8 @@ def _get_games(game_type):
 
 
 def _render_pdf(html, filename):
-    html_doc = HTML(string=html)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    html_doc = HTML(string=html, base_url=f"file://{project_root}/")
     pdf_bytes = html_doc.write_pdf()
     pdf_io = BytesIO(pdf_bytes)
     pdf_io.seek(0)

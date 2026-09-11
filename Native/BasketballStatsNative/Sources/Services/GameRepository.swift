@@ -8,13 +8,20 @@ protocol PersistenceService: Sendable {
 protocol ImportExportService: Sendable {
     func importGames(from urls: [URL]) async throws -> [Game]
     func exportRawGame(_ game: Game) async throws -> URL
+    func games(fromSync rawGames: [WebRawGame]) -> [Game]
+    func plays(fromSync webPlays: [WebPlayFull]) -> [Play]
+    func playTypes(fromSync webTypes: [WebPlayTypeRef]) -> [PlayType]
 }
 
 protocol LiveGameService: Sendable {
     func startNewGame(opponent: String, roster: [String], startingLineup: [String], gameType: GameType) -> LiveGameSession
-    func recordEvent(in session: LiveGameSession, kind: LiveGameEventKind, playerName: String?, detail: String, playID: UUID?) -> LiveGameSession
+    func recordEvent(in session: LiveGameSession, kind: LiveGameEventKind, playerName: String?, detail: String, playID: UUID?, xLocation: Double?, yLocation: Double?) -> LiveGameSession
+    func recordFreeThrowTrip(in session: LiveGameSession, player: String, totalFt: Int, made: Int, playID: UUID?) -> LiveGameSession
     func substitute(in session: LiveGameSession, outgoing: String, incoming: String) -> LiveGameSession
     func undoLastEvent(in session: LiveGameSession) -> LiveGameSession
+    func removeOpponentAction(in session: LiveGameSession, eventID: UUID) -> LiveGameSession
+    func attachPlay(in session: LiveGameSession, playID: UUID?, toEventID: UUID) -> LiveGameSession
+    func attachOpponentShotLocation(in session: LiveGameSession, x: Double, y: Double, toEventID: UUID) -> LiveGameSession
     func complete(session: LiveGameSession) -> Game
 }
 

@@ -638,9 +638,11 @@
                 </div>
             </div>
             <div class="d-flex gap-2 {% if pdf_mode %}pdf-hide{% endif %}">
+                {% if player_id %}
                 <a href="{{ url_for('pdf_export.export_player_pdf', player_id=player_id) }}" class="btn btn-primary shadow-sm" target="_blank">
                     <i class="fas fa-file-pdf me-2"></i>Professional Report
                 </a>
+                {% endif %}
                 <a href="{{ report_url if report_url is defined else url_for('analytics.player_report_pdf', player_name=player_name, game_type=game_type) }}" class="btn btn-outline-light shadow-sm">
                     <i class="fas fa-file-download me-2"></i>Download Detail
                 </a>

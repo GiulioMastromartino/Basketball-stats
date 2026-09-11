@@ -10,17 +10,17 @@ struct PlaybookScreen: View {
                 ForEach(appModel.plays) { play in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(play.name)
-                            .font(.headline)
+                            .font(.outfit(size: 14, weight: .semibold))
                         Text("\(play.playType) • \(play.difficulty)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.outfit(size: 12))
+                            .foregroundStyle(HSToken.inkMuted)
                     }
                     .tag(Optional(play.id))
                 }
             }
             .navigationTitle("Playbook")
             .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .primaryAction) {
                     Button("New") {
                         appModel.savePlay(appModel.blankPlay())
                         isEditing = true
@@ -32,33 +32,45 @@ struct PlaybookScreen: View {
             }
         } detail: {
             if let play = appModel.selectedPlay {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        Text(play.name)
-                            .font(.largeTitle.weight(.bold))
-                        Label("\(play.playType) • \(play.difficulty)", systemImage: "play.fill")
-                        Text(play.description.isEmpty ? "No description" : play.description)
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Frames")
-                                .font(.title2.weight(.bold))
-                            ForEach(play.frames) { frame in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("\(frame.sequenceNumber). \(frame.caption)")
-                                        .font(.headline)
-                                    Text(frame.annotations.joined(separator: " • "))
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
+                HSPage {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            Text(play.name)
+                                .font(.bebas(size: 40))
+                                .foregroundStyle(HSToken.ink)
+                            Label("\(play.playType) • \(play.difficulty)", systemImage: "play.fill")
+                                .font(.outfit(size: 13, weight: .semibold))
+                                .foregroundStyle(HSToken.cool)
+                            Text(play.description.isEmpty ? "No description" : play.description)
+                                .font(.outfit(size: 14))
+                                .foregroundStyle(HSToken.inkMuted)
+                            VStack(alignment: .leading, spacing: 12) {
+                                HSSectionHeader(title: "Frames", icon: "film.stack")
+                                ForEach(play.frames) { frame in
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("\(frame.sequenceNumber). \(frame.caption)")
+                                            .font(.outfit(size: 14, weight: .semibold))
+                                        Text(frame.annotations.joined(separator: " • "))
+                                            .font(.outfit(size: 12))
+                                            .foregroundStyle(HSToken.inkMuted)
+                                    }
+                                    .padding(16)
+                                    .background(HSToken.surface, in: RoundedRectangle(cornerRadius: HSToken.radiusSmall, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: HSToken.radiusSmall, style: .continuous)
+                                            .stroke(HSToken.line, lineWidth: 1)
+                                    )
                                 }
-                                .padding(16)
-                                .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                             }
                         }
+                        .padding(24)
+                        .frame(maxWidth: 900, alignment: .leading)
+                        .frame(maxWidth: .infinity)
                     }
-                    .padding(24)
                 }
                 .navigationTitle(play.name)
                 .toolbar {
-                    ToolbarItemGroup(placement: .topBarTrailing) {
+                    ToolbarItemGroup(placement: .primaryAction) {
                         Button("Edit") { isEditing = true }
                         Button(role: .destructive, action: appModel.deleteSelectedPlay) {
                             Image(systemName: "trash")

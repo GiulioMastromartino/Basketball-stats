@@ -3,7 +3,7 @@ Advanced Analytics API Routes
 Provides endpoints for advanced basketball statistics and visualizations.
 """
 
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, abort, jsonify, request, session
 from flask_login import login_required
 from sqlalchemy import func, desc
 from sqlalchemy.exc import OperationalError

@@ -36,3 +36,26 @@ targets:
         ENABLE_PREVIEWS: YES
     scheme:
       testTargets: []
+  BasketballStatsNativeMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources
+      - path: Resources/Fonts
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: BasketballStatsNativeMac
+        GENERATE_INFOPLIST_FILE: YES
+        MACOSX_DEPLOYMENT_TARGET: 15.0
+        PRODUCT_BUNDLE_IDENTIFIER: com.giulio.basketballstats.native.mac
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: 6.0
+        ENABLE_HARDENED_RUNTIME: NO
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+        ENABLE_PREVIEWS: YES
+    scheme:
+      testTargets: []

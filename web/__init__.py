@@ -21,7 +21,7 @@ from flask_migrate import Migrate
 from prometheus_flask_exporter import PrometheusMetrics
 from sqlalchemy import inspect, text
 from config import get_config
-from core.models import User, bcrypt, db, PlayType
+from core.models import User, Team, bcrypt, db, PlayType
 from core.db_migrations import add_missing_columns as auto_add_missing_columns
 from core import mail
 from core.logger import configure_root_logger, get_logger
@@ -107,6 +107,10 @@ def create_app(config_name: str = None) -> Flask:
     # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
+
+    # Auto-migrate missing columns (SQLite-safe) so stale dev DBs boot cleanly
+    with app.app_context():
+        auto_add_missing_columns(db)
     bcrypt.init_app(app)
     mail.init_app(app)
     if not disable_auth:
@@ -140,6 +144,11 @@ def create_app(config_name: str = None) -> Flask:
                 if teams:
                     session["current_team_id"] = teams[0].id
                     session["current_team_name"] = teams[0].name
+        elif disable_auth and not session.get("current_team_id"):
+            team = Team.query.order_by(Team.id).first()
+            if team:
+                session["current_team_id"] = team.id
+                session["current_team_name"] = team.name
 
     @app.context_processor
     def _inject_team_context():
@@ -185,6 +194,9 @@ def create_app(config_name: str = None) -> Flask:
         login_manager.login_view = "auth.login"
         login_manager.login_message = "Please log in to access this page."
         login_manager.login_message_category = "info"
+        # login_manager is process-global: a previous DISABLE_AUTH app may
+        # have set anonymous_user to NoAuthUser. Always reset explicitly.
+        login_manager.anonymous_user = AnonymousUserMixin
 
     @login_manager.user_loader
     def load_user(user_id):
