@@ -639,7 +639,7 @@ class TestLineupModel:
     """Tests for the Lineup model."""
     
     @pytest.mark.integration
-    def test_lineup_creation(self, db_session):
+    def test_lineup_creation(self, db_session, default_team):
         """Test basic lineup creation."""
         from core.models import Lineup
         from core.services.lineup_service import generate_lineup_hash
@@ -648,7 +648,8 @@ class TestLineupModel:
         lineup = Lineup(
             lineup_hash=generate_lineup_hash(players),
             players=sorted(players),
-            is_starting=True
+            is_starting=True,
+            team_id=default_team.id
         )
         db_session.add(lineup)
         db_session.commit()
@@ -659,7 +660,7 @@ class TestLineupModel:
         assert lineup.total_seconds == 0
     
     @pytest.mark.integration
-    def test_lineup_hash_unique(self, db_session):
+    def test_lineup_hash_unique(self, db_session, default_team):
         """Test lineup_hash must be unique."""
         from core.models import Lineup
         from core.services.lineup_service import generate_lineup_hash
@@ -668,18 +669,18 @@ class TestLineupModel:
         players = ["P1", "P2", "P3", "P4", "P5"]
         lineup_hash = generate_lineup_hash(players)
         
-        lineup1 = Lineup(lineup_hash=lineup_hash, players=sorted(players))
+        lineup1 = Lineup(lineup_hash=lineup_hash, players=sorted(players), team_id=default_team.id)
         db_session.add(lineup1)
         db_session.commit()
         
-        lineup2 = Lineup(lineup_hash=lineup_hash, players=sorted(players))
+        lineup2 = Lineup(lineup_hash=lineup_hash, players=sorted(players), team_id=default_team.id)
         db_session.add(lineup2)
         
         with pytest.raises(IntegrityError):
             db_session.commit()
     
     @pytest.mark.integration
-    def test_lineup_display_name(self, db_session):
+    def test_lineup_display_name(self, db_session, default_team):
         """Test lineup can have a custom display name."""
         from core.models import Lineup
         from core.services.lineup_service import generate_lineup_hash
@@ -688,7 +689,8 @@ class TestLineupModel:
         lineup = Lineup(
             lineup_hash=generate_lineup_hash(players),
             players=sorted(players),
-            display_name="Starting Five"
+            display_name="Starting Five",
+            team_id=default_team.id
         )
         db_session.add(lineup)
         db_session.commit()
@@ -716,7 +718,8 @@ class TestLineupsAPI:
             lineup = Lineup(
                 lineup_hash=generate_lineup_hash(players),
                 players=sorted(players),
-                total_seconds=60 * (i + 1)
+                total_seconds=60 * (i + 1),
+                team_id=sample_game.team_id
             )
             db.session.add(lineup)
         db.session.commit()
@@ -744,7 +747,8 @@ class TestLineupsAPI:
             points_allowed=10,
             ortg=150.0,
             drtg=100.0,
-            net_rating=50.0
+            net_rating=50.0,
+            team_id=sample_game.team_id
         )
         db.session.add(lineup)
         db.session.commit()
@@ -765,7 +769,7 @@ class TestLineupsAPI:
         assert response.status_code == 404
     
     @pytest.mark.integration
-    def test_api_update_lineup_name(self, auth_client):
+    def test_api_update_lineup_name(self, auth_client, default_team):
         """Test API can update lineup display name."""
         from core.models import Lineup, db
         from core.services.lineup_service import generate_lineup_hash
@@ -773,7 +777,8 @@ class TestLineupsAPI:
         players = ["P1", "P2", "P3", "P4", "P5"]
         lineup = Lineup(
             lineup_hash=generate_lineup_hash(players),
-            players=sorted(players)
+            players=sorted(players),
+            team_id=default_team.id
         )
         db.session.add(lineup)
         db.session.commit()
@@ -1096,7 +1101,8 @@ class TestLineupService:
         players = ["P1", "P2", "P3", "P4", "P5"]
         lineup = Lineup(
             lineup_hash=generate_lineup_hash(players),
-            players=sorted(players)
+            players=sorted(players),
+            team_id=sample_game.team_id
         )
         db_session.add(lineup)
         db_session.commit()

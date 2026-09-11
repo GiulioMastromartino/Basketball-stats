@@ -37,9 +37,9 @@ from core.utils import (
     safe_percentage,
     parse_minutes,
     calculate_possessions,
-    calculate_ts_percent,
     FT_ATTEMPT_WEIGHT,
 )
+from core import utils as _utils
 from core import rust_analytics
 
 
@@ -1168,7 +1168,7 @@ class AnalyticsEngine:
         totals["fg_pct"] = safe_percentage(totals["fgm"], totals["fga"])
         totals["tp_pct"] = safe_percentage(totals["tpm"], totals["tpa"])
         totals["ft_pct"] = safe_percentage(totals["ftm"], totals["fta"])
-        totals["ts_pct"] = calculate_ts_percent(
+        totals["ts_pct"] = _utils.calculate_ts_percent(
             totals["points"], totals["fga"], totals["fta"]
         )
         totals["efg_pct"] = safe_percentage(
@@ -1249,7 +1249,7 @@ class AnalyticsEngine:
             "tov_pct": safe_percentage(tov, plays),
             "orb_pct": safe_percentage(oreb, (oreb + result.dreb or 1)),
             "ft_rate": safe_divide(fta, fga),
-            "ts_pct": calculate_ts_percent(points, fga, fta),
+            "ts_pct": _utils.calculate_ts_percent(points, fga, fta),
         }
 
 

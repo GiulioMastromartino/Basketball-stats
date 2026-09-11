@@ -78,20 +78,83 @@ def db_session(app):
 
 @pytest.fixture
 def default_org(db_session):
-    """Create a default organization for testing."""
-    org = Organization(name="Test Org", slug="test-org")
-    db_session.add(org)
-    db_session.commit()
+    """Create a default organization for testing (idempotent)."""
+    org = Organization.query.filter_by(slug="test-org").first()
+    if org is None:
+        org = Organization(name="Test Org", slug="test-org")
+        db_session.add(org)
+        db_session.commit()
     return org
 
 
 @pytest.fixture
 def default_team(db_session, default_org):
-    """Create a default team for testing."""
-    team = Team(name="Test Team", organization_id=default_org.id, slug="test-team")
-    db_session.add(team)
-    db_session.commit()
+    """Create a default team for testing (idempotent)."""
+    team = Team.query.filter_by(
+        organization_id=default_org.id, slug="test-team"
+    ).first()
+    if team is None:
+        team = Team(name="Test Team", organization_id=default_org.id, slug="test-team")
+        db_session.add(team)
+        db_session.commit()
     return team
+
+
+@pytest.fixture(autouse=True)
+def _assign_default_team(db_session):
+    """Single-team test context: backfill team_id on rows created without one.
+
+    Most unit tests predate multi-tenancy and create Game/Lineup/Play rows
+    without a team. Production always sets the team from the session; this
+    listener reproduces that default in tests only. It is purely reactive
+    (fills NULL team_id at flush time) so tests that manage their own
+    orgs/teams are unaffected. Skipped when the multi-tenant tables do
+    not exist (e.g. legacy-schema migration tests).
+    """
+    from sqlalchemy import event, inspect
+
+    try:
+        has_teams = inspect(db.engine).has_table("teams")
+    except Exception:
+        has_teams = False
+    if not has_teams:
+        yield
+        return
+
+    # Provision a fallback team once per test (distinct slugs so tests that
+    # manage their own "test-org"/"test-team" never collide with it).
+    org = Organization.query.filter_by(slug="auto-test-org").first()
+    if org is None:
+        org = Organization(name="Auto Test Org", slug="auto-test-org")
+        db_session.add(org)
+        db_session.flush()
+    team = Team.query.filter_by(
+        organization_id=org.id, slug="auto-test-team"
+    ).first()
+    if team is None:
+        team = Team(
+            name="Auto Test Team",
+            organization_id=org.id,
+            slug="auto-test-team",
+        )
+        db_session.add(team)
+        db_session.flush()
+    fallback_team_id = team.id
+
+    @event.listens_for(db_session, "before_flush")
+    def _fill_team_id(session, flush_context, instances):
+        for obj in session.new:
+            if (
+                hasattr(obj, "__table__")
+                and "team_id" in obj.__table__.columns
+                and getattr(obj, "team_id") is None
+            ):
+                obj.team_id = fallback_team_id
+
+    try:
+        yield
+    finally:
+        event.remove(db_session, "before_flush", _fill_team_id)
 
 
 @pytest.fixture

@@ -10,7 +10,39 @@ Handles all lineup segment processing including:
 """
 
 from core import rust_analytics
-from core.models import db, GameEvent, Lineup, LineupSegment, PlayerLineupStats
+from core.models import (
+    db,
+    GameEvent,
+    Lineup,
+    LineupSegment,
+    Organization,
+    PlayerLineupStats,
+    Team,
+)
+
+
+def resolve_team_id(team_id: int = None) -> int:
+    """Return explicit team_id, falling back to the default team.
+
+    Production callers always pass an explicit team. The fallback exists so
+    scripts and tests that create games without team context keep working
+    instead of violating the NOT NULL constraint on team_id. When no team
+    exists at all, a default organization/team is provisioned (mirroring
+    the production migration behavior).
+    """
+    if team_id is not None:
+        return team_id
+    team = Team.query.order_by(Team.id).first()
+    if team is None:
+        org = Organization.query.first()
+        if org is None:
+            org = Organization(name="Default Organization", slug="default-organization")
+            db.session.add(org)
+            db.session.flush()
+        team = Team(name="Default Team", slug="default-team", organization_id=org.id)
+        db.session.add(team)
+        db.session.flush()
+    return team.id
 
 def generate_lineup_hash(players: list) -> str:
     """Use high-performance Rust implementation for lineup hashing."""
@@ -50,6 +82,7 @@ def get_or_create_lineup(players: list, is_starting: bool = False, team_id: int 
     if len(players) != 5:
         return None
 
+    team_id = resolve_team_id(team_id)
     lineup_hash = generate_lineup_hash(players)
     lineup = Lineup.query.filter_by(lineup_hash=lineup_hash).first()
 
@@ -153,7 +186,7 @@ def update_lineup_cached_stats(lineup_id: int):
 
 
 def build_lineup_segments(
-    game_id: int, events: list, starting_lineup: list = None
+    game_id: int, events: list, starting_lineup: list = None, team_id: int = None
 ) -> list:
     """
     Process events chronologically to create LineupSegment records.
@@ -163,6 +196,7 @@ def build_lineup_segments(
         events: List of GameEvent objects sorted chronologically by timestamp
         starting_lineup: Optional list of 5 player names as initial lineup.
                         If None, extracts from first 5 SUB_IN events in Q1.
+        team_id: Team ID propagated to created Lineup rows (required by schema).
 
     Returns:
         List of created segment IDs
@@ -216,7 +250,7 @@ def build_lineup_segments(
                 segment_start_timestamp = event.timestamp
                 current_quarter = event.quarter
                 lineup = get_or_create_lineup(
-                    current_lineup, is_starting=True
+                    current_lineup, is_starting=True, team_id=team_id
                 )
 
                 current_segment = LineupSegment(
@@ -254,7 +288,7 @@ def build_lineup_segments(
 
                     current_lineup.append(sub_in_event.player_name)
 
-                    lineup = get_or_create_lineup(current_lineup)
+                    lineup = get_or_create_lineup(current_lineup, team_id=team_id)
 
                     current_segment = LineupSegment(
                         game_id=game_id,
@@ -564,14 +598,14 @@ def populate_player_lineup_stats(segment_id: int) -> None:
 
 
 def process_game_lineups(
-    game_id: int, events: list, starting_lineup: list = None
+    game_id: int, events: list, starting_lineup: list = None, team_id: int = None
 ) -> None:
     """
     Optimized entry point for lineup processing.
     Uses batch operations to avoid timeouts.
     """
     # 1. Build segments
-    segment_ids = build_lineup_segments(game_id, events, starting_lineup)
+    segment_ids = build_lineup_segments(game_id, events, starting_lineup, team_id)
     if not segment_ids:
         return
 

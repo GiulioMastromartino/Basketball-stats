@@ -222,13 +222,13 @@ class TestAdminRoutes:
     @pytest.mark.integration
     def test_users_list_admin(self, admin_client, editor_user):
         """Test admin can access users list."""
-        response = admin_client.get("/auth/users")
+        response = admin_client.get("/admin")
         assert response.status_code == 200
 
     @pytest.mark.integration
     def test_users_list_editor_denied(self, auth_client):
         """Test editor cannot access users list."""
-        response = auth_client.get("/auth/users")
+        response = auth_client.get("/admin")
         assert response.status_code in [403, 302]
 
     @pytest.mark.integration
