@@ -317,7 +317,7 @@ def landing():
     """Landing page for unauthenticated users"""
     if current_user.is_authenticated:
         return redirect(url_for("main.index"))
-    return render_template("landing.html")
+    return render_template("landing_oss.html")
 
 
 @main_bp.route("/")
