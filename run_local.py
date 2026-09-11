@@ -18,10 +18,16 @@ app = create_app()
 
 
 def _ensure_dev_team():
-    """Guarantee a default org/team so pages have context on a fresh DB."""
+    """Guarantee a default org/team so pages have context on a fresh DB.
+
+    Never seeds into a database that already has organizations (e.g. when
+    pointed at the prod DB via DATABASE_URL).
+    """
     with app.app_context():
         db.create_all()
-        org = Organization.query.first()
+        if Organization.query.first() is not None:
+            return
+        org = Organization(name="Dev Organization", slug="dev-organization")
         if org is None:
             org = Organization(name="Dev Organization", slug="dev-organization")
             db.session.add(org)
