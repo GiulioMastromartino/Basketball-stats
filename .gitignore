@@ -62,6 +62,11 @@ Thumbs.db
 *.swo
 .cursor/
 
+# Xcode (generated / user-specific; schemes in xcshareddata are kept)
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
 # Build/dist
 dist/
 build/

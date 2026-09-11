@@ -1,5 +1,10 @@
 import Foundation
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+import CoreText
+#endif
 
 struct LocalPersistenceService: PersistenceService {
     private let store = JSONFileStore()
@@ -153,9 +158,15 @@ struct LocalLiveGameService: LiveGameService {
         LiveGameSession.newGame(opponent: opponent, roster: roster, startingLineup: startingLineup, gameType: gameType)
     }
 
-    func recordEvent(in session: LiveGameSession, kind: LiveGameEventKind, playerName: String?, detail: String, playID: UUID?) -> LiveGameSession {
+    func recordEvent(in session: LiveGameSession, kind: LiveGameEventKind, playerName: String?, detail: String, playID: UUID?, xLocation: Double?, yLocation: Double?) -> LiveGameSession {
         var session = session
-        session.recordEvent(kind, playerName: playerName, detail: detail, playID: playID, createsPossession: kind.createsPossession, shotEvent: shotEvent(for: kind, playerName: playerName, quarter: session.quarter, playID: playID))
+        session.recordEvent(kind, playerName: playerName, detail: detail, playID: playID, xLocation: xLocation, yLocation: yLocation)
+        return session
+    }
+
+    func recordFreeThrowTrip(in session: LiveGameSession, player: String, totalFt: Int, made: Int, playID: UUID?) -> LiveGameSession {
+        var session = session
+        session.recordFreeThrowTrip(player: player, totalFt: totalFt, made: made, playID: playID)
         return session
     }
 
@@ -171,44 +182,27 @@ struct LocalLiveGameService: LiveGameService {
         return session
     }
 
-    func complete(session: LiveGameSession) -> Game {
-        session.makeCompletedGame()
+    func removeOpponentAction(in session: LiveGameSession, eventID: UUID) -> LiveGameSession {
+        var session = session
+        session.removeOpponentAction(eventID: eventID)
+        return session
     }
 
-    private func shotEvent(for kind: LiveGameEventKind, playerName: String?, quarter: Int, playID: UUID?) -> ShotEvent? {
-        guard kind.isShotEvent else { return nil }
-        let shotType: ShotType
-        let result: ShotResult
-        let zone: ShotZone
+    func attachPlay(in session: LiveGameSession, playID: UUID?, toEventID: UUID) -> LiveGameSession {
+        var session = session
+        session.attachPlay(playID, toEventID: toEventID)
+        return session
+    }
 
-        switch kind {
-        case .homeTwoMade, .homeTwoMissed, .awayTwoMade, .awayTwoMissed:
-            shotType = .twoPoint
-            result = [.homeTwoMade, .awayTwoMade].contains(kind) ? .made : .missed
-            zone = .paint
-        case .homeThreeMade, .homeThreeMissed, .awayThreeMade, .awayThreeMissed:
-            shotType = .threePoint
-            result = [.homeThreeMade, .awayThreeMade].contains(kind) ? .made : .missed
-            zone = .aboveBreakThree
-        default:
-            shotType = .freeThrow
-            result = [.homeFreeThrowMade, .awayFreeThrowMade].contains(kind) ? .made : .missed
-            zone = .freeThrow
-        }
+    func attachOpponentShotLocation(in session: LiveGameSession, x: Double, y: Double, toEventID: UUID) -> LiveGameSession {
+        var session = session
+        session.attachOpponentShotLocation(x: x, y: y, toEventID: toEventID)
+        return session
+    }
 
-        return ShotEvent(
-            id: UUID(),
-            gameID: nil,
-            playerName: playerName,
-            shotType: shotType,
-            result: result,
-            points: kind.pointsValue,
-            xLocation: nil,
-            yLocation: nil,
-            zone: zone,
-            quarter: quarter,
-            playID: playID
-        )
+    func complete(session: LiveGameSession) -> Game {
+        var session = session
+        return session.makeCompletedGame()
     }
 }
 
@@ -340,14 +334,39 @@ struct LocalReportService: ReportService {
 
     func summaryPDF(for game: Game) async throws -> URL {
         let text = summaryText(for: game)
+        let data: Data
+        #if os(iOS)
         let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 595, height: 842))
-        let data = renderer.pdfData { context in
+        data = renderer.pdfData { context in
             context.beginPage()
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
             ]
             text.draw(in: CGRect(x: 40, y: 40, width: 515, height: 762), withAttributes: attributes)
         }
+        #else
+        let pageRect = CGRect(x: 0, y: 0, width: 595, height: 842)
+        let pdfData = NSMutableData()
+        guard let consumer = CGDataConsumer(data: pdfData) else {
+            throw NSError(domain: "LocalReportService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not create PDF consumer"])
+        }
+        var mediaBox = pageRect
+        guard let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
+            throw NSError(domain: "LocalReportService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not create PDF context"])
+        }
+        context.beginPDFPage(nil)
+        let attributed = NSAttributedString(string: text, attributes: [
+            .font: NSFont.monospacedSystemFont(ofSize: 14, weight: .regular),
+            .foregroundColor: NSColor.black
+        ])
+        let framesetter = CTFramesetterCreateWithAttributedString(attributed)
+        let framePath = CGPath(rect: CGRect(x: 40, y: 40, width: 515, height: 762), transform: nil)
+        let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), framePath, nil)
+        CTFrameDraw(frame, context)
+        context.endPDFPage()
+        context.closePDF()
+        data = pdfData as Data
+        #endif
 
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("report_\(game.sortDate)_\(game.opponent.sanitizedFileName)")
@@ -530,6 +549,17 @@ private struct RawGameExport: Codable {
         var quarter: Int?
     }
 
+    struct SegmentBlock: Codable {
+        var players: [String]?
+        var quarter: Int?
+        var lineup_hash: String?
+        var points_scored: Int?
+        var points_allowed: Int?
+        var possessions: Int?
+        var reb_conceded: Int?
+        var duration_seconds: Int?
+    }
+
     var schema_version: String?
     var exported_at: String?
     var source: SourceBlock?
@@ -537,15 +567,20 @@ private struct RawGameExport: Codable {
     var player_stats: [PlayerBlock]
     var shot_events: [ShotBlock]
     var game_events: [EventBlock]
+    var starting_lineup: [String]?
+    var lineup_segments: [SegmentBlock]?
 
     static func from(game: Game) -> RawGameExport {
-        RawGameExport(
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd/MM/yyyy"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return RawGameExport(
             schema_version: String(game.schemaVersion),
             exported_at: ISO8601DateFormatter().string(from: .now),
             source: SourceBlock(app: "BasketballStatsNative", branch: "iPad"),
             game: GameBlock(
                 id: nil,
-                date: game.displayDate,
+                date: formatter.string(from: game.date),
                 opponent: game.opponent,
                 team_score: game.teamScore,
                 opponent_score: game.opponentScore,
@@ -598,6 +633,19 @@ private struct RawGameExport: Codable {
                     detail: $0.detail,
                     time_remaining: $0.timeRemaining,
                     score_margin: $0.scoreMargin
+                )
+            },
+            starting_lineup: nil,
+            lineup_segments: game.lineupSegments.map {
+                SegmentBlock(
+                    players: $0.players,
+                    quarter: $0.quarter,
+                    lineup_hash: nil,
+                    points_scored: $0.pointsScored,
+                    points_allowed: $0.pointsAllowed,
+                    possessions: $0.possessions,
+                    reb_conceded: nil,
+                    duration_seconds: nil
                 )
             }
         )
@@ -663,9 +711,24 @@ private struct RawGameExport: Codable {
                 taggedLineup: []
             )
         }
+        let lineupSegments: [LineupSegment] = (lineup_segments ?? []).compactMap { segment -> LineupSegment? in
+            guard let players = segment.players, !players.isEmpty else { return nil }
+            return LineupSegment(
+                id: UUID(),
+                quarter: segment.quarter ?? 1,
+                players: players,
+                startEventIndex: nil,
+                endEventIndex: nil,
+                pointsScored: segment.points_scored ?? 0,
+                pointsAllowed: segment.points_allowed ?? 0,
+                possessions: segment.possessions ?? 0,
+                displayName: nil
+            )
+        }
+        let isServerSynced = game.id != nil
         return Game(
             id: UUID(),
-            externalReference: source?.app,
+            externalReference: game.id.map(String.init),
             date: date,
             sortDate: game.sort_date ?? date.isoSortDate,
             opponent: game.opponent,
@@ -676,13 +739,160 @@ private struct RawGameExport: Codable {
             playerStats: playerStats,
             shotEvents: shotEvents,
             events: events,
-            lineupSegments: [],
-            notes: "Imported from JSON archive",
-            syncState: .localOnly,
+            lineupSegments: lineupSegments,
+            notes: isServerSynced ? "" : "Imported from JSON archive",
+            syncState: isServerSynced ? .synced : .localOnly,
             schemaVersion: game.schema_version ?? Int(schema_version ?? "1") ?? 1,
             createdAt: .now,
             updatedAt: .now
         )
+    }
+}
+
+struct RawGameExportBuilder {
+    func data(for game: Game) throws -> Data {
+        let export = RawGameExport.from(game: game)
+        return try JSONEncoder.exportEncoder.encode(export)
+    }
+}
+
+extension WebRawGame {
+    fileprivate func toRawExport() -> RawGameExport {
+        RawGameExport(
+            schema_version: game.schemaVersion.map(String.init) ?? "4",
+            exported_at: nil,
+            source: nil,
+            game: RawGameExport.GameBlock(
+                id: game.id,
+                date: game.date,
+                opponent: game.opponent,
+                team_score: game.teamScore,
+                opponent_score: game.opponentScore,
+                game_type: game.gameType,
+                sort_date: game.sortDate,
+                source: game.source,
+                schema_version: game.schemaVersion
+            ),
+            player_stats: playerStats.map {
+                RawGameExport.PlayerBlock(
+                    player_name: $0.playerName,
+                    points: $0.points,
+                    minutes: $0.minutes,
+                    reb: $0.reb,
+                    ast: $0.ast,
+                    stl: $0.stl,
+                    blk: $0.blk,
+                    tov: $0.tov,
+                    pf: $0.pf,
+                    fgm: $0.fgm,
+                    fga: $0.fga,
+                    tpm: $0.tpm,
+                    tpa: $0.tpa,
+                    ftm: $0.ftm,
+                    fta: $0.fta,
+                    oreb: $0.oreb,
+                    dreb: $0.dreb,
+                    plus_minus: $0.plusMinus,
+                    reb_conceded: $0.reboundsConceded
+                )
+            },
+            shot_events: shotEvents.map {
+                RawGameExport.ShotBlock(
+                    player_name: $0.playerName,
+                    shot_type: $0.shotType,
+                    result: $0.result,
+                    points: $0.points,
+                    x_loc: $0.xLoc,
+                    y_loc: $0.yLoc,
+                    zone: $0.zone,
+                    quarter: $0.quarter
+                )
+            },
+            game_events: gameEvents.map {
+                RawGameExport.EventBlock(
+                    player_name: $0.playerName,
+                    event_type: $0.eventType,
+                    quarter: $0.quarter,
+                    timestamp: $0.timestamp,
+                    detail: $0.detail,
+                    time_remaining: $0.timeRemaining,
+                    score_margin: $0.scoreMargin
+                )
+            },
+            starting_lineup: startingLineup,
+            lineup_segments: lineupSegments.map {
+                RawGameExport.SegmentBlock(
+                    players: $0.players,
+                    quarter: $0.quarter,
+                    lineup_hash: $0.lineupHash,
+                    points_scored: $0.pointsScored,
+                    points_allowed: $0.pointsAllowed,
+                    possessions: $0.possessions,
+                    reb_conceded: $0.reboundsConceded,
+                    duration_seconds: $0.durationSeconds
+                )
+            }
+        )
+    }
+}
+
+extension LocalImportExportService {
+    func games(fromSync rawGames: [WebRawGame]) -> [Game] {
+        rawGames.map { $0.toRawExport().toGame() }
+    }
+
+    func plays(fromSync webPlays: [WebPlayFull]) -> [Play] {
+        webPlays.map { play in
+            let canvasScene: PlayCanvasScene
+            if let data = play.canvasData,
+               let scene = try? JSONSerialization.data(withJSONObject: data.asAny),
+               let decoded = try? JSONDecoder().decode(PlayCanvasScene.self, from: scene) {
+                canvasScene = decoded
+            } else {
+                canvasScene = .empty
+            }
+            return Play(
+                id: UUID(),
+                name: play.name,
+                description: play.description ?? "",
+                playType: play.playType ?? "Offense",
+                difficulty: play.difficulty ?? "Medium",
+                personnelRequired: play.personnelRequired ?? "",
+                tags: Self.tags(from: play.tags),
+                source: play.source ?? "imported",
+                canvasScene: canvasScene,
+                frames: (play.frames ?? []).map { frame in
+                    PlayFrame(
+                        id: UUID(),
+                        sequenceNumber: frame.sequenceNumber ?? 0,
+                        caption: frame.caption ?? "",
+                        focusPlayers: [],
+                        annotations: []
+                    )
+                },
+                createdAt: .now,
+                updatedAt: .now
+            )
+        }
+    }
+
+    func playTypes(fromSync webTypes: [WebPlayTypeRef]) -> [PlayType] {
+        webTypes.compactMap { type in
+            guard let name = type.name, !name.isEmpty else { return nil }
+            return PlayType(id: UUID(), name: name)
+        }
+    }
+
+    private static func tags(from raw: String?) -> [String] {
+        guard let raw, !raw.isEmpty else { return [] }
+        if let data = raw.data(using: .utf8),
+           let array = try? JSONDecoder().decode([String].self, from: data) {
+            return array
+        }
+        return raw
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 }
 
