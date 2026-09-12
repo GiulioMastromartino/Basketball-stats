@@ -568,6 +568,10 @@ def toggle_team_assignment(user_id):
         return jsonify({"ok": False, "error": "Not allowed for this team."}), 403
 
     if role in ("coach", "team_gm"):
+        if role == "team_gm" and not allowed:
+            # Only an org GM may crown team GMs (no self-service escalation).
+            return jsonify({"ok": False,
+                            "error": "Only an organization GM can set team GMs."}), 403
         ta = TeamAssignment.query.filter_by(user_id=user.id, team_id=team.id).first()
         if ta is None:
             if not assigned:

@@ -584,7 +584,7 @@
                                   data-user="{{ user.id }}" data-team="{{ team.id }}"
                                   style="cursor:pointer" title="Click to toggle {{ user.username }} on {{ team.name }}">
                                 {% if team.id in assignments.get(user.id, []) %}✓ {% endif %}{{ team.name }}</span>
-                            {% if team.id in team_gms.get(user.id, []) %}<span class="badge bg-warning text-dark ms-1" title="Team GM">★</span>{% endif %}
+                            {% if team.id in team_gms.get(user.id, []) %}<span class="badge bg-warning text-dark ms-1 teamgm-pill" data-user="{{ user.id }}" data-team="{{ team.id }}" data-set="1" style="cursor:pointer" title="Team GM — click to remove">★</span>{% else %}<span class="badge bg-light text-muted border ms-1 teamgm-pill" data-user="{{ user.id }}" data-team="{{ team.id }}" data-set="0" style="cursor:pointer" title="Click to make team GM">★</span>{% endif %}
                             {% else %}
                             <span class="badge {% if team.id in assignments.get(user.id, []) %}bg-primary{% else %}bg-light text-muted border{% endif %}">{% if team.id in assignments.get(user.id, []) %}✓ {% endif %}{{ team.name }}</span>
                             {% endif %}
@@ -681,6 +681,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.ok) { window.location.reload(); }
                 else { alert(data.error || "Could not update."); }
             });
+        });
+    });
+    // Team-GM star: click to grant/revoke the per-team GM flag.
+    document.querySelectorAll('.teamgm-pill').forEach(function(star) {
+        star.addEventListener('click', function() {
+            const userId = star.getAttribute('data-user');
+            const teamId = star.getAttribute('data-team');
+            const assigned = star.getAttribute('data-set') !== '1';
+            fetch(`/auth/users/${userId}/teams`, {
+                method: "POST",
+                headers: {"Content-Type": "application/json", "X-CSRFToken": csrf},
+                body: JSON.stringify({team_id: teamId, role: "team_gm", assigned: assigned}),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) { window.location.reload(); }
+                else { alert(data.error || "Could not update team GM."); }
+            })
+            .catch(() => alert("Team GM update failed."));
         });
     });
 });

@@ -102,11 +102,11 @@ def championship():
     if snapshot and team_filter:
         tl = team_filter.lower()
         snapshot = dict(snapshot)
-        snapshot["games"] = [g for g in snapshot["games"]
-                             if tl in g["casa"].lower()
-                             or tl in g["ospite"].lower()]
-        snapshot["standings"] = [r for r in snapshot["standings"]
-                                 if tl in r["team"].lower()]
+        snapshot["games"] = [g for g in snapshot.get("games", [])
+                             if tl in (g.get("casa") or "").lower()
+                             or tl in (g.get("ospite") or "").lower()]
+        snapshot["standings"] = [r for r in snapshot.get("standings", [])
+                                 if tl in (r.get("team") or "").lower()]
     return render_template(
         "analytics_championship.html",
         source=source,

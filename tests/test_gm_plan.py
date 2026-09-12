@@ -113,9 +113,14 @@ class TestRenameTransfer:
         assert Team.query.get(default_team.id).name == "U14 Herons"
 
     def test_transfer_team_keeps_games(
-            self, admin_client, db_session, default_team, sample_game):
+            self, admin_client, db_session, default_team, sample_game,
+            admin_user):
         dest = Organization(name="Dest Club", slug="dest-club")
         db.session.add(dest)
+        db.session.flush()
+        # Multi-org GM: membership in the destination allows the transfer.
+        db.session.add(OrganizationMembership(
+            user_id=admin_user.id, organization_id=dest.id, is_gm=True))
         db.session.commit()
         games_before = Game.query.filter_by(team_id=default_team.id).count()
         assert games_before >= 1
@@ -492,3 +497,152 @@ class TestCrossOrgIsolation:
         assert b"user_b" not in resp.data
         resp = admin_client.get("/admin/orgs")
         assert b"Org B" not in resp.data
+
+
+class TestCodeRabbitFindings:
+    """Regression tests for the CLI review findings on PR 28."""
+
+    def _two_orgs(self, db_session):
+        from core.models import Organization as _O
+        a = _O(name="OrgA", slug="orga-x")
+        b = _O(name="OrgB", slug="orgb-x")
+        db.session.add_all([a, b])
+        db.session.flush()
+        ta = Team(name="Team A", organization_id=a.id, slug="team-a")
+        tb = Team(name="Team B", organization_id=b.id, slug="team-b")
+        db.session.add_all([ta, tb])
+        db.session.commit()
+        return a, b, ta, tb
+
+    def _gm_of(self, db_session, org, username, email):
+        user = User(username=username, email=email,
+                    organization_id=org.id)
+        user.set_password("password123")
+        db.session.add(user)
+        db.session.flush()
+        db.session.add(OrganizationMembership(
+            user_id=user.id, organization_id=org.id, is_gm=True))
+        db.session.commit()
+        return user
+
+    def test_only_gm_can_grant_team_gm(
+            self, client, db_session, default_org, default_team,
+            admin_user):
+        from core.models import TeamAssignment as _TA
+        coach = User(username="coach_tgm", email="coach_tgm@test.com",
+                     organization_id=default_org.id)
+        coach.set_password("password123")
+        db.session.add(coach)
+        db.session.flush()
+        # coach is team-GM of default_team but not org GM
+        db.session.add(_TA(user_id=coach.id, team_id=default_team.id,
+                           is_coach=True, is_team_gm=True))
+        target = User(username="target_tgm", email="target_tgm@test.com",
+                      organization_id=default_org.id)
+        target.set_password("password123")
+        db.session.add(target)
+        db.session.commit()
+        with client.session_transaction() as sess:
+            sess["_user_id"] = str(coach.id)
+            sess["_fresh"] = True
+            sess["current_team_id"] = default_team.id
+        # coach toggle: allowed for team-GM
+        resp = client.post(
+            f"/auth/users/{target.id}/teams",
+            json={"team_id": default_team.id, "assigned": True,
+                  "role": "coach"})
+        assert resp.status_code == 200
+        assert resp.get_json()["ok"] is True
+        # team_gm grant: blocked for team-GM, org GM only
+        resp = client.post(
+            f"/auth/users/{target.id}/teams",
+            json={"team_id": default_team.id, "assigned": True,
+                  "role": "team_gm"})
+        assert resp.status_code == 403
+        assert _TA.query.filter_by(
+            user_id=target.id, team_id=default_team.id,
+            is_team_gm=True).first() is None
+
+    def test_transfer_to_foreign_org_blocked(
+            self, admin_client, db_session):
+        a, b, ta, tb = self._two_orgs(db_session)
+        gm = self._gm_of(db_session, a, "gm_a2", "gm_a2@test.com")
+        with admin_client.session_transaction() as sess:
+            sess["_user_id"] = str(gm.id)
+        resp = admin_client.post(
+            f"/teams/{ta.id}/transfer",
+            data={"organization_id": b.id}, follow_redirects=True)
+        assert resp.status_code == 200
+        assert Team.query.get(ta.id).organization_id == a.id
+
+    def test_audit_scoped_to_own_org(
+            self, client, db_session, default_org):
+        from core.models import AdminAudit as _AA
+        a, b, ta, tb = self._two_orgs(db_session)
+        gm = self._gm_of(db_session, a, "gm_a3", "gm_a3@test.com")
+        db.session.add(_AA(actor_id=gm.id, organization_id=a.id,
+                           action="test", summary="org A entry"))
+        db.session.add(_AA(actor_id=gm.id, organization_id=b.id,
+                           action="test", summary="org B entry"))
+        db.session.commit()
+        with client.session_transaction() as sess:
+            sess["_user_id"] = str(gm.id)
+            sess["_fresh"] = True
+        resp = client.get("/admin/activity")
+        assert resp.status_code == 200
+        assert b"org A entry" in resp.data
+        assert b"org B entry" not in resp.data
+
+    def test_dashboard_ignores_foreign_org_param(
+            self, admin_client, db_session, default_org):
+        from core.models import Organization as _O
+        other = _O(name="FarOrg", slug="farorg")
+        db.session.add(other)
+        db.session.commit()
+        resp = admin_client.get(f"/gm/dashboard?org_id={other.id}")
+        assert resp.status_code == 200
+        assert default_org.name.encode() in resp.data
+        assert b"FarOrg" not in resp.data
+
+    def test_switch_org_picks_accessible_team(
+            self, client, db_session, default_org, default_team):
+        from core.models import Team as _T
+        t2 = _T(name="Second", organization_id=default_org.id,
+                slug="second-acc")
+        db.session.add(t2)
+        db.session.flush()
+        member = User(username="member_acc", email="member_acc@test.com",
+                      organization_id=default_org.id)
+        member.set_password("password123")
+        db.session.add(member)
+        db.session.flush()
+        db.session.add(OrganizationMembership(
+            user_id=member.id, organization_id=default_org.id,
+            is_gm=False))
+        from core.models import TeamAssignment as _TA
+        db.session.add(_TA(user_id=member.id, team_id=t2.id))
+        db.session.commit()
+        with client.session_transaction() as sess:
+            sess["_user_id"] = str(member.id)
+            sess["_fresh"] = True
+        resp = client.post("/switch-org",
+                           data={"org_id": default_org.id},
+                           follow_redirects=False)
+        assert resp.status_code in (302, 303)
+        with client.session_transaction() as sess:
+            assert sess.get("current_team_id") == t2.id
+
+    def test_safe_next_rejects_backslash(
+            self, admin_client, db_session, default_team):
+        resp = admin_client.post(
+            f"/teams/{default_team.id}/rename",
+            data={"name": "Still Safe", "next": "/\\evil.example"},
+            follow_redirects=False)
+        assert resp.status_code in (302, 303)
+        assert "evil.example" not in resp.headers["Location"]
+        assert Team.query.get(default_team.id).name == "Still Safe"
+
+    def test_matrix_star_renders(self, admin_client):
+        resp = admin_client.get("/admin/matrix")
+        assert resp.status_code == 200
+        assert b"teamgm-pill" in resp.data

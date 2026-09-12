@@ -1486,7 +1486,7 @@ def gm_dashboard():
     if requested_org:
         mem = OrganizationMembership.query.filter_by(
             user_id=current_user.id, organization_id=requested_org).first()
-        if mem or getattr(current_user, "is_gm", False):
+        if mem or current_app.config.get("LOGIN_DISABLED"):
             org = Organization.query.get(requested_org) or org
     my_orgs = (Organization.query
                .join(OrganizationMembership,
@@ -1579,11 +1579,20 @@ def switch_org():
         flash("You do not belong to that organization.", "danger")
         return redirect(request.referrer or url_for("main.index"))
     session["current_org_id"] = org.id
-    # Point the team context at the first accessible team of that org.
-    teams = Team.query.filter_by(organization_id=org.id).order_by(Team.name).all()
+    # Point the team context at an accessible team of that org: GMs (and
+    # dev mode) see all of it, members only their assigned ones.
+    if (getattr(current_user, "is_gm", False)
+            or current_app.config.get("LOGIN_DISABLED")):
+        teams = Team.query.filter_by(organization_id=org.id).order_by(Team.name).all()
+    else:
+        teams = [t for t in current_user.assigned_teams
+                 if t.organization_id == org.id]
     if teams:
         session["current_team_id"] = teams[0].id
         session["current_team_name"] = teams[0].name
+    else:
+        session.pop("current_team_id", None)
+        session.pop("current_team_name", None)
     flash(f"Switched to {org.name}.", "success")
     return redirect(request.referrer or url_for("main.index"))
 
@@ -1616,7 +1625,8 @@ def _gm_org_ids():
 def _safe_next(default_endpoint="main.admin_panel", **values):
     """Redirect target for org/team forms: honor a relative ``next`` field."""
     nxt = (request.form.get("next") or "").strip()
-    if nxt.startswith("/") and not nxt.startswith("//"):
+    if (nxt.startswith("/") and not nxt.startswith("//")
+            and "\\" not in nxt):
         return redirect(nxt)
     return redirect(url_for(default_endpoint, **values))
 
@@ -1684,9 +1694,14 @@ def admin_panel(section="users"):
         if ta.is_team_gm:
             team_gms.setdefault(ta.user_id, set()).add(ta.team_id)
 
-    # Audit trail viewer (GM plan C-Phase 4): latest 100 entries.
-    audit_entries = (AdminAudit.query
-                     .order_by(AdminAudit.created_at.desc())
+    # Audit trail viewer (GM plan C-Phase 4): latest 100 entries, scoped to
+    # orgs the viewer administers (no cross-org activity leak).
+    allowed = _gm_org_ids()
+    audit_q = AdminAudit.query
+    if allowed is not None:
+        audit_q = (audit_q.filter(AdminAudit.organization_id.in_(allowed))
+                   if allowed else audit_q.filter(db.false()))
+    audit_entries = (audit_q.order_by(AdminAudit.created_at.desc())
                      .limit(100).all())
 
     settings_data = db.session.query(SystemSetting).all()
@@ -1961,6 +1976,11 @@ def transfer_team(team_id):
     org = Organization.query.get(org_id) if org_id else None
     if org is None:
         flash("Valid target organization is required.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    allowed = _gm_org_ids()
+    if allowed is not None and org.id not in allowed:
+        # Don't let teams be dumped into orgs the GM isn't part of.
+        flash("You do not administer the target organization.", "danger")
         return redirect(url_for("main.admin_panel", section="orgs"))
     if org.id == team.organization_id:
         flash("Team is already in that organization.", "warning")
