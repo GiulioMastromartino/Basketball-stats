@@ -137,20 +137,36 @@ def resolve_request_season_id(team_id: int):
     return current_season_id_from_session(session, team_id)
 
 
-def ensure_default_season(team_id: int) -> Season:
-    """Provision a catch-all season so teams always have something to select."""
+def season_name_for_date(sort_date: str) -> tuple[str, str, str]:
+    """Basketball season for a YYYY-MM-DD date: 1 Sept -> 30 June.
+
+    Returns (name, start_date, end_date), e.g. ("2025/2026", "2025-09-01",
+    "2026-06-30"). Name uses full years: yearStart/yearEnd.
+    """
+    year, month = int(sort_date[:4]), int(sort_date[5:7])
+    start_year = year if month >= 9 else year - 1
+    end_year = start_year + 1
+    return (
+        f"{start_year}/{end_year}",
+        f"{start_year}-09-01",
+        f"{end_year}-06-30",
+    )
+
+
+def ensure_default_season(team_id: int, sort_date: str = None) -> Season:
+    """Provision the team's season, following the Sept-June convention."""
     active = get_active_season(team_id)
     if active:
         return active
     existing = list_seasons(team_id)
     if existing:
         return set_active_season(team_id, existing[0].id)
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    year = int(today[:4])
+    today = sort_date or datetime.utcnow().strftime("%Y-%m-%d")
+    name, start_date, end_date = season_name_for_date(today)
     return create_season(
         team_id,
-        name=f"{year}/{str(year + 1)[-2:]}",
-        start_date=f"{year}-01-01",
-        end_date=f"{year}-12-31",
+        name=name,
+        start_date=start_date,
+        end_date=end_date,
         set_active=True,
     )

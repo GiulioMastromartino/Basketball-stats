@@ -11,6 +11,7 @@ from core.services.season_service import (
     list_seasons,
     match_season_for_date,
     resolve_season_id,
+    season_name_for_date,
     set_active_season,
 )
 from core.services.game_service import create_game_from_live_data
@@ -140,6 +141,21 @@ class TestSeasonResolution:
         assert season.is_active is True
         # Idempotent.
         assert ensure_default_season(default_team.id).id == season.id
+
+    @pytest.mark.integration
+    def test_season_name_follows_sept_june_convention(self):
+        assert season_name_for_date("2025-10-16") == (
+            "2025/2026", "2025-09-01", "2026-06-30",
+        )
+        assert season_name_for_date("2026-05-15") == (
+            "2025/2026", "2025-09-01", "2026-06-30",
+        )
+        assert season_name_for_date("2026-09-01") == (
+            "2026/2027", "2026-09-01", "2027-06-30",
+        )
+        assert season_name_for_date("2026-08-31") == (
+            "2025/2026", "2025-09-01", "2026-06-30",
+        )
 
 
 class TestSeasonRoutes:
