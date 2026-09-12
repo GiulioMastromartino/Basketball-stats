@@ -6,6 +6,7 @@ from flask import (
     Blueprint,
     abort,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -448,6 +449,56 @@ def manage_membership(user_id):
 
     flash(f"Membership for {user.username} updated.", "success")
     return redirect(url_for("main.admin_panel", section="users"))
+
+
+@auth_bp.route("/users/<int:user_id>/teams", methods=["POST"])
+@login_required
+@gm_required
+def toggle_team_assignment(user_id):
+    """Assign/remove a user to/from a team (JSON). Used by double-click UI."""
+    if user_id == current_user.id:
+        return jsonify({"ok": False, "error": "You cannot modify your own teams."}), 400
+
+    user = User.query.get_or_404(user_id)
+    data = request.get_json(silent=True) or {}
+    try:
+        team_id = int(data.get("team_id"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Valid team_id required."}), 400
+    assigned = bool(data.get("assigned", True))
+
+    team = Team.query.get_or_404(team_id)
+    if (
+        not current_app.config.get("LOGIN_DISABLED")
+        and (
+            user.organization_id != team.organization_id
+            or (
+                current_user.organization_id
+                and team.organization_id != current_user.organization_id
+            )
+        )
+    ):
+        return jsonify({"ok": False, "error": "Team is in another organization."}), 403
+
+    ta = TeamAssignment.query.filter_by(user_id=user.id, team_id=team.id).first()
+    if assigned:
+        if ta is None:
+            db.session.add(TeamAssignment(user_id=user.id, team_id=team.id))
+            db.session.commit()
+        action = "assigned"
+    else:
+        if ta is not None:
+            db.session.delete(ta)
+            db.session.commit()
+        action = "removed"
+    teams = [
+        {"id": t.id, "name": t.name}
+        for t in Team.query.join(TeamAssignment)
+        .filter(TeamAssignment.user_id == user.id)
+        .order_by(Team.name)
+        .all()
+    ]
+    return jsonify({"ok": True, "action": action, "teams": teams})
 
 
 @auth_bp.route("/players")

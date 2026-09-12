@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.models import Game, Organization, Team, db
+from core.models import Game, Organization, Team, TeamAssignment, User, db
 
 
 class TestOrgAdmin:
@@ -132,3 +132,87 @@ class TestTeamAdmin:
         )
         assert resp.status_code in (302, 403)
         assert Team.query.filter_by(slug="nope").first() is None
+
+
+class TestUserTeamAssignment:
+    def _other_user(self, db_session, default_org):
+        user = User(username="teammate", email="mate@test.com",
+                    organization_id=default_org.id)
+        user.set_password("password123")
+        db.session.add(user)
+        db.session.commit()
+        return user
+
+    def test_assign_and_remove(self, admin_client, db_session, default_org,
+                               default_team):
+        user = self._other_user(db_session, default_org)
+        resp = admin_client.post(
+            f"/auth/users/{user.id}/teams",
+            json={"team_id": default_team.id, "assigned": True},
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["ok"] is True
+        assert TeamAssignment.query.filter_by(
+            user_id=user.id, team_id=default_team.id
+        ).first() is not None
+        # Idempotent re-assign.
+        resp = admin_client.post(
+            f"/auth/users/{user.id}/teams",
+            json={"team_id": default_team.id, "assigned": True},
+        )
+        assert resp.get_json()["ok"] is True
+        assert TeamAssignment.query.filter_by(user_id=user.id).count() == 1
+        # Remove.
+        resp = admin_client.post(
+            f"/auth/users/{user.id}/teams",
+            json={"team_id": default_team.id, "assigned": False},
+        )
+        assert resp.get_json()["ok"] is True
+        assert TeamAssignment.query.filter_by(user_id=user.id).count() == 0
+
+    def test_assign_invalid_team(self, admin_client, db_session, default_org):
+        user = self._other_user(db_session, default_org)
+        resp = admin_client.post(
+            f"/auth/users/{user.id}/teams", json={"team_id": 999999}
+        )
+        assert resp.status_code == 404
+
+    def test_cannot_modify_own_teams(
+        self, admin_client, db_session, admin_user, default_team
+    ):
+        resp = admin_client.post(
+            f"/auth/users/{admin_user.id}/teams",
+            json={"team_id": default_team.id, "assigned": False},
+        )
+        assert resp.status_code == 400
+        assert resp.get_json()["ok"] is False
+
+    def test_cross_org_team_rejected(
+        self, admin_client, db_session, default_org
+    ):
+        user = self._other_user(db_session, default_org)
+        other_org = Organization(name="Other", slug="other")
+        db.session.add(other_org)
+        db.session.flush()
+        other_team = Team(name="Other Team", organization_id=other_org.id,
+                          slug="other-team")
+        db.session.add(other_team)
+        db.session.commit()
+        resp = admin_client.post(
+            f"/auth/users/{user.id}/teams",
+            json={"team_id": other_team.id, "assigned": True},
+        )
+        assert resp.status_code == 403
+        assert TeamAssignment.query.filter_by(user_id=user.id).count() == 0
+
+    def test_editor_cannot_assign(
+        self, auth_client, db_session, default_org, default_team
+    ):
+        user = self._other_user(db_session, default_org)
+        resp = auth_client.post(
+            f"/auth/users/{user.id}/teams",
+            json={"team_id": default_team.id, "assigned": True},
+            follow_redirects=False,
+        )
+        assert resp.status_code in (302, 403)
+        assert TeamAssignment.query.filter_by(user_id=user.id).count() == 0

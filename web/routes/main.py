@@ -1550,6 +1550,7 @@ def admin_panel(section="users"):
     players = Player.query.filter_by(team_id=team_id).order_by(Player.name).all()
     seasons = list_seasons(team_id) if team_id else []
     orgs = Organization.query.order_by(Organization.name).all()
+    all_teams = Team.query.order_by(Team.name).all()
 
     settings_data = db.session.query(SystemSetting).all()
     settings = {s.key: s.value for s in settings_data}
@@ -1560,6 +1561,7 @@ def admin_panel(section="users"):
         players=players,
         seasons=seasons,
         orgs=orgs,
+        all_teams=all_teams,
         settings=settings,
         section=section,
     )

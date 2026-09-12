@@ -71,6 +71,7 @@
                                         <th>Email</th>
                                         <th>GM</th>
                                         <th>Coach</th>
+                                        <th>Teams <span class="text-muted small fw-normal" title="Double-click a badge to remove the user from that team">(dbl-click ✕)</span></th>
                                         <th class="text-end pe-4">Actions</th>
                                     </tr>
                                 </thead>
@@ -107,6 +108,23 @@
             {% else %}
             <span class="badge bg-success">Coach</span>
             <span class="text-muted small ms-1">(You)</span>
+            {% endif %}
+        </td>
+        <td data-user-teams="{{ user.id }}">
+            {% if user.id != current_user.id %}
+            <span class="user-team-badges">
+                {% for team in user.assigned_teams %}
+                <span class="badge bg-primary user-team-badge" data-team-id="{{ team.id }}" title="Double-click to remove {{ user.username }} from {{ team.name }}">{{ team.name }} &times;</span>
+                {% endfor %}
+            </span>
+            <select class="form-select form-select-sm d-inline-block w-auto ms-1 user-team-add" data-user-id="{{ user.id }}" title="Assign to a team">
+                <option value="">+ team…</option>
+                {% for team in all_teams %}
+                <option value="{{ team.id }}">{{ team.name }}</option>
+                {% endfor %}
+            </select>
+            {% else %}
+            <span class="text-muted small">Current</span>
             {% endif %}
         </td>
         <td class="text-end pe-4">
@@ -459,6 +477,45 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.player-active-input').forEach(function(input) {
         input.addEventListener('change', function() {
             this.closest('form').submit();
+        });
+    });
+
+    // Team assignment: double-click a badge to remove, select to assign.
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+    const csrf = csrfToken ? csrfToken.content : "";
+    function toggleTeam(userId, teamId, assigned, onDone) {
+        fetch(`/auth/users/${userId}/teams`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json", "X-CSRFToken": csrf},
+            body: JSON.stringify({team_id: teamId, assigned: assigned}),
+        })
+        .then(r => r.json())
+        .then(onDone)
+        .catch(() => alert("Team update failed."));
+    }
+    document.querySelectorAll('.user-team-badge').forEach(function(badge) {
+        badge.style.cursor = "pointer";
+        badge.addEventListener('dblclick', function() {
+            const cell = badge.closest('[data-user-teams]');
+            const userId = cell.getAttribute('data-user-teams');
+            const teamId = badge.getAttribute('data-team-id');
+            toggleTeam(userId, teamId, false, function(data) {
+                if (data.ok) { badge.remove(); }
+                else { alert(data.error || "Could not remove."); }
+            });
+        });
+    });
+    document.querySelectorAll('.user-team-add').forEach(function(select) {
+        select.addEventListener('change', function() {
+            if (!select.value) return;
+            const userId = select.getAttribute('data-user-id');
+            const teamId = select.value;
+            const label = select.options[select.selectedIndex].text;
+            toggleTeam(userId, teamId, true, function(data) {
+                if (data.ok) { window.location.reload(); }
+                else { alert(data.error || "Could not assign."); }
+                select.value = "";
+            });
         });
     });
 });
