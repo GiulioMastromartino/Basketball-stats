@@ -74,15 +74,19 @@ def team_access_required(f):
 admin_required = gm_required
 
 
-def require_own_org(org_id) -> None:
-    """Abort 403 unless ``org_id`` is the current user's organization.
+def require_own_org(org_id):
+    """Block cross-org admin mutations (one GM reaching into another org).
 
-    Central guard against cross-org admin mutations (one GM reaching into
-    another org's users/teams/orgs). No-op when auth is disabled (dev mode).
+    Returns a redirect response when denied, None when allowed — call as
+    ``denied = require_own_org(x); if denied: return denied``.
+    Uses the bot-review convention (flash + redirect for form POSTs;
+    JSON endpoints return 403 themselves). No-op in dev mode.
     """
     if _auth_disabled():
-        return
-    if not current_user.is_authenticated:
-        abort(403)
-    if org_id is None or current_user.organization_id != org_id:
-        abort(403)
+        return None
+    own = getattr(current_user, "organization_id", None) \
+        if current_user.is_authenticated else None
+    if org_id is None or own != org_id:
+        flash("You do not administer this organization.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    return None

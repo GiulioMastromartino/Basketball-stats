@@ -396,7 +396,9 @@ def delete_user(user_id):
         return redirect(url_for("main.admin_panel", section="users"))
 
     user = User.query.get_or_404(user_id)
-    require_own_org(user.organization_id)
+    denied = require_own_org(user.organization_id)
+    if denied:
+        return denied
     username = user.username
     db.session.delete(user)
     db.session.commit()

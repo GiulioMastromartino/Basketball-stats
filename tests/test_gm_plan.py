@@ -420,16 +420,16 @@ class TestCrossOrgIsolation:
     def test_cannot_delete_other_org_user(
             self, admin_client, db_session, user_b):
         resp = admin_client.post(f"/auth/users/{user_b.id}/delete",
-                                 follow_redirects=False)
-        assert resp.status_code == 403
+                                 follow_redirects=True)
+        assert resp.status_code == 200
         assert User.query.get(user_b.id) is not None
 
     def test_cannot_rename_other_org(
             self, admin_client, db_session, org_b):
         resp = admin_client.post(f"/orgs/{org_b.id}/rename",
                                  data={"name": "Hijacked"},
-                                 follow_redirects=False)
-        assert resp.status_code == 403
+                                 follow_redirects=True)
+        assert resp.status_code == 200
         assert Organization.query.get(org_b.id).name == "Org B"
 
     def test_cannot_delete_other_org_with_data(
@@ -448,8 +448,8 @@ class TestCrossOrgIsolation:
             f"/orgs/{org_b.id}/settings",
             data={"timezone": "X", "sport": "Y",
                   "season_convention": "calendar"},
-            follow_redirects=False)
-        assert resp.status_code == 403
+            follow_redirects=True)
+        assert resp.status_code == 200
         assert Organization.query.get(org_b.id).timezone != "X"
 
     def test_cannot_create_team_in_other_org(
@@ -457,22 +457,22 @@ class TestCrossOrgIsolation:
         resp = admin_client.post(
             "/teams/create",
             data={"organization_id": org_b.id, "name": "Intruder"},
-            follow_redirects=False)
-        assert resp.status_code == 403
+            follow_redirects=True)
+        assert resp.status_code == 200
         assert Team.query.filter_by(slug="intruder").first() is None
 
     def test_cannot_rename_delete_transfer_other_org_team(
             self, admin_client, db_session, org_b, team_b, default_org):
         assert admin_client.post(
             f"/teams/{team_b.id}/rename", data={"name": "Hijacked"},
-            follow_redirects=False).status_code == 403
+            follow_redirects=True).status_code == 200
         assert admin_client.post(
             f"/teams/{team_b.id}/delete",
-            follow_redirects=False).status_code == 403
+            follow_redirects=True).status_code == 200
         assert admin_client.post(
             f"/teams/{team_b.id}/transfer",
             data={"organization_id": default_org.id},
-            follow_redirects=False).status_code == 403
+            follow_redirects=True).status_code == 200
         team = Team.query.get(team_b.id)
         assert team.name == "B Team"
         assert team.organization_id == org_b.id

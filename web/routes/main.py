@@ -1827,7 +1827,9 @@ def delete_org(org_id):
 def rename_org(org_id):
     """Rename an organization (GM plan C-Phase 3). Slugs stay internal."""
     org = Organization.query.get_or_404(org_id)
-    require_own_org(org.id)
+    denied = require_own_org(org.id)
+    if denied:
+        return denied
     name = (request.form.get("name") or "").strip()
     if not name:
         flash("Organization name is required.", "danger")
@@ -1855,7 +1857,9 @@ def rename_org(org_id):
 def update_org_settings(org_id):
     """Per-org defaults inherited by teams (GM plan idea 2)."""
     org = Organization.query.get_or_404(org_id)
-    require_own_org(org.id)
+    denied = require_own_org(org.id)
+    if denied:
+        return denied
     timezone = (request.form.get("timezone") or "UTC").strip() or "UTC"
     sport = (request.form.get("sport") or "basketball").strip() or "basketball"
     convention = (request.form.get("season_convention") or "sept-june").strip()
@@ -1885,7 +1889,9 @@ def create_team():
     if org is None or (allowed is not None and org.id not in allowed):
         flash("Valid organization is required.", "danger")
         return _safe_next("main.admin_panel", section="orgs")
-    require_own_org(org.id)
+    denied = require_own_org(org.id)
+    if denied:
+        return denied
     if not name:
         flash("Team name is required.", "danger")
         return _safe_next("main.admin_panel", section="orgs")
@@ -1910,7 +1916,9 @@ def create_team():
 def rename_team(team_id):
     """Rename a team (GM plan C-Phase 3)."""
     team = Team.query.get_or_404(team_id)
-    require_own_org(team.organization_id)
+    denied = require_own_org(team.organization_id)
+    if denied:
+        return denied
     name = (request.form.get("name") or "").strip()
     if not name:
         flash("Team name is required.", "danger")
@@ -1940,7 +1948,9 @@ def rename_team(team_id):
 def transfer_team(team_id):
     """Move a team to another org, keeping games & seasons (C-Phase 3)."""
     team = Team.query.get_or_404(team_id)
-    require_own_org(team.organization_id)
+    denied = require_own_org(team.organization_id)
+    if denied:
+        return denied
     org_id = request.form.get("organization_id", type=int)
     org = Organization.query.get(org_id) if org_id else None
     if org is None:
@@ -1970,7 +1980,9 @@ def transfer_team(team_id):
 def delete_team(team_id):
     """Delete a team with no games, players, seasons or assignments."""
     team = Team.query.get_or_404(team_id)
-    require_own_org(team.organization_id)
+    denied = require_own_org(team.organization_id)
+    if denied:
+        return denied
     blockers = {
         "games": Game.query.filter_by(team_id=team.id).count(),
         "players": Player.query.filter_by(team_id=team.id).count(),
