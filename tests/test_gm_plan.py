@@ -232,3 +232,68 @@ class TestPerTeamGMAndAuditor:
     def test_gm_dashboard_renders(self, admin_client):
         resp = admin_client.get("/gm/dashboard")
         assert resp.status_code == 200
+
+
+class TestGMDashboardTeamManagement:
+    """Rename + add teams directly from the GM dashboard."""
+
+    def test_dashboard_shows_new_team_and_rename(
+            self, admin_client, db_session, default_team):
+        resp = admin_client.get("/gm/dashboard")
+        assert resp.status_code == 200
+        assert b"New team" in resp.data
+        assert b"Rename" in resp.data
+        assert default_team.name.encode() in resp.data
+
+    def test_dashboard_hides_mutations_for_auditor(
+            self, client, db_session, default_org, default_team):
+        from core.models import User as _User
+        auditor = _User(username="aud_dash", email="aud_dash@test.com",
+                        organization_id=default_org.id, is_auditor=True)
+        auditor.set_password("password123")
+        db.session.add(auditor)
+        db.session.flush()
+        db.session.add(OrganizationMembership(
+            user_id=auditor.id, organization_id=default_org.id,
+            is_gm=False))
+        db.session.commit()
+        with client.session_transaction() as sess:
+            sess["_user_id"] = str(auditor.id)
+            sess["_fresh"] = True
+            sess["current_team_id"] = default_team.id
+        resp = client.get("/gm/dashboard")
+        assert resp.status_code == 200
+        assert b"New team" not in resp.data
+        assert b"Rename" not in resp.data
+
+    def test_create_team_from_dashboard_redirects_back(
+            self, admin_client, db_session, default_org):
+        resp = admin_client.post(
+            "/teams/create",
+            data={"organization_id": default_org.id,
+                  "name": "Dash Team", "next": "/gm/dashboard"},
+            follow_redirects=False)
+        assert resp.status_code in (302, 303)
+        assert resp.headers["Location"].endswith("/gm/dashboard")
+        assert Team.query.filter_by(
+            organization_id=default_org.id, slug="dash-team").first() is not None
+
+    def test_rename_team_from_dashboard_redirects_back(
+            self, admin_client, db_session, default_team):
+        resp = admin_client.post(
+            f"/teams/{default_team.id}/rename",
+            data={"name": "Dash Renamed", "next": "/gm/dashboard"},
+            follow_redirects=False)
+        assert resp.status_code in (302, 303)
+        assert resp.headers["Location"].endswith("/gm/dashboard")
+        assert Team.query.get(default_team.id).name == "Dash Renamed"
+
+    def test_unsafe_next_falls_back_to_admin(
+            self, admin_client, db_session, default_team):
+        resp = admin_client.post(
+            f"/teams/{default_team.id}/rename",
+            data={"name": "Safe Name", "next": "http://evil.example/"},
+            follow_redirects=False)
+        assert resp.status_code in (302, 303)
+        assert "evil.example" not in resp.headers["Location"]
+        assert Team.query.get(default_team.id).name == "Safe Name"

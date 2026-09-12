@@ -1531,6 +1531,7 @@ def gm_dashboard():
         members=members,
         my_orgs=my_orgs,
         checklist=checklist,
+        is_auditor=bool(getattr(current_user, "is_auditor", False)),
     )
 
 
@@ -1590,6 +1591,14 @@ VALID_SECTIONS = {"users", "players", "settings", "seasons", "orgs", "matrix", "
 def _slugify(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", (name or "").strip().lower()).strip("-")
     return slug or "unnamed"
+
+
+def _safe_next(default_endpoint="main.admin_panel", **values):
+    """Redirect target for org/team forms: honor a relative ``next`` field."""
+    nxt = (request.form.get("next") or "").strip()
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
+    return redirect(url_for(default_endpoint, **values))
 
 
 @main_bp.route("/admin")
@@ -1805,14 +1814,14 @@ def create_team():
     org = Organization.query.get(org_id) if org_id else None
     if org is None:
         flash("Valid organization is required.", "danger")
-        return redirect(url_for("main.admin_panel", section="orgs"))
+        return _safe_next("main.admin_panel", section="orgs")
     if not name:
         flash("Team name is required.", "danger")
-        return redirect(url_for("main.admin_panel", section="orgs"))
+        return _safe_next("main.admin_panel", section="orgs")
     slug = _slugify(name)
     if Team.query.filter_by(organization_id=org.id, slug=slug).first():
         flash(f"Team '{name}' already exists in {org.name}.", "danger")
-        return redirect(url_for("main.admin_panel", section="orgs"))
+        return _safe_next("main.admin_panel", section="orgs")
     team = Team(name=name, organization_id=org.id, slug=slug)
     db.session.add(team)
     db.session.commit()
@@ -1821,7 +1830,7 @@ def create_team():
                      target_type="team", target_id=team.id,
                      organization_id=org.id)
     flash(f"Team '{name}' created in {org.name}.", "success")
-    return redirect(url_for("main.admin_panel", section="orgs"))
+    return _safe_next("main.admin_panel", section="orgs")
 
 
 @main_bp.route("/teams/<int:team_id>/rename", methods=["POST"])
@@ -1833,14 +1842,14 @@ def rename_team(team_id):
     name = (request.form.get("name") or "").strip()
     if not name:
         flash("Team name is required.", "danger")
-        return redirect(url_for("main.admin_panel", section="orgs"))
+        return _safe_next("main.admin_panel", section="orgs")
     slug = _slugify(name)
     dup = Team.query.filter(
         Team.organization_id == team.organization_id,
         Team.slug == slug, Team.id != team.id).first()
     if dup:
         flash(f"Team '{name}' already exists in this organization.", "danger")
-        return redirect(url_for("main.admin_panel", section="orgs"))
+        return _safe_next("main.admin_panel", section="orgs")
     old = team.name
     team.name = name
     team.slug = slug
@@ -1850,7 +1859,7 @@ def rename_team(team_id):
                      target_type="team", target_id=team.id,
                      organization_id=team.organization_id)
     flash(f"Team renamed to '{name}'.", "success")
-    return redirect(url_for("main.admin_panel", section="orgs"))
+    return _safe_next("main.admin_panel", section="orgs")
 
 
 @main_bp.route("/teams/<int:team_id>/transfer", methods=["POST"])
