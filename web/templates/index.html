@@ -5,7 +5,7 @@
     <div class="page-hero">
         <div>
             <h1 class="page-hero__title"><i class="fas fa-th-large" aria-hidden="true"></i> Dashboard</h1>
-            <p class="page-hero__lead">Welcome back, Coach</p>
+            <p class="page-hero__lead">Welcome back, {{ current_user.username }}</p>
         </div>
         <div>
             <a href="{{ url_for('main.upload_game') }}" class="btn btn-primary">

@@ -1,0 +1,1251 @@
+{
+ "meta": {
+  "competition": "Divisione Regionale 4 Maschile Lombardia",
+  "girone": "M",
+  "season": "2025/2026",
+  "source": "playbasket.it",
+  "source_url": "https://www.playbasket.it/lombardia/league.php?lt=2&lf=M&lr=LO&lp=MI&lc=DR4&season=2026&mod=gr&lg=13",
+  "scraped_at": "2026-09-12",
+  "note": "Regular season only (132 games). No player-level data published for this division."
+ },
+ "standings": [
+  {
+   "pos": 1,
+   "team": "Leone XIII Milano sq.B",
+   "pts": 42,
+   "g": 22,
+   "w": 21,
+   "l": 1,
+   "pct": ".955",
+   "streak": "8W",
+   "pf": 1660,
+   "ps": 1210,
+   "q": 1.37,
+   "ppg": 75.5,
+   "oppg": 55.0
+  },
+  {
+   "pos": 2,
+   "team": "Aurora Milano sq.B",
+   "pts": 40,
+   "g": 22,
+   "w": 20,
+   "l": 2,
+   "pct": ".909",
+   "streak": "10W",
+   "pf": 1493,
+   "ps": 1081,
+   "q": 1.38,
+   "ppg": 67.9,
+   "oppg": 49.1
+  },
+  {
+   "pos": 3,
+   "team": "Basketown Milano sq.B",
+   "pts": 30,
+   "g": 22,
+   "w": 15,
+   "l": 7,
+   "pct": ".682",
+   "streak": "5W",
+   "pf": 1511,
+   "ps": 1256,
+   "q": 1.2,
+   "ppg": 68.7,
+   "oppg": 57.1
+  },
+  {
+   "pos": 4,
+   "team": "Magic Utah Milano",
+   "pts": 28,
+   "g": 22,
+   "w": 14,
+   "l": 8,
+   "pct": ".636",
+   "streak": "2L",
+   "pf": 1229,
+   "ps": 1170,
+   "q": 1.05,
+   "ppg": 55.9,
+   "oppg": 53.2
+  },
+  {
+   "pos": 5,
+   "team": "Nebula Basket Milano",
+   "pts": 26,
+   "g": 22,
+   "w": 13,
+   "l": 9,
+   "pct": ".591",
+   "streak": "1L",
+   "pf": 1370,
+   "ps": 1282,
+   "q": 1.07,
+   "ppg": 62.3,
+   "oppg": 58.3
+  },
+  {
+   "pos": 6,
+   "team": "Basket Bareggio",
+   "pts": 26,
+   "g": 22,
+   "w": 13,
+   "l": 9,
+   "pct": ".591",
+   "streak": "1L",
+   "pf": 1168,
+   "ps": 1213,
+   "q": 0.96,
+   "ppg": 53.1,
+   "oppg": 55.1
+  },
+  {
+   "pos": 7,
+   "team": "Cesano Boscone Basket",
+   "pts": 24,
+   "g": 22,
+   "w": 12,
+   "l": 10,
+   "pct": ".545",
+   "streak": "2W",
+   "pf": 1350,
+   "ps": 1245,
+   "q": 1.08,
+   "ppg": 61.4,
+   "oppg": 56.6
+  },
+  {
+   "pos": 8,
+   "team": "Basket Club Arlunese sq.B",
+   "pts": 20,
+   "g": 22,
+   "w": 10,
+   "l": 12,
+   "pct": ".455",
+   "streak": "2W",
+   "pf": 1351,
+   "ps": 1365,
+   "q": 0.99,
+   "ppg": 61.4,
+   "oppg": 62.0
+  },
+  {
+   "pos": 9,
+   "team": "Basket Boffalora",
+   "pts": 10,
+   "g": 22,
+   "w": 5,
+   "l": 17,
+   "pct": ".227",
+   "streak": "3L",
+   "pf": 1108,
+   "ps": 1335,
+   "q": 0.83,
+   "ppg": 50.4,
+   "oppg": 60.7
+  },
+  {
+   "pos": 10,
+   "team": "Ardens Sedriano sq.B",
+   "pts": 8,
+   "g": 22,
+   "w": 4,
+   "l": 18,
+   "pct": ".182",
+   "streak": "2L",
+   "pf": 1158,
+   "ps": 1412,
+   "q": 0.82,
+   "ppg": 52.6,
+   "oppg": 64.2
+  },
+  {
+   "pos": 11,
+   "team": "Virtus Abbiatense-Ozzerese",
+   "pts": 8,
+   "g": 22,
+   "w": 4,
+   "l": 18,
+   "pct": ".182",
+   "streak": "5L",
+   "pf": 1083,
+   "ps": 1373,
+   "q": 0.79,
+   "ppg": 49.2,
+   "oppg": 62.4
+  },
+  {
+   "pos": 12,
+   "team": "Players Marcallo sq.B",
+   "pts": 2,
+   "g": 22,
+   "w": 1,
+   "l": 21,
+   "pct": ".045",
+   "streak": "7L",
+   "pf": 1071,
+   "ps": 1610,
+   "q": 0.67,
+   "ppg": 48.7,
+   "oppg": 73.2
+  }
+ ],
+ "games": [
+  {
+   "turno": "Andata 1",
+   "data": "14/10",
+   "casa": "Ardens Sedriano sq.B",
+   "ospite": "Nebula Basket Milano",
+   "pc": "52",
+   "po": "66"
+  },
+  {
+   "turno": "Andata 1",
+   "data": "14/10",
+   "casa": "Magic Utah Milano",
+   "ospite": "Virtus Abbiatense-Ozzerese",
+   "pc": "55",
+   "po": "42"
+  },
+  {
+   "turno": "Andata 1",
+   "data": "16/10",
+   "casa": "Basket Boffalora",
+   "ospite": "Players Marcallo sq.B",
+   "pc": "66",
+   "po": "34"
+  },
+  {
+   "turno": "Andata 1",
+   "data": "16/10",
+   "casa": "Leone XIII Milano sq.B",
+   "ospite": "Aurora Milano sq.B",
+   "pc": "68",
+   "po": "60"
+  },
+  {
+   "turno": "Andata 1",
+   "data": "17/10",
+   "casa": "Cesano Boscone Basket",
+   "ospite": "Basketown Milano sq.B",
+   "pc": "53",
+   "po": "57"
+  },
+  {
+   "turno": "Andata 1",
+   "data": "19/10",
+   "casa": "Basket Club Arlunese sq.B",
+   "ospite": "Basket Bareggio",
+   "pc": "45",
+   "po": "53"
+  },
+  {
+   "turno": "Andata 2",
+   "data": "19/10",
+   "casa": "Aurora Milano sq.B",
+   "ospite": "Magic Utah Milano",
+   "pc": "50",
+   "po": "29"
+  },
+  {
+   "turno": "Andata 2",
+   "data": "22/10",
+   "casa": "Nebula Basket Milano",
+   "ospite": "Basket Club Arlunese sq.B",
+   "pc": "83",
+   "po": "69"
+  },
+  {
+   "turno": "Andata 2",
+   "data": "23/10",
+   "casa": "Virtus Abbiatense-Ozzerese",
+   "ospite": "Ardens Sedriano sq.B",
+   "pc": "48",
+   "po": "57"
+  },
+  {
+   "turno": "Andata 2",
+   "data": "23/10",
+   "casa": "Basket Bareggio",
+   "ospite": "Basket Boffalora",
+   "pc": "59",
+   "po": "47"
+  },
+  {
+   "turno": "Andata 2",
+   "data": "26/10",
+   "casa": "Basketown Milano sq.B",
+   "ospite": "Leone XIII Milano sq.B",
+   "pc": "66",
+   "po": "76"
+  },
+  {
+   "turno": "Andata 2",
+   "data": "26/10",
+   "casa": "Players Marcallo sq.B",
+   "ospite": "Cesano Boscone Basket",
+   "pc": "58",
+   "po": "72"
+  },
+  {
+   "turno": "Andata 3",
+   "data": "28/10",
+   "casa": "Magic Utah Milano",
+   "ospite": "Leone XIII Milano sq.B",
+   "pc": "49",
+   "po": "73"
+  },
+  {
+   "turno": "Andata 3",
+   "data": "29/10",
+   "casa": "Cesano Boscone Basket",
+   "ospite": "Ardens Sedriano sq.B",
+   "pc": "69",
+   "po": "48"
+  },
+  {
+   "turno": "Andata 3",
+   "data": "30/10",
+   "casa": "Basket Boffalora",
+   "ospite": "Virtus Abbiatense-Ozzerese",
+   "pc": "48",
+   "po": "49"
+  },
+  {
+   "turno": "Andata 3",
+   "data": "30/10",
+   "casa": "Basket Bareggio",
+   "ospite": "Nebula Basket Milano",
+   "pc": "64",
+   "po": "58"
+  },
+  {
+   "turno": "Andata 3",
+   "data": "02/11",
+   "casa": "Basket Club Arlunese sq.B",
+   "ospite": "Aurora Milano sq.B",
+   "pc": "42",
+   "po": "82"
+  },
+  {
+   "turno": "Andata 3",
+   "data": "02/11",
+   "casa": "Basketown Milano sq.B",
+   "ospite": "Players Marcallo sq.B",
+   "pc": "78",
+   "po": "30"
+  },
+  {
+   "turno": "Andata 4",
+   "data": "04/11",
+   "casa": "Magic Utah Milano",
+   "ospite": "Basket Boffalora",
+   "pc": "41",
+   "po": "37"
+  },
+  {
+   "turno": "Andata 4",
+   "data": "06/11",
+   "casa": "Virtus Abbiatense-Ozzerese",
+   "ospite": "Players Marcallo sq.B",
+   "pc": "64",
+   "po": "34"
+  },
+  {
+   "turno": "Andata 4",
+   "data": "06/11",
+   "casa": "Basket Bareggio",
+   "ospite": "Basketown Milano sq.B",
+   "pc": "54",
+   "po": "51"
+  },
+  {
+   "turno": "Andata 4",
+   "data": "07/11",
+   "casa": "Cesano Boscone Basket",
+   "ospite": "Nebula Basket Milano",
+   "pc": "55",
+   "po": "74"
+  },
+  {
+   "turno": "Andata 4",
+   "data": "09/11",
+   "casa": "Leone XIII Milano sq.B",
+   "ospite": "Basket Club Arlunese sq.B",
+   "pc": "79",
+   "po": "54"
+  },
+  {
+   "turno": "Andata 4",
+   "data": "09/11",
+   "casa": "Aurora Milano sq.B",
+   "ospite": "Ardens Sedriano sq.B",
+   "pc": "59",
+   "po": "55"
+  },
+  {
+   "turno": "Andata 5",
+   "data": "13/11",
+   "casa": "Basket Boffalora",
+   "ospite": "Basket Club Arlunese sq.B",
+   "pc": "58",
+   "po": "51"
+  },
+  {
+   "turno": "Andata 5",
+   "data": "13/11",
+   "casa": "Virtus Abbiatense-Ozzerese",
+   "ospite": "Leone XIII Milano sq.B",
+   "pc": "37",
+   "po": "74"
+  },
+  {
+   "turno": "Andata 5",
+   "data": "13/11",
+   "casa": "Cesano Boscone Basket",
+   "ospite": "Aurora Milano sq.B",
+   "pc": "56",
+   "po": "59"
+  },
+  {
+   "turno": "Andata 5",
+   "data": "13/11",
+   "casa": "Basket Bareggio",
+   "ospite": "Ardens Sedriano sq.B",
+   "pc": "69",
+   "po": "61"
+  },
+  {
+   "turno": "Andata 5",
+   "data": "16/11",
+   "casa": "Basketown Milano sq.B",
+   "ospite": "Nebula Basket Milano",
+   "pc": "84",
+   "po": "64"
+  },
+  {
+   "turno": "Andata 5",
+   "data": "16/11",
+   "casa": "Players Marcallo sq.B",
+   "ospite": "Magic Utah Milano",
+   "pc": "40",
+   "po": "74"
+  },
+  {
+   "turno": "Andata 6",
+   "data": "18/11",
+   "casa": "Ardens Sedriano sq.B",
+   "ospite": "Magic Utah Milano",
+   "pc": "51",
+   "po": "67"
+  },
+  {
+   "turno": "Andata 6",
+   "data": "20/11",
+   "casa": "Basket Boffalora",
+   "ospite": "Cesano Boscone Basket",
+   "pc": "45",
+   "po": "71"
+  },
+  {
+   "turno": "Andata 6",
+   "data": "20/11",
+   "casa": "Aurora Milano sq.B",
+   "ospite": "Basketown Milano sq.B",
+   "pc": "68",
+   "po": "59"
+  },
+  {
+   "turno": "Andata 6",
+   "data": "20/11",
+   "casa": "Basket Bareggio",
+   "ospite": "Players Marcallo sq.B",
+   "pc": "70",
+   "po": "62"
+  },
+  {
+   "turno": "Andata 6",
+   "data": "21/11",
+   "casa": "Nebula Basket Milano",
+   "ospite": "Leone XIII Milano sq.B",
+   "pc": "71",
+   "po": "72"
+  },
+  {
+   "turno": "Andata 6",
+   "data": "23/11",
+   "casa": "Basket Club Arlunese sq.B",
+   "ospite": "Virtus Abbiatense-Ozzerese",
+   "pc": "74",
+   "po": "49"
+  },
+  {
+   "turno": "Andata 7",
+   "data": "25/11",
+   "casa": "Magic Utah Milano",
+   "ospite": "Nebula Basket Milano",
+   "pc": "56",
+   "po": "70"
+  },
+  {
+   "turno": "Andata 7",
+   "data": "27/11",
+   "casa": "Cesano Boscone Basket",
+   "ospite": "Basket Bareggio",
+   "pc": "63",
+   "po": "43"
+  },
+  {
+   "turno": "Andata 7",
+   "data": "27/11",
+   "casa": "Leone XIII Milano sq.B",
+   "ospite": "Players Marcallo sq.B",
+   "pc": "101",
+   "po": "43"
+  },
+  {
+   "turno": "Andata 7",
+   "data": "27/11",
+   "casa": "Virtus Abbiatense-Ozzerese",
+   "ospite": "Basketown Milano sq.B",
+   "pc": "51",
+   "po": "64"
+  },
+  {
+   "turno": "Andata 7",
+   "data": "30/11",
+   "casa": "Basket Club Arlunese sq.B",
+   "ospite": "Ardens Sedriano sq.B",
+   "pc": "55",
+   "po": "37"
+  },
+  {
+   "turno": "Andata 7",
+   "data": "30/11",
+   "casa": "Aurora Milano sq.B",
+   "ospite": "Basket Boffalora",
+   "pc": "52",
+   "po": "41"
+  },
+  {
+   "turno": "Andata 8",
+   "data": "02/12",
+   "casa": "Basket Bareggio",
+   "ospite": "Leone XIII Milano sq.B",
+   "pc": "56",
+   "po": "62"
+  },
+  {
+   "turno": "Andata 8",
+   "data": "03/12",
+   "casa": "Players Marcallo sq.B",
+   "ospite": "Aurora Milano sq.B",
+   "pc": "58",
+   "po": "93"
+  },
+  {
+   "turno": "Andata 8",
+   "data": "04/12",
+   "casa": "Basket Boffalora",
+   "ospite": "Ardens Sedriano sq.B",
+   "pc": "85",
+   "po": "81"
+  },
+  {
+   "turno": "Andata 8",
+   "data": "04/12",
+   "casa": "Virtus Abbiatense-Ozzerese",
+   "ospite": "Nebula Basket Milano",
+   "pc": "49",
+   "po": "60"
+  },
+  {
+   "turno": "Andata 8",
+   "data": "04/12",
+   "casa": "Magic Utah Milano",
+   "ospite": "Basketown Milano sq.B",
+   "pc": "49",
+   "po": "44"
+  },
+  {
+   "turno": "Andata 8",
+   "data": "05/12",
+   "casa": "Cesano Boscone Basket",
+   "ospite": "Basket Club Arlunese sq.B",
+   "pc": "79",
+   "po": "75"
+  },
+  {
+   "turno": "Andata 9",
+   "data": "09/12",
+   "casa": "Ardens Sedriano sq.B",
+   "ospite": "Players Marcallo sq.B",
+   "pc": "66",
+   "po": "60"
+  },
+  {
+   "turno": "Andata 9",
+   "data": "09/12",
+   "casa": "Magic Utah Milano",
+   "ospite": "Basket Bareggio",
+   "pc": "44",
+   "po": "53"
+  },
+  {
+   "turno": "Andata 9",
+   "data": "10/12",
+   "casa": "Nebula Basket Milano",
+   "ospite": "Basket Boffalora",
+   "pc": "72",
+   "po": "68"
+  },
+  {
+   "turno": "Andata 9",
+   "data": "14/12",
+   "casa": "Basketown Milano sq.B",
+   "ospite": "Basket Club Arlunese sq.B",
+   "pc": "69",
+   "po": "70"
+  },
+  {
+   "turno": "Andata 9",
+   "data": "14/12",
+   "casa": "Leone XIII Milano sq.B",
+   "ospite": "Cesano Boscone Basket",
+   "pc": "67",
+   "po": "54"
+  },
+  {
+   "turno": "Andata 9",
+   "data": "14/12",
+   "casa": "Aurora Milano sq.B",
+   "ospite": "Virtus Abbiatense-Ozzerese",
+   "pc": "81",
+   "po": "34"
+  },
+  {
+   "turno": "Andata 10",
+   "data": "17/12",
+   "casa": "Nebula Basket Milano",
+   "ospite": "Aurora Milano sq.B",
+   "pc": "43",
+   "po": "61"
+  },
+  {
+   "turno": "Andata 10",
+   "data": "18/12",
+   "casa": "Basket Boffalora",
+   "ospite": "Leone XIII Milano sq.B",
+   "pc": "55",
+   "po": "80"
+  },
+  {
+   "turno": "Andata 10",
+   "data": "18/12",
+   "casa": "Ardens Sedriano sq.B",
+   "ospite": "Basketown Milano sq.B",
+   "pc": "61",
+   "po": "75"
+  },
+  {
+   "turno": "Andata 10",
+   "data": "18/12",
+   "casa": "Basket Bareggio",
+   "ospite": "Virtus Abbiatense-Ozzerese",
+   "pc": "66",
+   "po": "53"
+  },
+  {
+   "turno": "Andata 10",
+   "data": "19/12",
+   "casa": "Cesano Boscone Basket",
+   "ospite": "Magic Utah Milano",
+   "pc": "42",
+   "po": "62"
+  },
+  {
+   "turno": "Andata 10",
+   "data": "21/12",
+   "casa": "Basket Club Arlunese sq.B",
+   "ospite": "Players Marcallo sq.B",
+   "pc": "89",
+   "po": "67"
+  },
+  {
+   "turno": "Andata 11",
+   "data": "11/01",
+   "casa": "Aurora Milano sq.B",
+   "ospite": "Basket Bareggio",
+   "pc": "78",
+   "po": "43"
+  },
+  {
+   "turno": "Andata 11",
+   "data": "13/01",
+   "casa": "Magic Utah Milano",
+   "ospite": "Basket Club Arlunese sq.B",
+   "pc": "58",
+   "po": "43"
+  },
+  {
+   "turno": "Andata 11",
+   "data": "15/01",
+   "casa": "Virtus Abbiatense-Ozzerese",
+   "ospite": "Cesano Boscone Basket",
+   "pc": "37",
+   "po": "51"
+  },
+  {
+   "turno": "Andata 11",
+   "data": "15/01",
+   "casa": "Leone XIII Milano sq.B",
+   "ospite": "Ardens Sedriano sq.B",
+   "pc": "81",
+   "po": "48"
+  },
+  {
+   "turno": "Andata 11",
+   "data": "18/01",
+   "casa": "Basketown Milano sq.B",
+   "ospite": "Basket Boffalora",
+   "pc": "66",
+   "po": "43"
+  },
+  {
+   "turno": "Andata 11",
+   "data": "18/01",
+   "casa": "Players Marcallo sq.B",
+   "ospite": "Nebula Basket Milano",
+   "pc": "45",
+   "po": "83"
+  },
+  {
+   "turno": "Ritorno 1",
+   "data": "22/01",
+   "casa": "Virtus Abbiatense-Ozzerese",
+   "ospite": "Magic Utah Milano",
+   "pc": "46",
+   "po": "49"
+  },
+  {
+   "turno": "Ritorno 1",
+   "data": "22/01",
+   "casa": "Basket Bareggio",
+   "ospite": "Basket Club Arlunese sq.B",
+   "pc": "40",
+   "po": "36"
+  },
+  {
+   "turno": "Ritorno 1",
+   "data": "23/01",
+   "casa": "Nebula Basket Milano",
+   "ospite": "Ardens Sedriano sq.B",
+   "pc": "67",
+   "po": "44"
+  },
+  {
+   "turno": "Ritorno 1",
+   "data": "25/01",
+   "casa": "Players Marcallo sq.B",
+   "ospite": "Basket Boffalora",
+   "pc": "50",
+   "po": "63"
+  },
+  {
+   "turno": "Ritorno 1",
+   "data": "25/01",
+   "casa": "Aurora Milano sq.B",
+   "ospite": "Leone XIII Milano sq.B",
+   "pc": "64",
+   "po": "66"
+  },
+  {
+   "turno": "Ritorno 1",
+   "data": "25/01",
+   "casa": "Basketown Milano sq.B",
+   "ospite": "Cesano Boscone Basket",
+   "pc": "67",
+   "po": "51"
+  },
+  {
+   "turno": "Ritorno 2",
+   "data": "27/01",
+   "casa": "Magic Utah Milano",
+   "ospite": "Aurora Milano sq.B",
+   "pc": "56",
+   "po": "61"
+  },
+  {
+   "turno": "Ritorno 2",
+   "data": "27/01",
+   "casa": "Ardens Sedriano sq.B",
+   "ospite": "Virtus Abbiatense-Ozzerese",
+   "pc": "68",
+   "po": "56"
+  },
+  {
+   "turno": "Ritorno 2",
+   "data": "29/01",
+   "casa": "Basket Boffalora",
+   "ospite": "Basket Bareggio",
+   "pc": "31",
+   "po": "49"
+  },
+  {
+   "turno": "Ritorno 2",
+   "data": "29/01",
+   "casa": "Leone XIII Milano sq.B",
+   "ospite": "Basketown Milano sq.B",
+   "pc": "84",
+   "po": "72"
+  },
+  {
+   "turno": "Ritorno 2",
+   "data": "30/01",
+   "casa": "Cesano Boscone Basket",
+   "ospite": "Players Marcallo sq.B",
+   "pc": "71",
+   "po": "50"
+  },
+  {
+   "turno": "Ritorno 2",
+   "data": "01/02",
+   "casa": "Basket Club Arlunese sq.B",
+   "ospite": "Nebula Basket Milano",
+   "pc": "67",
+   "po": "41"
+  },
+  {
+   "turno": "Ritorno 3",
+   "data": "04/02",
+   "casa": "Nebula Basket Milano",
+   "ospite": "Basket Bareggio",
+   "pc": "60",
+   "po": "47"
+  },
+  {
+   "turno": "Ritorno 3",
+   "data": "05/02",
+   "casa": "Ardens Sedriano sq.B",
+   "ospite": "Cesano Boscone Basket",
+   "pc": "51",
+   "po": "70"
+  },
+  {
+   "turno": "Ritorno 3",
+   "data": "05/02",
+   "casa": "Virtus Abbiatense-Ozzerese",
+   "ospite": "Basket Boffalora",
+   "pc": "57",
+   "po": "55"
+  },
+  {
+   "turno": "Ritorno 3",
+   "data": "05/02",
+   "casa": "Leone XIII Milano sq.B",
+   "ospite": "Magic Utah Milano",
+   "pc": "57",
+   "po": "63"
+  },
+  {
+   "turno": "Ritorno 3",
+   "data": "08/02",
+   "casa": "Players Marcallo sq.B",
+   "ospite": "Basketown Milano sq.B",
+   "pc": "60",
+   "po": "69"
+  },
+  {
+   "turno": "Ritorno 3",
+   "data": "08/02",
+   "casa": "Aurora Milano sq.B",
+   "ospite": "Basket Club Arlunese sq.B",
+   "pc": "82",
+   "po": "48"
+  },
+  {
+   "turno": "Ritorno 4",
+   "data": "10/02",
+   "casa": "Ardens Sedriano sq.B",
+   "ospite": "Aurora Milano sq.B",
+   "pc": "47",
+   "po": "60"
+  },
+  {
+   "turno": "Ritorno 4",
+   "data": "11/02",
+   "casa": "Nebula Basket Milano",
+   "ospite": "Cesano Boscone Basket",
+   "pc": "62",
+   "po": "60"
+  },
+  {
+   "turno": "Ritorno 4",
+   "data": "12/02",
+   "casa": "Basket Boffalora",
+   "ospite": "Magic Utah Milano",
+   "pc": "47",
+   "po": "50"
+  },
+  {
+   "turno": "Ritorno 4",
+   "data": "15/02",
+   "casa": "Players Marcallo sq.B",
+   "ospite": "Virtus Abbiatense-Ozzerese",
+   "pc": "63",
+   "po": "53"
+  },
+  {
+   "turno": "Ritorno 4",
+   "data": "15/02",
+   "casa": "Basket Club Arlunese sq.B",
+   "ospite": "Leone XIII Milano sq.B",
+   "pc": "69",
+   "po": "84"
+  },
+  {
+   "turno": "Ritorno 4",
+   "data": "15/02",
+   "casa": "Basketown Milano sq.B",
+   "ospite": "Basket Bareggio",
+   "pc": "68",
+   "po": "36"
+  },
+  {
+   "turno": "Ritorno 5",
+   "data": "17/02",
+   "casa": "Magic Utah Milano",
+   "ospite": "Players Marcallo sq.B",
+   "pc": "74",
+   "po": "53"
+  },
+  {
+   "turno": "Ritorno 5",
+   "data": "17/02",
+   "casa": "Ardens Sedriano sq.B",
+   "ospite": "Basket Bareggio",
+   "pc": "39",
+   "po": "58"
+  },
+  {
+   "turno": "Ritorno 5",
+   "data": "18/02",
+   "casa": "Nebula Basket Milano",
+   "ospite": "Basketown Milano sq.B",
+   "pc": "67",
+   "po": "71"
+  },
+  {
+   "turno": "Ritorno 5",
+   "data": "19/02",
+   "casa": "Leone XIII Milano sq.B",
+   "ospite": "Virtus Abbiatense-Ozzerese",
+   "pc": "76",
+   "po": "51"
+  },
+  {
+   "turno": "Ritorno 5",
+   "data": "22/02",
+   "casa": "Basket Club Arlunese sq.B",
+   "ospite": "Basket Boffalora",
+   "pc": "66",
+   "po": "40"
+  },
+  {
+   "turno": "Ritorno 5",
+   "data": "22/02",
+   "casa": "Aurora Milano sq.B",
+   "ospite": "Cesano Boscone Basket",
+   "pc": "61",
+   "po": "48"
+  },
+  {
+   "turno": "Ritorno 6",
+   "data": "03/03",
+   "casa": "Magic Utah Milano",
+   "ospite": "Ardens Sedriano sq.B",
+   "pc": "57",
+   "po": "46"
+  },
+  {
+   "turno": "Ritorno 6",
+   "data": "05/03",
+   "casa": "Cesano Boscone Basket",
+   "ospite": "Basket Boffalora",
+   "pc": "64",
+   "po": "32"
+  },
+  {
+   "turno": "Ritorno 6",
+   "data": "05/03",
+   "casa": "Leone XIII Milano sq.B",
+   "ospite": "Nebula Basket Milano",
+   "pc": "79",
+   "po": "61"
+  },
+  {
+   "turno": "Ritorno 6",
+   "data": "05/03",
+   "casa": "Virtus Abbiatense-Ozzerese",
+   "ospite": "Basket Club Arlunese sq.B",
+   "pc": "67",
+   "po": "61"
+  },
+  {
+   "turno": "Ritorno 6",
+   "data": "08/03",
+   "casa": "Basketown Milano sq.B",
+   "ospite": "Aurora Milano sq.B",
+   "pc": "63",
+   "po": "68"
+  },
+  {
+   "turno": "Ritorno 6",
+   "data": "08/03",
+   "casa": "Players Marcallo sq.B",
+   "ospite": "Basket Bareggio",
+   "pc": "49",
+   "po": "63"
+  },
+  {
+   "turno": "Ritorno 7",
+   "data": "10/03",
+   "casa": "Ardens Sedriano sq.B",
+   "ospite": "Basket Club Arlunese sq.B",
+   "pc": "57",
+   "po": "63"
+  },
+  {
+   "turno": "Ritorno 7",
+   "data": "11/03",
+   "casa": "Nebula Basket Milano",
+   "ospite": "Magic Utah Milano",
+   "pc": "69",
+   "po": "77"
+  },
+  {
+   "turno": "Ritorno 7",
+   "data": "12/03",
+   "casa": "Basket Boffalora",
+   "ospite": "Aurora Milano sq.B",
+   "pc": "38",
+   "po": "66"
+  },
+  {
+   "turno": "Ritorno 7",
+   "data": "12/03",
+   "casa": "Basket Bareggio",
+   "ospite": "Cesano Boscone Basket",
+   "pc": "60",
+   "po": "72"
+  },
+  {
+   "turno": "Ritorno 7",
+   "data": "15/03",
+   "casa": "Basketown Milano sq.B",
+   "ospite": "Virtus Abbiatense-Ozzerese",
+   "pc": "78",
+   "po": "53"
+  },
+  {
+   "turno": "Ritorno 7",
+   "data": "15/03",
+   "casa": "Players Marcallo sq.B",
+   "ospite": "Leone XIII Milano sq.B",
+   "pc": "46",
+   "po": "85"
+  },
+  {
+   "turno": "Ritorno 8",
+   "data": "17/03",
+   "casa": "Ardens Sedriano sq.B",
+   "ospite": "Basket Boffalora",
+   "pc": "39",
+   "po": "49"
+  },
+  {
+   "turno": "Ritorno 8",
+   "data": "19/03",
+   "casa": "Leone XIII Milano sq.B",
+   "ospite": "Basket Bareggio",
+   "pc": "63",
+   "po": "38"
+  },
+  {
+   "turno": "Ritorno 8",
+   "data": "20/03",
+   "casa": "Nebula Basket Milano",
+   "ospite": "Virtus Abbiatense-Ozzerese",
+   "pc": "68",
+   "po": "57"
+  },
+  {
+   "turno": "Ritorno 8",
+   "data": "22/03",
+   "casa": "Basket Club Arlunese sq.B",
+   "ospite": "Cesano Boscone Basket",
+   "pc": "67",
+   "po": "56"
+  },
+  {
+   "turno": "Ritorno 8",
+   "data": "22/03",
+   "casa": "Basketown Milano sq.B",
+   "ospite": "Magic Utah Milano",
+   "pc": "68",
+   "po": "54"
+  },
+  {
+   "turno": "Ritorno 8",
+   "data": "22/03",
+   "casa": "Aurora Milano sq.B",
+   "ospite": "Players Marcallo sq.B",
+   "pc": "102",
+   "po": "57"
+  },
+  {
+   "turno": "Ritorno 9",
+   "data": "26/03",
+   "casa": "Basket Boffalora",
+   "ospite": "Nebula Basket Milano",
+   "pc": "45",
+   "po": "55"
+  },
+  {
+   "turno": "Ritorno 9",
+   "data": "26/03",
+   "casa": "Basket Bareggio",
+   "ospite": "Magic Utah Milano",
+   "pc": "52",
+   "po": "63"
+  },
+  {
+   "turno": "Ritorno 9",
+   "data": "26/03",
+   "casa": "Virtus Abbiatense-Ozzerese",
+   "ospite": "Aurora Milano sq.B",
+   "pc": "35",
+   "po": "67"
+  },
+  {
+   "turno": "Ritorno 9",
+   "data": "27/03",
+   "casa": "Cesano Boscone Basket",
+   "ospite": "Leone XIII Milano sq.B",
+   "pc": "53",
+   "po": "74"
+  },
+  {
+   "turno": "Ritorno 9",
+   "data": "29/03",
+   "casa": "Basket Club Arlunese sq.B",
+   "ospite": "Basketown Milano sq.B",
+   "pc": "71",
+   "po": "74"
+  },
+  {
+   "turno": "Ritorno 9",
+   "data": "29/03",
+   "casa": "Players Marcallo sq.B",
+   "ospite": "Ardens Sedriano sq.B",
+   "pc": "54",
+   "po": "72"
+  },
+  {
+   "turno": "Ritorno 10",
+   "data": "09/04",
+   "casa": "Virtus Abbiatense-Ozzerese",
+   "ospite": "Basket Bareggio",
+   "pc": "49",
+   "po": "56"
+  },
+  {
+   "turno": "Ritorno 10",
+   "data": "09/04",
+   "casa": "Magic Utah Milano",
+   "ospite": "Cesano Boscone Basket",
+   "pc": "50",
+   "po": "72"
+  },
+  {
+   "turno": "Ritorno 10",
+   "data": "09/04",
+   "casa": "Leone XIII Milano sq.B",
+   "ospite": "Basket Boffalora",
+   "pc": "100",
+   "po": "50"
+  },
+  {
+   "turno": "Ritorno 10",
+   "data": "12/04",
+   "casa": "Basketown Milano sq.B",
+   "ospite": "Ardens Sedriano sq.B",
+   "pc": "85",
+   "po": "28"
+  },
+  {
+   "turno": "Ritorno 10",
+   "data": "12/04",
+   "casa": "Players Marcallo sq.B",
+   "ospite": "Basket Club Arlunese sq.B",
+   "pc": "58",
+   "po": "82"
+  },
+  {
+   "turno": "Ritorno 10",
+   "data": "19/04",
+   "casa": "Aurora Milano sq.B",
+   "ospite": "Nebula Basket Milano",
+   "pc": "60",
+   "po": "56"
+  },
+  {
+   "turno": "Ritorno 11",
+   "data": "14/04",
+   "casa": "Ardens Sedriano sq.B",
+   "ospite": "Leone XIII Milano sq.B",
+   "pc": "50",
+   "po": "59"
+  },
+  {
+   "turno": "Ritorno 11",
+   "data": "15/04",
+   "casa": "Nebula Basket Milano",
+   "ospite": "Players Marcallo sq.B",
+   "pc": "20",
+   "po": "0"
+  },
+  {
+   "turno": "Ritorno 11",
+   "data": "16/04",
+   "casa": "Basket Boffalora",
+   "ospite": "Basketown Milano sq.B",
+   "pc": "65",
+   "po": "83"
+  },
+  {
+   "turno": "Ritorno 11",
+   "data": "16/04",
+   "casa": "Basket Bareggio",
+   "ospite": "Aurora Milano sq.B",
+   "pc": "39",
+   "po": "59"
+  },
+  {
+   "turno": "Ritorno 11",
+   "data": "17/04",
+   "casa": "Cesano Boscone Basket",
+   "ospite": "Virtus Abbiatense-Ozzerese",
+   "pc": "68",
+   "po": "46"
+  },
+  {
+   "turno": "Ritorno 11",
+   "data": "19/04",
+   "casa": "Basket Club Arlunese sq.B",
+   "ospite": "Magic Utah Milano",
+   "pc": "54",
+   "po": "52"
+  }
+ ]
+}
