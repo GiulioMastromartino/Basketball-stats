@@ -36,6 +36,13 @@
             </a>
         </li>
         <li class="nav-item" role="presentation">
+            <a class="nav-link {% if section == 'orgs' %}active{% endif %}"
+               href="{{ url_for('main.admin_panel', section='orgs') }}"
+               role="tab">
+                <i class="fas fa-building"></i> Orgs &amp; Teams
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
             <a class="nav-link"
                href="{{ url_for('auth.manage_whatsapp_groups',
                                 team_id=session.get('current_team_id', 1)) }}">
@@ -351,8 +358,83 @@
                             <input type="checkbox" class="form-check-input" name="set_active" id="seasonActive" checked/>
                             <label class="form-check-label" for="seasonActive">Set as active season</label>
                         </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Create season</button>
+                    </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane {% if section == 'orgs' %}show active{% endif %}" role="tabpanel">
+            <div class="row">
+                <div class="col-md-7 mb-4">
+                    <h4>Organizations &amp; Teams</h4>
+                    <p class="text-muted small">Teams hold games, players and seasons. A team or organization can only be deleted once empty.</p>
+                    {% for org in orgs %}
+                    <div class="card shadow-sm mb-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-0">{{ org.name }}</h5>
+                                    <span class="text-muted small">{{ org.teams|length }} team{{ '' if org.teams|length == 1 else 's' }} · {{ org.memberships|length }} member{{ '' if org.memberships|length == 1 else 's' }}</span>
+                                </div>
+                                {% if not org.teams|length and not org.memberships|length %}
+                                <form method="POST" action="{{ url_for('main.delete_org', org_id=org.id) }}" onsubmit="return confirm('Delete organization {{ org.name }}?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete org</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            <table class="table table-sm mt-3 mb-0">
+                                <tbody>
+                                    {% for team in org.teams %}
+                                    <tr>
+                                        <td><strong>{{ team.name }}</strong><br/><span class="text-muted small">{{ team.games|length }} games · {{ team.lineups|length }} lineups</span></td>
+                                        <td class="text-end">
+                                            <a href="{{ url_for('auth.manage_whatsapp_groups', team_id=team.id) }}" class="btn btn-sm btn-outline-secondary">WhatsApp</a>
+                                            <form method="POST" action="{{ url_for('main.delete_team', team_id=team.id) }}" style="display:inline" onsubmit="return confirm('Delete team {{ team.name }}?')">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr><td class="text-muted small">No teams yet.</td><td></td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No organizations yet.</p>
+                    {% endfor %}
+                </div>
+                <div class="col-md-5 mb-4">
+                    <h4>New organization</h4>
+                    <form method="POST" action="{{ url_for('main.create_org') }}" class="mb-4">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="name" required maxlength="100" placeholder="Organization name"/>
+                            <button type="submit" class="btn btn-primary">Create org</button>
+                        </div>
+                    </form>
+                    <h4>New team</h4>
+                    <form method="POST" action="{{ url_for('main.create_team') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="mb-2">
+                            <label class="form-label">Organization</label>
+                            <select class="form-select" name="organization_id" required>
+                                {% for org in orgs %}
+                                <option value="{{ org.id }}">{{ org.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Team name</label>
+                            <input type="text" class="form-control" name="name" required maxlength="100"/>
+                        </div>
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-primary">Create season</button>
+                            <button type="submit" class="btn btn-primary">Create team</button>
                         </div>
                     </form>
                 </div>

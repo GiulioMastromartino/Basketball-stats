@@ -42,6 +42,7 @@ from core.models import (
     Organization,
     Team,
     Season,
+    TeamAssignment,
 )
 from core.services.season_service import (
     create_season as create_team_season,
@@ -1527,7 +1528,12 @@ def switch_team():
 # ADMIN PANEL
 # =============================================================================
 
-VALID_SECTIONS = {"users", "players", "settings", "seasons"}
+VALID_SECTIONS = {"users", "players", "settings", "seasons", "orgs"}
+
+
+def _slugify(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", (name or "").strip().lower()).strip("-")
+    return slug or "unnamed"
 
 
 @main_bp.route("/admin")
@@ -1543,6 +1549,7 @@ def admin_panel(section="users"):
     team_id = session.get("current_team_id")
     players = Player.query.filter_by(team_id=team_id).order_by(Player.name).all()
     seasons = list_seasons(team_id) if team_id else []
+    orgs = Organization.query.order_by(Organization.name).all()
 
     settings_data = db.session.query(SystemSetting).all()
     settings = {s.key: s.value for s in settings_data}
@@ -1552,6 +1559,7 @@ def admin_panel(section="users"):
         users=users,
         players=players,
         seasons=seasons,
+        orgs=orgs,
         settings=settings,
         section=section,
     )
@@ -1604,6 +1612,96 @@ def delete_season(season_id):
     except ValueError as e:
         flash(str(e), "danger")
     return redirect(url_for("main.admin_panel", section="seasons"))
+
+
+@main_bp.route("/orgs/create", methods=["POST"])
+@login_required
+@gm_required
+def create_org():
+    """Create a new organization."""
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("Organization name is required.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    slug = _slugify(name)
+    if Organization.query.filter_by(slug=slug).first():
+        flash(f"Organization '{name}' already exists.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    org = Organization(name=name, slug=slug)
+    db.session.add(org)
+    db.session.commit()
+    flash(f"Organization '{name}' created.", "success")
+    return redirect(url_for("main.admin_panel", section="orgs"))
+
+
+@main_bp.route("/orgs/<int:org_id>/delete", methods=["POST"])
+@login_required
+@gm_required
+def delete_org(org_id):
+    """Delete an organization with no teams or members."""
+    org = Organization.query.get_or_404(org_id)
+    if Team.query.filter_by(organization_id=org.id).count():
+        flash("Cannot delete an organization that has teams.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    if OrganizationMembership.query.filter_by(organization_id=org.id).count():
+        flash("Cannot delete an organization that has members.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    db.session.delete(org)
+    db.session.commit()
+    flash(f"Organization '{org.name}' deleted.", "success")
+    return redirect(url_for("main.admin_panel", section="orgs"))
+
+
+@main_bp.route("/teams/create", methods=["POST"])
+@login_required
+@gm_required
+def create_team():
+    """Create a new team inside an organization."""
+    org_id = request.form.get("organization_id", type=int)
+    name = (request.form.get("name") or "").strip()
+    org = Organization.query.get(org_id) if org_id else None
+    if org is None:
+        flash("Valid organization is required.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    if not name:
+        flash("Team name is required.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    slug = _slugify(name)
+    if Team.query.filter_by(organization_id=org.id, slug=slug).first():
+        flash(f"Team '{name}' already exists in {org.name}.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    team = Team(name=name, organization_id=org.id, slug=slug)
+    db.session.add(team)
+    db.session.commit()
+    flash(f"Team '{name}' created in {org.name}.", "success")
+    return redirect(url_for("main.admin_panel", section="orgs"))
+
+
+@main_bp.route("/teams/<int:team_id>/delete", methods=["POST"])
+@login_required
+@gm_required
+def delete_team(team_id):
+    """Delete a team with no games, players, seasons or assignments."""
+    team = Team.query.get_or_404(team_id)
+    blockers = {
+        "games": Game.query.filter_by(team_id=team.id).count(),
+        "players": Player.query.filter_by(team_id=team.id).count(),
+        "seasons": Season.query.filter_by(team_id=team.id).count(),
+        "assignments": TeamAssignment.query.filter_by(team_id=team.id).count(),
+    }
+    used = [k for k, v in blockers.items() if v]
+    if used:
+        flash(f"Cannot delete team '{team.name}': still has {', '.join(used)}.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    # Drop the session reference if it pointed at the deleted team.
+    if session.get("current_team_id") == team.id:
+        session.pop("current_team_id", None)
+        session.pop("current_team_name", None)
+        session.pop("current_season_id", None)
+    db.session.delete(team)
+    db.session.commit()
+    flash(f"Team '{team.name}' deleted.", "success")
+    return redirect(url_for("main.admin_panel", section="orgs"))
 
 
 @main_bp.route("/season/switch")
