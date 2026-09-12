@@ -337,3 +337,46 @@ class TestTeamContextLinks:
         assert resp.status_code == 200
         with admin_client.session_transaction() as sess:
             assert sess.get("current_team_id") == default_team.id
+
+
+class TestPlayersScopedToTeam:
+    """Players listing/detail follow the session team."""
+
+    def _second_team_game(self, db_session, default_org, name="Second Star"):
+        from core.models import Game as _Game, PlayerStat as _PS
+        team2 = Team(name="Second Team", organization_id=default_org.id,
+                     slug="second-team")
+        db.session.add(team2)
+        db.session.flush()
+        game = _Game(date="01-01-2024", opponent="Rivals", team_score=80,
+                     opponent_score=70, result="W", game_type="Season",
+                     sort_date="2024-01-01", source="MANUAL",
+                     team_id=team2.id)
+        db.session.add(game)
+        db.session.flush()
+        db.session.add(_PS(game_id=game.id, player_name=name, points=10,
+                           minutes="20:00"))
+        db.session.commit()
+        return team2
+
+    def test_listing_scoped_to_session_team(
+            self, admin_client, db_session, default_org, default_team,
+            sample_game, sample_player_stat):
+        team2 = self._second_team_game(db_session, default_org)
+        with admin_client.session_transaction() as sess:
+            sess["current_team_id"] = team2.id
+        resp = admin_client.get("/players")
+        assert resp.status_code == 200
+        assert b"Second Star" in resp.data
+        assert b"John Doe" not in resp.data
+
+    def test_player_detail_scoped_to_team(
+            self, admin_client, db_session, default_org, default_team,
+            sample_game, sample_player_stat):
+        team2 = self._second_team_game(db_session, default_org)
+        with admin_client.session_transaction() as sess:
+            sess["current_team_id"] = team2.id
+        # John Doe only played for the default team: scoped detail refuses.
+        resp = admin_client.get("/player/John%20Doe", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/players" in resp.headers["Location"]
