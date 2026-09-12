@@ -43,6 +43,20 @@
             </a>
         </li>
         <li class="nav-item" role="presentation">
+            <a class="nav-link {% if section == 'matrix' %}active{% endif %}"
+               href="{{ url_for('main.admin_panel', section='matrix') }}"
+               role="tab">
+                <i class="fas fa-table"></i> Matrix
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link {% if section == 'activity' %}active{% endif %}"
+               href="{{ url_for('main.admin_panel', section='activity') }}"
+               role="tab">
+                <i class="fas fa-clock-rotate-left"></i> Activity
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
             <a class="nav-link"
                href="{{ url_for('auth.manage_whatsapp_groups',
                                 team_id=session.get('current_team_id', 1)) }}">
@@ -71,6 +85,7 @@
                                         <th>Email</th>
                                         <th>GM</th>
                                         <th>Coach</th>
+                                        <th>Auditor</th>
                                         <th>Teams <span class="text-muted small fw-normal" title="Double-click a badge to remove the user from that team">(dbl-click ✕)</span></th>
                                         <th class="text-end pe-4">Actions</th>
                                     </tr>
@@ -110,6 +125,22 @@
             <span class="text-muted small ms-1">(You)</span>
             {% endif %}
         </td>
+        <td>
+            {% if user.id != current_user.id and not is_auditor %}
+            <form action="{{ url_for('auth.toggle_auditor', user_id=user.id) }}" method="POST" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="is_auditor"
+                           {% if user.is_auditor %}checked{% endif %}
+                           onchange="this.form.submit()" title="Read-only auditor">
+                </div>
+            </form>
+            {% elif user.is_auditor %}
+            <span class="badge bg-secondary">Auditor</span>
+            {% else %}
+            <span class="text-muted small">—</span>
+            {% endif %}
+        </td>
         <td data-user-teams="{{ user.id }}">
             {% if user.id != current_user.id %}
             <span class="user-team-badges">
@@ -145,6 +176,30 @@
                             </table>
                         </div>
                     </div>
+                    {% if not is_auditor %}
+                    <div class="card shadow-sm mt-3">
+                        <div class="card-header bg-light"><h6 class="mb-0"><i class="fas fa-paper-plane"></i> Invite member — user + teams in one step</h6></div>
+                        <div class="card-body">
+                            <form method="POST" action="{{ url_for('auth.invite_user') }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <div class="row g-2">
+                                    <div class="col-md-3"><input name="username" required class="form-control form-control-sm" placeholder="Username"/></div>
+                                    <div class="col-md-4"><input name="email" type="email" required class="form-control form-control-sm" placeholder="email@club.it"/></div>
+                                    <div class="col-md-3">
+                                        <select name="team_ids" multiple class="form-select form-select-sm" size="2">
+                                            {% for team in all_teams %}<option value="{{ team.id }}">{{ team.name }}</option>{% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="form-check"><input class="form-check-input" type="checkbox" name="is_gm" id="inv_gm"/><label class="form-check-label small" for="inv_gm">GM</label></div>
+                                        <div class="form-check"><input class="form-check-input" type="checkbox" name="is_coach" id="inv_coach" checked/><label class="form-check-label small" for="inv_coach">Coach</label></div>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-primary mt-2">Send invite</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -384,11 +439,25 @@
             </div>
         </div>
         <div class="tab-pane {% if section == 'orgs' %}show active{% endif %}" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <form method="GET" action="{{ url_for('main.admin_panel', section='orgs') }}" class="d-flex gap-2 align-items-center">
+                        <label class="text-muted small mb-0" for="org_picker">Organization:</label>
+                        <select id="org_picker" name="org_id" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                            <option value="">All organizations</option>
+                            {% for org in orgs %}
+                            <option value="{{ org.id }}" {% if org.id == active_org_id %}selected{% endif %}>{{ org.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if active_org_id %}<a href="{{ url_for('main.admin_panel', section='orgs') }}" class="btn btn-sm btn-link">clear</a>{% endif %}
+                    </form>
+                </div>
+            </div>
             <div class="row">
                 <div class="col-md-7 mb-4">
                     <h4>Organizations &amp; Teams</h4>
-                    <p class="text-muted small">Teams hold games, players and seasons. A team or organization can only be deleted once empty.</p>
-                    {% for org in orgs %}
+                    <p class="text-muted small">Teams hold games, players and seasons. A team or organization can only be deleted once empty. Rename and transfers keep games &amp; seasons.</p>
+                    {% for org in visible_orgs %}
                     <div class="card shadow-sm mb-3">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center">
@@ -396,13 +465,32 @@
                                     <h5 class="mb-0">{{ org.name }}</h5>
                                     <span class="text-muted small">{{ org.teams|length }} team{{ '' if org.teams|length == 1 else 's' }} · {{ org.memberships|length }} member{{ '' if org.memberships|length == 1 else 's' }}</span>
                                 </div>
-                                {% if not org.teams|length and not org.memberships|length %}
+                                {% if not org.teams|length and not org.memberships|length and not is_auditor %}
                                 <form method="POST" action="{{ url_for('main.delete_org', org_id=org.id) }}" onsubmit="return confirm('Delete organization {{ org.name }}?')">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <button type="submit" class="btn btn-sm btn-outline-danger">Delete org</button>
                                 </form>
                                 {% endif %}
                             </div>
+                            {% if not is_auditor %}
+                            <div class="d-flex gap-2 mt-2 flex-wrap">
+                                <form method="POST" action="{{ url_for('main.rename_org', org_id=org.id) }}" class="d-flex gap-1">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <input type="text" name="name" class="form-control form-control-sm" value="{{ org.name }}" maxlength="100" style="max-width:200px"/>
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">Rename</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('main.update_org_settings', org_id=org.id) }}" class="d-flex gap-1 align-items-center">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <input type="text" name="timezone" class="form-control form-control-sm" value="{{ org.timezone or 'UTC' }}" title="Timezone" style="max-width:110px"/>
+                                    <input type="text" name="sport" class="form-control form-control-sm" value="{{ org.sport or 'basketball' }}" title="Sport" style="max-width:110px"/>
+                                    <select name="season_convention" class="form-select form-select-sm w-auto" title="Season convention">
+                                        <option value="sept-june" {% if (org.season_convention or 'sept-june') == 'sept-june' %}selected{% endif %}>Sept–June</option>
+                                        <option value="calendar" {% if org.season_convention == 'calendar' %}selected{% endif %}>Calendar</option>
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Save org defaults">Defaults</button>
+                                </form>
+                            </div>
+                            {% endif %}
                             <table class="table table-sm mt-3 mb-0">
                                 <tbody>
                                     {% for team in org.teams %}
@@ -410,24 +498,41 @@
                                         <td><strong>{{ team.name }}</strong><br/><span class="text-muted small">{{ team.games|length }} games · {{ team.lineups|length }} lineups</span></td>
                                         <td class="text-end">
                                             <a href="{{ url_for('auth.manage_whatsapp_groups', team_id=team.id) }}" class="btn btn-sm btn-outline-secondary">WhatsApp</a>
+                                            {% if not is_auditor %}
+                                            <form method="POST" action="{{ url_for('main.rename_team', team_id=team.id) }}" style="display:inline" class="ms-1">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                <input type="hidden" name="name" value="{{ team.name }}"/>
+                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="var n=prompt('Rename team {{ team.name }} to:', '{{ team.name }}'); if(n){this.form.name.value=n; this.form.submit();}">Rename</button>
+                                            </form>
+                                            <form method="POST" action="{{ url_for('main.transfer_team', team_id=team.id) }}" style="display:inline" onsubmit="return confirm('Move {{ team.name }} to the selected org? Games & seasons are kept.')">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                <select name="organization_id" class="form-select form-select-sm d-inline-block w-auto">
+                                                    {% for o in orgs %}{% if o.id != org.id %}<option value="{{ o.id }}">{{ o.name }}</option>{% endif %}{% endfor %}
+                                                </select>
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary">Transfer</button>
+                                            </form>
                                             <form method="POST" action="{{ url_for('main.delete_team', team_id=team.id) }}" style="display:inline" onsubmit="return confirm('Delete team {{ team.name }}?')">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                                             </form>
+                                            {% endif %}
                                         </td>
                                     </tr>
                                     {% else %}
-                                    <tr><td class="text-muted small">No teams yet.</td><td></td></tr>
+                                    <tr><td class="text-muted small">No teams yet — create the first one on the right.</td><td></td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
                         </div>
                     </div>
                     {% else %}
-                    <p class="text-muted">No organizations yet.</p>
+                    <p class="text-muted">No organizations yet — create the first one on the right.</p>
                     {% endfor %}
                 </div>
                 <div class="col-md-5 mb-4">
+                    {% if is_auditor %}
+                    <div class="alert alert-secondary"><i class="fas fa-eye"></i> Auditor view — read-only. Mutations are disabled.</div>
+                    {% else %}
                     <h4>New organization</h4>
                     <form method="POST" action="{{ url_for('main.create_org') }}" class="mb-4">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -455,11 +560,59 @@
                             <button type="submit" class="btn btn-primary">Create team</button>
                         </div>
                     </form>
+                    {% endif %}
                 </div>
             </div>
         </div>
-    </div>
-</div>
+
+        <div class="tab-pane {% if section == 'matrix' %}show active{% endif %}" role="tabpanel">
+            <h4>Assignment matrix <span class="text-muted small">— click a pill to assign / unassign</span></h4>
+            <p class="text-muted small">Rows are users, columns are teams. Uses the same <code>/auth/users/&lt;id&gt;/teams</code> endpoint as the double-click badges. Team-GM star toggles the per-team GM flag.</p>
+            <div class="card shadow-sm"><div class="card-body p-0 table-responsive">
+                <table class="table table-hover mb-0" id="matrix-table">
+                    <thead class="bg-light"><tr><th class="ps-4">User</th><th>GM</th>
+                    {% for team in visible_teams %}<th>{{ team.name }}</th>{% endfor %}</tr></thead>
+                    <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td class="ps-4">{{ user.username }}{% if user.id == current_user.id %} (you){% endif %}</td>
+                        <td>{% if user.is_gm %}<span class="badge bg-danger">★ GM</span>{% else %}<span class="badge bg-secondary">gm</span>{% endif %}</td>
+                        {% for team in visible_teams %}
+                        <td>
+                            {% if user.id != current_user.id and not is_auditor %}
+                            <span class="badge matrix-pill {% if team.id in assignments.get(user.id, []) %}bg-primary{% else %}bg-light text-muted border{% endif %}"
+                                  data-user="{{ user.id }}" data-team="{{ team.id }}"
+                                  style="cursor:pointer" title="Click to toggle {{ user.username }} on {{ team.name }}">
+                                {% if team.id in assignments.get(user.id, []) %}✓ {% endif %}{{ team.name }}</span>
+                            {% if team.id in team_gms.get(user.id, []) %}<span class="badge bg-warning text-dark ms-1" title="Team GM">★</span>{% endif %}
+                            {% else %}
+                            <span class="badge {% if team.id in assignments.get(user.id, []) %}bg-primary{% else %}bg-light text-muted border{% endif %}">{% if team.id in assignments.get(user.id, []) %}✓ {% endif %}{{ team.name }}</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div></div>
+        </div>
+
+        <div class="tab-pane {% if section == 'activity' %}show active{% endif %}" role="tabpanel">
+            <h4>Activity <span class="text-muted small">— audit trail (read-only)</span></h4>
+            <div class="card shadow-sm"><div class="card-body p-0 table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="bg-light"><tr><th class="ps-4">When</th><th>Who</th><th>Action</th></tr></thead>
+                    <tbody>
+                    {% for e in audit_entries %}
+                    <tr><td class="ps-4 small">{{ e.created_at.strftime("%Y-%m-%d %H:%M") if e.created_at else "—" }}</td>
+                        <td>{{ e.actor.username if e.actor else "system" }}</td><td>{{ e.summary }}</td></tr>
+                    {% else %}
+                    <tr><td colspan="3" class="text-muted p-4">No admin activity yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div></div>
+        </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -515,6 +668,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.ok) { window.location.reload(); }
                 else { alert(data.error || "Could not assign."); }
                 select.value = "";
+            });
+        });
+    });
+    // Assignment matrix: click a pill to toggle assignment instantly.
+    document.querySelectorAll('.matrix-pill').forEach(function(pill) {
+        pill.addEventListener('click', function() {
+            const userId = pill.getAttribute('data-user');
+            const teamId = pill.getAttribute('data-team');
+            const assigned = pill.classList.contains('bg-light');
+            toggleTeam(userId, teamId, assigned, function(data) {
+                if (data.ok) { window.location.reload(); }
+                else { alert(data.error || "Could not update."); }
             });
         });
     });

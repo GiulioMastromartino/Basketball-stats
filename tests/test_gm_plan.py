@@ -1,0 +1,234 @@
+"""Tests for the GM & Admin UX plan (Assignment matrix, invite, rename,
+transfer, org workspace, audit trail, per-team GM, auditor, org switcher).
+"""
+
+import pytest
+
+from core.models import (
+    AdminAudit,
+    Game,
+    Organization,
+    OrganizationMembership,
+    Team,
+    TeamAssignment,
+    User,
+    db,
+)
+
+
+def _other_user(db_session, org, username="gmplan_mate", email="gmplan@test.com"):
+    user = User(username=username, email=email, organization_id=org.id)
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.flush()
+    db.session.add(OrganizationMembership(
+        user_id=user.id, organization_id=org.id, is_gm=False))
+    db.session.commit()
+    return user
+
+
+class TestMatrixAndActivity:
+    def test_matrix_section_renders(self, admin_client):
+        resp = admin_client.get("/admin/matrix")
+        assert resp.status_code == 200
+        assert b"Assignment matrix" in resp.data
+
+    def test_activity_section_renders(self, admin_client):
+        resp = admin_client.get("/admin/activity")
+        assert resp.status_code == 200
+        assert b"Activity" in resp.data
+
+    def test_matrix_click_toggle(self, admin_client, db_session,
+                                 default_org, default_team):
+        user = _other_user(db_session, default_org)
+        resp = admin_client.post(
+            f"/auth/users/{user.id}/teams",
+            json={"team_id": default_team.id, "assigned": True})
+        assert resp.get_json()["ok"] is True
+        resp = admin_client.get("/admin/matrix")
+        assert default_team.name.encode() in resp.data
+        assert user.username.encode() in resp.data
+
+
+class TestInviteFlow:
+    def test_invite_creates_user_with_teams(
+            self, admin_client, db_session, default_org, default_team):
+        resp = admin_client.post(
+            "/auth/users/invite",
+            data={"username": "sara.k", "email": "sara@club.it",
+                  "team_ids": [str(default_team.id)],
+                  "is_coach": "on"},
+            follow_redirects=True)
+        assert resp.status_code == 200
+        user = User.query.filter_by(username="sara.k").first()
+        assert user is not None
+        assert user.organization_id == default_org.id
+        ta = TeamAssignment.query.filter_by(
+            user_id=user.id, team_id=default_team.id).first()
+        assert ta is not None and ta.is_coach is True
+        audit = AdminAudit.query.filter_by(action="user.invite").first()
+        assert audit is not None
+
+    def test_invite_rejects_duplicates(
+            self, admin_client, db_session, default_org, default_team):
+        user = _other_user(db_session, default_org)
+        resp = admin_client.post(
+            "/auth/users/invite",
+            data={"username": user.username, "email": "fresh@club.it"},
+            follow_redirects=True)
+        assert resp.status_code == 200
+        assert User.query.filter_by(email="fresh@club.it").first() is None
+
+    def test_invite_requires_username_email(self, admin_client):
+        resp = admin_client.post(
+            "/auth/users/invite", data={"username": "", "email": ""},
+            follow_redirects=True)
+        assert resp.status_code == 200
+
+
+class TestRenameTransfer:
+    def test_rename_org(self, admin_client, db_session, default_org):
+        resp = admin_client.post(
+            f"/orgs/{default_org.id}/rename",
+            data={"name": "Renamed Org"}, follow_redirects=True)
+        assert resp.status_code == 200
+        assert Organization.query.get(default_org.id).name == "Renamed Org"
+
+    def test_rename_org_rejects_duplicates(
+            self, admin_client, db_session, default_org):
+        other = Organization(name="Satellite", slug="satellite")
+        db.session.add(other)
+        db.session.commit()
+        resp = admin_client.post(
+            f"/orgs/{default_org.id}/rename",
+            data={"name": "Satellite"}, follow_redirects=True)
+        assert resp.status_code == 200
+        assert Organization.query.get(default_org.id).name == default_org.name
+
+    def test_rename_team(self, admin_client, db_session, default_team):
+        resp = admin_client.post(
+            f"/teams/{default_team.id}/rename",
+            data={"name": "U14 Herons"}, follow_redirects=True)
+        assert resp.status_code == 200
+        assert Team.query.get(default_team.id).name == "U14 Herons"
+
+    def test_transfer_team_keeps_games(
+            self, admin_client, db_session, default_team, sample_game):
+        dest = Organization(name="Dest Club", slug="dest-club")
+        db.session.add(dest)
+        db.session.commit()
+        games_before = Game.query.filter_by(team_id=default_team.id).count()
+        assert games_before >= 1
+        resp = admin_client.post(
+            f"/teams/{default_team.id}/transfer",
+            data={"organization_id": dest.id}, follow_redirects=True)
+        assert resp.status_code == 200
+        team = Team.query.get(default_team.id)
+        assert team.organization_id == dest.id
+        assert Game.query.filter_by(team_id=team.id).count() == games_before
+
+    def test_transfer_rejects_same_org(
+            self, admin_client, db_session, default_team):
+        resp = admin_client.post(
+            f"/teams/{default_team.id}/transfer",
+            data={"organization_id": default_team.organization_id},
+            follow_redirects=True)
+        assert resp.status_code == 200
+        assert Team.query.get(default_team.id).organization_id == \
+            default_team.organization_id
+
+
+class TestOrgWorkspaceAndDefaults:
+    def test_org_filter(self, admin_client, db_session, default_org):
+        other = Organization(name="Other Club", slug="other-club-2")
+        db.session.add(other)
+        db.session.commit()
+        resp = admin_client.get(f"/admin/orgs?org_id={other.id}")
+        assert resp.status_code == 200
+        assert b"Other Club" in resp.data
+
+    def test_update_org_defaults(self, admin_client, db_session, default_org):
+        resp = admin_client.post(
+            f"/orgs/{default_org.id}/settings",
+            data={"timezone": "Europe/Rome", "sport": "basketball",
+                  "season_convention": "calendar"},
+            follow_redirects=True)
+        assert resp.status_code == 200
+        org = Organization.query.get(default_org.id)
+        assert org.timezone == "Europe/Rome"
+        assert org.season_convention == "calendar"
+
+    def test_invalid_convention_falls_back(
+            self, admin_client, db_session, default_org):
+        admin_client.post(
+            f"/orgs/{default_org.id}/settings",
+            data={"timezone": "UTC", "sport": "basketball",
+                  "season_convention": "nonsense"},
+            follow_redirects=True)
+        assert Organization.query.get(default_org.id).season_convention == \
+            "sept-june"
+
+
+class TestPerTeamGMAndAuditor:
+    def test_team_gm_flag_toggle(
+            self, admin_client, db_session, default_org, default_team):
+        user = _other_user(db_session, default_org)
+        resp = admin_client.post(
+            f"/auth/users/{user.id}/teams",
+            json={"team_id": default_team.id, "assigned": True,
+                  "role": "team_gm"})
+        assert resp.status_code == 200
+        assert resp.get_json()["ok"] is True
+        ta = TeamAssignment.query.filter_by(
+            user_id=user.id, team_id=default_team.id).first()
+        assert ta is not None and ta.is_team_gm is True
+
+    def test_auditor_readonly(
+            self, client, db_session, default_org, default_team):
+        auditor = User(username="auditor1", email="auditor1@test.com",
+                       organization_id=default_org.id, is_auditor=True)
+        auditor.set_password("password123")
+        db.session.add(auditor)
+        db.session.flush()
+        db.session.add(OrganizationMembership(
+            user_id=auditor.id, organization_id=default_org.id,
+            is_gm=False))
+        db.session.commit()
+        with client.session_transaction() as sess:
+            sess["_user_id"] = str(auditor.id)
+            sess["_fresh"] = True
+            sess["current_team_id"] = default_team.id
+        # Can view admin + activity.
+        assert client.get("/admin/users").status_code == 200
+        assert client.get("/admin/activity").status_code == 200
+        # Cannot mutate via JSON endpoint.
+        user = _other_user(db_session, default_org,
+                           username="aud_target", email="aud_target@t.com")
+        resp = client.post(
+            f"/auth/users/{user.id}/teams",
+            json={"team_id": default_team.id, "assigned": True})
+        assert resp.status_code == 403
+        # Cannot invite (gm_required redirect).
+        resp = client.post(
+            "/auth/users/invite",
+            data={"username": "x", "email": "x@t.com"},
+            follow_redirects=False)
+        assert resp.status_code in (302, 403)
+
+    def test_switch_org(self, admin_client, db_session, admin_user):
+        org2 = Organization(name="Second Org", slug="second-org")
+        db.session.add(org2)
+        db.session.flush()
+        db.session.add(OrganizationMembership(
+            user_id=admin_user.id, organization_id=org2.id, is_gm=True))
+        db.session.commit()
+        resp = admin_client.post(
+            "/switch-org", data={"org_id": org2.id},
+            follow_redirects=False)
+        assert resp.status_code in (302, 303)
+        with admin_client.session_transaction() as sess:
+            assert sess.get("current_org_id") == org2.id
+
+    def test_gm_dashboard_renders(self, admin_client):
+        resp = admin_client.get("/gm/dashboard")
+        assert resp.status_code == 200

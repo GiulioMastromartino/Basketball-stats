@@ -21,8 +21,8 @@ from wtforms.validators import DataRequired, Email
 
 from core.models import (
     User, SystemSetting, Organization, Team,
-    OrganizationMembership, TeamAssignment,
-    db, bcrypt, Player, WhatsAppGroup,
+    OrganizationMembership, TeamAssignment, AdminAudit,
+    db, bcrypt, Player, WhatsAppGroup, log_admin_action,
 )
 from core.services.notification_service import notify_otp
 from core.services.workos_service import (
@@ -396,9 +396,12 @@ def delete_user(user_id):
         return redirect(url_for("main.admin_panel", section="users"))
 
     user = User.query.get_or_404(user_id)
+    username = user.username
     db.session.delete(user)
     db.session.commit()
-    flash(f"User {user.username} deleted.", "success")
+    log_admin_action(current_user, "user.delete", f"deleted user {username}",
+                     target_type="user", target_id=user_id)
+    flash(f"User {username} deleted.", "success")
     return redirect(url_for("main.admin_panel", section="users"))
 
 
@@ -446,16 +449,91 @@ def manage_membership(user_id):
             db.session.add(ta)
 
     db.session.commit()
-
+    log_admin_action(current_user, "membership.update",
+                     f"updated membership for {user.username} (gm={is_gm}, coach={is_coach})",
+                     target_type="user", target_id=user.id)
     flash(f"Membership for {user.username} updated.", "success")
+    return redirect(url_for("main.admin_panel", section="users"))
+
+
+@auth_bp.route("/users/invite", methods=["POST"])
+@login_required
+@gm_required
+def invite_user():
+    """Invite flow (GM plan idea 3): create user + assignments in one POST."""
+    org_id = current_user.organization_id
+    if not org_id:
+        flash("You must belong to an organization to invite users.", "danger")
+        return redirect(url_for("main.admin_panel", section="users"))
+    username = (request.form.get("username") or "").strip()
+    email = (request.form.get("email") or "").strip()
+    if not username or not email:
+        flash("Username and email are required.", "danger")
+        return redirect(url_for("main.admin_panel", section="users"))
+    if User.query.filter((User.username == username) | (User.email == email)).first():
+        flash("A user with this username or email already exists.", "warning")
+        return redirect(url_for("main.admin_panel", section="users"))
+    is_gm = request.form.get("is_gm") == "on"
+    is_coach = request.form.get("is_coach") == "on"
+    raw_team_ids = request.form.getlist("team_ids")
+    try:
+        team_ids = [int(t) for t in raw_team_ids if str(t).strip()]
+    except (TypeError, ValueError):
+        team_ids = []
+    teams = Team.query.filter(
+        Team.id.in_(team_ids), Team.organization_id == org_id).all() if team_ids else []
+
+    new_user = User(username=username, email=email, organization_id=org_id)
+    new_user.set_password(secrets.token_urlsafe(12))
+    db.session.add(new_user)
+    db.session.flush()
+    db.session.add(OrganizationMembership(
+        user_id=new_user.id, organization_id=org_id, is_gm=is_gm))
+    for team in teams:
+        db.session.add(TeamAssignment(
+            user_id=new_user.id, team_id=team.id, is_coach=is_coach))
+    db.session.commit()
+    log_admin_action(
+        current_user, "user.invite",
+        f"invited {username} ({email}) to {len(teams)} team(s)"
+        + (", GM" if is_gm else ""),
+        target_type="user", target_id=new_user.id)
+    flash(f"Invited {username} — assigned to {len(teams)} team(s).", "success")
+    return redirect(url_for("main.admin_panel", section="users"))
+
+
+@auth_bp.route("/users/<int:user_id>/auditor", methods=["POST"])
+@login_required
+@gm_required
+def toggle_auditor(user_id):
+    """Grant/revoke the read-only auditor role (GM plan idea 5)."""
+    if user_id == current_user.id:
+        flash("You cannot modify your own role.", "danger")
+        return redirect(url_for("main.admin_panel", section="users"))
+    user = User.query.get_or_404(user_id)
+    if user.organization_id != current_user.organization_id:
+        flash("User is not in your organization.", "danger")
+        return redirect(url_for("main.admin_panel", section="users"))
+    user.is_auditor = request.form.get("is_auditor") == "on"
+    db.session.commit()
+    log_admin_action(current_user, "user.auditor",
+                     f"set auditor={user.is_auditor} for {user.username}",
+                     target_type="user", target_id=user.id)
+    flash(f"Auditor role for {user.username} updated.", "success")
     return redirect(url_for("main.admin_panel", section="users"))
 
 
 @auth_bp.route("/users/<int:user_id>/teams", methods=["POST"])
 @login_required
-@gm_required
 def toggle_team_assignment(user_id):
-    """Assign/remove a user to/from a team (JSON). Used by double-click UI."""
+    """Assign/remove a user to/from a team (JSON). Used by double-click UI.
+
+    GM-only, except per-team GMs may manage their own team (GM plan idea 1).
+    Optional ``role`` in {coach, team_gm} toggles that flag instead of
+    membership. Auditors are read-only.
+    """
+    if getattr(current_user, "is_auditor", False) and not current_app.config.get("LOGIN_DISABLED"):
+        return jsonify({"ok": False, "error": "Auditors have read-only access."}), 403
     if user_id == current_user.id:
         return jsonify({"ok": False, "error": "You cannot modify your own teams."}), 400
 
@@ -466,6 +544,7 @@ def toggle_team_assignment(user_id):
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "Valid team_id required."}), 400
     assigned = bool(data.get("assigned", True))
+    role = (data.get("role") or "").strip()
 
     team = Team.query.get_or_404(team_id)
     if (
@@ -480,6 +559,28 @@ def toggle_team_assignment(user_id):
     ):
         return jsonify({"ok": False, "error": "Team is in another organization."}), 403
 
+    allowed = current_app.config.get("LOGIN_DISABLED") or bool(
+        getattr(current_user, "is_gm", False))
+    if not allowed and not current_user.can_manage_team(team.id):
+        return jsonify({"ok": False, "error": "Not allowed for this team."}), 403
+
+    if role in ("coach", "team_gm"):
+        ta = TeamAssignment.query.filter_by(user_id=user.id, team_id=team.id).first()
+        if ta is None:
+            if not assigned:
+                return jsonify({"ok": True, "action": "noop", "teams": []})
+            ta = TeamAssignment(user_id=user.id, team_id=team.id)
+            db.session.add(ta)
+        if role == "coach":
+            ta.is_coach = assigned
+        else:
+            ta.is_team_gm = assigned
+        db.session.commit()
+        log_admin_action(current_user, "team.role",
+                         f"set {role}={assigned} for {user.username} on {team.name}",
+                         target_type="team", target_id=team.id)
+        return jsonify({"ok": True, "action": role, "assigned": assigned})
+
     ta = TeamAssignment.query.filter_by(user_id=user.id, team_id=team.id).first()
     if assigned:
         if ta is None:
@@ -491,6 +592,9 @@ def toggle_team_assignment(user_id):
             db.session.delete(ta)
             db.session.commit()
         action = "removed"
+    log_admin_action(current_user, f"team.{action}",
+                     f"{action} {user.username} {'to' if assigned else 'from'} {team.name}",
+                     target_type="team", target_id=team.id)
     teams = [
         {"id": t.id, "name": t.name}
         for t in Team.query.join(TeamAssignment)

@@ -8,11 +8,34 @@
             <p class="page-hero__lead">{{ members }} member{% if members != 1 %}s{% endif %} &middot; {{ team_data|length }} team{% if team_data|length != 1 %}s{% endif %}</p>
         </div>
         <div>
+            {% if my_orgs and my_orgs|length > 1 %}
+            <form method="POST" action="{{ url_for('main.switch_org') }}" style="display:inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <select name="org_id" class="form-select form-select-sm d-inline-block w-auto" onchange="this.form.submit()">
+                    {% for o in my_orgs %}<option value="{{ o.id }}" {% if o.id == org.id %}selected{% endif %}>{{ o.name }}</option>{% endfor %}
+                </select>
+            </form>
+            {% endif %}
             <a href="{{ url_for('main.admin_panel') }}" class="btn btn-outline-primary">
                 <i class="fas fa-user-gear" aria-hidden="true"></i> Admin Panel
             </a>
         </div>
     </div>
+
+    {% if checklist and not (checklist.has_teams and checklist.has_seasons and checklist.has_games) %}
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body">
+            <h6 class="mb-2"><i class="fas fa-list-check"></i> Getting started checklist</h6>
+            <ul class="mb-0 small">
+                <li>{% if checklist.has_teams %}✅{% else %}⬜{% endif %} Create a team <a href="{{ url_for('main.admin_panel', section='orgs') }}">in Admin → Orgs &amp; Teams</a></li>
+                <li>{% if checklist.has_members %}✅{% else %}⬜{% endif %} Invite members <a href="{{ url_for('main.admin_panel', section='users') }}">in Admin → Users</a></li>
+                <li>{% if checklist.has_seasons %}✅{% else %}⬜{% endif %} Create a season <a href="{{ url_for('main.admin_panel', section='seasons') }}">in Admin → Seasons</a></li>
+                <li>{% if checklist.has_players %}✅{% else %}⬜{% endif %} Add players <a href="{{ url_for('main.admin_panel', section='players') }}">in Admin → Players</a></li>
+                <li>{% if checklist.has_games %}✅{% else %}⬜{% endif %} Import or track your first game</li>
+            </ul>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Org-wide summary -->
     {% set total_games = namespace(v=0) %}

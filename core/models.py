@@ -14,6 +14,10 @@ class Organization(db.Model):
     name = db.Column(db.String(100), nullable=False)
     slug = db.Column(db.String(50), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Org defaults inherited by teams (GM plan: idea 2).
+    timezone = db.Column(db.String(50), nullable=False, default="UTC", server_default="UTC")
+    sport = db.Column(db.String(50), nullable=False, default="basketball", server_default="basketball")
+    season_convention = db.Column(db.String(20), nullable=False, default="sept-june", server_default="sept-june")
 
     teams = db.relationship("Team", backref="organization", lazy=True)
     memberships = db.relationship("OrganizationMembership", backref="organization", lazy=True)
@@ -64,6 +68,8 @@ class TeamAssignment(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     is_coach = db.Column(db.Boolean, default=False)
+    # Per-team GM: head coach managing only their team (GM plan idea 1).
+    is_team_gm = db.Column(db.Boolean, default=False, server_default="0")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (db.UniqueConstraint("user_id", "team_id"),)
@@ -91,6 +97,8 @@ class User(UserMixin, db.Model):
         server_default="email"
     )
     whatsapp_phone = db.Column(db.String(20), nullable=True)
+    # Read-only auditor: view everything, change nothing (GM plan idea 5).
+    is_auditor = db.Column(db.Boolean, default=False, server_default="0")
 
     memberships = db.relationship("OrganizationMembership", backref="user", lazy=True)
     team_assignments = db.relationship("TeamAssignment", backref="user", lazy=True)
@@ -134,6 +142,62 @@ class User(UserMixin, db.Model):
         return Team.query.join(TeamAssignment).filter(
             TeamAssignment.user_id == self.id
         ).all()
+
+    @property
+    def managed_team_ids(self):
+        """Team ids this user can manage: org GM manages all, else team-GM flags."""
+        if self.is_gm:
+            return [t.id for t in Team.query.filter_by(
+                organization_id=self.organization_id).all()]
+        rows = TeamAssignment.query.filter_by(
+            user_id=self.id, is_team_gm=True).all()
+        return [r.team_id for r in rows]
+
+    def can_manage_team(self, team_id: int) -> bool:
+        if self.is_gm:
+            return True
+        return TeamAssignment.query.filter_by(
+            user_id=self.id, team_id=team_id, is_team_gm=True).first() is not None
+
+
+class AdminAudit(db.Model):
+    """Audit trail for admin mutations (GM plan C-Phase 4).
+
+    Written by admin mutations, read via the Admin → Activity tab.
+    """
+
+    __tablename__ = "admin_audit"
+    id = db.Column(db.Integer, primary_key=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
+    action = db.Column(db.String(50), nullable=False)
+    target_type = db.Column(db.String(50), nullable=True)
+    target_id = db.Column(db.Integer, nullable=True)
+    summary = db.Column(db.String(500), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    actor = db.relationship("User", backref=db.backref("audit_entries", lazy=True))
+
+
+def log_admin_action(actor, action: str, summary: str,
+                     target_type: str | None = None,
+                     target_id: int | None = None,
+                     organization_id: int | None = None):
+    """Best-effort audit write; never breaks the calling mutation."""
+    try:
+        entry = AdminAudit(
+            actor_id=getattr(actor, "id", None),
+            organization_id=organization_id if organization_id is not None
+            else getattr(actor, "organization_id", None),
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            summary=summary,
+        )
+        db.session.add(entry)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 class SystemSetting(db.Model):
