@@ -84,6 +84,20 @@
     </div>
 
     <!-- Team cards -->
+    {% if not is_auditor %}
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('main.create_team') }}" class="d-flex gap-2 align-items-center flex-wrap">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="organization_id" value="{{ org.id }}"/>
+                <input type="hidden" name="next" value="{{ url_for('main.gm_dashboard') }}"/>
+                <h6 class="mb-0"><i class="fas fa-plus"></i> New team</h6>
+                <input type="text" name="name" class="form-control form-control-sm w-auto" required maxlength="100" placeholder="Team name"/>
+                <button type="submit" class="btn btn-sm btn-primary">Add team</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
     <div class="row g-4">
         {% for td in team_data %}
         <div class="col-12 col-md-6 col-xl-4">
@@ -131,6 +145,22 @@
                         </a>
                         <a href="{{ url_for('analytics.dashboard', team_id=td.id) }}" class="btn btn-sm btn-outline-primary" style="flex:1;">
                             <i class="fas fa-chart-column" aria-hidden="true"></i> Analytics
+                        </a>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap mt-2">
+                        {% if not is_auditor %}
+                        <form method="POST" action="{{ url_for('main.rename_team', team_id=td.id) }}" style="flex:1;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <input type="hidden" name="next" value="{{ url_for('main.gm_dashboard') }}"/>
+                            <input type="hidden" name="name" value=""/>
+                            <button type="button" class="btn btn-sm btn-outline-primary w-100" data-current="{{ td.name|e }}"
+                                    onclick="var n=prompt('Rename team to:', this.dataset.current); if(n){this.form.querySelector('input[name=name]').value=n; this.form.submit();}">
+                                <i class="fas fa-pen" aria-hidden="true"></i> Rename
+                            </button>
+                        </form>
+                        {% endif %}
+                        <a href="{{ url_for('main.admin_panel', section='orgs') }}" class="btn btn-sm btn-outline-secondary" style="flex:1;" title="Transfer or delete this team">
+                            <i class="fas fa-gear" aria-hidden="true"></i> Manage
                         </a>
                     </div>
                 </div>

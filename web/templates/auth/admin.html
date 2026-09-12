@@ -502,7 +502,7 @@
                                             <form method="POST" action="{{ url_for('main.rename_team', team_id=team.id) }}" style="display:inline" class="ms-1">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <input type="hidden" name="name" value="{{ team.name }}"/>
-                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="var n=prompt('Rename team {{ team.name }} to:', '{{ team.name }}'); if(n){this.form.name.value=n; this.form.submit();}">Rename</button>
+                                                <button type="button" class="btn btn-sm btn-outline-primary" data-current="{{ team.name|e }}" onclick="var n=prompt('Rename team to:', this.dataset.current); if(n){this.form.querySelector('input[name=name]').value=n; this.form.submit();}">Rename</button>
                                             </form>
                                             <form method="POST" action="{{ url_for('main.transfer_team', team_id=team.id) }}" style="display:inline" onsubmit="return confirm('Move {{ team.name }} to the selected org? Games & seasons are kept.')">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
