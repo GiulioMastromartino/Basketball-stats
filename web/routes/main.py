@@ -1013,7 +1013,8 @@ def player_detail(player_name):
     season_id = resolve_request_season_id(session.get("current_team_id"))
     try:
         context = AnalyticsService.build_player_detail(
-            player_name, game_type, season_id=season_id
+            player_name, game_type,
+            team_id=session.get("current_team_id"), season_id=season_id
         )
     except ValueError as e:
         flash(str(e) + " for " + player_name, "warning")
@@ -1040,7 +1041,8 @@ def player_game_detail(player_name):
     season_id = resolve_request_season_id(session.get("current_team_id"))
     try:
         context = AnalyticsService.build_player_game_detail(
-            player_name, game_type, season_id=season_id
+            player_name, game_type,
+            team_id=session.get("current_team_id"), season_id=season_id
         )
     except ValueError:
         flash("No stats available for this player", "warning")
@@ -1067,7 +1069,8 @@ def team_detail():
     excluded_player = (request.args.get("exclude_player") or "").strip()
     season_id = resolve_request_season_id(session.get("current_team_id"))
     context = AnalyticsService.build_team_detail_context(
-        game_type, excluded_player, season_id=season_id
+        game_type, excluded_player,
+        team_id=session.get("current_team_id"), season_id=season_id
     )
     return render_template("player_detail.html", **context)
 
@@ -1095,7 +1098,8 @@ def players():
     season_id = resolve_request_season_id(session.get("current_team_id"))
 
     context = AnalyticsService.build_players_listing_context(
-        game_type, limit, sort_by, order, excluded_player, season_id=season_id
+        game_type, limit, sort_by, order, excluded_player,
+        team_id=session.get("current_team_id"), season_id=season_id
     )
 
     template = "players_table.html" if view == "table" else "players.html"
@@ -1130,6 +1134,7 @@ def players_cards_pdf():
 
     context = AnalyticsService.build_players_listing_context(
         game_type, limit, sort_by, order, excluded_player,
+        team_id=session.get("current_team_id"),
         season_id=resolve_request_season_id(session.get("current_team_id")),
     )
 
@@ -1168,13 +1173,15 @@ def players_pages_zip():
     season_id = resolve_request_season_id(session.get("current_team_id"))
 
     context = AnalyticsService.build_players_listing_context(
-        game_type, limit, sort_by, order, excluded_player, season_id=season_id
+        game_type, limit, sort_by, order, excluded_player,
+        team_id=session.get("current_team_id"), season_id=season_id
     )
     zip_buffer = BytesIO()
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
         team_context = AnalyticsService.build_team_detail_context(
-            game_type, excluded_player, season_id=season_id
+            game_type, excluded_player,
+            team_id=session.get("current_team_id"), season_id=season_id
         )
         team_html = render_template(
             "player_detail.html",
@@ -1188,7 +1195,8 @@ def players_pages_zip():
 
         for player in context["stats"]:
             detail_context = AnalyticsService.build_player_detail(
-                player["player_name"], game_type, season_id=season_id
+                player["player_name"], game_type,
+                team_id=session.get("current_team_id"), season_id=season_id
             )
             html = render_template(
                 "player_detail.html",
