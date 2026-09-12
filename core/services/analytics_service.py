@@ -36,6 +36,25 @@ from core.charts import (
 
 class AnalyticsService:
     @staticmethod
+    def filter_games(query, game_type: str = "ALL", team_id: int = None,
+                     season_id=None):
+        """Apply the standard game_type/team/season filters to a Game query.
+
+        season_id of None or "ALL" disables season filtering.
+        """
+        if game_type == "Season":
+            query = query.filter(Game.game_type == "Season")
+        elif game_type == "Friendly":
+            query = query.filter(Game.game_type == "Friendly")
+        elif game_type == "Playoff":
+            query = query.filter(Game.game_type == "Playoff")
+        if team_id is not None:
+            query = query.filter(Game.team_id == team_id)
+        if season_id is not None and season_id != "ALL":
+            query = query.filter(Game.season_id == int(season_id))
+        return query
+
+    @staticmethod
     def supports_plus_minus(game):
         """Return True when a game source is expected to persist +/- values."""
         return bool(
@@ -640,16 +659,11 @@ class AnalyticsService:
         ]
 
     @staticmethod
-    def build_player_detail(player_name: str, game_type: str = "ALL", team_id: int = None) -> dict:
-        game_query = Game.query.order_by(Game.sort_date.desc())
-        if game_type == "Season":
-            game_query = game_query.filter(Game.game_type == "Season")
-        elif game_type == "Friendly":
-            game_query = game_query.filter(Game.game_type == "Friendly")
-        elif game_type == "Playoff":
-            game_query = game_query.filter(Game.game_type == "Playoff")
-        if team_id is not None:
-            game_query = game_query.filter(Game.team_id == team_id)
+    def build_player_detail(player_name: str, game_type: str = "ALL", team_id: int = None, season_id=None) -> dict:
+        game_query = AnalyticsService.filter_games(
+            Game.query.order_by(Game.sort_date.desc()),
+            game_type, team_id, season_id,
+        )
 
         all_filtered_games = game_query.all()
         target_game_ids = [g.id for g in all_filtered_games]
@@ -831,17 +845,12 @@ class AnalyticsService:
 
     @staticmethod
     def build_player_game_detail(
-        player_name: str, game_type: str = "ALL", game_id: int = None, team_id: int = None
+        player_name: str, game_type: str = "ALL", game_id: int = None, team_id: int = None, season_id=None
     ) -> dict:
-        game_query = Game.query.order_by(Game.sort_date.desc())
-        if game_type == "Season":
-            game_query = game_query.filter(Game.game_type == "Season")
-        elif game_type == "Friendly":
-            game_query = game_query.filter(Game.game_type == "Friendly")
-        elif game_type == "Playoff":
-            game_query = game_query.filter(Game.game_type == "Playoff")
-        if team_id is not None:
-            game_query = game_query.filter(Game.team_id == team_id)
+        game_query = AnalyticsService.filter_games(
+            Game.query.order_by(Game.sort_date.desc()),
+            game_type, team_id, season_id,
+        )
 
         all_filtered_games = game_query.all()
         target_game_ids = [g.id for g in all_filtered_games]
@@ -1219,16 +1228,11 @@ class AnalyticsService:
         }
 
     @staticmethod
-    def build_team_detail_context(game_type: str, excluded_player: str = None, team_id: int = None) -> dict:
-        game_query = Game.query.order_by(Game.sort_date.desc())
-        if game_type == "Season":
-            game_query = game_query.filter(Game.game_type == "Season")
-        elif game_type == "Friendly":
-            game_query = game_query.filter(Game.game_type == "Friendly")
-        elif game_type == "Playoff":
-            game_query = game_query.filter(Game.game_type == "Playoff")
-        if team_id is not None:
-            game_query = game_query.filter(Game.team_id == team_id)
+    def build_team_detail_context(game_type: str, excluded_player: str = None, team_id: int = None, season_id=None) -> dict:
+        game_query = AnalyticsService.filter_games(
+            Game.query.order_by(Game.sort_date.desc()),
+            game_type, team_id, season_id,
+        )
 
         games = game_query.all()
         game_ids = [g.id for g in games]
@@ -1799,17 +1803,12 @@ class AnalyticsService:
 
     @staticmethod
     def build_players_listing_context(
-        game_type, limit, sort_by, order, excluded_player, team_id: int = None
+        game_type, limit, sort_by, order, excluded_player, team_id: int = None, season_id=None
     ):
-        game_query = Game.query.order_by(Game.sort_date.desc())
-        if game_type == "Season":
-            game_query = game_query.filter(Game.game_type == "Season")
-        elif game_type == "Friendly":
-            game_query = game_query.filter(Game.game_type == "Friendly")
-        elif game_type == "Playoff":
-            game_query = game_query.filter(Game.game_type == "Playoff")
-        if team_id is not None:
-            game_query = game_query.filter(Game.team_id == team_id)
+        game_query = AnalyticsService.filter_games(
+            Game.query.order_by(Game.sort_date.desc()),
+            game_type, team_id, season_id,
+        )
 
         all_filtered_games = game_query.all()
         target_games = all_filtered_games[:limit] if limit > 0 else all_filtered_games
@@ -1826,6 +1825,7 @@ class AnalyticsService:
                     "sort": sort_by,
                     "order": order,
                     "exclude_player": excluded_player,
+                    "season": season_id if season_id is not None else "ALL",
                 },
             }
 
@@ -1914,6 +1914,7 @@ class AnalyticsService:
                 "sort": sort_by,
                 "order": order,
                 "exclude_player": excluded_player,
+                "season": season_id if season_id is not None else "ALL",
             },
         }
 

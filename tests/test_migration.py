@@ -286,6 +286,34 @@ def pre_migration_db(monkeypatch):
 @pytest.mark.integration
 class TestProductionMigration:
 
+    def test_migrate_creates_seasons_table_and_assigns_legacy_games(
+        self, pre_migration_db
+    ):
+        """Old DBs gain the seasons table; legacy games get a season."""
+        from scripts.migrate import run as run_migration
+        from core.models import Game, Season, db as _db
+
+        app, _ = pre_migration_db
+        with app.app_context():
+            _db.session.execute(text(
+                "INSERT INTO games (date, opponent, team_score, opponent_score, "
+                "result, game_type, sort_date) "
+                "VALUES ('15-11-2024', 'Old Opponent', 70, 60, 'W', 'Season', '2024-11-15')"
+            ))
+            _db.session.commit()
+
+            run_migration(app)
+
+            inspector = inspect(_db.engine)
+            assert "seasons" in inspector.get_table_names()
+            assert "season_id" in [
+                c["name"] for c in inspector.get_columns("games")
+            ]
+            game = Game.query.filter_by(opponent="Old Opponent").first()
+            assert game is not None
+            assert game.season_id is not None
+            assert Season.query.get(game.season_id) is not None
+
     def test_migrate_creates_new_tables(self, pre_migration_db):
         """Must create organizations, teams, memberships, assignments."""
         from scripts.migrate import run as run_migration
@@ -455,3 +483,4 @@ class TestProductionMigration:
         client = app.test_client()
         resp = client.get("/landing")
         assert resp.status_code in (200, 302), f"Got {resp.status_code}"
+

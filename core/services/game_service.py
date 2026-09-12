@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from core.models import Game, PlayerStat, ShotEvent, GameEvent, Play, db
 from core.services.lineup_service import process_game_lineups, resolve_team_id
+from core.services.season_service import resolve_season_id
 from core.utils import normalize_date_to_display
 from flask import current_app
 
@@ -655,7 +656,7 @@ def assign_possession_numbers(game_id: int) -> None:
     )
 
 
-def create_game_from_live_data(data, team_id: int = None):
+def create_game_from_live_data(data, team_id: int = None, season_id: int = None):
     """
     Creates a new Game, PlayerStats, ShotEvents, and GameEvents from the JSON data payload.
     Validates all play IDs before database insertion.
@@ -811,6 +812,7 @@ def create_game_from_live_data(data, team_id: int = None):
         sort_date=sort_date,
         source=source,
         schema_version=schema_version,
+        season_id=resolve_season_id(team_id, season_id, sort_date),
     )
     db.session.add(game)
     db.session.flush()

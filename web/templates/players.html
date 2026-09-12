@@ -57,18 +57,38 @@
     }
 
     /* Enhanced player card stats grid */
+    .player-card {
+        flex-direction: column;
+        align-items: stretch;
+        overflow: hidden;
+        min-width: 0;
+    }
+
+    .player-card-header {
+        min-width: 0;
+    }
+
     .player-card-stats {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 8px;
+        min-width: 0;
     }
 
     .player-stat {
         text-align: center;
-        padding: 8px;
+        padding: 8px 4px;
         background: #f8f9fa;
         border-radius: 6px;
         transition: all 0.2s;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .player-stat-value {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .player-stat:hover {

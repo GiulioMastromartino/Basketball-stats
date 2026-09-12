@@ -763,6 +763,388 @@
         max-height: 50vh !important;
     }
 }
+
+/* =============================================================================
+   Dark theme (HoopsLab) — override the legacy light palette above.
+   Scoped to the live shell + its modals so the rest of the app is untouched.
+   ============================================================================= */
+#live-game-shell {
+    color-scheme: dark;
+    color: #f4efe4;
+}
+
+#live-game-shell .card:not(.bg-dark) {
+    background: #1a2029;
+    border-color: rgba(255, 248, 235, 0.1);
+    color: #f4efe4;
+}
+
+#live-game-shell .card-header:not(.bg-dark) {
+    background: #232b36;
+    border-bottom-color: rgba(255, 248, 235, 0.1);
+    color: #f4efe4;
+}
+
+#live-game-shell label,
+#live-game-shell .form-label {
+    color: #cfc8b8;
+}
+
+#live-game-shell .text-muted {
+    color: #a8a094 !important;
+}
+
+#live-game-shell .form-control,
+#live-game-shell .form-select {
+    background-color: #12161d;
+    border-color: rgba(255, 248, 235, 0.16);
+    color: #f4efe4;
+}
+
+#live-game-shell .form-control::placeholder {
+    color: #7d7668;
+}
+
+#live-game-shell .form-control:focus,
+#live-game-shell .form-select:focus {
+    background-color: #12161d;
+    color: #f4efe4;
+    border-color: #2ec4b6;
+    box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.15);
+}
+
+#live-game-shell hr,
+#live-game-shell .border-top {
+    border-color: rgba(255, 248, 235, 0.12) !important;
+}
+
+/* Player select buttons */
+#live-game-shell .player-select-btn {
+    border-color: rgba(255, 248, 235, 0.22);
+    color: #f4efe4;
+}
+
+#live-game-shell .player-select-btn:hover {
+    border-color: #2ec4b6;
+    color: #ffffff;
+    background: rgba(46, 196, 182, 0.12);
+}
+
+#live-game-shell .player-select-btn.active,
+#live-game-shell .player-select-btn.btn-primary {
+    background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+    border-color: #1d4ed8;
+    color: #ffffff;
+}
+
+/* Sub roster */
+#sub-roster-list {
+    background: linear-gradient(180deg, #1a2029 0%, #151a22 100%);
+}
+
+#sub-roster-list .sub-player-card {
+    background: #232b36;
+    border-color: rgba(255, 248, 235, 0.1);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    color: #f4efe4;
+}
+
+#sub-roster-list .sub-player-card:hover {
+    border-color: rgba(46, 196, 182, 0.5);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.45);
+}
+
+#sub-roster-list .sub-player-name {
+    color: #f4efe4;
+}
+
+#sub-roster-list .sub-status {
+    background: rgba(255, 248, 235, 0.1);
+    color: #cfc8b8;
+}
+
+#sub-roster-list .sub-total-time {
+    color: #a8a094;
+}
+
+#sub-roster-list .sub-quarter-chip {
+    background: rgba(255, 248, 235, 0.07);
+    border-color: rgba(255, 248, 235, 0.12);
+    color: #cfc8b8;
+}
+
+#sub-roster-list .sub-quarter-chip.current {
+    background: rgba(46, 196, 182, 0.16);
+    border-color: rgba(46, 196, 182, 0.55);
+    color: #7de8dc;
+}
+
+/* Stats modal */
+#currentStatsModal .modal-content {
+    background: linear-gradient(180deg, #1a2029 0%, #12161d 100%);
+    color: #f4efe4;
+}
+
+#currentStatsModal .modal-header {
+    background: linear-gradient(135deg, #151a22 0%, #0d1015 100%) !important;
+    border-bottom-color: rgba(255, 248, 235, 0.1);
+}
+
+#currentStatsModal .table-responsive {
+    background: #1a2029;
+    border-color: rgba(255, 248, 235, 0.1);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+}
+
+#currentStatsModal thead.thead-dark th {
+    background: #232b36;
+    color: #e8b86d;
+    border-bottom-color: rgba(255, 248, 235, 0.12);
+}
+
+#currentStatsModal tbody td,
+#currentStatsModal tfoot td {
+    background: #1e242e;
+    border-top-color: rgba(255, 248, 235, 0.1);
+    border-bottom-color: rgba(255, 248, 235, 0.1);
+    color: #f4efe4;
+}
+
+#currentStatsModal tbody tr td:first-child,
+#currentStatsModal tfoot tr td:first-child {
+    border-left-color: rgba(255, 248, 235, 0.1);
+}
+
+#currentStatsModal tbody tr td:last-child,
+#currentStatsModal tfoot tr td:last-child {
+    border-right-color: rgba(255, 248, 235, 0.1);
+}
+
+#currentStatsModal tbody tr {
+    filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.45));
+}
+
+#currentStatsModal tbody tr.table-primary td {
+    background: linear-gradient(90deg, rgba(46, 196, 182, 0.16) 0%, rgba(46, 196, 182, 0.06) 100%);
+    border-color: rgba(46, 196, 182, 0.35);
+}
+
+#currentStatsModal tbody tr.table-primary td:first-child {
+    box-shadow: inset 4px 0 0 #2ec4b6;
+}
+
+#currentStatsModal .stats-player-name {
+    color: #f4efe4;
+}
+
+#currentStatsModal .stats-chip.stats-chip-min {
+    background: rgba(46, 196, 182, 0.14);
+    color: #7de8dc;
+}
+
+#currentStatsModal .stats-chip.stats-chip-points {
+    background: rgba(232, 184, 109, 0.16);
+    color: #e8b86d;
+}
+
+#currentStatsModal .stats-chip.stats-chip-pm-positive {
+    background: rgba(61, 154, 92, 0.18);
+    color: #7fd6a0;
+}
+
+#currentStatsModal .stats-chip.stats-chip-pm-negative {
+    background: rgba(201, 76, 92, 0.18);
+    color: #f19aa5;
+}
+
+#currentStatsModal .stats-chip.stats-chip-pm-neutral {
+    background: rgba(255, 248, 235, 0.1);
+    color: #cfc8b8;
+}
+
+#currentStatsModal .stats-subtext {
+    color: #a8a094;
+}
+
+#currentStatsModal tfoot td {
+    background: #232b36;
+    border-color: rgba(255, 248, 235, 0.12);
+}
+
+#currentStatsModal tfoot td:first-child {
+    color: #f4efe4;
+}
+
+#currentStatsModal .modal-footer {
+    background: rgba(18, 22, 29, 0.9);
+    border-top-color: rgba(255, 248, 235, 0.1);
+}
+
+/* Option buttons */
+.live-modal-hint {
+    color: #a8a094;
+}
+
+.live-option-list {
+    background: #1a2029;
+}
+
+.live-option-list.split .live-option-btn {
+    border-right-color: rgba(255, 248, 235, 0.1);
+}
+
+.live-option-btn {
+    border-color: rgba(255, 248, 235, 0.14);
+    background: #232b36;
+    color: #f4efe4;
+}
+
+.live-option-btn:hover,
+.live-option-btn:focus {
+    border-color: #2ec4b6;
+    box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.15);
+}
+
+.live-option-btn.primary {
+    border-color: rgba(61, 154, 92, 0.6);
+    background: rgba(61, 154, 92, 0.14);
+}
+
+.live-option-btn.warning {
+    border-color: rgba(232, 184, 109, 0.55);
+    background: rgba(232, 184, 109, 0.1);
+}
+
+.live-option-btn.danger {
+    border-color: rgba(201, 76, 92, 0.6);
+    background: rgba(201, 76, 92, 0.12);
+}
+
+.live-option-title {
+    color: #f4efe4;
+}
+
+.live-option-subtitle {
+    color: #a8a094;
+}
+
+.live-option-tag {
+    background: rgba(46, 196, 182, 0.14);
+    color: #7de8dc;
+}
+
+/* Tips card */
+.live-tips-card {
+    background: linear-gradient(180deg, #1a2029 0%, #151a22 100%);
+    border-color: rgba(255, 248, 235, 0.1);
+}
+
+.live-tips-header {
+    background: linear-gradient(135deg, #151a22 0%, #0d3b37 100%);
+    color: #ffffff;
+}
+
+.live-tip-row {
+    border-color: rgba(255, 248, 235, 0.12);
+    background: #232b36;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.live-tip-title {
+    color: #f4efe4;
+}
+
+.live-tip-body {
+    color: #a8a094;
+}
+
+.live-tip-badge.success {
+    background: rgba(61, 154, 92, 0.18);
+    color: #7fd6a0;
+}
+
+.live-tip-badge.info {
+    background: rgba(74, 155, 200, 0.18);
+    color: #8fc7e8;
+}
+
+.live-tip-badge.warning {
+    background: rgba(232, 184, 109, 0.16);
+    color: #e8b86d;
+}
+
+.live-tip-badge.danger {
+    background: rgba(201, 76, 92, 0.18);
+    color: #f19aa5;
+}
+
+.live-tip-badge.neutral {
+    background: rgba(255, 248, 235, 0.1);
+    color: #cfc8b8;
+}
+
+.live-tips-foul-chip {
+    background: rgba(232, 184, 109, 0.12);
+    border-color: rgba(232, 184, 109, 0.4);
+    color: #e8b86d;
+}
+
+.live-tip-empty {
+    border-color: rgba(255, 248, 235, 0.16);
+    background: rgba(255, 248, 235, 0.04);
+    color: #a8a094;
+}
+
+/* Generic modal + list + table surfaces inside live modals */
+.modal-content {
+    background: #1a2029;
+    color: #f4efe4;
+    border-color: rgba(255, 248, 235, 0.12);
+}
+
+.modal-header {
+    border-bottom-color: rgba(255, 248, 235, 0.1);
+}
+
+.modal-footer {
+    border-top-color: rgba(255, 248, 235, 0.1);
+}
+
+.modal-title {
+    color: #f4efe4;
+}
+
+.btn-close {
+    filter: invert(1) grayscale(1) brightness(1.6);
+}
+
+.list-group-item {
+    background: #232b36;
+    border-color: rgba(255, 248, 235, 0.1);
+    color: #f4efe4;
+}
+
+.list-group-item:hover {
+    background: #28303c;
+    color: #ffffff;
+}
+
+.table {
+    color: #f4efe4;
+    border-color: rgba(255, 248, 235, 0.1);
+}
+
+pre {
+    background: #12161d;
+    border: 1px solid rgba(255, 248, 235, 0.1);
+    border-radius: 10px;
+    padding: 0.75rem;
+    color: #cfc8b8;
+}
+
+pre code {
+    color: inherit;
+}
 </style>
 {% endblock %}
 

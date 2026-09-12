@@ -29,6 +29,20 @@
             </a>
         </li>
         <li class="nav-item" role="presentation">
+            <a class="nav-link {% if section == 'seasons' %}active{% endif %}"
+               href="{{ url_for('main.admin_panel', section='seasons') }}"
+               role="tab">
+                <i class="fas fa-calendar-alt"></i> Seasons
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link {% if section == 'orgs' %}active{% endif %}"
+               href="{{ url_for('main.admin_panel', section='orgs') }}"
+               role="tab">
+                <i class="fas fa-building"></i> Orgs &amp; Teams
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
             <a class="nav-link"
                href="{{ url_for('auth.manage_whatsapp_groups',
                                 team_id=session.get('current_team_id', 1)) }}">
@@ -57,6 +71,7 @@
                                         <th>Email</th>
                                         <th>GM</th>
                                         <th>Coach</th>
+                                        <th>Teams <span class="text-muted small fw-normal" title="Double-click a badge to remove the user from that team">(dbl-click ✕)</span></th>
                                         <th class="text-end pe-4">Actions</th>
                                     </tr>
                                 </thead>
@@ -93,6 +108,23 @@
             {% else %}
             <span class="badge bg-success">Coach</span>
             <span class="text-muted small ms-1">(You)</span>
+            {% endif %}
+        </td>
+        <td data-user-teams="{{ user.id }}">
+            {% if user.id != current_user.id %}
+            <span class="user-team-badges">
+                {% for team in user.assigned_teams %}
+                <span class="badge bg-primary user-team-badge" data-team-id="{{ team.id }}" title="Double-click to remove {{ user.username }} from {{ team.name }}">{{ team.name }} &times;</span>
+                {% endfor %}
+            </span>
+            <select class="form-select form-select-sm d-inline-block w-auto ms-1 user-team-add" data-user-id="{{ user.id }}" title="Assign to a team">
+                <option value="">+ team…</option>
+                {% for team in all_teams %}
+                <option value="{{ team.id }}">{{ team.name }}</option>
+                {% endfor %}
+            </select>
+            {% else %}
+            <span class="text-muted small">Current</span>
             {% endif %}
         </td>
         <td class="text-end pe-4">
@@ -285,6 +317,147 @@
                 </div>
             </div>
         </div>
+        <div class="tab-pane {% if section == 'seasons' %}show active{% endif %}" role="tabpanel">
+            <div class="row">
+                <div class="col-md-7 mb-4">
+                    <h4>Seasons</h4>
+                    <p class="text-muted small">Scope games, stats and reports to a season. Games are auto-assigned by date; new games default to the active season.</p>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr><th>Name</th><th>Range</th><th>Games</th><th>Status</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            {% for s in seasons %}
+                            <tr>
+                                <td><strong>{{ s.name }}</strong></td>
+                                <td>{{ s.start_date }} &ndash; {{ s.end_date }}</td>
+                                <td>{{ s.games|length }}</td>
+                                <td>{% if s.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Archived</span>{% endif %}</td>
+                                <td class="text-end">
+                                    {% if not s.is_active %}
+                                    <form method="POST" action="{{ url_for('main.activate_season', season_id=s.id) }}" style="display:inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Set active</button>
+                                    </form>
+                                    {% endif %}
+                                    {% if not s.games|length %}
+                                    <form method="POST" action="{{ url_for('main.delete_season', season_id=s.id) }}" style="display:inline" onsubmit="return confirm('Delete season {{ s.name }}?')">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-muted">No seasons yet — create the first one below.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-md-5 mb-4">
+                    <h4>New season</h4>
+                    <form method="POST" action="{{ url_for('main.create_season') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="mb-2">
+                            <label class="form-label">Name (e.g. 2025/26)</label>
+                            <input type="text" class="form-control" name="name" required maxlength="50"/>
+                        </div>
+                        <div class="row">
+                            <div class="col mb-2">
+                                <label class="form-label">Start date</label>
+                                <input type="date" class="form-control" name="start_date" required/>
+                            </div>
+                            <div class="col mb-2">
+                                <label class="form-label">End date</label>
+                                <input type="date" class="form-control" name="end_date" required/>
+                            </div>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" name="set_active" id="seasonActive" checked/>
+                            <label class="form-check-label" for="seasonActive">Set as active season</label>
+                        </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Create season</button>
+                    </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane {% if section == 'orgs' %}show active{% endif %}" role="tabpanel">
+            <div class="row">
+                <div class="col-md-7 mb-4">
+                    <h4>Organizations &amp; Teams</h4>
+                    <p class="text-muted small">Teams hold games, players and seasons. A team or organization can only be deleted once empty.</p>
+                    {% for org in orgs %}
+                    <div class="card shadow-sm mb-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-0">{{ org.name }}</h5>
+                                    <span class="text-muted small">{{ org.teams|length }} team{{ '' if org.teams|length == 1 else 's' }} · {{ org.memberships|length }} member{{ '' if org.memberships|length == 1 else 's' }}</span>
+                                </div>
+                                {% if not org.teams|length and not org.memberships|length %}
+                                <form method="POST" action="{{ url_for('main.delete_org', org_id=org.id) }}" onsubmit="return confirm('Delete organization {{ org.name }}?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete org</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            <table class="table table-sm mt-3 mb-0">
+                                <tbody>
+                                    {% for team in org.teams %}
+                                    <tr>
+                                        <td><strong>{{ team.name }}</strong><br/><span class="text-muted small">{{ team.games|length }} games · {{ team.lineups|length }} lineups</span></td>
+                                        <td class="text-end">
+                                            <a href="{{ url_for('auth.manage_whatsapp_groups', team_id=team.id) }}" class="btn btn-sm btn-outline-secondary">WhatsApp</a>
+                                            <form method="POST" action="{{ url_for('main.delete_team', team_id=team.id) }}" style="display:inline" onsubmit="return confirm('Delete team {{ team.name }}?')">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr><td class="text-muted small">No teams yet.</td><td></td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No organizations yet.</p>
+                    {% endfor %}
+                </div>
+                <div class="col-md-5 mb-4">
+                    <h4>New organization</h4>
+                    <form method="POST" action="{{ url_for('main.create_org') }}" class="mb-4">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="name" required maxlength="100" placeholder="Organization name"/>
+                            <button type="submit" class="btn btn-primary">Create org</button>
+                        </div>
+                    </form>
+                    <h4>New team</h4>
+                    <form method="POST" action="{{ url_for('main.create_team') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="mb-2">
+                            <label class="form-label">Organization</label>
+                            <select class="form-select" name="organization_id" required>
+                                {% for org in orgs %}
+                                <option value="{{ org.id }}">{{ org.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Team name</label>
+                            <input type="text" class="form-control" name="name" required maxlength="100"/>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Create team</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -304,6 +477,45 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.player-active-input').forEach(function(input) {
         input.addEventListener('change', function() {
             this.closest('form').submit();
+        });
+    });
+
+    // Team assignment: double-click a badge to remove, select to assign.
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+    const csrf = csrfToken ? csrfToken.content : "";
+    function toggleTeam(userId, teamId, assigned, onDone) {
+        fetch(`/auth/users/${userId}/teams`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json", "X-CSRFToken": csrf},
+            body: JSON.stringify({team_id: teamId, assigned: assigned}),
+        })
+        .then(r => r.json())
+        .then(onDone)
+        .catch(() => alert("Team update failed."));
+    }
+    document.querySelectorAll('.user-team-badge').forEach(function(badge) {
+        badge.style.cursor = "pointer";
+        badge.addEventListener('dblclick', function() {
+            const cell = badge.closest('[data-user-teams]');
+            const userId = cell.getAttribute('data-user-teams');
+            const teamId = badge.getAttribute('data-team-id');
+            toggleTeam(userId, teamId, false, function(data) {
+                if (data.ok) { badge.remove(); }
+                else { alert(data.error || "Could not remove."); }
+            });
+        });
+    });
+    document.querySelectorAll('.user-team-add').forEach(function(select) {
+        select.addEventListener('change', function() {
+            if (!select.value) return;
+            const userId = select.getAttribute('data-user-id');
+            const teamId = select.value;
+            const label = select.options[select.selectedIndex].text;
+            toggleTeam(userId, teamId, true, function(data) {
+                if (data.ok) { window.location.reload(); }
+                else { alert(data.error || "Could not assign."); }
+                select.value = "";
+            });
         });
     });
 });

@@ -116,6 +116,17 @@
             </nav>
 
             <div class="app-sidebar__footer">
+                {% if seasons %}
+                <form method="GET" action="{{ url_for('main.switch_season') }}" class="mb-2">
+                    <input type="hidden" name="next" value="{{ request.full_path }}"/>
+                    <select name="season" class="form-select form-select-sm" onchange="this.form.submit()" title="Season scope">
+                        <option value="ALL" {% if current_season_id == 'ALL' %}selected{% endif %}>All seasons</option>
+                        {% for s in seasons %}
+                        <option value="{{ s.id }}" {% if current_season_id == s.id %}selected{% endif %}>{{ s.name }}{% if s.is_active %} ★{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% endif %}
                 <a href="{{ url_for('main.upload_game') }}" class="app-sidebar__cta">
                     <i class="fas fa-cloud-arrow-up" aria-hidden="true"></i> Upload data
                 </a>

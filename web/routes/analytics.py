@@ -30,14 +30,16 @@ VALID_GAME_TYPES = {"ALL", "Season", "Friendly"}
 @team_access_required
 def dashboard():
     """Analytics dashboard page"""
-    players = (
+    from core.services.season_service import resolve_request_season_id
+    season_id = resolve_request_season_id(session.get('current_team_id'))
+    players_q = (
         db.session.query(PlayerStat.player_name)
         .join(Game, PlayerStat.game_id == Game.id)
         .filter(Game.team_id == session['current_team_id'])
-        .distinct()
-        .order_by(PlayerStat.player_name)
-        .all()
     )
+    if season_id != "ALL":
+        players_q = players_q.filter(Game.season_id == int(season_id))
+    players = players_q.distinct().order_by(PlayerStat.player_name).all()
     player_names = [p[0] for p in players]
     return render_template("analytics.html", players=player_names)
 
@@ -69,11 +71,15 @@ def get_team_overview():
         top_limit = 3
 
     # Build game query
+    from core.services.season_service import resolve_request_season_id
+    season_id = resolve_request_season_id(session.get('current_team_id'))
     query = Game.query.filter(Game.team_id == session['current_team_id']).order_by(Game.sort_date.asc())
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
         query = query.filter(Game.game_type == "Friendly")
+    if season_id != "ALL":
+        query = query.filter(Game.season_id == int(season_id))
 
     games = query.all()
     trend_games = games[-limit_trend:] if limit_trend > 0 else games
@@ -221,11 +227,15 @@ def multi_compare():
     if not selected_players:
         return jsonify({"error": "No players", "datasets": []})
 
+    from core.services.season_service import resolve_request_season_id
+    season_id = resolve_request_season_id(session.get('current_team_id'))
     query = Game.query.filter(Game.team_id == session['current_team_id']).order_by(Game.sort_date.asc())
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
         query = query.filter(Game.game_type == "Friendly")
+    if season_id != "ALL":
+        query = query.filter(Game.season_id == int(season_id))
     filtered_games = query.all()
     all_dates = [g.date for g in filtered_games]
 
@@ -412,11 +422,15 @@ def player_progression():
         return jsonify({"error": "No player specified"})
 
     # Get games
+    from core.services.season_service import resolve_request_season_id
+    season_id = resolve_request_season_id(session.get('current_team_id'))
     query = Game.query.filter(Game.team_id == session['current_team_id']).order_by(Game.sort_date.asc())
     if game_type == "Season":
         query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
         query = query.filter(Game.game_type == "Friendly")
+    if season_id != "ALL":
+        query = query.filter(Game.season_id == int(season_id))
 
     games = query.all()
     game_ids = [g.id for g in games]

@@ -152,6 +152,11 @@ def create_app(config_name: str = None) -> Flask:
 
     @app.context_processor
     def _inject_team_context():
+        from core.services.season_service import (
+            current_season_id_from_session,
+            list_seasons,
+        )
+
         ctx = {
             "current_team_id": session.get("current_team_id"),
             "current_team_name": session.get("current_team_name"),
@@ -161,6 +166,19 @@ def create_app(config_name: str = None) -> Flask:
                 ctx["assigned_teams"] = current_user.assigned_teams
         except Exception:
             ctx["assigned_teams"] = []
+        try:
+            team_id = session.get("current_team_id")
+            if team_id:
+                ctx["seasons"] = list_seasons(team_id)
+                ctx["current_season_id"] = current_season_id_from_session(
+                    session, team_id
+                )
+            else:
+                ctx["seasons"] = []
+                ctx["current_season_id"] = "ALL"
+        except Exception:
+            ctx["seasons"] = []
+            ctx["current_season_id"] = "ALL"
         return ctx
 
     @app.after_request

@@ -212,6 +212,10 @@ def run(app=None):
             else:
                 print(f"[migrate] Using existing team: {team.name}")
 
+            # Persist org/team now so later introspection fallbacks can
+            # safely roll back without discarding them.
+            db.session.commit()
+
             # Assign unassigned users to default org
             unassigned_users = User.query.filter(User.organization_id.is_(None)).all()
             for u in unassigned_users:
@@ -219,11 +223,12 @@ def run(app=None):
 
                 was_admin = False
                 try:
-                    row = db.session.execute(
-                        text("SELECT is_admin FROM users WHERE id = :uid"),
-                        {"uid": u.id},
-                    ).fetchone()
-                    was_admin = bool(row[0]) if row else False
+                    with db.session.begin_nested():
+                        row = db.session.execute(
+                            text("SELECT is_admin FROM users WHERE id = :uid"),
+                            {"uid": u.id},
+                        ).fetchone()
+                        was_admin = bool(row[0]) if row else False
                 except Exception:
                     pass
 
@@ -246,29 +251,42 @@ def run(app=None):
             # Fix existing memberships: promote old admins to GM if they were
             # missed by a previous migration run that set is_gm=False for all.
             try:
-                cols = db.session.execute(
-                    text("PRAGMA table_info(users)")
-                ).fetchall()
-                has_old_admin = any(row[1] == "is_admin" for row in cols)
+                try:
+                    cols = db.session.execute(
+                        text("PRAGMA table_info(users)")
+                    ).fetchall()
+                    has_old_admin = any(row[1] == "is_admin" for row in cols)
+                except Exception:
+                    # Non-SQLite backends (e.g. Postgres) don't support PRAGMA.
+                    db.session.rollback()
+                    from sqlalchemy import inspect as _inspect
+
+                    with db.engine.connect() as _conn:
+                        cols = [
+                            c["name"]
+                            for c in _inspect(_conn).get_columns("users")
+                        ]
+                    has_old_admin = "is_admin" in cols
                 if has_old_admin:
-                    all_users = User.query.filter(User.organization_id.isnot(None)).all()
+                    # Raw SQL on legacy columns only: the ORM User model
+                    # requires new columns that may not exist yet.
+                    rows = db.session.execute(
+                        text("SELECT id, is_admin FROM users")
+                    ).fetchall()
                     fixed = 0
-                    for u in all_users:
-                        row = db.session.execute(
-                            text("SELECT is_admin FROM users WHERE id = :uid"),
-                            {"uid": u.id},
-                        ).fetchone()
-                        was_admin = bool(row[0]) if row else False
+                    for uid, is_admin in rows:
                         mem = OrganizationMembership.query.filter_by(
-                            user_id=u.id, organization_id=org.id
+                            user_id=uid, organization_id=org.id
                         ).first()
-                        if mem and mem.is_gm != was_admin:
-                            mem.is_gm = was_admin
+                        if mem and mem.is_gm != bool(is_admin):
+                            mem.is_gm = bool(is_admin)
                             fixed += 1
                     if fixed:
                         print(f"[migrate] Fixed GM status for {fixed} existing user(s).")
             except Exception:
-                pass
+                # Never leave a poisoned (aborted) transaction behind:
+                # on Postgres any later query in this block would fail.
+                db.session.rollback()
 
             # Assign unassigned games to default team
             unassigned_games = Game.query.filter(Game.team_id.is_(None)).all()
@@ -297,6 +315,25 @@ def run(app=None):
                 l.team_id = team.id
             if unassigned_lineups:
                 print(f"[migrate] Assigned {len(unassigned_lineups)} lineup(s) to default team.")
+
+            # Assign season-less games: date-range match, else active season.
+            # Seasons are per-team; ensure one exists for the game’s team.
+            from core.services.season_service import (
+                ensure_default_season,
+                match_season_for_date,
+            )
+            unassigned_season_games = Game.query.filter(Game.season_id.is_(None)).all()
+            assigned = 0
+            for g in unassigned_season_games:
+                if g.team_id is None:
+                    continue
+                matched = match_season_for_date(g.team_id, g.sort_date)
+                if matched is None:
+                    matched = ensure_default_season(g.team_id)
+                g.season_id = matched.id
+                assigned += 1
+            if assigned:
+                print(f"[migrate] Assigned {assigned} game(s) to seasons.")
 
             # Assign unassigned players
             unassigned_players = Player.query.filter(Player.team_id.is_(None)).all()

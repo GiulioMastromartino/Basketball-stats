@@ -65,6 +65,7 @@ def add_missing_columns(app):
                 "team_id": "INTEGER",
                 "source": "VARCHAR(20) DEFAULT 'IMPORT'",
                 "schema_version": "INTEGER DEFAULT 1",
+                "season_id": "INTEGER",
             },
             # Plays table
             "plays": {
