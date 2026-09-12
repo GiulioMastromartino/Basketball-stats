@@ -449,7 +449,8 @@ def _get_game_type(default="ALL"):
 
 def _get_season_id():
     from core.services.season_service import resolve_request_season_id
-    return resolve_request_season_id(session.get("current_team_id"))
+    # Read-only context: honor ?season=/session without persisting overrides.
+    return resolve_request_season_id(session.get("current_team_id"), persist=False)
 
 
 def _get_games(game_type, season_id="ALL"):

@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.models import Game, Organization, Team, TeamAssignment, User, db
+from core.models import Game, Organization, OrganizationMembership, Team, TeamAssignment, User, db
 
 
 class TestOrgAdmin:
@@ -34,15 +34,31 @@ class TestOrgAdmin:
         assert resp.status_code == 200
         assert Organization.query.filter_by(slug="test-org").count() == 1
 
-    def test_delete_empty_org(self, admin_client, db_session):
+    def test_delete_empty_org(self, admin_client, db_session, admin_user):
         org = Organization(name="Lonely", slug="lonely")
         db.session.add(org)
+        db.session.flush()
+        db.session.add(OrganizationMembership(
+            user_id=admin_user.id, organization_id=org.id, is_gm=True
+        ))
         db.session.commit()
         resp = admin_client.post(
             f"/orgs/{org.id}/delete", follow_redirects=True
         )
         assert resp.status_code == 200
         assert Organization.query.get(org.id) is None
+
+    def test_delete_foreign_empty_org_blocked(
+        self, admin_client, db_session
+    ):
+        org = Organization(name="Stranger", slug="stranger")
+        db.session.add(org)
+        db.session.commit()
+        resp = admin_client.post(
+            f"/orgs/{org.id}/delete", follow_redirects=True
+        )
+        assert resp.status_code == 200
+        assert Organization.query.get(org.id) is not None
 
     def test_delete_org_blocked_with_teams(
         self, admin_client, db_session, default_team
@@ -132,6 +148,39 @@ class TestTeamAdmin:
         )
         assert resp.status_code in (302, 403)
         assert Team.query.filter_by(slug="nope").first() is None
+
+    def test_cross_org_hidden_and_blocked(
+        self, admin_client, db_session, default_org
+    ):
+        other_org = Organization(name="Other", slug="other")
+        db.session.add(other_org)
+        db.session.flush()
+        other_team = Team(name="Other Team", organization_id=other_org.id,
+                          slug="other-team")
+        db.session.add(other_team)
+        db.session.commit()
+        # Not listed for a GM of the default org.
+        resp = admin_client.get("/admin/orgs")
+        assert resp.status_code == 200
+        assert b"Other Team" not in resp.data
+        # Create/delete into the foreign org rejected.
+        resp = admin_client.post(
+            "/teams/create",
+            data={"organization_id": other_org.id, "name": "Intrude"},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert Team.query.filter_by(slug="intrude").first() is None
+        resp = admin_client.post(
+            f"/teams/{other_team.id}/delete", follow_redirects=True
+        )
+        assert resp.status_code == 200
+        assert Team.query.get(other_team.id) is not None
+        resp = admin_client.post(
+            f"/orgs/{other_org.id}/delete", follow_redirects=True
+        )
+        assert resp.status_code == 200
+        assert Organization.query.get(other_org.id) is not None
 
 
 class TestUserTeamAssignment:

@@ -1536,6 +1536,19 @@ def _slugify(name: str) -> str:
     return slug or "unnamed"
 
 
+def _gm_org_ids():
+    """Org ids the current GM may administer, or None in dev (all)."""
+    if current_app.config.get("LOGIN_DISABLED"):
+        return None
+    org_ids = {getattr(current_user, "organization_id", None)}
+    try:
+        org_ids |= {m.organization_id for m in current_user.memberships}
+    except Exception:
+        pass
+    org_ids.discard(None)
+    return org_ids
+
+
 @main_bp.route("/admin")
 @main_bp.route("/admin/<section>")
 @login_required
@@ -1549,8 +1562,26 @@ def admin_panel(section="users"):
     team_id = session.get("current_team_id")
     players = Player.query.filter_by(team_id=team_id).order_by(Player.name).all()
     seasons = list_seasons(team_id) if team_id else []
-    orgs = Organization.query.order_by(Organization.name).all()
-    all_teams = Team.query.order_by(Team.name).all()
+    allowed = _gm_org_ids()
+    if allowed is None:
+        # Dev/no-auth mode: show everything.
+        orgs = Organization.query.order_by(Organization.name).all()
+        all_teams = Team.query.order_by(Team.name).all()
+    else:
+        orgs = (
+            Organization.query.filter(Organization.id.in_(allowed))
+            .order_by(Organization.name)
+            .all()
+            if allowed
+            else []
+        )
+        all_teams = (
+            Team.query.filter(Team.organization_id.in_(allowed))
+            .order_by(Team.name)
+            .all()
+            if allowed
+            else []
+        )
 
     settings_data = db.session.query(SystemSetting).all()
     settings = {s.key: s.value for s in settings_data}
@@ -1573,6 +1604,9 @@ def admin_panel(section="users"):
 def create_season():
     """Create a new season for the current team."""
     team_id = session.get("current_team_id")
+    if not team_id:
+        flash("Select a team before creating a season.", "warning")
+        return redirect(url_for("main.admin_panel", section="seasons"))
     try:
         season = create_team_season(
             team_id,
@@ -1592,8 +1626,12 @@ def create_season():
 @gm_required
 def activate_season(season_id):
     """Set a season as the active one."""
+    team_id = session.get("current_team_id")
+    if not team_id:
+        flash("Select a team first.", "warning")
+        return redirect(url_for("main.admin_panel", section="seasons"))
     try:
-        season = activate_team_season(session.get("current_team_id"), season_id)
+        season = activate_team_season(team_id, season_id)
         session["current_season_id"] = season.id
         flash(f"Season '{season.name}' is now active.", "success")
     except ValueError as e:
@@ -1606,8 +1644,12 @@ def activate_season(season_id):
 @gm_required
 def delete_season(season_id):
     """Delete an empty season."""
+    team_id = session.get("current_team_id")
+    if not team_id:
+        flash("Select a team first.", "warning")
+        return redirect(url_for("main.admin_panel", section="seasons"))
     try:
-        delete_team_season(session.get("current_team_id"), season_id)
+        delete_team_season(team_id, season_id)
         if session.get("current_season_id") == season_id:
             session.pop("current_season_id", None)
         flash("Season deleted.", "success")
@@ -1631,6 +1673,11 @@ def create_org():
         return redirect(url_for("main.admin_panel", section="orgs"))
     org = Organization(name=name, slug=slug)
     db.session.add(org)
+    db.session.flush()
+    if not current_app.config.get("LOGIN_DISABLED"):
+        db.session.add(OrganizationMembership(
+            user_id=current_user.id, organization_id=org.id, is_gm=True
+        ))
     db.session.commit()
     flash(f"Organization '{name}' created.", "success")
     return redirect(url_for("main.admin_panel", section="orgs"))
@@ -1642,12 +1689,21 @@ def create_org():
 def delete_org(org_id):
     """Delete an organization with no teams or members."""
     org = Organization.query.get_or_404(org_id)
+    allowed = _gm_org_ids()
+    if allowed is not None and org.id not in allowed:
+        flash("You do not administer this organization.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
     if Team.query.filter_by(organization_id=org.id).count():
         flash("Cannot delete an organization that has teams.", "danger")
         return redirect(url_for("main.admin_panel", section="orgs"))
-    if OrganizationMembership.query.filter_by(organization_id=org.id).count():
+    other_members = OrganizationMembership.query.filter(
+        OrganizationMembership.organization_id == org.id,
+        OrganizationMembership.user_id != current_user.id,
+    ).count()
+    if other_members:
         flash("Cannot delete an organization that has members.", "danger")
         return redirect(url_for("main.admin_panel", section="orgs"))
+    OrganizationMembership.query.filter_by(organization_id=org.id).delete()
     db.session.delete(org)
     db.session.commit()
     flash(f"Organization '{org.name}' deleted.", "success")
@@ -1662,7 +1718,8 @@ def create_team():
     org_id = request.form.get("organization_id", type=int)
     name = (request.form.get("name") or "").strip()
     org = Organization.query.get(org_id) if org_id else None
-    if org is None:
+    allowed = _gm_org_ids()
+    if org is None or (allowed is not None and org.id not in allowed):
         flash("Valid organization is required.", "danger")
         return redirect(url_for("main.admin_panel", section="orgs"))
     if not name:
@@ -1685,6 +1742,10 @@ def create_team():
 def delete_team(team_id):
     """Delete a team with no games, players, seasons or assignments."""
     team = Team.query.get_or_404(team_id)
+    allowed = _gm_org_ids()
+    if allowed is not None and team.organization_id not in allowed:
+        flash("You do not administer this team.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
     blockers = {
         "games": Game.query.filter_by(team_id=team.id).count(),
         "players": Player.query.filter_by(team_id=team.id).count(),
@@ -1727,4 +1788,6 @@ def switch_season():
             session["current_season_id"] = "ALL"
             flash("Unknown season.", "warning")
     next_url = request.args.get("next") or request.referrer or url_for("main.index")
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = url_for("main.index")
     return redirect(next_url)

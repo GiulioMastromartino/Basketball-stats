@@ -52,6 +52,8 @@ def create_season(team_id: int, name: str, start_date: str, end_date: str,
 
 
 def set_active_season(team_id: int, season_id: int) -> Season:
+    if team_id is None:
+        raise ValueError("team_id is required")
     season = get_season(season_id, team_id)
     if season is None:
         raise ValueError("Season not found")
@@ -62,6 +64,8 @@ def set_active_season(team_id: int, season_id: int) -> Season:
 
 
 def delete_season(team_id: int, season_id: int) -> None:
+    if team_id is None:
+        raise ValueError("team_id is required")
     season = get_season(season_id, team_id)
     if season is None:
         raise ValueError("Season not found")
@@ -118,9 +122,10 @@ def current_season_id_from_session(session, team_id: int):
     return season_id
 
 
-def resolve_request_season_id(team_id: int):
+def resolve_request_season_id(team_id: int, persist: bool = True):
     """Season scope for the current request: `?season=<id|ALL>` override
-    (persisted to the session) falling back to the session selection."""
+    (persisted to the session unless persist=False, for read-only contexts
+    like PDF report routes) falling back to the session selection."""
     from flask import request, session
 
     raw = request.args.get("season")
@@ -132,7 +137,8 @@ def resolve_request_season_id(team_id: int):
             except (TypeError, ValueError):
                 candidate = None
             raw = candidate if get_season(candidate, team_id) else "ALL"
-        session["current_season_id"] = raw
+        if persist:
+            session["current_season_id"] = raw
         return raw
     return current_season_id_from_session(session, team_id)
 

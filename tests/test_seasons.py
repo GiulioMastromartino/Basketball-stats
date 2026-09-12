@@ -270,3 +270,83 @@ class TestSeasonRoutes:
         )
         assert resp.status_code in (302, 403)
         assert Season.query.filter_by(team_id=default_team.id, name="X").first() is None
+
+    def _clear_team(self, admin_client):
+        with admin_client.session_transaction() as sess:
+            sess.pop("current_team_id", None)
+
+    def _teamless_gm_client(self, client, db_session):
+        from core.models import Organization, OrganizationMembership, User
+
+        org = Organization(name="Empty Org", slug="empty-org")
+        db.session.add(org)
+        db.session.flush()
+        user = User(username="lonely_gm", email="lonely@test.com",
+                    organization_id=org.id)
+        user.set_password("password123")
+        db.session.add(user)
+        db.session.flush()
+        db.session.add(OrganizationMembership(
+            user_id=user.id, organization_id=org.id, is_gm=True
+        ))
+        db.session.commit()
+        with client.session_transaction() as sess:
+            sess["_user_id"] = str(user.id)
+            sess["_fresh"] = True
+        return client
+
+    def test_season_crud_without_team_redirects(
+        self, client, db_session
+    ):
+        self._teamless_gm_client(client, db_session)
+        resp = client.post(
+            "/seasons/create",
+            data={"name": "X", "start_date": "2026-08-01",
+                  "end_date": "2027-07-31"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        from core.models import Season as SeasonModel
+        assert SeasonModel.query.filter_by(name="X").first() is None
+        resp = client.post("/seasons/9999/activate", follow_redirects=False)
+        assert resp.status_code == 302
+        resp = client.post("/seasons/9999/delete", follow_redirects=False)
+        assert resp.status_code == 302
+
+    def test_service_guards_reject_missing_team(self, db_session):
+        with pytest.raises(ValueError, match="team_id"):
+            set_active_season(None, 1)
+        with pytest.raises(ValueError, match="team_id"):
+            delete_season(None, 1)
+
+    def test_switch_season_rejects_external_next(
+        self, auth_client, db_session, default_team
+    ):
+        resp = auth_client.get(
+            "/season/switch?season=ALL&next=https://evil.example/x",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert resp.headers["Location"] == "/"
+        resp = auth_client.get("/season/switch?season=ALL&next=/players",
+                               follow_redirects=False)
+        assert resp.headers["Location"] == "/players"
+
+    def test_reports_do_not_persist_season_override(
+        self, auth_client, db_session, default_team
+    ):
+        from core.services.season_service import resolve_request_season_id
+
+        season = create_season(
+            default_team.id, "2025/26", "2025-08-01", "2026-07-31",
+            set_active=True,
+        )
+        with auth_client.session_transaction() as sess:
+            sess["current_season_id"] = "ALL"
+        app = auth_client.application
+        with app.test_request_context(f"/reports/team/report.pdf?season={season.id}"):
+            resolved = resolve_request_season_id(
+                default_team.id, persist=False)
+            assert resolved == season.id
+        with auth_client.session_transaction() as sess:
+            assert sess.get("current_season_id", "ALL") == "ALL"
