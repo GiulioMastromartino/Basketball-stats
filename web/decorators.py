@@ -13,6 +13,27 @@ def gm_required(f):
         if not current_user.is_authenticated or not current_user.is_gm:
             flash("You do not have permission to perform this action.", "danger")
             return redirect(url_for('main.index'))
+        if getattr(current_user, "is_auditor", False):
+            flash("Auditors have read-only access.", "danger")
+            return redirect(url_for('main.index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def admin_view_required(f):
+    """GM or read-only auditor may view admin pages; mutations stay GM-only."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if _auth_disabled():
+            return f(*args, **kwargs)
+        if not current_user.is_authenticated:
+            flash("Please log in to access this page.", "danger")
+            return redirect(url_for('main.landing'))
+        is_gm = bool(getattr(current_user, "is_gm", False))
+        is_auditor = bool(getattr(current_user, "is_auditor", False))
+        if not (is_gm or is_auditor):
+            flash("You do not have permission to perform this action.", "danger")
+            return redirect(url_for('main.index'))
         return f(*args, **kwargs)
     return decorated_function
 

@@ -43,6 +43,8 @@ from core.models import (
     Team,
     Season,
     TeamAssignment,
+    AdminAudit,
+    log_admin_action,
 )
 from core.services.season_service import (
     create_season as create_team_season,
@@ -77,7 +79,7 @@ from core.utils import (
 from core.services.notification_service import notify_game, notify_player_performance
 from core.services import create_game_from_live_data
 from core.services.analytics_service import AnalyticsService
-from web.decorators import gm_required, team_access_required
+from web.decorators import gm_required, team_access_required, admin_view_required
 
 main_bp = Blueprint("main", __name__)
 
@@ -1462,7 +1464,7 @@ def create_test_game():
 
 @main_bp.route("/gm/dashboard")
 @login_required
-@gm_required
+@admin_view_required
 def gm_dashboard():
     """GM dashboard showing org-wide overview with all teams."""
     org = Organization.query.get(getattr(current_user, "organization_id", None) or 0)
@@ -1471,6 +1473,18 @@ def gm_dashboard():
     if org is None:
         flash("No organization exists yet.", "warning")
         return redirect(url_for("main.index"))
+    # Session org switcher (GM plan idea 4): multi-org GMs pick context.
+    requested_org = request.args.get("org_id", type=int)
+    if requested_org:
+        mem = OrganizationMembership.query.filter_by(
+            user_id=current_user.id, organization_id=requested_org).first()
+        if mem or getattr(current_user, "is_gm", False):
+            org = Organization.query.get(requested_org) or org
+    my_orgs = (Organization.query
+               .join(OrganizationMembership,
+                     OrganizationMembership.organization_id == Organization.id)
+               .filter(OrganizationMembership.user_id == current_user.id)
+               .order_by(Organization.name).all())
     teams = list(current_user.assigned_teams)
     if not teams and current_app.config.get("LOGIN_DISABLED"):
         # Dev/no-auth mode acts as GM without assignments: show the org's teams.
@@ -1498,11 +1512,25 @@ def gm_dashboard():
             "players": players,
         })
     members = OrganizationMembership.query.filter_by(organization_id=org.id).count()
+    # Empty-state guidance (GM plan idea 6): checklist for fresh orgs.
+    has_seasons = Season.query.join(Team).filter(
+        Team.organization_id == org.id).count() > 0
+    has_games = Game.query.join(Team).filter(
+        Team.organization_id == org.id).count() > 0
+    checklist = {
+        "has_teams": len(team_data) > 0,
+        "has_members": members > 0,
+        "has_seasons": has_seasons,
+        "has_players": sum(t["players"] for t in team_data) > 0,
+        "has_games": has_games,
+    }
     return render_template(
         "gm/dashboard.html",
         org=org,
         team_data=team_data,
         members=members,
+        my_orgs=my_orgs,
+        checklist=checklist,
     )
 
 
@@ -1524,11 +1552,39 @@ def switch_team():
     return redirect(request.referrer or url_for("main.index"))
 
 
+@main_bp.route("/switch-org", methods=["POST"])
+@login_required
+def switch_org():
+    """Switch the session org context (GM plan idea 4, mirrors switch_team)."""
+    org_id = request.form.get("org_id", type=int)
+    if not org_id:
+        flash("No organization selected.", "warning")
+        return redirect(request.referrer or url_for("main.index"))
+    org = Organization.query.get(org_id)
+    if not org:
+        flash("Unknown organization.", "danger")
+        return redirect(request.referrer or url_for("main.index"))
+    mem = OrganizationMembership.query.filter_by(
+        user_id=current_user.id, organization_id=org.id).first()
+    if not mem and not getattr(current_user, "is_gm", False) \
+            and not current_app.config.get("LOGIN_DISABLED"):
+        flash("You do not belong to that organization.", "danger")
+        return redirect(request.referrer or url_for("main.index"))
+    session["current_org_id"] = org.id
+    # Point the team context at the first accessible team of that org.
+    teams = Team.query.filter_by(organization_id=org.id).order_by(Team.name).all()
+    if teams:
+        session["current_team_id"] = teams[0].id
+        session["current_team_name"] = teams[0].name
+    flash(f"Switched to {org.name}.", "success")
+    return redirect(request.referrer or url_for("main.index"))
+
+
 # =============================================================================
 # ADMIN PANEL
 # =============================================================================
 
-VALID_SECTIONS = {"users", "players", "settings", "seasons", "orgs"}
+VALID_SECTIONS = {"users", "players", "settings", "seasons", "orgs", "matrix", "activity"}
 
 
 def _slugify(name: str) -> str:
@@ -1539,7 +1595,7 @@ def _slugify(name: str) -> str:
 @main_bp.route("/admin")
 @main_bp.route("/admin/<section>")
 @login_required
-@gm_required
+@admin_view_required
 def admin_panel(section="users"):
     """Admin panel - manage users, players, settings and seasons"""
     if section not in VALID_SECTIONS:
@@ -1552,6 +1608,30 @@ def admin_panel(section="users"):
     orgs = Organization.query.order_by(Organization.name).all()
     all_teams = Team.query.order_by(Team.name).all()
 
+    # Org workspace filter (GM plan C-Phase 2): ?org_id narrows orgs/matrix.
+    active_org_id = request.args.get("org_id", type=int) \
+        or session.get("current_org_id") \
+        or getattr(current_user, "organization_id", None)
+    if active_org_id and not Organization.query.get(active_org_id):
+        active_org_id = None
+    visible_orgs = ([o for o in orgs if o.id == active_org_id]
+                    if active_org_id else orgs)
+    visible_teams = ([t for t in all_teams if t.organization_id == active_org_id]
+                     if active_org_id else all_teams)
+
+    # Assignment matrix (GM plan C-Phase 1): team ids per user id.
+    assignments = {}
+    team_gms = {}
+    for ta in TeamAssignment.query.all():
+        assignments.setdefault(ta.user_id, set()).add(ta.team_id)
+        if ta.is_team_gm:
+            team_gms.setdefault(ta.user_id, set()).add(ta.team_id)
+
+    # Audit trail viewer (GM plan C-Phase 4): latest 100 entries.
+    audit_entries = (AdminAudit.query
+                     .order_by(AdminAudit.created_at.desc())
+                     .limit(100).all())
+
     settings_data = db.session.query(SystemSetting).all()
     settings = {s.key: s.value for s in settings_data}
 
@@ -1561,7 +1641,14 @@ def admin_panel(section="users"):
         players=players,
         seasons=seasons,
         orgs=orgs,
+        visible_orgs=visible_orgs,
         all_teams=all_teams,
+        visible_teams=visible_teams,
+        active_org_id=active_org_id,
+        assignments=assignments,
+        team_gms=team_gms,
+        audit_entries=audit_entries,
+        is_auditor=bool(getattr(current_user, "is_auditor", False)),
         settings=settings,
         section=section,
     )
@@ -1632,6 +1719,8 @@ def create_org():
     org = Organization(name=name, slug=slug)
     db.session.add(org)
     db.session.commit()
+    log_admin_action(current_user, "org.create", f"created organization '{name}'",
+                     target_type="org", target_id=org.id)
     flash(f"Organization '{name}' created.", "success")
     return redirect(url_for("main.admin_panel", section="orgs"))
 
@@ -1650,7 +1739,59 @@ def delete_org(org_id):
         return redirect(url_for("main.admin_panel", section="orgs"))
     db.session.delete(org)
     db.session.commit()
+    log_admin_action(current_user, "org.delete", f"deleted organization '{org.name}'",
+                     target_type="org", target_id=org_id)
     flash(f"Organization '{org.name}' deleted.", "success")
+    return redirect(url_for("main.admin_panel", section="orgs"))
+
+
+@main_bp.route("/orgs/<int:org_id>/rename", methods=["POST"])
+@login_required
+@gm_required
+def rename_org(org_id):
+    """Rename an organization (GM plan C-Phase 3). Slugs stay internal."""
+    org = Organization.query.get_or_404(org_id)
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("Organization name is required.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    slug = _slugify(name)
+    dup = Organization.query.filter(
+        Organization.slug == slug, Organization.id != org.id).first()
+    if dup:
+        flash(f"Another organization already uses '{name}'.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    old = org.name
+    org.name = name
+    org.slug = slug
+    db.session.commit()
+    log_admin_action(current_user, "org.rename",
+                     f"renamed organization '{old}' → '{name}'",
+                     target_type="org", target_id=org.id)
+    flash(f"Organization renamed to '{name}'.", "success")
+    return redirect(url_for("main.admin_panel", section="orgs"))
+
+
+@main_bp.route("/orgs/<int:org_id>/settings", methods=["POST"])
+@login_required
+@gm_required
+def update_org_settings(org_id):
+    """Per-org defaults inherited by teams (GM plan idea 2)."""
+    org = Organization.query.get_or_404(org_id)
+    timezone = (request.form.get("timezone") or "UTC").strip() or "UTC"
+    sport = (request.form.get("sport") or "basketball").strip() or "basketball"
+    convention = (request.form.get("season_convention") or "sept-june").strip()
+    if convention not in ("sept-june", "calendar"):
+        convention = "sept-june"
+    org.timezone = timezone[:50]
+    org.sport = sport[:50]
+    org.season_convention = convention
+    db.session.commit()
+    log_admin_action(current_user, "org.settings",
+                     f"updated defaults for '{org.name}' "
+                     f"(tz={org.timezone}, sport={org.sport}, season={convention})",
+                     target_type="org", target_id=org.id)
+    flash(f"Defaults for '{org.name}' saved.", "success")
     return redirect(url_for("main.admin_panel", section="orgs"))
 
 
@@ -1675,7 +1816,69 @@ def create_team():
     team = Team(name=name, organization_id=org.id, slug=slug)
     db.session.add(team)
     db.session.commit()
+    log_admin_action(current_user, "team.create",
+                     f"created team '{name}' in {org.name}",
+                     target_type="team", target_id=team.id,
+                     organization_id=org.id)
     flash(f"Team '{name}' created in {org.name}.", "success")
+    return redirect(url_for("main.admin_panel", section="orgs"))
+
+
+@main_bp.route("/teams/<int:team_id>/rename", methods=["POST"])
+@login_required
+@gm_required
+def rename_team(team_id):
+    """Rename a team (GM plan C-Phase 3)."""
+    team = Team.query.get_or_404(team_id)
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("Team name is required.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    slug = _slugify(name)
+    dup = Team.query.filter(
+        Team.organization_id == team.organization_id,
+        Team.slug == slug, Team.id != team.id).first()
+    if dup:
+        flash(f"Team '{name}' already exists in this organization.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    old = team.name
+    team.name = name
+    team.slug = slug
+    db.session.commit()
+    log_admin_action(current_user, "team.rename",
+                     f"renamed team '{old}' → '{name}'",
+                     target_type="team", target_id=team.id,
+                     organization_id=team.organization_id)
+    flash(f"Team renamed to '{name}'.", "success")
+    return redirect(url_for("main.admin_panel", section="orgs"))
+
+
+@main_bp.route("/teams/<int:team_id>/transfer", methods=["POST"])
+@login_required
+@gm_required
+def transfer_team(team_id):
+    """Move a team to another org, keeping games & seasons (C-Phase 3)."""
+    team = Team.query.get_or_404(team_id)
+    org_id = request.form.get("organization_id", type=int)
+    org = Organization.query.get(org_id) if org_id else None
+    if org is None:
+        flash("Valid target organization is required.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    if org.id == team.organization_id:
+        flash("Team is already in that organization.", "warning")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    if Team.query.filter_by(organization_id=org.id, slug=team.slug).first():
+        flash(f"A team named '{team.name}' already exists there.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    old_org_id = team.organization_id
+    team.organization_id = org.id
+    db.session.commit()
+    log_admin_action(current_user, "team.transfer",
+                     f"transferred team '{team.name}' to {org.name}, "
+                     f"kept games & seasons",
+                     target_type="team", target_id=team.id,
+                     organization_id=org.id)
+    flash(f"Team '{team.name}' moved to {org.name}.", "success")
     return redirect(url_for("main.admin_panel", section="orgs"))
 
 
@@ -1702,6 +1905,9 @@ def delete_team(team_id):
         session.pop("current_season_id", None)
     db.session.delete(team)
     db.session.commit()
+    log_admin_action(current_user, "team.delete", f"deleted team '{team.name}'",
+                     target_type="team", target_id=team_id,
+                     organization_id=team.organization_id)
     flash(f"Team '{team.name}' deleted.", "success")
     return redirect(url_for("main.admin_panel", section="orgs"))
 

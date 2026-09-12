@@ -54,6 +54,7 @@ def add_missing_columns(app):
                 "role": "VARCHAR(20) DEFAULT 'editor'",
                 "otp_code": "VARCHAR(6)",
                 "otp_expiry": "DATETIME",
+                "is_auditor": "BOOLEAN DEFAULT 0",
             },
             # System settings table
             "system_settings": {
@@ -135,6 +136,15 @@ def add_missing_columns(app):
                 "team_id": "INTEGER",
                 "email": "VARCHAR(120)",
                 "active": "BOOLEAN DEFAULT 1",
+            },
+            # GM plan: org defaults + per-team GM flag
+            "organizations": {
+                "timezone": "VARCHAR(50) DEFAULT 'UTC'",
+                "sport": "VARCHAR(50) DEFAULT 'basketball'",
+                "season_convention": "VARCHAR(20) DEFAULT 'sept-june'",
+            },
+            "team_assignments": {
+                "is_team_gm": "BOOLEAN DEFAULT 0",
             },
         }
 
