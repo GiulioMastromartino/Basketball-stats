@@ -44,6 +44,80 @@ def dashboard():
     return render_template("analytics.html", players=player_names)
 
 
+CHAMPIONSHIP_SOURCES = ("internal", "playbasket")
+
+
+def _load_playbasket_snapshot():
+    """Bundled Playbasket scrape: DR4 Lombardia 2025/26, Girone M."""
+    import json
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[2] / "data" / "playbasket_dr4_2025_26.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"meta": {}, "standings": [], "games": []}
+
+
+@analytics_bp.route("/analytics/championship")
+@login_required
+@team_access_required
+def championship():
+    """Championship subpage with selectable info source.
+
+    - ``internal``: standings/record computed from this team's DB games.
+    - ``playbasket``: bundled Playbasket scrape (DR4 Lombardia 2025/26).
+    """
+    from core.services.season_service import resolve_request_season_id
+    source = (request.args.get("source") or "internal").strip().lower()
+    if source not in CHAMPIONSHIP_SOURCES:
+        source = "internal"
+    team_id = session.get("current_team_id")
+    season_id = resolve_request_season_id(team_id)
+
+    internal = None
+    if source == "internal":
+        q = Game.query.filter_by(team_id=team_id).order_by(Game.sort_date)
+        if season_id != "ALL":
+            q = q.filter(Game.season_id == int(season_id))
+        games = q.all()
+        wins = sum(1 for g in games if g.result == "W")
+        opp_table = {}
+        for g in games:
+            row = opp_table.setdefault(g.opponent, {"g": 0, "w": 0, "l": 0,
+                                                    "pf": 0, "ps": 0})
+            row["g"] += 1
+            row["w" if g.result == "W" else "l"] += 1
+            row["pf"] += g.team_score or 0
+            row["ps"] += g.opponent_score or 0
+        internal = {
+            "games": games,
+            "wins": wins,
+            "losses": len(games) - wins,
+            "opponents": sorted(opp_table.items()),
+            "season_id": season_id,
+        }
+
+    snapshot = _load_playbasket_snapshot() if source == "playbasket" else None
+    team_filter = (request.args.get("team") or "").strip()
+    if snapshot and team_filter:
+        tl = team_filter.lower()
+        snapshot = dict(snapshot)
+        snapshot["games"] = [g for g in snapshot["games"]
+                             if tl in g["casa"].lower()
+                             or tl in g["ospite"].lower()]
+        snapshot["standings"] = [r for r in snapshot["standings"]
+                                 if tl in r["team"].lower()]
+    return render_template(
+        "analytics_championship.html",
+        source=source,
+        sources=CHAMPIONSHIP_SOURCES,
+        internal=internal,
+        snapshot=snapshot,
+        team_filter=team_filter,
+        season_id=season_id,
+    )
+
+
 @analytics_bp.route("/api/analytics/team_overview")
 @login_required
 @team_access_required
