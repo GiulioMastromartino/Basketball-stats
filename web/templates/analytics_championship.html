@@ -60,9 +60,13 @@
         </div>
     </div>
     {% else %}
+    {% if snapshot.meta %}
     <p class="text-muted small">{{ snapshot.meta.competition }} · Girone {{ snapshot.meta.girone }} ·
         Season {{ snapshot.meta.season }} · via {{ snapshot.meta.source }}
         (scraped {{ snapshot.meta.scraped_at }}). {{ snapshot.meta.note }}</p>
+    {% else %}
+    <p class="alert alert-warning">External championship snapshot unavailable — showing nothing from Playbasket.</p>
+    {% endif %}
     <div class="card shadow-sm mb-3">
         <div class="card-header bg-light"><h6 class="mb-0">Standings</h6></div>
         <div class="card-body p-0 table-responsive">

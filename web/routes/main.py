@@ -1658,6 +1658,12 @@ def admin_panel(section="users"):
             # Users list stays home-org only (no cross-org email disclosure).
             own = current_user.organization_id
             users = [u for u in users if u.organization_id == own]
+        elif allowed:
+            # No home org (e.g. auditor): fall back to member orgs so the
+            # users list is never unscoped.
+            users = [u for u in users if u.organization_id in allowed]
+        else:
+            users = []
 
     # Org workspace filter (GM plan C-Phase 2): ?org_id narrows orgs/matrix.
     active_org_id = request.args.get("org_id", type=int) \

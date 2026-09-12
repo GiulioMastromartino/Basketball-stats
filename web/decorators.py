@@ -84,8 +84,7 @@ def require_own_org(org_id):
     """
     if _auth_disabled():
         return None
-    own = getattr(current_user, "organization_id", None) \
-        if current_user.is_authenticated else None
+    own = getattr(current_user, "organization_id", None)
     if org_id is None or own != org_id:
         flash("You do not administer this organization.", "danger")
         return redirect(url_for("main.admin_panel", section="orgs"))

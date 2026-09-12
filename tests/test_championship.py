@@ -46,3 +46,28 @@ class TestChampionship:
     def test_nav_link_present(self, admin_client, db_session, sample_game):
         resp = admin_client.get("/analytics")
         assert resp.status_code == 200
+
+    def test_auditor_without_home_org_sees_no_users(self, client, db_session,
+                                                   default_org):
+        from core.models import OrganizationMembership as _M, User as _U
+        auditor = _U(username="aud_nohome", email="aud_nohome@test.com",
+                     organization_id=None, is_auditor=True)
+        auditor.set_password("password123")
+        db.session.add(auditor)
+        db.session.commit()
+        with client.session_transaction() as sess:
+            sess["_user_id"] = str(auditor.id)
+            sess["_fresh"] = True
+        resp = client.get("/admin/users")
+        assert resp.status_code == 200
+        assert b"test_admin" not in resp.data
+
+    def test_playbasket_missing_snapshot_shows_warning(
+            self, admin_client, monkeypatch):
+        import web.routes.analytics as _a
+        monkeypatch.setattr(
+            _a, "_load_playbasket_snapshot",
+            lambda: {"meta": {}, "standings": [], "games": []})
+        resp = admin_client.get("/analytics/championship?source=playbasket")
+        assert resp.status_code == 200
+        assert b"unavailable" in resp.data
