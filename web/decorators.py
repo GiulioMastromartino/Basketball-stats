@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import abort, flash, redirect, url_for, session, current_app
+from flask import abort, flash, redirect, request, url_for, session, current_app
 from flask_login import current_user
 
 def _auth_disabled():
@@ -40,6 +40,19 @@ def admin_view_required(f):
 def team_access_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Honor ?team_id= links (e.g. GM dashboard per-team buttons): switch
+        # session context when the user may access that team, else ignore.
+        requested = request.args.get("team_id", type=int)
+        if requested:
+            from core.models import Team
+            team = Team.query.get(requested)
+            if team is not None and (
+                _auth_disabled()
+                or (current_user.is_authenticated
+                    and team in current_user.assigned_teams)
+            ):
+                session["current_team_id"] = team.id
+                session["current_team_name"] = team.name
         if _auth_disabled():
             return f(*args, **kwargs)
         if not current_user.is_authenticated:
