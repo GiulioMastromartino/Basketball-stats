@@ -33,7 +33,7 @@ from core.services.workos_service import (
     get_logout_url,
 )
 from core.logger import get_logger
-from web.decorators import admin_required, gm_required
+from web.decorators import admin_required, gm_required, require_own_org
 
 logger = get_logger("auth")
 
@@ -396,6 +396,7 @@ def delete_user(user_id):
         return redirect(url_for("main.admin_panel", section="users"))
 
     user = User.query.get_or_404(user_id)
+    require_own_org(user.organization_id)
     username = user.username
     db.session.delete(user)
     db.session.commit()

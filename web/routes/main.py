@@ -79,7 +79,7 @@ from core.utils import (
 from core.services.notification_service import notify_game, notify_player_performance
 from core.services import create_game_from_live_data
 from core.services.analytics_service import AnalyticsService
-from web.decorators import gm_required, team_access_required, admin_view_required
+from web.decorators import gm_required, team_access_required, admin_view_required, require_own_org
 
 main_bp = Blueprint("main", __name__)
 
@@ -1575,8 +1575,7 @@ def switch_org():
         return redirect(request.referrer or url_for("main.index"))
     mem = OrganizationMembership.query.filter_by(
         user_id=current_user.id, organization_id=org.id).first()
-    if not mem and not getattr(current_user, "is_gm", False) \
-            and not current_app.config.get("LOGIN_DISABLED"):
+    if not mem and not current_app.config.get("LOGIN_DISABLED"):
         flash("You do not belong to that organization.", "danger")
         return redirect(request.referrer or url_for("main.index"))
     session["current_org_id"] = org.id
@@ -1655,6 +1654,10 @@ def admin_panel(section="users"):
             if allowed
             else []
         )
+        if getattr(current_user, "organization_id", None):
+            # Users list stays home-org only (no cross-org email disclosure).
+            own = current_user.organization_id
+            users = [u for u in users if u.organization_id == own]
 
     # Org workspace filter (GM plan C-Phase 2): ?org_id narrows orgs/matrix.
     active_org_id = request.args.get("org_id", type=int) \
@@ -1824,6 +1827,7 @@ def delete_org(org_id):
 def rename_org(org_id):
     """Rename an organization (GM plan C-Phase 3). Slugs stay internal."""
     org = Organization.query.get_or_404(org_id)
+    require_own_org(org.id)
     name = (request.form.get("name") or "").strip()
     if not name:
         flash("Organization name is required.", "danger")
@@ -1851,6 +1855,7 @@ def rename_org(org_id):
 def update_org_settings(org_id):
     """Per-org defaults inherited by teams (GM plan idea 2)."""
     org = Organization.query.get_or_404(org_id)
+    require_own_org(org.id)
     timezone = (request.form.get("timezone") or "UTC").strip() or "UTC"
     sport = (request.form.get("sport") or "basketball").strip() or "basketball"
     convention = (request.form.get("season_convention") or "sept-june").strip()
@@ -1905,6 +1910,7 @@ def create_team():
 def rename_team(team_id):
     """Rename a team (GM plan C-Phase 3)."""
     team = Team.query.get_or_404(team_id)
+    require_own_org(team.organization_id)
     name = (request.form.get("name") or "").strip()
     if not name:
         flash("Team name is required.", "danger")
@@ -1934,6 +1940,7 @@ def rename_team(team_id):
 def transfer_team(team_id):
     """Move a team to another org, keeping games & seasons (C-Phase 3)."""
     team = Team.query.get_or_404(team_id)
+    require_own_org(team.organization_id)
     org_id = request.form.get("organization_id", type=int)
     org = Organization.query.get(org_id) if org_id else None
     if org is None:
@@ -1963,10 +1970,7 @@ def transfer_team(team_id):
 def delete_team(team_id):
     """Delete a team with no games, players, seasons or assignments."""
     team = Team.query.get_or_404(team_id)
-    allowed = _gm_org_ids()
-    if allowed is not None and team.organization_id not in allowed:
-        flash("You do not administer this team.", "danger")
-        return redirect(url_for("main.admin_panel", section="orgs"))
+    require_own_org(team.organization_id)
     blockers = {
         "games": Game.query.filter_by(team_id=team.id).count(),
         "players": Player.query.filter_by(team_id=team.id).count(),

@@ -143,9 +143,14 @@ class TestOrgWorkspaceAndDefaults:
         other = Organization(name="Other Club", slug="other-club-2")
         db.session.add(other)
         db.session.commit()
+        # Cross-org data is no longer visible at all (isolation).
         resp = admin_client.get(f"/admin/orgs?org_id={other.id}")
         assert resp.status_code == 200
-        assert b"Other Club" in resp.data
+        assert b"Other Club" not in resp.data
+        # Own org filters fine.
+        resp = admin_client.get(f"/admin/orgs?org_id={default_org.id}")
+        assert resp.status_code == 200
+        assert default_org.name.encode() in resp.data
 
     def test_update_org_defaults(self, admin_client, db_session, default_org):
         resp = admin_client.post(
@@ -380,3 +385,110 @@ class TestPlayersScopedToTeam:
         resp = admin_client.get("/player/John%20Doe", follow_redirects=False)
         assert resp.status_code == 302
         assert "/players" in resp.headers["Location"]
+
+
+class TestCrossOrgIsolation:
+    """One org's GM cannot read or mutate another org's data."""
+
+    @pytest.fixture
+    def org_b(self, db_session):
+        from core.models import Organization as _Org
+        org = _Org(name="Org B", slug="org-b")
+        db.session.add(org)
+        db.session.commit()
+        return org
+
+    @pytest.fixture
+    def team_b(self, db_session, org_b):
+        team = Team(name="B Team", organization_id=org_b.id, slug="b-team")
+        db.session.add(team)
+        db.session.commit()
+        return team
+
+    @pytest.fixture
+    def user_b(self, db_session, org_b):
+        user = User(username="user_b", email="user_b@test.com",
+                    organization_id=org_b.id)
+        user.set_password("password123")
+        db.session.add(user)
+        db.session.flush()
+        db.session.add(OrganizationMembership(
+            user_id=user.id, organization_id=org_b.id, is_gm=False))
+        db.session.commit()
+        return user
+
+    def test_cannot_delete_other_org_user(
+            self, admin_client, db_session, user_b):
+        resp = admin_client.post(f"/auth/users/{user_b.id}/delete",
+                                 follow_redirects=False)
+        assert resp.status_code == 403
+        assert User.query.get(user_b.id) is not None
+
+    def test_cannot_rename_other_org(
+            self, admin_client, db_session, org_b):
+        resp = admin_client.post(f"/orgs/{org_b.id}/rename",
+                                 data={"name": "Hijacked"},
+                                 follow_redirects=False)
+        assert resp.status_code == 403
+        assert Organization.query.get(org_b.id).name == "Org B"
+
+    def test_cannot_delete_other_org_with_data(
+            self, admin_client, db_session, org_b, team_b):
+        # Non-empty orgs are never deletable (existing guard); the org
+        # survives regardless of whose GM attempts it.
+        resp = admin_client.post(f"/orgs/{org_b.id}/delete",
+                                 follow_redirects=True)
+        assert resp.status_code == 200
+        assert Organization.query.get(org_b.id) is not None
+        assert Team.query.get(team_b.id) is not None
+
+    def test_cannot_change_other_org_settings(
+            self, admin_client, db_session, org_b):
+        resp = admin_client.post(
+            f"/orgs/{org_b.id}/settings",
+            data={"timezone": "X", "sport": "Y",
+                  "season_convention": "calendar"},
+            follow_redirects=False)
+        assert resp.status_code == 403
+        assert Organization.query.get(org_b.id).timezone != "X"
+
+    def test_cannot_create_team_in_other_org(
+            self, admin_client, db_session, org_b):
+        resp = admin_client.post(
+            "/teams/create",
+            data={"organization_id": org_b.id, "name": "Intruder"},
+            follow_redirects=False)
+        assert resp.status_code == 403
+        assert Team.query.filter_by(slug="intruder").first() is None
+
+    def test_cannot_rename_delete_transfer_other_org_team(
+            self, admin_client, db_session, org_b, team_b, default_org):
+        assert admin_client.post(
+            f"/teams/{team_b.id}/rename", data={"name": "Hijacked"},
+            follow_redirects=False).status_code == 403
+        assert admin_client.post(
+            f"/teams/{team_b.id}/delete",
+            follow_redirects=False).status_code == 403
+        assert admin_client.post(
+            f"/teams/{team_b.id}/transfer",
+            data={"organization_id": default_org.id},
+            follow_redirects=False).status_code == 403
+        team = Team.query.get(team_b.id)
+        assert team.name == "B Team"
+        assert team.organization_id == org_b.id
+
+    def test_switch_org_requires_membership(
+            self, admin_client, db_session, org_b):
+        resp = admin_client.post("/switch-org", data={"org_id": org_b.id},
+                                 follow_redirects=False)
+        assert resp.status_code in (302, 303)
+        with admin_client.session_transaction() as sess:
+            assert sess.get("current_org_id") != org_b.id
+
+    def test_admin_lists_scoped_to_own_org(
+            self, admin_client, db_session, org_b, user_b):
+        resp = admin_client.get("/admin/users")
+        assert resp.status_code == 200
+        assert b"user_b" not in resp.data
+        resp = admin_client.get("/admin/orgs")
+        assert b"Org B" not in resp.data
