@@ -72,3 +72,17 @@ def team_access_required(f):
     return decorated_function
 
 admin_required = gm_required
+
+
+def require_own_org(org_id) -> None:
+    """Abort 403 unless ``org_id`` is the current user's organization.
+
+    Central guard against cross-org admin mutations (one GM reaching into
+    another org's users/teams/orgs). No-op when auth is disabled (dev mode).
+    """
+    if _auth_disabled():
+        return
+    if not current_user.is_authenticated:
+        abort(403)
+    if org_id is None or current_user.organization_id != org_id:
+        abort(403)
