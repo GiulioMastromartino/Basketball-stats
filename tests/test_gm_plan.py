@@ -297,3 +297,43 @@ class TestGMDashboardTeamManagement:
         assert resp.status_code in (302, 303)
         assert "evil.example" not in resp.headers["Location"]
         assert Team.query.get(default_team.id).name == "Safe Name"
+
+
+class TestTeamContextLinks:
+    """?team_id= links (GM dashboard buttons) scope team pages."""
+
+    def test_team_param_switches_context(
+            self, admin_client, db_session, default_org, default_team):
+        other = Team(name="Other Side", organization_id=default_org.id,
+                     slug="other-side")
+        db.session.add(other)
+        db.session.commit()
+        resp = admin_client.get(f"/players?team_id={other.id}")
+        assert resp.status_code == 200
+        with admin_client.session_transaction() as sess:
+            assert sess.get("current_team_id") == other.id
+
+    def test_team_param_unknown_team_ignored(
+            self, admin_client, db_session, default_team):
+        with admin_client.session_transaction() as sess:
+            sess["current_team_id"] = default_team.id
+        resp = admin_client.get("/players?team_id=999999")
+        assert resp.status_code == 200
+        with admin_client.session_transaction() as sess:
+            assert sess.get("current_team_id") == default_team.id
+
+    def test_team_param_cross_org_ignored(
+            self, admin_client, db_session, default_org, default_team):
+        other_org = Organization(name="Far Away", slug="far-away")
+        db.session.add(other_org)
+        db.session.flush()
+        other_team = Team(name="Far Team", organization_id=other_org.id,
+                          slug="far-team")
+        db.session.add(other_team)
+        db.session.commit()
+        with admin_client.session_transaction() as sess:
+            sess["current_team_id"] = default_team.id
+        resp = admin_client.get(f"/players?team_id={other_team.id}")
+        assert resp.status_code == 200
+        with admin_client.session_transaction() as sess:
+            assert sess.get("current_team_id") == default_team.id
