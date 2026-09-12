@@ -54,7 +54,7 @@ def add_missing_columns(app):
                 "role": "VARCHAR(20) DEFAULT 'editor'",
                 "otp_code": "VARCHAR(6)",
                 "otp_expiry": "DATETIME",
-                "is_auditor": "BOOLEAN DEFAULT 0",
+                "is_auditor": "BOOLEAN DEFAULT FALSE",
             },
             # System settings table
             "system_settings": {
@@ -144,7 +144,7 @@ def add_missing_columns(app):
                 "season_convention": "VARCHAR(20) DEFAULT 'sept-june'",
             },
             "team_assignments": {
-                "is_team_gm": "BOOLEAN DEFAULT 0",
+                "is_team_gm": "BOOLEAN DEFAULT FALSE",
             },
         }
 

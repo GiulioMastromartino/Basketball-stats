@@ -3,6 +3,7 @@ from datetime import datetime
 from flask_bcrypt import Bcrypt
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
@@ -69,7 +70,7 @@ class TeamAssignment(db.Model):
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     is_coach = db.Column(db.Boolean, default=False)
     # Per-team GM: head coach managing only their team (GM plan idea 1).
-    is_team_gm = db.Column(db.Boolean, default=False, server_default="0")
+    is_team_gm = db.Column(db.Boolean, default=False, server_default=text("false"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (db.UniqueConstraint("user_id", "team_id"),)
@@ -98,7 +99,7 @@ class User(UserMixin, db.Model):
     )
     whatsapp_phone = db.Column(db.String(20), nullable=True)
     # Read-only auditor: view everything, change nothing (GM plan idea 5).
-    is_auditor = db.Column(db.Boolean, default=False, server_default="0")
+    is_auditor = db.Column(db.Boolean, default=False, server_default=text("false"))
 
     memberships = db.relationship("OrganizationMembership", backref="user", lazy=True)
     team_assignments = db.relationship("TeamAssignment", backref="user", lazy=True)
