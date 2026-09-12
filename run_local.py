@@ -28,10 +28,8 @@ def _ensure_dev_team():
         if Organization.query.first() is not None:
             return
         org = Organization(name="Dev Organization", slug="dev-organization")
-        if org is None:
-            org = Organization(name="Dev Organization", slug="dev-organization")
-            db.session.add(org)
-            db.session.flush()
+        db.session.add(org)
+        db.session.flush()
         team = Team.query.filter_by(organization_id=org.id).first()
         if team is None:
             team = Team(name="Dev Team", organization_id=org.id, slug="dev-team")
