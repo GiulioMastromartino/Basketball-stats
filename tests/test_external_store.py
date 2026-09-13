@@ -51,7 +51,8 @@ class TestExternalStore:
         result = store.seed_from_snapshot(conn, SAMPLE)
         champ_id = result["championship_id"]
         outcome = store.upsert_game(conn, champ_id,
-                                   {"data": "16/10", "casa": "Team C",
+                                   {"round": "Andata 1", "data": "16/10",
+                                    "casa": "Team C",
                                     "ospite": "Team D", "pc": "70",
                                     "po": "65", "stato": "ufficioso"})
         assert outcome == "updated"
@@ -78,3 +79,36 @@ class TestExternalStore:
         log_id = store.log_sync(conn, result["championship_id"],
                                 fetched=2, added=2)
         assert log_id > 0
+
+
+class TestPostponementIdentity:
+    def test_same_teams_round_survives_date_change(self, conn):
+        from core import external_store as store
+        champ = store.upsert_championship(
+            conn, provider="playbasket_html", campionato="DR4", fase="1",
+            girone="M", season="2025/2026")
+        assert store.upsert_game(
+            conn, champ, {"round": "Andata 3", "data": "28/10",
+                          "casa": "Team A", "ospite": "Team B",
+                          "pc": "49", "po": "73"}) == "added"
+        # Postponed to a new date, same round+teams: same fixture.
+        assert store.upsert_game(
+            conn, champ, {"round": "Andata 3", "data": "04/11",
+                          "casa": "Team A", "ospite": "Team B",
+                          "pc": "49", "po": "73"}) == "unchanged"
+        assert len(store.list_games(conn, champ)) == 1
+
+    def test_numbered_identity_ignores_date(self, conn):
+        from core import external_store as store
+        champ = store.upsert_championship(
+            conn, provider="fip_api", comitato="NAZ",
+            campionato="A1/M", fase="1", girone="85160",
+            season="2026/2027")
+        assert store.upsert_game(
+            conn, champ, {"game_number": "000003", "date": "2026-09-26",
+                          "home": "Team A", "away": "Team B",
+                          "home_score": -1, "away_score": -1}) == "added"
+        assert store.upsert_game(
+            conn, champ, {"game_number": "000003", "date": "2026-09-27",
+                          "home": "Team A", "away": "Team B",
+                          "home_score": 100, "away_score": 80}) == "updated"

@@ -64,7 +64,14 @@ def sync_once() -> dict:
                         item.codice_fase, item.codice_girone)
                     standings = []
                 else:
-                    games, standings, _ = adapter.fetch_championship()
+                    season_year = (item.season_label.split("/")[-1].strip()
+                                   if "/" in (item.season_label or "")
+                                   else (item.season_label or "").strip())
+                    games, standings, _ = adapter.fetch_championship(
+                        province=item.province_codice or "MI",
+                        championship=item.codice_campionato or "DR4",
+                        season=season_year or "2026",
+                        girone=item.codice_girone or "M")
                 champ_id = store.upsert_championship(
                     conn, provider=item.provider,
                     comitato=item.comitato_codice,

@@ -193,6 +193,7 @@ class TrackedChampionship(db.Model):
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     provider = db.Column(db.String(30), nullable=False, default="fip_api")
     comitato_codice = db.Column(db.String(20), nullable=False, default="")
+    province_codice = db.Column(db.String(20), nullable=False, default="MI")
     codice_campionato = db.Column(db.String(20), nullable=False, default="")
     codice_fase = db.Column(db.String(20), nullable=False, default="1")
     codice_girone = db.Column(db.String(20), nullable=False, default="")
@@ -204,8 +205,9 @@ class TrackedChampionship(db.Model):
                            nullable=False)
 
     __table_args__ = (db.UniqueConstraint(
-        "team_id", "provider", "comitato_codice", "codice_campionato",
-        "codice_fase", "codice_girone", "season_label"),)
+        "team_id", "provider", "comitato_codice", "province_codice",
+        "codice_campionato", "codice_fase", "codice_girone",
+        "season_label"),)
 
     team = db.relationship("Team", backref=db.backref(
         "tracked_championships", lazy=True))

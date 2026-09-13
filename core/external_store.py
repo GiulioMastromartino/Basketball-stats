@@ -103,15 +103,26 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
 
 
 def stable_hash(provider: str, comitato: str, campionato: str, fase: str,
-                girone: str, season: str, game_number: str, date: str,
-                home: str, away: str) -> str:
-    """Identity of a fixture that survives score updates (scores excluded)."""
-    raw = "|".join([provider, comitato, campionato, fase, girone, season,
-                    (game_number or "").strip(),
-                    (date or "").strip(),
-                    (home or "").strip().lower(),
-                    (away or "").strip().lower()])
-    return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+                girone: str, season: str, game_number: str = "",
+                round_label: str = "", date: str = "",
+                home: str = "", away: str = "") -> str:
+    """Identity of a fixture that survives score updates and postponements.
+
+    Tiered identity (first available wins): official game number, else
+    round + teams, else date + teams. Scores are always excluded so a
+    finished game still matches its fixture.
+    """
+    home = (home or "").strip().lower()
+    away = (away or "").strip().lower()
+    base = [provider, comitato, campionato, fase, girone, season]
+    number = (game_number or "").strip()
+    if number:
+        parts = base + [number]
+    elif (round_label or "").strip():
+        parts = base + [(round_label or "").strip(), home, away]
+    else:
+        parts = base + [(date or "").strip(), home, away]
+    return hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()
 
 
 def upsert_championship(conn: sqlite3.Connection, provider: str,
@@ -166,10 +177,11 @@ def upsert_game(conn: sqlite3.Connection, championship_id: int,
         champ["provider"], champ["comitato_codice"],
         champ["codice_campionato"], champ["codice_fase"],
         champ["codice_girone"], champ["season_label"],
-        str(game.get("game_number") or game.get("n_gara") or ""),
-        str(game.get("date") or game.get("data") or ""),
-        str(game.get("home") or game.get("casa") or ""),
-        str(game.get("away") or game.get("ospite") or ""),
+        game_number=str(game.get("game_number") or game.get("n_gara") or ""),
+        round_label=str(game.get("round") or game.get("turno") or ""),
+        date=str(game.get("date") or game.get("data") or ""),
+        home=str(game.get("home") or game.get("casa") or ""),
+        away=str(game.get("away") or game.get("ospite") or ""),
     )
     home_score = _score(game.get("home_score", game.get("pc")))
     away_score = _score(game.get("away_score", game.get("po")))
@@ -222,24 +234,30 @@ def upsert_game(conn: sqlite3.Connection, championship_id: int,
 
 def replace_standings(conn: sqlite3.Connection, championship_id: int,
                       rows: list[dict]) -> int:
-    """Replace the standings snapshot for a championship."""
-    conn.execute("DELETE FROM ext_standings WHERE championship_id=?",
-                 (championship_id,))
+    """Replace the standings snapshot for a championship (atomic)."""
     now = _utcnow()
-    for position, row in enumerate(rows, start=1):
-        conn.execute(
-            """INSERT INTO ext_standings
-               (championship_id, position, team, points, played, won, lost,
-                scored, conceded, scraped_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (championship_id, int(row.get("pos", position)),
-             str(row.get("team", "")), int(row.get("pts", 0)),
-             int(row.get("g", 0)), int(row.get("w", 0)),
-             int(row.get("l", 0)), int(row.get("pf", 0)),
-             int(row.get("ps", 0)), now),
-        )
+    try:
+        conn.execute("DELETE FROM ext_standings WHERE championship_id=?",
+                     (championship_id,))
+        count = 0
+        for position, row in enumerate(rows, start=1):
+            conn.execute(
+                """INSERT INTO ext_standings
+                   (championship_id, position, team, points, played, won, lost,
+                    scored, conceded, scraped_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (championship_id, int(row.get("pos", position)),
+                 str(row.get("team", "")), int(row.get("pts", 0)),
+                 int(row.get("g", 0)), int(row.get("w", 0)),
+                 int(row.get("l", 0)), int(row.get("pf", 0)),
+                 int(row.get("ps", 0)), now),
+            )
+            count += 1
+    except Exception:
+        conn.rollback()
+        raise
     conn.commit()
-    return len(rows)
+    return count
 
 
 def log_sync(conn: sqlite3.Connection, championship_id: int | None,

@@ -2058,6 +2058,7 @@ def track_championship(team_id):
         "team_id": team.id,
         "provider": provider,
         "comitato_codice": (request.form.get("comitato_codice") or "").strip(),
+        "province_codice": (request.form.get("province_codice") or "MI").strip() or "MI",
         "codice_campionato": (request.form.get("codice_campionato") or "").strip(),
         "codice_fase": (request.form.get("codice_fase") or "1").strip() or "1",
         "codice_girone": (request.form.get("codice_girone") or "").strip(),
@@ -2068,6 +2069,7 @@ def track_championship(team_id):
     existing = TrackedChampionship.query.filter_by(
         team_id=team.id, provider=data["provider"],
         comitato_codice=data["comitato_codice"],
+        province_codice=data["province_codice"],
         codice_campionato=data["codice_campionato"],
         codice_fase=data["codice_fase"],
         codice_girone=data["codice_girone"],

@@ -88,3 +88,27 @@ class TestSyncJob:
             assert len(store.list_championships(conn)) == 1
         finally:
             conn.close()
+
+    def test_unsupported_playbasket_config_rejected(self):
+        from jobs.adapters import playbasket_html as pb
+        try:
+            pb.league_url(championship="SERIE_X")
+            assert False, "should have raised"
+        except ValueError:
+            pass
+        try:
+            pb.fetch_championship(girone="ZZ")
+            assert False, "should have raised"
+        except ValueError:
+            pass
+
+    def test_fip_api_failure_raises_when_empty(self, monkeypatch):
+        from jobs.adapters import fip_api
+        monkeypatch.setattr(fip_api, "_get",
+                            lambda params: (_ for _ in ()).throw(
+                                TimeoutError("down")))
+        try:
+            fip_api.fetch_games("NAZ", "A1/M", "1", "85160", sleep=0)
+            assert False, "should have raised"
+        except RuntimeError:
+            pass

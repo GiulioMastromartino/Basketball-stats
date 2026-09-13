@@ -13,8 +13,24 @@ import re
 import urllib.request
 
 USER_AGENT = {"User-Agent": "BasketballStats/1.0 (+championship-tracker)"}
-LEAGUE_URL = ("https://www.playbasket.it/lombardia/league.php"
-              "?lt=2&lf=M&lr=LO&lp=MI&lc=DR4&season=2026&mod={mod}&lg=13")
+
+# Currently only DR4 is mapped; anything else is rejected before saving.
+SUPPORTED_CHAMPIONSHIPS = {"DR4"}
+
+# Girone letter -> Playbasket lg id (extend as new gironi are mapped).
+GIRONE_IDS = {"M": "13"}
+
+
+def league_url(region: str = "lombardia", province: str = "MI",
+               championship: str = "DR4", season: str = "2026",
+               mod: str = "cl", girone_id: str = "13") -> str:
+    if championship not in SUPPORTED_CHAMPIONSHIPS:
+        raise ValueError(
+            f"Unsupported Playbasket championship {championship!r} "
+            f"(supported: {sorted(SUPPORTED_CHAMPIONSHIPS)})")
+    return (f"https://www.playbasket.it/{region}/league.php"
+            f"?lt=2&lf=M&lr=LO&lp={province}&lc={championship}"
+            f"&season={season}&mod={mod}&lg={girone_id}")
 
 
 def _fetch(url: str) -> str:
@@ -101,10 +117,21 @@ def parse_standings(html: str) -> list[dict]:
     return []
 
 
-def fetch_championship(mod: str = "cl") -> tuple[list[dict], list[dict], str]:
-    """Fetch (games, standings, fingerprint) for DR4 Girone M."""
-    html = _fetch(LEAGUE_URL.format(mod=mod))
+def fetch_championship(region: str = "lombardia", province: str = "MI",
+                       championship: str = "DR4", season: str = "2026",
+                       girone: str = "M", mod: str = "cl"
+                       ) -> tuple[list[dict], list[dict], str]:
+    """Fetch (games, standings, fingerprint) for a Playbasket girone."""
+    girone_id = GIRONE_IDS.get((girone or "").strip().upper(),
+                               (girone or "").strip())
+    if not girone_id.isdigit():
+        raise ValueError(
+            f"Unmapped Playbasket girone {girone!r} "
+            f"(mapped: {sorted(GIRONE_IDS)})")
+    html = _fetch(league_url(region, province, championship, season, mod,
+                             girone_id))
     games = parse_calendar(html)
     standings_html = html if mod == "st" else _fetch(
-        LEAGUE_URL.format(mod="st"))
+        league_url(region, province, championship, season, "st",
+                   girone_id))
     return games, parse_standings(standings_html), page_fingerprint(html)

@@ -66,9 +66,10 @@ def _load_playbasket_from_store(ext_id: int | None = None):
     (None, []) when the store is empty.
     """
     from core import external_store as store
+    import sqlite3
     try:
         conn = store.connect()
-    except OSError:
+    except (OSError, sqlite3.Error):
         return None, []
     try:
         champs = [c for c in store.list_championships(conn)
