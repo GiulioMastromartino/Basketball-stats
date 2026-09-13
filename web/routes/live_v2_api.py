@@ -167,12 +167,14 @@ def _parse_points(value, errors):
 
 
 def _detail_payload(client_event_id, team, number, action):
+    # GameEvent.detail is String(255): cap each field so the JSON envelope
+    # always fits, keeping it parseable for idempotency lookups.
     return json.dumps(
         {
-            "client_event_id": client_event_id,
-            "team": team,
-            "number": number,
-            "action": action,
+            "client_event_id": (client_event_id or "")[:64] or None,
+            "team": (str(team)[:16] if team is not None else None),
+            "number": (str(number)[:16] if number is not None else None),
+            "action": (str(action)[:64] if action is not None else None),
         }
     )
 
@@ -269,7 +271,7 @@ def post_event():
 
     client_event_id = data.get("client_event_id", data.get("clientEventId"))
     if client_event_id is not None:
-        client_event_id = str(client_event_id)[:128] or None
+        client_event_id = str(client_event_id).strip()[:64] or None
 
     duplicate = _find_duplicate(game_id, client_event_id)
     if duplicate is not None:
@@ -390,6 +392,8 @@ def undo_event():
     undone_id = event.id
     try:
         if event.event_type in _SHOT_TYPES:
+            # ShotEvent rows carry no event FK: remove the most recent shot
+            # matching this event's context (correct in undo-last flows).
             shot = (
                 ShotEvent.query.filter_by(
                     game_id=game.id,
