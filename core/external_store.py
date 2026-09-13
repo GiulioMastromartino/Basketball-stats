@@ -313,6 +313,13 @@ def list_games(conn: sqlite3.Connection, championship_id: int,
     return games
 
 
+def get_game(conn: sqlite3.Connection, game_id: int) -> dict | None:
+    """Fetch one sidecar game by id (None when unknown)."""
+    row = conn.execute("SELECT * FROM ext_games WHERE id=?",
+                       (game_id,)).fetchone()
+    return dict(row) if row else None
+
+
 def get_standings(conn: sqlite3.Connection,
                   championship_id: int) -> list[dict]:
     return [dict(r) for r in conn.execute(
