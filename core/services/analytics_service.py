@@ -2298,11 +2298,13 @@ class AnalyticsService:
         """Compare last-N-games averages vs prior-N and emit performance alerts.
 
         Metrics (window aggregates via existing helpers): eFG% (calculate_efg_percent),
-        TOV% (safe_percentage over FGA + 0.44*FTA + TOV), OREB% (safe_percentage),
-        FTA rate (calculate_fta_rate), PTS per game. An alert fires only when
-        |delta| >= its threshold. Returns [] on insufficient history (fewer than
-        2*last_n team games) or when windows have no stats — never raises for
-        those cases.
+        TOV% (safe_percentage over FGA + 0.44*FTA + TOV), offensive-rebound
+        share (OREB / total rebounds — intentionally NOT the ORB% formula, which
+        needs opponent DREB we don't store), FTA rate (calculate_fta_rate), PTS
+        per game. An alert fires only when |delta| >= its threshold. Returns []
+        on insufficient history (fewer than 2*last_n team games), on windows
+        with partial stat coverage, or when windows have no stats — never raises
+        for those cases.
         """
         try:
             last_n = int(last_n)
@@ -2338,6 +2340,11 @@ class AnalyticsService:
             )
             if not rows:
                 return None
+            # A missing PlayerStat row is not a zero-stat game: require every
+            # selected game to have eligible rows, else discard the window.
+            covered = {r.game_id for r in rows}
+            if any(g.id not in covered for g in window_games):
+                return None
             totals = AnalyticsService.sum_team_stat_rows(rows)
             fga = totals["fga"] or 0
             fta = totals["fta"] or 0
@@ -2349,7 +2356,7 @@ class AnalyticsService:
                     totals["fgm"] or 0, totals["tpm"] or 0, fga
                 ),
                 "tov_pct": safe_percentage(tov, plays),
-                "oreb_pct": safe_percentage(totals["oreb"] or 0, totals["reb"] or 0),
+                "oreb_share": safe_percentage(totals["oreb"] or 0, totals["reb"] or 0),
                 "fta_rate": calculate_fta_rate(fta, fga),
                 "pts": round((totals["points"] or 0) / n_games, 1) if n_games else 0,
             }
@@ -2363,14 +2370,14 @@ class AnalyticsService:
         thresholds = {
             "efg_pct": 4.0,
             "tov_pct": 3.0,
-            "oreb_pct": 4.0,
+            "oreb_share": 4.0,
             "fta_rate": 5.0,
             "pts": 5.0,
         }
         labels = {
             "efg_pct": "eFG%",
             "tov_pct": "TOV%",
-            "oreb_pct": "OREB%",
+            "oreb_share": "OREB share",
             "fta_rate": "FTA rate",
             "pts": "PTS",
         }
@@ -2378,7 +2385,7 @@ class AnalyticsService:
         up_is_good = {
             "efg_pct": True,
             "tov_pct": False,
-            "oreb_pct": True,
+            "oreb_share": True,
             "fta_rate": True,
             "pts": True,
         }

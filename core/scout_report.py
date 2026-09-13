@@ -67,8 +67,9 @@ def _latest_external_vs(opponent):
                 for game in external_store.list_games(conn, champ["id"], team_filter=needle):
                     if game.get("home_score") is None or game.get("away_score") is None:
                         continue
-                    haystack = f"{game.get('home', '')} {game.get('away', '')}".lower()
-                    if needle not in haystack:
+                    home = str(game.get("home") or "").strip().lower()
+                    away = str(game.get("away") or "").strip().lower()
+                    if needle != home and needle != away:
                         continue
                     if latest is None or str(game.get("game_date", "")) >= str(
                         latest.get("game_date", "")

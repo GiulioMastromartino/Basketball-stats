@@ -109,3 +109,24 @@ class TestLiveV2Route:
         html = response.data.decode("utf-8")
         assert 'id="v2-court"' in html
         assert "Half-court tap area" in html or "tap" in html.lower()
+
+    @pytest.mark.integration
+    def test_live_v2_bootstraps_session_identity(self, auth_client):
+        """Bootstrap carries user/team/session ids for scoped persistence."""
+        response = auth_client.get("/live-v2")
+        assert response.status_code == 200
+        html = response.data.decode("utf-8")
+        assert "userId" in html
+        assert "teamId" in html
+        assert "sessionId" in html
+
+    @pytest.mark.integration
+    def test_live_v2_sub_rows_are_buttons(self, auth_client):
+        """Substitution rows are <button type=button> (keyboard operable)."""
+        response = auth_client.get("/static/js/live_game_v2.js")
+        assert response.status_code == 200
+        js = response.data.decode("utf-8")
+        assert 'document.createElement("button")' in js
+        assert 'row.type = "button"' in js
+        # Undo carries the swapped pair for SUB entries.
+        assert "subA" in js and "subB" in js

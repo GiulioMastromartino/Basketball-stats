@@ -21,6 +21,39 @@ MAX_EXPIRY_DAYS = 30
 DEFAULT_EXPIRY_DAYS = 7
 
 
+def _deny_auditor():
+    """Auditors are read-only: block share-link mutations with JSON 403.
+
+    (gm_required issues an HTML redirect, which is wrong for this JSON API —
+    hence the explicit check following the repo's JSON-403 convention.)
+    """
+    if getattr(current_user, "is_auditor", False):
+        return jsonify({"error": "Auditors have read-only access"}), 403
+    return None
+
+
+def _session_team_is_fresh():
+    """Reject mutations when the session team is no longer assigned.
+
+    team_access_required keeps a sticky session["current_team_id"]; if the
+    TeamAssignment was removed afterwards, mutations must not use the stale id.
+    Checked locally (not in the shared decorator) to avoid changing every
+    route's behavior.
+    """
+    from flask import current_app
+
+    if current_app.config.get("LOGIN_DISABLED", False):
+        return True
+    if not current_user.is_authenticated:
+        return False
+    team_id = session.get("current_team_id")
+    try:
+        assigned = {t.id for t in (current_user.assigned_teams or [])}
+    except Exception:
+        return False
+    return team_id in assigned
+
+
 def _generate_unique_token(max_attempts: int = 5) -> str:
     """Generate a collision-free token (secrets.token_urlsafe ~43 chars)."""
     for _ in range(max_attempts):
@@ -97,6 +130,11 @@ def _serialize_player(player: Player) -> dict:
 @login_required
 @team_access_required
 def create_share():
+    denied = _deny_auditor()
+    if denied:
+        return denied
+    if not _session_team_is_fresh():
+        return jsonify({"error": "Team assignment changed, pick a team"}), 403
     team_id = session.get("current_team_id")
     if not team_id:
         return jsonify({"error": "No team context"}), 400
@@ -189,6 +227,11 @@ def get_shared(token):
 @login_required
 @team_access_required
 def revoke_share(link_id):
+    denied = _deny_auditor()
+    if denied:
+        return denied
+    if not _session_team_is_fresh():
+        return jsonify({"error": "Team assignment changed, pick a team"}), 403
     team_id = session.get("current_team_id")
     link = ShareLink.query.filter_by(id=link_id, team_id=team_id).first()
     if link is None:

@@ -805,7 +805,13 @@ def get_trend_alerts():
     team_id = session.get("current_team_id")
     if team_id is None:
         return jsonify({"error": "No team in scope"}), 400
-    last_n = request.args.get("last_n", 3, type=int) or 3
+    try:
+        last_n = int(request.args.get("last_n", 3))
+    except (TypeError, ValueError):
+        last_n = 3
+    if last_n < 1:
+        last_n = 3
+    last_n = min(last_n, 10)
     alerts = AnalyticsService.compute_trend_alerts(team_id, last_n)
     return jsonify({"team_id": team_id, "last_n": last_n, "alerts": alerts})
 

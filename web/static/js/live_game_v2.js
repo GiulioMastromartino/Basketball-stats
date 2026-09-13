@@ -16,7 +16,7 @@
 (function () {
   "use strict";
 
-  var STORAGE_KEY = "live_game_v2_state";
+  var STORAGE_BASE = "live_game_v2_state";
   var MAX_STACK = 50; // undo depth persisted; in-memory requirement is >= 20
   var COURT_W = 500;
   var COURT_H = 470;
@@ -30,7 +30,7 @@
     away: [],
     selectedId: null,
     pendingShot: null, // {x,y,zone,points}
-    log: [], // {id,team,num,name,action,period,clock,synced,undone,scoreDelta,foulDelta,ts}
+    log: [], // {id,team,num,name,action,period,clock,synced,undone,scoreDelta,foulDelta,subA,subB,ts}
     stack: [], // ids of undoable log entries (persisted, capped at MAX_STACK)
     seq: 0,
     hadRestore: false, // true when a persisted session was loaded from localStorage
@@ -40,12 +40,33 @@
     return document.getElementById(id);
   }
 
-  // ---------- persistence ----------
+  // ---------- persistence (scoped to user + team + session) ----------
+  // The storage key and every snapshot carry the bootstrap identity
+  // (userId/teamId/sessionId from /live-v2). A different login, team, or day
+  // never restores another session's roster/score/log.
+  function bootIds() {
+    var boot = window.V2_BOOTSTRAP || {};
+    return {
+      userId: boot.userId === undefined ? null : boot.userId,
+      teamId: boot.teamId === undefined ? null : boot.teamId,
+      sessionId: boot.sessionId === undefined ? null : boot.sessionId,
+    };
+  }
+
+  function storageKey() {
+    var ids = bootIds();
+    return STORAGE_BASE + ":" + ids.userId + ":" + ids.teamId;
+  }
+
   function persist() {
+    var ids = bootIds();
     try {
       localStorage.setItem(
-        STORAGE_KEY,
+        storageKey(),
         JSON.stringify({
+          userId: ids.userId,
+          teamId: ids.teamId,
+          sessionId: ids.sessionId,
           home: state.home,
           away: state.away,
           selectedId: state.selectedId,
@@ -68,7 +89,9 @@
   function restore() {
     var raw = null;
     try {
-      raw = localStorage.getItem(STORAGE_KEY);
+      // Drop pre-identity snapshots stored under the legacy unscoped key.
+      localStorage.removeItem(STORAGE_BASE);
+      raw = localStorage.getItem(storageKey());
     } catch (e) {
       return;
     }
@@ -77,6 +100,25 @@
     }
     try {
       var s = JSON.parse(raw);
+      // Reject snapshots from another user/team/session (or legacy
+      // snapshots without identity) — start fresh instead of leaking
+      // the previous session's roster, score, and log.
+      var ids = bootIds();
+      if (
+        s.userId === undefined ||
+        s.teamId === undefined ||
+        s.sessionId === undefined ||
+        s.userId !== ids.userId ||
+        s.teamId !== ids.teamId ||
+        s.sessionId !== ids.sessionId
+      ) {
+        try {
+          localStorage.removeItem(storageKey());
+        } catch (e2) {
+          /* ignore */
+        }
+        return;
+      }
       state.hadRestore = true;
       if (Array.isArray(s.home)) {
         state.home = s.home;
@@ -354,6 +396,8 @@
       undone: false,
       scoreDelta: extra.scoreDelta || 0,
       foulDelta: extra.foulDelta || 0,
+      subA: extra.subA || null, // SUB swap pair — restored by undoLast()
+      subB: extra.subB || null,
       x: extra.x,
       y: extra.y,
       zone: extra.zone,
@@ -412,6 +456,15 @@
       entry.undone = true;
       // TODO(v2): also remove the matching #v2-shot-marks circle on shot undo
       // (track circle element refs per entry id).
+      if (entry.action === "SUB" && entry.subA && entry.subB) {
+        var pa = findPlayer(entry.subA);
+        var pb = findPlayer(entry.subB);
+        if (pa && pb) {
+          var t = pa.onCourt;
+          pa.onCourt = pb.onCourt;
+          pb.onCourt = t;
+        }
+      }
       if (entry.scoreDelta) {
         bumpScore(entry.team, -entry.scoreDelta);
       }
@@ -695,7 +748,8 @@
     var team = sel && sel.team === "AWAY" ? "AWAY" : "HOME";
     var group = team === "AWAY" ? state.away : state.home;
     group.forEach(function (p) {
-      var row = document.createElement("div");
+      var row = document.createElement("button");
+      row.type = "button";
       row.className = "v2-sub-row" + (subArmed.indexOf(p.id) >= 0 ? " v2-armed" : "");
       row.dataset.playerId = p.id;
       var label = document.createElement("span");
@@ -722,7 +776,12 @@
         var tmp = a.onCourt;
         a.onCourt = b.onCourt;
         b.onCourt = tmp;
-        recordAction("SUB", null, { team: a.team, teamLabel: a.team });
+        recordAction("SUB", null, {
+          team: a.team,
+          teamLabel: a.team,
+          subA: a.id,
+          subB: b.id,
+        });
         // Replace generic SUB log text with detail.
         var last = state.log[state.log.length - 1];
         if (last) {
@@ -731,6 +790,9 @@
           persist();
         }
         subArmed = [];
+        // The selected player may have left the court — clear so the next
+        // action can't be recorded against a benched player.
+        state.selectedId = null;
         renderRosters();
         renderSubList();
         return;

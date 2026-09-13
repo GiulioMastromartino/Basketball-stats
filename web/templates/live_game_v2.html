@@ -229,7 +229,8 @@
   .v2-sub-row {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px;
-    cursor: pointer; background: var(--panel-2);
+    cursor: pointer; background: var(--panel-2); color: inherit; font: inherit;
+    width: 100%; text-align: left;
   }
   .v2-sub-row.v2-armed { border-color: #fbbf24; }
   @media (orientation: portrait), (max-width: 900px) {
@@ -336,7 +337,10 @@
   window.V2_BOOTSTRAP = {
     homePlayers: {{ existing_players | tojson }},
     plays: {{ plays | tojson }},
-    nowDate: {{ now_date | tojson }}
+    nowDate: {{ now_date | tojson }},
+    userId: {{ v2_user_id | tojson }},
+    teamId: {{ v2_team_id | tojson }},
+    sessionId: {{ v2_session_id | tojson }}
   };
 </script>
 <script src="{{ url_for('static', filename='js/live_game_v2.js') }}"></script>

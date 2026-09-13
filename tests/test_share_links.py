@@ -44,6 +44,23 @@ def _login(client, user, team):
         sess["current_team_name"] = team.name
 
 
+def _relogin(app, ctx, client, user, team):
+    """Switch identity mid-test.
+
+    Flask-Login 0.6.3 caches the resolved user on flask.g, which lives on the
+    app context these tests push once per test — so a second _login() alone
+    keeps resolving the FIRST user. Dropping the cached key forces the next
+    request to resolve fresh from the session cookie. No context juggling
+    (the autouse conftest fixtures manage their own contexts).
+    Returns ctx unchanged (teardown must pop it exactly once).
+    """
+    from flask import g
+
+    _login(client, user, team)
+    g.pop("_login_user", None)
+    return ctx
+
+
 def _make_game(team, opponent="Opp"):
     g = Game(date="17-02-2024", opponent=opponent, team_score=80,
              opponent_score=70, result="W", game_type="Season",
@@ -224,12 +241,64 @@ def test_revoke_other_team_link_denied():
         r = client.post("/share", json={"target_type": "game",
                                         "target_id": game_a.id})
         link_id = r.get_json()["id"]
-        # user from org_b tries to revoke
+        # user from org_b tries to revoke (fresh identity via ctx re-push)
         user_b = _make_user(org_b, team_b, "share_user_b")
-        _login(client, user_b, team_b)
+        ctx = _relogin(app, ctx, client, user_b, team_b)
         d = client.delete(f"/share/{link_id}")
         assert d.status_code == 404
         link = ShareLink.query.get(link_id)
         assert link.revoked is False
+    finally:
+        _teardown(ctx)
+
+
+def _make_auditor(org, team, username):
+    user = _make_user(org, team, username, gm=False)
+    user.is_auditor = True
+    db.session.commit()
+    return user
+
+
+def test_auditor_blocked_from_share_mutations():
+    app, client, ctx, org_a, team_a, org_b, team_b, user_a, game_a, p_a, g_b = _setup_two_teams()
+    try:
+        # single auditor identity (no mid-test switch: g-cached user)
+        auditor = _make_auditor(org_a, team_a, "share_auditor")
+        _login(client, auditor, team_a)
+        r = client.post("/share", json={"target_type": "game",
+                                        "target_id": game_a.id})
+        assert r.status_code == 403
+        link = ShareLink(
+            team_id=team_a.id, target_type="game", target_id=game_a.id,
+            token="audit-revoke-token-1",
+            expires_at=datetime.utcnow() + timedelta(days=7),
+            revoked=False, created_by=auditor.id,
+        )
+        db.session.add(link)
+        db.session.commit()
+        d = client.delete(f"/share/{link.id}")
+        assert d.status_code == 403
+        assert ShareLink.query.get(link.id).revoked is False
+    finally:
+        _teardown(ctx)
+
+
+def test_stale_team_assignment_denies_mutation():
+    from core.models import TeamAssignment
+    app, client, ctx, org_a, team_a, org_b, team_b, user_a, game_a, p_a, g_b = _setup_two_teams()
+    try:
+        # non-GM coach: assigned_teams mirrors TeamAssignment rows
+        coach = _make_user(org_a, team_a, "share_coach", gm=False)
+        _login(client, coach, team_a)
+        r = client.post("/share", json={"target_type": "game",
+                                        "target_id": game_a.id})
+        assert r.status_code == 201
+        # assignment removed after login -> sticky session team is stale
+        db.session.query(TeamAssignment).filter_by(
+            user_id=coach.id, team_id=team_a.id).delete()
+        db.session.commit()
+        r = client.post("/share", json={"target_type": "game",
+                                        "target_id": game_a.id})
+        assert r.status_code == 403
     finally:
         _teardown(ctx)

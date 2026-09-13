@@ -263,3 +263,43 @@ def test_scout_route_missing_external_cache_never_breaks(
     assert len(ctx["record"]["games"]) == 2
     # Missing sidecar file degrades to None instead of raising.
     assert ctx["external"] is None
+
+
+def _seed_external_game(tmp_path, monkeypatch, home, away):
+    from core import external_store
+
+    cache = tmp_path / "ext.db"
+    monkeypatch.setenv("EXT_CACHE_PATH", str(cache))
+    conn = external_store.connect(str(cache))
+    try:
+        champ_id = external_store.upsert_championship(
+            conn, provider="playbasket", campionato="DR4", season="2025/26"
+        )
+        external_store.upsert_game(
+            conn,
+            champ_id,
+            {
+                "game_number": "1",
+                "date": "10/01/2026",
+                "home": home,
+                "away": away,
+                "home_score": 78,
+                "away_score": 70,
+            },
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_external_lookup_requires_exact_team_name(
+    db_session, default_team, tmp_path, monkeypatch
+):
+    """Substring sidecar names must not supply another team's score."""
+    _seed_external_game(tmp_path, monkeypatch, "New York", "Boston")
+
+    assert build_scout("York", default_team.id, 5)["external"] is None
+    ext = build_scout("New York", default_team.id, 5)["external"]
+    assert ext is not None
+    assert ext["home"] == "New York"
+    assert ext["home_score"] == 78
