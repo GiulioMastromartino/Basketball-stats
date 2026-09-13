@@ -246,9 +246,14 @@
                     results.appendChild(list);
                 })
                 .catch(function (err) {
-                    // Silent degradation: leave the rest of the page usable.
+                    // Graceful degradation: keep the rest of the page usable
+                    // and replace the loading state with a muted note.
                     console.error('Lineup optimizer fetch failed', err);
                     clearResults();
+                    var failure = document.createElement('div');
+                    failure.className = 'text-muted small';
+                    failure.textContent = 'Could not load suggestions right now. Try again.';
+                    results.appendChild(failure);
                 })
                 .finally(function () {
                     btn.disabled = false;

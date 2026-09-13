@@ -57,6 +57,13 @@ class TestLineupOptimizerUI:
         assert "not enough tracked possessions" in html
 
     @pytest.mark.integration
+    def test_optimizer_card_error_state_copy(self, auth_client):
+        resp = auth_client.get("/lineups")
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert "Could not load suggestions right now. Try again." in html
+
+    @pytest.mark.integration
     def test_lineups_page_anonymous_no_crash(self, client, sample_game):
         """Anonymous handling matches page convention: redirect, never 500."""
         resp = client.get("/lineups")
