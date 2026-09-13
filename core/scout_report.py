@@ -64,16 +64,10 @@ def _latest_external_vs(opponent):
         try:
             latest = None
             for champ in external_store.list_championships(conn):
-                for game in external_store.list_games(
-                    conn, champ["id"], team_filter=opponent.strip()
-                ):
-                    if game.get("home_score") is None or game.get(
-                        "away_score"
-                    ) is None:
+                for game in external_store.list_games(conn, champ["id"], team_filter=needle):
+                    if game.get("home_score") is None or game.get("away_score") is None:
                         continue
-                    haystack = (
-                        f"{game.get('home', '')} {game.get('away', '')}".lower()
-                    )
+                    haystack = f"{game.get('home', '')} {game.get('away', '')}".lower()
                     if needle not in haystack:
                         continue
                     if latest is None or str(game.get("game_date", "")) >= str(
@@ -146,7 +140,7 @@ def build_scout(opponent, team_id, limit_n_games=DEFAULT_LIMIT):
     ]
     record = {
         "wins": sum(1 for g in games if g.result == "W"),
-        "losses": sum(1 for g in games if g.result != "W"),
+        "losses": sum(1 for g in games if g.result == "L"),
         "games": record_games,
     }
 
@@ -179,9 +173,7 @@ def build_scout(opponent, team_id, limit_n_games=DEFAULT_LIMIT):
 
     top_beaters = []
     if game_ids:
-        rows = PlayerStat.query.filter(
-            PlayerStat.game_id.in_(game_ids)
-        ).all()
+        rows = PlayerStat.query.filter(PlayerStat.game_id.in_(game_ids)).all()
         by_player = defaultdict(list)
         for s in rows:
             minutes = (s.minutes or "").strip()
@@ -201,9 +193,7 @@ def build_scout(opponent, team_id, limit_n_games=DEFAULT_LIMIT):
                 s.pf or 0,
                 s.tov or 0,
             )
-            by_player[s.player_name].append(
-                {"gmsc": gmsc, "points": s.points or 0}
-            )
+            by_player[s.player_name].append({"gmsc": gmsc, "points": s.points or 0})
         ranked = []
         for player_name, entries in by_player.items():
             avg_gmsc = sum(e["gmsc"] for e in entries) / len(entries)
@@ -221,14 +211,11 @@ def build_scout(opponent, team_id, limit_n_games=DEFAULT_LIMIT):
 
     zones = {"has_shot_data": False, "rows": []}
     if game_ids:
-        shots = (
-            ShotEvent.query.filter(
-                ShotEvent.game_id.in_(game_ids),
-                ShotEvent.x_loc.isnot(None),
-                ShotEvent.y_loc.isnot(None),
-            )
-            .all()
-        )
+        shots = ShotEvent.query.filter(
+            ShotEvent.game_id.in_(game_ids),
+            ShotEvent.x_loc.isnot(None),
+            ShotEvent.y_loc.isnot(None),
+        ).all()
         if shots:
             buckets = defaultdict(lambda: {"makes": 0, "attempts": 0})
             for shot in shots:
@@ -243,9 +230,7 @@ def build_scout(opponent, team_id, limit_n_games=DEFAULT_LIMIT):
                     "zone": zone,
                     "attempts": data["attempts"],
                     "makes": data["makes"],
-                    "pct": round(
-                        safe_percentage(data["makes"], data["attempts"]), 1
-                    ),
+                    "pct": round(safe_percentage(data["makes"], data["attempts"]), 1),
                 }
                 for zone, data in buckets.items()
             ]
