@@ -785,6 +785,19 @@ OPTIMIZER_WEIGHTS_DOC = (
 )
 
 
+def _optimizer_players(lineup) -> list:
+    raw = lineup.players or []
+    if isinstance(raw, str):
+        try:
+            import json
+
+            parsed = json.loads(raw)
+            return list(parsed) if isinstance(parsed, list) else []
+        except Exception:
+            return []
+    return list(raw)
+
+
 def _optimizer_efg_pct(lineup) -> float:
     fga = lineup.fga or 0
     if not fga:
@@ -884,7 +897,7 @@ def rank_lineups_for_context(team_id: int, context: str = "balanced") -> dict:
         ranked.append(
             {
                 "lineup_id": lineup.id,
-                "players": list(lineup.players or []),
+                "players": _optimizer_players(lineup),
                 "net_rating": net,
                 "ortg": lineup.ortg or 0,
                 "drtg": lineup.drtg or 0,

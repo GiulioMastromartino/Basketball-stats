@@ -6,7 +6,7 @@ GET /api/advanced/lineup-optimizer endpoint.
 
 import pytest
 
-from core.models import Lineup, Organization, Team, db
+from core.models import Lineup, Organization, Team
 from core.services.lineup_service import (
     OPTIMIZER_CONTEXTS,
     generate_lineup_hash,
