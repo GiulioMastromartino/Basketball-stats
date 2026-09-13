@@ -33,14 +33,11 @@
     log: [], // {id,team,num,name,action,period,clock,synced,undone,scoreDelta,foulDelta,ts}
     stack: [], // ids of undoable log entries (persisted, capped at MAX_STACK)
     seq: 0,
+    hadRestore: false, // true when a persisted session was loaded from localStorage
   };
 
   function getEl(id) {
     return document.getElementById(id);
-  }
-
-  function esc(s) {
-    return String(s == null ? "" : s);
   }
 
   // ---------- persistence ----------
@@ -80,6 +77,7 @@
     }
     try {
       var s = JSON.parse(raw);
+      state.hadRestore = true;
       if (Array.isArray(s.home)) {
         state.home = s.home;
       }
@@ -237,10 +235,13 @@
 
   function selectPlayer(id) {
     state.selectedId = state.selectedId === id ? null : id;
+    var hint = getEl("v2-need-player");
+    if (hint) {
+      hint.textContent = "";
+    }
     renderRosters();
     persist();
-    var p = id ? findPlayer(id) : null;
-    return p;
+    return state.selectedId ? findPlayer(state.selectedId) : null;
   }
 
   function requireSelection() {
@@ -409,6 +410,8 @@
         continue; // already undone — keep popping
       }
       entry.undone = true;
+      // TODO(v2): also remove the matching #v2-shot-marks circle on shot undo
+      // (track circle element refs per entry id).
       if (entry.scoreDelta) {
         bumpScore(entry.team, -entry.scoreDelta);
       }
@@ -767,15 +770,18 @@
   }
 
   function initScoreStrip() {
+    // A restored session is the source of truth for period and clock; the
+    // server-rendered P1/10:00 defaults must not clobber it.
+    var restored = state.hadRestore;
     var periodEl = getEl("v2-period");
-    if (periodEl) {
+    if (periodEl && !restored) {
       var m = /P?\s*(\d+)/.exec(periodEl.textContent || "");
       if (m) {
         state.period = parseInt(m[1], 10) || 1;
       }
     }
     var clockEl = getEl("v2-clock");
-    if (clockEl && clockEl.textContent.trim()) {
+    if (clockEl && !restored && clockEl.textContent.trim()) {
       state.clock = clockEl.textContent.trim();
     }
     renderPeriod();
