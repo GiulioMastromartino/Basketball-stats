@@ -1518,6 +1518,11 @@ def gm_dashboard():
             "avg_ppg": round(pts / total, 1) if total else 0,
             "avg_opp_ppg": round(opp_pts / total, 1) if total else 0,
             "players": players,
+            "tracked": [
+                {"id": t.id, "display_name": t.display_name,
+                 "provider": t.provider, "active": t.active}
+                for t in team.tracked_championships
+            ],
         })
     members = OrganizationMembership.query.filter_by(organization_id=org.id).count()
     # Empty-state guidance (GM plan idea 6): checklist for fresh orgs.
@@ -2031,6 +2036,90 @@ def delete_team(team_id):
                      organization_id=team.organization_id)
     flash(f"Team '{team.name}' deleted.", "success")
     return redirect(url_for("main.admin_panel", section="orgs"))
+
+
+TRACK_PROVIDERS = ("fip_api", "playbasket_html")
+
+
+@main_bp.route("/teams/<int:team_id>/track", methods=["POST"])
+@login_required
+@gm_required
+def track_championship(team_id):
+    """Track an external championship for a team (daily sync cron)."""
+    from core.models import TrackedChampionship
+    team = Team.query.get_or_404(team_id)
+    denied = require_own_org(team.organization_id)
+    if denied:
+        return denied
+    provider = (request.form.get("provider") or "fip_api").strip()
+    if provider not in TRACK_PROVIDERS:
+        provider = "fip_api"
+    data = {
+        "team_id": team.id,
+        "provider": provider,
+        "comitato_codice": (request.form.get("comitato_codice") or "").strip(),
+        "province_codice": (request.form.get("province_codice") or "MI").strip() or "MI",
+        "codice_campionato": (request.form.get("codice_campionato") or "").strip(),
+        "codice_fase": (request.form.get("codice_fase") or "1").strip() or "1",
+        "codice_girone": (request.form.get("codice_girone") or "").strip(),
+        "season_label": (request.form.get("season_label") or "").strip(),
+        "display_name": (request.form.get("display_name") or "").strip()
+        or f"{provider} {request.form.get('codice_girone', '')}".strip(),
+    }
+    existing = TrackedChampionship.query.filter_by(
+        team_id=team.id, provider=data["provider"],
+        comitato_codice=data["comitato_codice"],
+        province_codice=data["province_codice"],
+        codice_campionato=data["codice_campionato"],
+        codice_fase=data["codice_fase"],
+        codice_girone=data["codice_girone"],
+        season_label=data["season_label"]).first()
+    if existing:
+        existing.active = True
+        existing.display_name = data["display_name"]
+    else:
+        db.session.add(TrackedChampionship(**data))
+    db.session.commit()
+    log_admin_action(current_user, "team.track",
+                     f"tracking {data['display_name']} for {team.name}",
+                     target_type="team", target_id=team.id,
+                     organization_id=team.organization_id)
+    flash(f"Tracking {data['display_name']} for {team.name}.", "success")
+    return _safe_next("main.gm_dashboard")
+
+
+@main_bp.route("/tracked/<int:track_id>/toggle", methods=["POST"])
+@login_required
+@gm_required
+def toggle_tracked(track_id):
+    """Enable/disable a tracked championship."""
+    from core.models import TrackedChampionship
+    tracked = TrackedChampionship.query.get_or_404(track_id)
+    denied = require_own_org(tracked.team.organization_id)
+    if denied:
+        return denied
+    tracked.active = not tracked.active
+    db.session.commit()
+    state = "enabled" if tracked.active else "paused"
+    flash(f"Tracking {state} for {tracked.display_name}.", "success")
+    return _safe_next("main.gm_dashboard")
+
+
+@main_bp.route("/tracked/<int:track_id>/delete", methods=["POST"])
+@login_required
+@gm_required
+def delete_tracked(track_id):
+    """Stop tracking a championship (external cache rows are kept)."""
+    from core.models import TrackedChampionship
+    tracked = TrackedChampionship.query.get_or_404(track_id)
+    denied = require_own_org(tracked.team.organization_id)
+    if denied:
+        return denied
+    name = tracked.display_name
+    db.session.delete(tracked)
+    db.session.commit()
+    flash(f"Stopped tracking {name}.", "success")
+    return _safe_next("main.gm_dashboard")
 
 
 @main_bp.route("/season/switch")

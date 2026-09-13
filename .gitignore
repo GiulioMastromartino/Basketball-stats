@@ -79,3 +79,6 @@ basketball_stats_rust/target/
 Fernandez_report_Season.pdf
 Team_Report_ALL.pdf
 template.pdf
+
+# External championship sidecar cache (SQLite, rebuilt by sync cron)
+data/external_cache.db*

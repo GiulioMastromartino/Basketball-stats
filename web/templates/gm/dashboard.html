@@ -163,6 +163,39 @@
                             <i class="fas fa-gear" aria-hidden="true"></i> Manage
                         </a>
                     </div>
+                    <div class="mt-2">
+                        {% for t in td.tracked %}
+                        <form method="POST" action="{{ url_for('main.toggle_tracked', track_id=t.id) }}" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <input type="hidden" name="next" value="{{ url_for('main.gm_dashboard') }}"/>
+                            <button type="submit" class="badge {% if t.active %}bg-info text-dark{% else %}bg-secondary{% endif %} border-0 mb-1"
+                                    title="Click to {% if t.active %}pause{% else %}resume{% endif %} daily sync">
+                                <i class="fas fa-satellite-dish"></i> {{ t.display_name }}{% if not t.active %} (paused){% endif %}
+                            </button>
+                        </form>
+                        {% endfor %}
+                        {% if not is_auditor %}
+                        <details class="small">
+                            <summary class="text-muted" style="cursor:pointer">Track external championship</summary>
+                            <form method="POST" action="{{ url_for('main.track_championship', team_id=td.id) }}" class="d-flex gap-1 mt-1 flex-wrap">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <input type="hidden" name="next" value="{{ url_for('main.gm_dashboard') }}"/>
+                                <select name="provider" class="form-select form-select-sm w-auto">
+                                    <option value="fip_api">FIP API</option>
+                                    <option value="playbasket_html">Playbasket</option>
+                                </select>
+                                <input type="text" name="comitato_codice" class="form-control form-control-sm w-auto" placeholder="Comitato (RLO)" style="max-width:110px"/>
+                                <input type="text" name="province_codice" class="form-control form-control-sm w-auto" placeholder="Prov. (MI)" value="MI" style="max-width:90px"/>
+                                <input type="text" name="codice_campionato" class="form-control form-control-sm w-auto" placeholder="Camp. (DR4)" style="max-width:110px"/>
+                                <input type="text" name="codice_fase" class="form-control form-control-sm w-auto" placeholder="Fase (1)" value="1" style="max-width:80px"/>
+                                <input type="text" name="codice_girone" class="form-control form-control-sm w-auto" placeholder="Girone (M)" style="max-width:100px"/>
+                                <input type="text" name="season_label" class="form-control form-control-sm w-auto" placeholder="Season (2025/2026)" style="max-width:130px"/>
+                                <input type="text" name="display_name" class="form-control form-control-sm w-auto" placeholder="Label" style="max-width:130px"/>
+                                <button type="submit" class="btn btn-sm btn-outline-info">Track</button>
+                            </form>
+                        </details>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>

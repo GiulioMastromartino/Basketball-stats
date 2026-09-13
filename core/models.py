@@ -180,6 +180,39 @@ class AdminAudit(db.Model):
     actor = db.relationship("User", backref=db.backref("audit_entries", lazy=True))
 
 
+class TrackedChampionship(db.Model):
+    """External championship tracked by the daily sync cron (GM plan add-on).
+
+    Pure configuration: tells ``jobs.championship_sync`` which external
+    championships to poll. Scraped data lands in the SQLite sidecar
+    (``core.external_store``), never in internal tables.
+    """
+
+    __tablename__ = "tracked_championships"
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    provider = db.Column(db.String(30), nullable=False, default="fip_api")
+    comitato_codice = db.Column(db.String(20), nullable=False, default="")
+    province_codice = db.Column(db.String(20), nullable=False, default="MI")
+    codice_campionato = db.Column(db.String(20), nullable=False, default="")
+    codice_fase = db.Column(db.String(20), nullable=False, default="1")
+    codice_girone = db.Column(db.String(20), nullable=False, default="")
+    season_label = db.Column(db.String(20), nullable=False, default="")
+    display_name = db.Column(db.String(150), nullable=False, default="")
+    active = db.Column(db.Boolean, nullable=False, default=True,
+                       server_default=text("true"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           nullable=False)
+
+    __table_args__ = (db.UniqueConstraint(
+        "team_id", "provider", "comitato_codice", "province_codice",
+        "codice_campionato", "codice_fase", "codice_girone",
+        "season_label"),)
+
+    team = db.relationship("Team", backref=db.backref(
+        "tracked_championships", lazy=True))
+
+
 def log_admin_action(actor, action: str, summary: str,
                      target_type: str | None = None,
                      target_id: int | None = None,

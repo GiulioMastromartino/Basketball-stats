@@ -58,6 +58,52 @@ def _load_playbasket_snapshot():
         return {"meta": {}, "standings": [], "games": []}
 
 
+def _load_playbasket_from_store(ext_id: int | None = None):
+    """Playbasket snapshot from the SQLite sidecar, if populated.
+
+    Returns (snapshot, championships) where championships lists all
+    available playbasket snapshots for the selector. Falls back to
+    (None, []) when the store is empty.
+    """
+    from core import external_store as store
+    import sqlite3
+    try:
+        conn = store.connect()
+    except (OSError, sqlite3.Error):
+        return None, []
+    try:
+        champs = [c for c in store.list_championships(conn)
+                  if c["provider"] == "playbasket_html"]
+        if not champs:
+            return None, []
+        chosen = next((c for c in champs if c["id"] == ext_id), champs[0])
+        games = store.list_games(conn, chosen["id"])
+        standings = [{"pos": r["position"], "team": r["team"],
+                      "pts": r["points"], "g": r["played"], "w": r["won"],
+                      "l": r["lost"], "pf": r["scored"], "ps": r["conceded"]}
+                     for r in store.get_standings(conn, chosen["id"])]
+        snapshot = {
+            "meta": {
+                "competition": chosen["display_name"] or "External championship",
+                "girone": chosen["codice_girone"],
+                "season": chosen["season_label"],
+                "source": "playbasket.it",
+                "source_url": chosen["source_url"],
+                "scraped_at": chosen["last_checked"] or "unknown",
+                "note": "Live sidecar cache, refreshed by the daily sync.",
+            },
+            "standings": standings,
+            "games": [{"turno": g["round_label"], "data": g["game_date"],
+                       "casa": g["home"], "ospite": g["away"],
+                       "pc": g["home_score"] if g["home_score"] is not None else "-",
+                       "po": g["away_score"] if g["away_score"] is not None else "-"}
+                      for g in games],
+        }
+        return snapshot, champs
+    finally:
+        conn.close()
+
+
 @analytics_bp.route("/analytics/championship")
 @login_required
 @team_access_required
@@ -97,7 +143,13 @@ def championship():
             "season_id": season_id,
         }
 
-    snapshot = _load_playbasket_snapshot() if source == "playbasket" else None
+    snapshot = None
+    ext_championships: list = []
+    ext_id = request.args.get("ext", type=int)
+    if source == "playbasket":
+        snapshot, ext_championships = _load_playbasket_from_store(ext_id)
+        if snapshot is None:
+            snapshot = _load_playbasket_snapshot()
     team_filter = (request.args.get("team") or "").strip()
     if snapshot and team_filter:
         tl = team_filter.lower()
@@ -113,6 +165,8 @@ def championship():
         sources=CHAMPIONSHIP_SOURCES,
         internal=internal,
         snapshot=snapshot,
+        ext_championships=ext_championships,
+        ext_id=ext_id,
         team_filter=team_filter,
         season_id=season_id,
     )
