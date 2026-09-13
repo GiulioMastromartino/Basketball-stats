@@ -206,3 +206,54 @@ class TestTrendAlertsAPI:
         _seed_decline(db_session, default_team)
         response = client.get("/api/advanced/trend-alerts")
         assert response.status_code in [302, 401]
+
+    @pytest.mark.integration
+    def test_empty_on_partial_window_coverage(self, db_session, default_team):
+        """A window game with no eligible stat rows discards the window."""
+        for i in range(3):
+            _add_game(db_session, default_team, i, GOOD)
+        for i in range(3, 5):
+            _add_game(db_session, default_team, i, BAD)
+        # Sixth (recent) game has no PlayerStat rows at all.
+        bare = Game(
+            date="16-03-2024",
+            opponent="Trend Opp 5",
+            team_score=80,
+            opponent_score=60,
+            result="W",
+            game_type="Season",
+            sort_date="2024-03-16",
+            source="MANUAL",
+            team_id=default_team.id,
+        )
+        db_session.add(bare)
+        db_session.commit()
+        assert AnalyticsService.compute_trend_alerts(default_team.id, last_n=3) == []
+
+    @pytest.mark.integration
+    def test_endpoint_normalizes_last_n(self, auth_client, db_session, default_team):
+        _seed_decline(db_session, default_team)
+        response = auth_client.get("/api/advanced/trend-alerts?last_n=99")
+        assert response.status_code == 200
+        assert response.get_json()["last_n"] == 10
+        response = auth_client.get("/api/advanced/trend-alerts?last_n=-5")
+        assert response.status_code == 200
+        assert response.get_json()["last_n"] == 3
+        response = auth_client.get("/api/advanced/trend-alerts?last_n=abc")
+        assert response.status_code == 200
+        assert response.get_json()["last_n"] == 3
+
+    @pytest.mark.integration
+    def test_oreb_share_label_not_orb_formula(self, db_session, default_team):
+        """Offensive-rebound alerts are labeled share, not OREB% (ORB formula)."""
+        boosted = dict(GOOD)
+        boosted["oreb"] = 20
+        for i in range(3):
+            _add_game(db_session, default_team, i, GOOD)
+        for i in range(3, 6):
+            _add_game(db_session, default_team, i, boosted)
+        alerts = AnalyticsService.compute_trend_alerts(default_team.id, last_n=3)
+        share = _by_metric(alerts).get("oreb_share")
+        assert share is not None
+        assert share["label"] == "OREB share"
+        assert "oreb_pct" not in _by_metric(alerts)
