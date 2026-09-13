@@ -12,6 +12,8 @@
  *   and flip syncEvent() below from queue-only to real POST with the same
  *   CSRF (X-CSRFToken) + JSON pattern legacy uses. Never break the page if the
  *   endpoint is missing — keep DOM + localStorage as source of truth.
+ *   (DONE: syncEvent() POSTs to /api/live-v2/events; rows without a live
+ *   game context in window.V2_BOOTSTRAP stay queued locally as before.)
  */
 (function () {
   "use strict";
@@ -278,7 +280,7 @@
     var sync = document.createElement("span");
     sync.className = entry.synced ? "v2-sync-ok" : "v2-sync-pending";
     sync.textContent = entry.synced ? "✓" : "pending";
-    sync.title = entry.synced ? "synced" : "pending sync (TODO(v2-backend): per-event endpoint)";
+    sync.title = entry.synced ? "synced" : "pending sync";
     row.appendChild(main);
     row.appendChild(sync);
     log.appendChild(row);
@@ -306,28 +308,129 @@
     log.scrollTop = log.scrollHeight;
   }
 
-  // ---------- sync (queue-only until backend slice lands) ----------
+  // ---------- sync (POST each queued event to /api/live-v2/events) ----------
+  function getGameId() {
+    try {
+      var boot = window.V2_BOOTSTRAP || {};
+      var gid = boot.gameId != null ? boot.gameId : boot.game_id;
+      if (gid == null || gid === "") {
+        return null;
+      }
+      var n = parseInt(gid, 10);
+      return isNaN(n) ? null : n;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function getCsrfToken() {
+    try {
+      var meta = document.querySelector('meta[name="csrf-token"]');
+      if (meta && meta.content) {
+        return meta.content;
+      }
+      var hidden = document.getElementById("csrf_token");
+      if (hidden && hidden.value) {
+        return hidden.value;
+      }
+    } catch (e) {
+      /* no token available — server may still accept (e.g. tests) */
+    }
+    return "";
+  }
+
+  function shotPoints(action) {
+    var m = /(\d)\s*PT/.exec(String(action || ""));
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  function markRowSynced(entryId) {
+    try {
+      var badge = document.querySelector(
+        '.v2-log-row[data-entry-id="' + entryId + '"] .v2-sync-pending'
+      );
+      if (badge) {
+        badge.className = "v2-sync-ok";
+        badge.textContent = "✓";
+        badge.title = "synced";
+      }
+    } catch (e) {
+      /* never break the page */
+    }
+  }
+
+  function postEntry(entry) {
+    var gameId = getGameId();
+    if (gameId == null || !window.fetch) {
+      return; // no live game context yet — stay queued locally
+    }
+    if (!entry.clientEventId) {
+      entry.clientEventId = "v2-" + entry.ts + "-" + entry.id;
+    }
+    var payload = {
+      game_id: gameId,
+      client_event_id: entry.clientEventId,
+      player: entry.name,
+      number: entry.num,
+      team: entry.team,
+      action: entry.action,
+      period: entry.period,
+      clock: entry.clock,
+      x: entry.x,
+      y: entry.y,
+      zone: entry.zone,
+      points: shotPoints(entry.action),
+    };
+    try {
+      window
+        .fetch("/api/live-v2/events", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCsrfToken(),
+          },
+          body: JSON.stringify(payload),
+        })
+        .then(function (resp) {
+          if (resp && resp.ok) {
+            entry.synced = true;
+            try {
+              persist();
+            } catch (e) {
+              /* storage may be unavailable */
+            }
+            markRowSynced(entry.id);
+          }
+          // Non-2xx: keep "pending" — retried on the next action.
+        })
+        .catch(function () {
+          /* network error: keep "pending", retry on next action */
+        });
+    } catch (e) {
+      /* never break the page */
+    }
+  }
+
+  function flushPending() {
+    try {
+      state.log.forEach(function (entry) {
+        if (!entry.synced && !entry.undone) {
+          postEntry(entry);
+        }
+      });
+    } catch (e) {
+      /* never break the page */
+    }
+  }
+
   function syncEvent(entry) {
-    // Mirrors legacy patterns (same CSRF/JSON POST shape as /live-game/save) but
-    // stays local-only: no per-event endpoint exists server-side yet.
-    // TODO(v2-backend): POST JSON to /api/live-v2/events here, set entry.synced
-    // = true on 2xx, keep "pending" otherwise. Never throw — page must not break.
+    // Mirrors legacy patterns (same CSRF/JSON POST shape as /live-game/save):
+    // POST to /api/live-v2/events, set entry.synced = true on 2xx, keep
+    // "pending" otherwise. Never throw — page must not break.
     entry.synced = false;
     try {
-      var payload = {
-        player: entry.name,
-        number: entry.num,
-        team: entry.team,
-        action: entry.action,
-        period: entry.period,
-        clock: entry.clock,
-        x: entry.x,
-        y: entry.y,
-        zone: entry.zone,
-      };
-      if (window.fetch && payload) {
-        /* queued locally; flush when endpoint exists */
-      }
+      postEntry(entry);
     } catch (e) {
       /* never break the page */
     }
@@ -371,6 +474,7 @@
     if (player && (action === "FOUL" || action === "TECH FOUL")) {
       bumpFouls(player.team, 1);
     }
+    flushPending(); // retry previously failed queue entries on each new action
     syncEvent(entry);
     state.log.push(entry);
     pushUndo(entry.id);
