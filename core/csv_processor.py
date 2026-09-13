@@ -498,6 +498,326 @@ class CSVProcessor:
         )
         return result
 
+    # Internal PDF player keys (core/parser.py game_data) -> canonical columns.
+    PDF_PLAYER_TO_COLUMN = {
+        'name': 'Name', 'minutes': 'MIN', 'points': 'PTS', 'fgm': 'FGM',
+        'fga': 'FGA', 'fg_percent': 'FG%', 'tpm': '3PM', 'tpa': '3PA',
+        'tp_percent': '3P%', 'ftm': 'FTM', 'fta': 'FTA',
+        'ft_percent': 'FT%', 'oreb': 'OREB', 'dreb': 'DREB', 'reb': 'REB',
+        'ast': 'AST', 'tov': 'TOV', 'stl': 'STL', 'blk': 'BLK', 'pf': 'PF',
+        'plus_minus': 'PlusMinus',
+    }
+
+    @staticmethod
+    def _pdf_players_frame(game_data, column_mapping=None):
+        """Parsed PDF game_data -> normalized DataFrame (commit path reuse).
+
+        Mirrors ``mapped_frame``: applies the user's uploaded-header ->
+        canonical mapping with the same conflict detection, then legacy
+        aliases. Raises ``ValueError`` on empty/unmappable input. Unknown
+        descriptor keys are kept verbatim so alternate headers (e.g.
+        "Punti") stay visible for mapping fixes.
+        """
+        import pandas as pd
+
+        from core.validators import OPTIONAL_CSV_COLUMNS, REQUIRED_CSV_COLUMNS
+
+        players = (game_data or {}).get('players') or []
+        if not players:
+            raise ValueError("No player rows detected in PDF.")
+        canonical_order = list(REQUIRED_CSV_COLUMNS) + sorted(
+            set(OPTIONAL_CSV_COLUMNS) - {'REB_CONCEDED'})
+        rows = []
+        for p in players:
+            if not isinstance(p, dict):
+                continue
+            row = {}
+            # Explicit canonical/alternate headers first (mapping-fixable).
+            for k, v in p.items():
+                if k in CSVProcessor.PDF_PLAYER_TO_COLUMN.values() \
+                        or k not in CSVProcessor.PDF_PLAYER_TO_COLUMN:
+                    row[k] = v
+            # Fill the rest from internal parser keys.
+            for internal, canonical in CSVProcessor.PDF_PLAYER_TO_COLUMN.items():
+                if canonical not in row and internal in p:
+                    # PlusMinus stays optional: omit when uniformly zero so
+                    # columns_found mirrors what the PDF actually carried.
+                    if canonical == 'PlusMinus' and not p[internal]:
+                        continue
+                    row[canonical] = p[internal]
+            rows.append(row)
+        # Drop the legacy 'Total' row the same way frame_to_players does.
+        rows = [r for r in rows
+                if str(r.get('Name', r.get('name', ''))).strip().lower()
+                != 'total']
+        if not rows:
+            raise ValueError("No player rows detected in PDF.")
+        df = pd.DataFrame(rows)
+        # Canonical column order first, extras (alternate headers) after.
+        ordered = [c for c in canonical_order if c in df.columns]
+        extras = [c for c in df.columns if c not in ordered]
+        df = df[ordered + extras]
+        # Same mapping/conflict semantics as mapped_frame (shared UX).
+        allowed_targets = set(REQUIRED_CSV_COLUMNS) | set(OPTIONAL_CSV_COLUMNS)
+        rename = {}
+        for src, dst in (column_mapping or {}).items():
+            if src not in df.columns or dst not in allowed_targets:
+                continue
+            if dst != src and (dst in df.columns or dst in rename.values()):
+                raise ValueError(
+                    f"Cannot map '{src}' to '{dst}': "
+                    "target column already present."
+                )
+            rename[src] = dst
+        if rename:
+            df = df.rename(columns=rename)
+        # Round-trip through the CSV text path so alias normalization is
+        # byte-identical to the CSV wizard flow.
+        csv_text = df.to_csv(index=False)
+        return CSVProcessor.mapped_frame(csv_text, None)
+
+    @staticmethod
+    def build_preview_pdf(pdf_bytes_or_path, filename=None,
+                          column_mapping=None, date_override=None,
+                          max_rows=50):
+        """Preview-first validation for the import wizard (PDF).
+
+        Same preview-dict shape as :meth:`build_preview` so the wizard UI
+        renders PDF previews unchanged (game info best-effort, columns
+        found/missing, per-row errors, valid flag). Never raises:
+        malformed input yields ``{"valid": False, ...}`` with a ``fatal``
+        message. Accepts raw PDF ``bytes``/``bytearray``, a filesystem
+        ``path``, or an already-parsed game_data descriptor ``dict``
+        (``{"players": [...], "opponent": ..., ...}``) for tests and for
+        the follow-up route which parses once and revalidates cheaply.
+
+        TODO(backend, follow-up; routes owner — DO NOT implement here):
+            POST /upload-game/preview-pdf
+              JSON in:  {"filename": str, "pdf_base64": str,
+                         "column_mapping": {uploaded: canonical},
+                         "date_override": str}
+              Handler sketch::
+                import base64
+                raw = base64.b64decode(payload["pdf_base64"])
+                preview = CSVProcessor.build_preview_pdf(
+                    raw, payload.get("filename"),
+                    column_mapping=payload.get("column_mapping") or {},
+                    date_override=payload.get("date_override") or "")
+                return jsonify(preview), (400 if preview.get("fatal")
+                                          else 200)
+            POST /upload-game/revalidate-pdf — same body (client caches the
+              base64, so no re-upload); applies mapping/date fixes.
+            POST /upload-game/commit-pdf — rebuild preview, require
+              ``valid``, then insert like ``upload_game_commit`` but with
+              ``info = preview["game_info"]`` and players from
+              ``frame_to_players(_pdf_players_frame(game_data, mapping))``.
+        """
+        from core.validators import (
+            FLOAT_CSV_COLUMNS, INT_CSV_COLUMNS,
+            REQUIRED_CSV_COLUMNS, is_valid_minutes, parse_import_date,
+        )
+
+        result = {
+            'filename': filename or 'upload.pdf',
+            'game_info': None,
+            'filename_error': None,
+            'columns_found': [],
+            'columns_missing': [],
+            'row_errors': [],
+            'rows': [],
+            'total_rows': 0,
+            'player_rows': 0,
+            'valid': False,
+        }
+        try:
+            # --- 1. Parse (bytes / path / descriptor) — never raises out. ---
+            if isinstance(pdf_bytes_or_path, dict):
+                game_data = pdf_bytes_or_path
+            elif isinstance(pdf_bytes_or_path, (bytes, bytearray)):
+                from core.parser import parse_game_pdf_bytes
+                try:
+                    game_data = parse_game_pdf_bytes(bytes(pdf_bytes_or_path))
+                except ValueError as e:
+                    result['fatal'] = str(e)
+                    return result
+                except Exception as e:
+                    result['fatal'] = (
+                        f"Could not parse PDF: {e}. "
+                        "The file may be corrupted or not a box-score PDF."
+                    )
+                    return result
+            elif isinstance(pdf_bytes_or_path, (str, os.PathLike)):
+                from core.parser import parse_game_pdf
+                try:
+                    game_data = parse_game_pdf(str(pdf_bytes_or_path))
+                except FileNotFoundError:
+                    result['fatal'] = (
+                        "PDF file not found; upload it again for preview."
+                    )
+                    return result
+                except Exception as e:
+                    result['fatal'] = (
+                        f"Could not parse PDF: {e}. "
+                        "The file may be corrupted or not a box-score PDF."
+                    )
+                    return result
+            else:
+                result['fatal'] = (
+                    "Empty file: no PDF content found."
+                    if not pdf_bytes_or_path else
+                    "Unsupported PDF input for preview."
+                )
+                return result
+
+            if not isinstance(game_data, dict) \
+                    or not game_data.get('players'):
+                result['fatal'] = (
+                    "No player rows detected in PDF. The file may be "
+                    "scanned/image-only or not a box-score table."
+                )
+                return result
+
+            # --- 2. Best-effort game info from the PDF header. ---
+            info = {
+                'opponent': (game_data.get('opponent') or 'Unknown'),
+                'team_score': game_data.get('team_score', 0),
+                'opponent_score': game_data.get('opponent_score', 0),
+                'date': game_data.get('date') or '',
+                'sort_date': game_data.get('sort_date') or '',
+                'game_type': game_data.get('game_type') or 'Season',
+                'result': game_data.get('result') or 'W',
+            }
+
+            # --- 3. Players -> normalized frame (shared mapped_frame path). ---
+            try:
+                df = CSVProcessor._pdf_players_frame(
+                    game_data, column_mapping)
+            except ValueError as e:
+                # Mapping conflicts surface like the CSV wizard (no raise).
+                result['fatal'] = str(e)
+                result['game_info'] = info
+                return result
+
+            result['columns_found'] = list(df.columns)
+            missing = [c for c in REQUIRED_CSV_COLUMNS if c not in df.columns]
+            result['columns_missing'] = missing
+
+            if date_override:
+                display, sort_date = parse_import_date(date_override)
+                if display is None:
+                    result['row_errors'].append({
+                        'row': None, 'column': 'date_override',
+                        'message': (
+                            "Unrecognized date. Use DD-MM-YYYY, DD/MM/YYYY "
+                            "or YYYY-MM-DD."
+                        ),
+                        'value': date_override,
+                    })
+                else:
+                    info = {**info, 'date': display, 'sort_date': sort_date}
+            if not info.get('sort_date'):
+                result['row_errors'].append({
+                    'row': None, 'column': 'date',
+                    'message': (
+                        "Could not detect the game date from the PDF "
+                        "header. Use the Date fix (DD-MM-YYYY)."
+                    ),
+                    'value': info.get('date'),
+                })
+            result['game_info'] = info
+
+            # --- 4. Per-row validation (same rules as the CSV preview). ---
+            rows_out = []
+            data_rows = 0
+            for idx, (_, row) in enumerate(df.iterrows()):
+                raw = {c: (None if pd.isna(v) else v) for c, v in row.items()}
+                clean = {}
+                for c, v in raw.items():
+                    if v is None:
+                        clean[c] = None
+                    elif isinstance(v, (int, float, str, bool)):
+                        clean[c] = v
+                    else:
+                        clean[c] = str(v)
+                rows_out.append(clean)
+
+                name_val = row.get('Name', row.get('name', row.get('Player', '')))
+                name_text = '' if pd.isna(name_val) else str(name_val).strip()
+                if name_text.lower() == 'total':
+                    continue
+                data_rows += 1
+                if not name_text:
+                    result['row_errors'].append({
+                        'row': idx, 'column': 'Name',
+                        'message': 'Missing player name.',
+                        'value': clean.get('Name'),
+                    })
+
+                for col in INT_CSV_COLUMNS:
+                    if col not in df.columns:
+                        continue
+                    val = row.get(col)
+                    if pd.isna(val) or (isinstance(val, str) and not val.strip()):
+                        continue  # blanks default to 0 at import, like legacy
+                    try:
+                        if isinstance(val, float) and not float(val).is_integer():
+                            raise ValueError
+                        int(val)
+                    except (ValueError, TypeError):
+                        result['row_errors'].append({
+                            'row': idx, 'column': col,
+                            'message': f"Not a whole number: {val!r}.",
+                            'value': clean.get(col),
+                        })
+                for col in FLOAT_CSV_COLUMNS:
+                    if col not in df.columns:
+                        continue
+                    val = row.get(col)
+                    if pd.isna(val) or (isinstance(val, str) and not val.strip()):
+                        continue
+                    try:
+                        float(val)
+                    except (ValueError, TypeError):
+                        result['row_errors'].append({
+                            'row': idx, 'column': col,
+                            'message': f"Not a number: {val!r}.",
+                            'value': clean.get(col),
+                        })
+                min_val = row.get('MIN') if 'MIN' in df.columns else None
+                min_blank = (min_val is None or pd.isna(min_val)
+                             or (isinstance(min_val, str) and not min_val.strip()))
+                if 'MIN' in df.columns and not min_blank \
+                        and not is_valid_minutes(min_val):
+                    result['row_errors'].append({
+                        'row': idx, 'column': 'MIN',
+                        'message': 'Bad minutes format. Use MM:SS or minutes.',
+                        'value': clean.get('MIN'),
+                    })
+
+            result['rows'] = rows_out[:max_rows]
+            result['total_rows'] = len(rows_out)
+            result['player_rows'] = data_rows
+            if data_rows == 0:
+                result['row_errors'].append({
+                    'row': None, 'column': None,
+                    'message': 'No player rows found (only a Total row or empty).',
+                    'value': None,
+                })
+
+            result['valid'] = (
+                bool(info.get('sort_date'))
+                and not missing
+                and not result['row_errors']
+                and data_rows > 0
+            )
+            return result
+        except Exception as e:  # last-resort guard: preview never raises
+            result['fatal'] = (
+                f"Preview failed ({e}); file not imported."
+            )
+            result['valid'] = False
+            return result
+
     @staticmethod
     def process_game(filepath, info):
         # Legacy direct-import path (filename convention). Unchanged behavior:
