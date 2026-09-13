@@ -137,7 +137,60 @@
     padding: 12px;
     text-align: center;
   }
-  #v2-court { width: 100%; height: auto; display: block; background: #13202b; border-radius: 8px; }
+  /* ---- Roster rails ---- */
+  .v2-player {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 2px solid transparent;
+    border-radius: 10px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    min-height: 48px;
+    touch-action: manipulation;
+    font-size: 0.9rem;
+  }
+  .v2-player .v2-num {
+    font-size: 1.4rem;
+    font-weight: 800;
+    min-width: 40px;
+    text-align: center;
+    background: #000;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 2px 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .v2-player .v2-pname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .v2-player .v2-fouls { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+  .v2-player.v2-oncourt { border-color: rgba(46, 196, 182, 0.55); }
+  .v2-player.v2-bench { opacity: 0.62; }
+  .v2-player.v2-selected { border-color: #fbbf24; background: #2a2f18; }
+  .v2-player .v2-state { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  /* ---- Court ---- */
+  #v2-court-wrap { position: relative; }
+  #v2-court { width: 100%; height: auto; display: block; background: #13202b; border-radius: 8px; cursor: crosshair; }
+  #v2-shot-popover {
+    position: absolute;
+    z-index: 5;
+    background: #000;
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 180px;
+  }
+  #v2-shot-popover[hidden] { display: none; }
+  #v2-shot-label { font-size: 0.8rem; color: var(--muted); }
+  #v2-shot-popover .row { display: flex; gap: 6px; }
+  /* ---- Game log ---- */
   #v2-game-log {
     margin-top: 8px;
     background: #000;
@@ -149,6 +202,36 @@
     font-size: 0.85rem;
   }
   #v2-game-log p { margin: 0 0 4px; }
+  .v2-log-row { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px dotted var(--line); padding: 3px 0; }
+  .v2-log-row.v2-undone { opacity: 0.45; text-decoration: line-through; }
+  .v2-log-banner { color: #fbbf24; font-weight: 800; }
+  .v2-sync-ok { color: #4ade80; }
+  .v2-sync-pending { color: #fbbf24; }
+  /* ---- Action pad ---- */
+  #v2-selected-display { font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; min-height: 20px; }
+  #v2-action-pad .v2-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .v2-action { min-height: 48px; font-size: 0.85rem; }
+  #v2-action-undo { border-color: #fbbf24; }
+  /* ---- Sub sheet ---- */
+  #v2-sub-sheet {
+    position: fixed;
+    inset: auto 12px 12px auto;
+    width: min(360px, 90vw);
+    max-height: 70vh;
+    overflow-y: auto;
+    background: #000;
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 12px;
+    z-index: 20;
+  }
+  #v2-sub-sheet[hidden] { display: none; }
+  .v2-sub-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px;
+    cursor: pointer; background: var(--panel-2);
+  }
+  .v2-sub-row.v2-armed { border-color: #fbbf24; }
   @media (orientation: portrait), (max-width: 900px) {
     #v2-main { grid-template-columns: 1fr; }
   }
@@ -189,27 +272,34 @@
     <!-- Left: roster rails -->
     <section class="v2-rail" aria-label="Rosters">
       <h2>Teams</h2>
-      <div id="v2-roster-home" aria-label="Team A roster">
-        <div class="v2-stub">TEAM A roster — TODO(v2): roster rails (later slice)</div>
-      </div>
-      <div id="v2-roster-away" aria-label="Team B roster">
-        <div class="v2-stub">TEAM B roster — TODO(v2): roster rails (later slice)</div>
-      </div>
+      <div id="v2-roster-home" aria-label="Team A roster"></div>
+      <div id="v2-roster-away" aria-label="Team B roster"></div>
     </section>
 
     <!-- Center: court + log -->
     <section class="v2-center" aria-label="Court and log">
       <h2>Half Court</h2>
-      <svg id="v2-court" viewBox="0 0 500 470" role="img" aria-label="Half-court placeholder">
-        <rect x="0" y="0" width="500" height="470" fill="#13202b" />
-        <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#f2f0e8" stroke-width="3" />
-        <rect x="170" y="0" width="160" height="190" fill="none" stroke="#f2f0e8" stroke-width="3" />
-        <circle cx="250" cy="190" r="60" fill="none" stroke="#f2f0e8" stroke-width="3" />
-        <line x1="220" y1="40" x2="280" y2="40" stroke="#f2f0e8" stroke-width="3" />
-        <circle cx="250" cy="55" r="7.5" fill="none" stroke="#ef4444" stroke-width="2" />
-        <line x1="0" y1="0" x2="500" y2="0" stroke="#f2f0e8" stroke-width="5" />
-        <text x="250" y="300" text-anchor="middle" fill="#a8a094" font-size="20">HALF-COURT PLACEHOLDER — TODO(v2): court tap</text>
-      </svg>
+      <div id="v2-court-wrap">
+        <svg id="v2-court" viewBox="0 0 500 470" role="img" aria-label="Half-court tap area" tabindex="0">
+          <rect x="0" y="0" width="500" height="470" fill="#13202b" />
+          <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#f2f0e8" stroke-width="3" />
+          <rect x="170" y="0" width="160" height="190" fill="none" stroke="#f2f0e8" stroke-width="3" />
+          <circle cx="250" cy="190" r="60" fill="none" stroke="#f2f0e8" stroke-width="3" />
+          <line x1="220" y1="40" x2="280" y2="40" stroke="#f2f0e8" stroke-width="3" />
+          <circle cx="250" cy="55" r="7.5" fill="none" stroke="#ef4444" stroke-width="2" />
+          <line x1="0" y1="0" x2="500" y2="0" stroke="#f2f0e8" stroke-width="5" />
+          <g id="v2-shot-marks"></g>
+        </svg>
+        <div id="v2-shot-popover" hidden role="dialog" aria-label="Shot outcome">
+          <span id="v2-shot-label">Shot</span>
+          <div class="row">
+            <button class="v2-btn" id="v2-shot-made" type="button">MADE</button>
+            <button class="v2-btn" id="v2-shot-miss" type="button">MISS</button>
+            <button class="v2-btn" id="v2-shot-cancel" type="button" aria-label="Cancel shot">✕</button>
+          </div>
+        </div>
+      </div>
+      <div id="v2-need-player" role="status" aria-live="polite"></div>
       <h2 style="margin-top:10px">Game Log</h2>
       <div id="v2-game-log" aria-live="polite" aria-label="Game log"></div>
     </section>
@@ -217,12 +307,38 @@
     <!-- Right: action pad -->
     <aside class="v2-pad" aria-label="Action pad">
       <h2>Action Pad</h2>
+      <div id="v2-selected-display" aria-live="polite">No player selected</div>
       <div id="v2-action-pad">
-        <div class="v2-stub">Action pad — TODO(v2): action pad (later slice)</div>
+        <div class="v2-grid">
+          <button class="v2-btn v2-action" id="v2-action-assist" type="button">ASSIST</button>
+          <button class="v2-btn v2-action" id="v2-action-rebound" type="button">REBOUND</button>
+          <button class="v2-btn v2-action" id="v2-action-block" type="button">BLOCK</button>
+          <button class="v2-btn v2-action" id="v2-action-steal" type="button">STEAL</button>
+          <button class="v2-btn v2-action" id="v2-action-ft-made" type="button">FT MADE</button>
+          <button class="v2-btn v2-action" id="v2-action-ft-miss" type="button">FT MISS</button>
+          <button class="v2-btn v2-action" id="v2-action-foul" type="button">FOUL</button>
+          <button class="v2-btn v2-action" id="v2-action-tech" type="button">TECH FOUL</button>
+          <button class="v2-btn v2-action" id="v2-action-tov" type="button">TOV</button>
+          <button class="v2-btn v2-action" id="v2-action-timeout" type="button">TIME OUT</button>
+          <button class="v2-btn v2-action" id="v2-action-sub" type="button">SUBS</button>
+          <button class="v2-btn v2-action" id="v2-action-undo" type="button" aria-label="Undo last action">&#8617; UNDO</button>
+        </div>
+      </div>
+      <div id="v2-sub-sheet" hidden role="dialog" aria-label="Substitution sheet">
+        <h2>Substitutions — tap one ON-COURT then one BENCH player</h2>
+        <div id="v2-sub-list"></div>
+        <button class="v2-btn" id="v2-sub-close" type="button">CLOSE</button>
       </div>
     </aside>
   </main>
 </div>
+<script>
+  window.V2_BOOTSTRAP = {
+    homePlayers: {{ existing_players | tojson }},
+    plays: {{ plays | tojson }},
+    nowDate: {{ now_date | tojson }}
+  };
+</script>
 <script src="{{ url_for('static', filename='js/live_game_v2.js') }}"></script>
 </body>
 </html>

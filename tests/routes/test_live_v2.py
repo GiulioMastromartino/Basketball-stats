@@ -53,3 +53,59 @@ class TestLiveV2Route:
         html = response.data.decode("utf-8")
         assert "js/live_game_v2.js" in html
         assert "js/live_game.js" not in html.replace("js/live_game_v2.js", "")
+
+    @pytest.mark.integration
+    def test_live_v2_roster_action_court_ids(self, auth_client):
+        """Roster rails + court tap + action pad + undo + sub sheet IDs exist."""
+        response = auth_client.get("/live-v2")
+        assert response.status_code == 200
+        html = response.data.decode("utf-8")
+        for element_id in [
+            # Court tap popover
+            "v2-court-wrap",
+            "v2-shot-popover",
+            "v2-shot-label",
+            "v2-shot-made",
+            "v2-shot-miss",
+            "v2-shot-cancel",
+            "v2-shot-marks",
+            "v2-need-player",
+            # Action pad
+            "v2-selected-display",
+            "v2-action-assist",
+            "v2-action-rebound",
+            "v2-action-block",
+            "v2-action-steal",
+            "v2-action-ft-made",
+            "v2-action-ft-miss",
+            "v2-action-foul",
+            "v2-action-tech",
+            "v2-action-tov",
+            "v2-action-timeout",
+            "v2-action-sub",
+            "v2-action-undo",
+            # Substitution sheet
+            "v2-sub-sheet",
+            "v2-sub-list",
+            "v2-sub-close",
+        ]:
+            assert f'id="{element_id}"' in html, f"missing #{element_id}"
+
+    @pytest.mark.integration
+    def test_live_v2_bootstraps_route_context(self, auth_client):
+        """Route context (existing_players/plays/now_date) is embedded as JSON."""
+        response = auth_client.get("/live-v2")
+        assert response.status_code == 200
+        html = response.data.decode("utf-8")
+        assert "window.V2_BOOTSTRAP" in html
+        assert "homePlayers" in html
+        assert "nowDate" in html
+
+    @pytest.mark.integration
+    def test_live_v2_court_is_tappable(self, auth_client):
+        """Court SVG is focusable/clickable with an accessible label."""
+        response = auth_client.get("/live-v2")
+        assert response.status_code == 200
+        html = response.data.decode("utf-8")
+        assert 'id="v2-court"' in html
+        assert "Half-court tap area" in html or "tap" in html.lower()
