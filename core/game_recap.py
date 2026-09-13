@@ -295,8 +295,10 @@ def _bullet_quarter_shape(quarter_points):
         if not quarter_points:
             return "Quarter-by-quarter scoring not recorded for this game."
         ordered = sorted(quarter_points.items())
-        opp_known_any = any(v.get("opp_known") for _, v in ordered)
-        if opp_known_any:
+        opp_known_all = bool(ordered) and all(
+            v.get("opp_known") for _, v in ordered
+        )
+        if opp_known_all:
             segments = [
                 f"Q{q} {v['team']}-{v['opp']}" for q, v in ordered
             ]
@@ -316,6 +318,44 @@ def _bullet_quarter_shape(quarter_points):
         return "Quarter-by-quarter scoring not recorded for this game."
 
 
+def _in_clutch_window(event):
+    """True when an event falls in the last 5 minutes of regulation (or OT).
+
+    Anchored to the fixed regulation timeline (4 x 600s quarters, matching
+    game_service's clock convention) so a truncated event list can never
+    promote early-game events into the clutch window. Overtime (quarter > 4)
+    always counts as clutch-window data.
+    """
+    quarter = getattr(event, "quarter", None)
+    try:
+        quarter = int(quarter) if quarter is not None else None
+    except (TypeError, ValueError):
+        quarter = None
+    game_seconds = getattr(event, "game_seconds", None)
+    try:
+        game_seconds = int(game_seconds) if game_seconds is not None else None
+    except (TypeError, ValueError):
+        game_seconds = None
+
+    if quarter is not None and quarter > 4:
+        return True
+    if game_seconds is not None:
+        if quarter is not None:
+            if quarter < 4:
+                return False
+            if quarter == 4:
+                return game_seconds >= 3 * 600 + 300  # Q4 last 5 min: >= 2100
+            return True
+        return game_seconds >= 3 * 600 + 300
+    if quarter == 4:
+        remaining = _parse_remaining_to_seconds(
+            getattr(event, "time_remaining", None)
+        )
+        if remaining is not None:
+            return remaining <= 300
+    return False
+
+
 def _bullet_clutch(game, events):
     try:
         team_score = game.team_score
@@ -329,47 +369,11 @@ def _bullet_clutch(game, events):
     clutch_hit = False
     has_clutch_window_data = False
     try:
-        max_game_seconds = None
-        for event in events:
-            game_seconds = getattr(event, "game_seconds", None)
-            if game_seconds is not None:
-                try:
-                    game_seconds = int(game_seconds)
-                except (TypeError, ValueError):
-                    continue
-                if max_game_seconds is None or game_seconds > max_game_seconds:
-                    max_game_seconds = game_seconds
         for event in events:
             margin = getattr(event, "score_margin", None)
             if margin is None:
                 continue
-            in_window = False
-            game_seconds = getattr(event, "game_seconds", None)
-            try:
-                game_seconds = int(game_seconds) if game_seconds is not None else None
-            except (TypeError, ValueError):
-                game_seconds = None
-            quarter = getattr(event, "quarter", None)
-            try:
-                quarter = int(quarter) if quarter is not None else None
-            except (TypeError, ValueError):
-                quarter = None
-            if game_seconds is not None:
-                if max_game_seconds is not None:
-                    threshold = max(0, max_game_seconds - 300)
-                    in_window = game_seconds >= threshold
-                elif quarter is not None and quarter >= 4:
-                    in_window = True
-            elif quarter is not None and quarter >= 4:
-                remaining = _parse_remaining_to_seconds(
-                    getattr(event, "time_remaining", None)
-                )
-                if remaining is not None:
-                    in_window = remaining <= 300
-                else:
-                    # Q4 event without clock detail: can't confirm window.
-                    in_window = False
-            if in_window:
+            if _in_clutch_window(event):
                 has_clutch_window_data = True
                 if abs(margin) <= 5:
                     clutch_hit = True
@@ -411,17 +415,16 @@ def build_recap(game_id, team_id):
     """Build the 5-bullet recap for a game.
 
     Returns {"game_id": int, "bullets": [str x5]} or None when the game
-    does not exist / does not belong to team_id. Never raises on
-    sparse data.
+    does not exist / does not belong to team_id. Database/query failures
+    propagate (so the route never masks a 500 as a 404); only a
+    successful query with no matching game returns None. Sparse data
+    never raises -- bullets degrade to neutral lines.
     """
-    try:
-        game = (
-            Game.query.filter_by(id=game_id, team_id=team_id).first()
-            if team_id is not None
-            else db.session.get(Game, game_id)
-        )
-    except Exception:
-        return None
+    game = (
+        Game.query.filter_by(id=game_id, team_id=team_id).first()
+        if team_id is not None
+        else db.session.get(Game, game_id)
+    )
     if game is None:
         return None
 
