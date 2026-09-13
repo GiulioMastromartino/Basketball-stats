@@ -92,11 +92,16 @@ class TestBuildWinCurve:
         db.session.commit()
 
         curve = build_win_curve(sample_game.id, sample_game.team_id)
-        assert len(curve) == 4
+        assert len(curve) == 5
         assert all(set(p) == {"clock_label", "margin", "prob"} for p in curve)
-        # Book score wins: final point resynced to the actual +10 outcome.
-        assert curve[-1]["margin"] == 10
-        assert curve[-1]["prob"] == 0.99
+        # The recorded last event is untouched...
+        assert curve[-2] == {
+            "clock_label": "Q1 04:00",
+            "margin": 5,
+            "prob": curve[-2]["prob"],
+        }
+        # ...and the book score closes the curve at the actual outcome.
+        assert curve[-1] == {"clock_label": "Final", "margin": 10, "prob": 0.99}
         # Monotonic-ish: leader's probability never collapses mid-game.
         assert all(p["prob"] > 0.5 for p in curve)
 
@@ -114,8 +119,8 @@ class TestBuildWinCurve:
         db.session.commit()
 
         curve = build_win_curve(sample_game.id, sample_game.team_id)
-        assert [p["margin"] for p in curve] == [2, 0, 2]
-        assert curve[-1]["margin"] == 2  # resynced to the 4-2 book score
+        assert [p["margin"] for p in curve] == [2, 0, 2, 2]
+        assert curve[-1]["clock_label"] == "Final"
         assert curve[-1]["prob"] == round(win_probability(2, 0), 4) == 0.99
 
     @pytest.mark.integration

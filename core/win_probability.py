@@ -263,15 +263,22 @@ def build_win_curve(game_id, team_id):
             # new information and would only duplicate the previous point.
             if _score_delta(event) == 0:
                 continue
-        period = getattr(event, "quarter", None) or 1
+        period_raw = getattr(event, "quarter", None) or 1
+        try:
+            period_no = int(period_raw)
+        except (TypeError, ValueError):
+            period_no = 1
+        if period_no < 1:
+            period_no = 1
         remaining = _seconds_remaining(
-            period, getattr(event, "time_remaining", None), getattr(event, "game_seconds", None)
+            period_no, getattr(event, "time_remaining", None), getattr(event, "game_seconds", None)
         )
         points.append(
             {
-                "clock_label": _clock_label(period, getattr(event, "time_remaining", None)),
+                "clock_label": _clock_label(period_no, getattr(event, "time_remaining", None)),
                 "margin": running_margin,
-                "prob": round(win_probability(running_margin, remaining, period=period), 4),
+                "prob": round(win_probability(running_margin, remaining, period=period_no), 4),
+                "period": period_no,
                 "_remaining": remaining,
             }
         )
@@ -289,23 +296,29 @@ def build_win_curve(game_id, team_id):
         ]
 
     # Sample per minute when dense; keep every event when sparse.
+    # Buckets are keyed by (period, minute) so regulation and overtime
+    # points with the same clock remainder never overwrite each other.
+    # Dict insertion order is chronological (events processed in id order),
+    # so values() preserves the timeline with last-event-per-bucket wins.
     sampled = points
     if len(points) > SPARSE_EVENT_THRESHOLD:
         by_minute = {}
         for point in points:
-            minute = int(point["_remaining"] // 60)
-            by_minute[minute] = point  # last event in the minute wins
-        sampled = [by_minute[m] for m in sorted(by_minute, reverse=True)]
+            by_minute[(point["period"], int(point["_remaining"] // 60))] = point
+        sampled = list(by_minute.values())
 
     curve = [
         {"clock_label": p["clock_label"], "margin": p["margin"], "prob": p["prob"]}
         for p in sampled
     ]
-    last = curve[-1]
-    if last["margin"] != final_margin:
-        last["margin"] = final_margin
-        last["prob"] = round(win_probability(final_margin, 0, period=final_period), 4)
-    else:
-        # Buzzer state: probability must reflect the actual outcome.
-        last["prob"] = round(win_probability(final_margin, 0, period=final_period), 4)
+    # Close the timeline with the book score as its own point: the last
+    # recorded event stays untouched and the curve always ends at the
+    # actual outcome (buzzer truth).
+    curve.append(
+        {
+            "clock_label": "Final",
+            "margin": final_margin,
+            "prob": round(win_probability(final_margin, 0, period=final_period), 4),
+        }
+    )
     return curve
