@@ -21,6 +21,7 @@ from core.utils import (
     safe_percentage,
     calculate_per_100_minutes,
     calculate_pace,
+    calculate_fta_rate,
     normalize_shot_events,
 )
 
@@ -2291,3 +2292,128 @@ class AnalyticsService:
     def get_game_alerts(stats_with_metrics):
         """Placeholder for game alerts."""
         return []
+
+    @staticmethod
+    def compute_trend_alerts(team_id, last_n=3):
+        """Compare last-N-games averages vs prior-N and emit performance alerts.
+
+        Metrics (window aggregates via existing helpers): eFG% (calculate_efg_percent),
+        TOV% (safe_percentage over FGA + 0.44*FTA + TOV), offensive-rebound
+        share (OREB / total rebounds — intentionally NOT the ORB% formula, which
+        needs opponent DREB we don't store), FTA rate (calculate_fta_rate), PTS
+        per game. An alert fires only when |delta| >= its threshold. Returns []
+        on insufficient history (fewer than 2*last_n team games), on windows
+        with partial stat coverage, or when windows have no stats — never raises
+        for those cases.
+        """
+        try:
+            last_n = int(last_n)
+        except (TypeError, ValueError):
+            last_n = 3
+        if last_n < 1:
+            last_n = 3
+        last_n = min(last_n, 10)
+        if team_id is None:
+            return []
+
+        games = (
+            Game.query.filter(Game.team_id == team_id)
+            .order_by(Game.sort_date.desc(), Game.id.desc())
+            .all()
+        )
+        if len(games) < 2 * last_n:
+            return []
+        recent_games = games[:last_n]
+        prior_games = games[last_n: 2 * last_n]
+
+        def _window_metrics(window_games):
+            ids = [g.id for g in window_games]
+            if not ids:
+                return None
+            rows = (
+                PlayerStat.query.filter(PlayerStat.game_id.in_(ids))
+                .filter(PlayerStat.minutes != "00:00")
+                .filter(PlayerStat.minutes != "0")
+                .filter(PlayerStat.minutes.isnot(None))
+                .filter(PlayerStat.minutes != "")
+                .all()
+            )
+            if not rows:
+                return None
+            # A missing PlayerStat row is not a zero-stat game: require every
+            # selected game to have eligible rows, else discard the window.
+            covered = {r.game_id for r in rows}
+            if any(g.id not in covered for g in window_games):
+                return None
+            totals = AnalyticsService.sum_team_stat_rows(rows)
+            fga = totals["fga"] or 0
+            fta = totals["fta"] or 0
+            tov = totals["tov"] or 0
+            plays = fga + 0.44 * fta + tov
+            n_games = len(window_games)
+            return {
+                "efg_pct": calculate_efg_percent(
+                    totals["fgm"] or 0, totals["tpm"] or 0, fga
+                ),
+                "tov_pct": safe_percentage(tov, plays),
+                "oreb_share": safe_percentage(totals["oreb"] or 0, totals["reb"] or 0),
+                "fta_rate": calculate_fta_rate(fta, fga),
+                "pts": round((totals["points"] or 0) / n_games, 1) if n_games else 0,
+            }
+
+        recent = _window_metrics(recent_games)
+        prior = _window_metrics(prior_games)
+        if recent is None or prior is None:
+            return []
+
+        # Thresholds in points (pts in points/game); only fire when |delta| >= threshold.
+        thresholds = {
+            "efg_pct": 4.0,
+            "tov_pct": 3.0,
+            "oreb_share": 4.0,
+            "fta_rate": 5.0,
+            "pts": 5.0,
+        }
+        labels = {
+            "efg_pct": "eFG%",
+            "tov_pct": "TOV%",
+            "oreb_share": "OREB share",
+            "fta_rate": "FTA rate",
+            "pts": "PTS",
+        }
+        # True when "up" is good basketball (down is the concern), False for TOV%.
+        up_is_good = {
+            "efg_pct": True,
+            "tov_pct": False,
+            "oreb_share": True,
+            "fta_rate": True,
+            "pts": True,
+        }
+
+        alerts = []
+        for metric, threshold in thresholds.items():
+            r = round(recent[metric], 1)
+            p = round(prior[metric], 1)
+            delta = round(r - p, 1)
+            if abs(delta) < threshold:
+                continue
+            direction = "up" if delta > 0 else "down"
+            favorable = (delta > 0) == up_is_good[metric]
+            alerts.append(
+                {
+                    "metric": metric,
+                    "label": labels[metric],
+                    "recent": r,
+                    "prior": p,
+                    "delta": delta,
+                    "direction": direction,
+                    "magnitude": abs(delta),
+                    "favorable": favorable,
+                    "message": (
+                        f"{labels[metric]} {direction} "
+                        f"{abs(delta):.1f} pts "
+                        f"({p:.1f} -> {r:.1f}, last {last_n} vs prior {last_n})"
+                    ),
+                }
+            )
+        return alerts

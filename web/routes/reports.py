@@ -900,3 +900,22 @@ def game_evolution_pdf(game_id: int):
     )
 
     return _render_pdf(html, f"evolution_{report.opponent}_{report.date}.pdf")
+
+
+@reports_bp.route("/scout/<path:opponent>")
+@login_required
+@team_access_required
+def opponent_scout_pdf(opponent):
+    """Generate one-page opponent scouting PDF."""
+    from core.scout_report import DEFAULT_LIMIT, build_scout
+
+    try:
+        limit = int(request.args.get("limit", DEFAULT_LIMIT))
+    except (TypeError, ValueError):
+        limit = DEFAULT_LIMIT
+    context = build_scout(opponent, session.get('current_team_id'), limit)
+
+    html = render_template("game_scout_pdf.html", **context)
+
+    safe = (context.get("opponent") or "opponent").replace(" ", "_")
+    return _render_pdf(html, f"scout_{safe}.pdf")

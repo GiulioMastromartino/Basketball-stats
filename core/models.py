@@ -559,3 +559,28 @@ class Player(db.Model):
 
     def __repr__(self):
         return f"<Player {self.name}>"
+
+
+class ShareLink(db.Model):
+    """Expiring, revocable, read-only public link for a game or player."""
+
+    __tablename__ = "share_links"
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    target_type = db.Column(db.String(10), nullable=False)
+    target_id = db.Column(db.Integer, nullable=False)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    revoked = db.Column(db.Boolean, nullable=False, default=False,
+                        server_default=text("false"))
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    team = db.relationship("Team", backref=db.backref("share_links", lazy=True))
+
+    @property
+    def is_expired(self):
+        return datetime.utcnow() >= self.expires_at
+
+    def __repr__(self):
+        return f"<ShareLink {self.target_type}:{self.target_id} revoked={self.revoked}>"

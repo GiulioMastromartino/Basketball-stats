@@ -439,6 +439,11 @@ def live_game_v2():
         score_b=0,
         period=1,
         clock="10:00",
+        # v2 console identity: JS keys persisted state on these and discards
+        # the cache when user/team/session differ (cross-login protection).
+        v2_user_id=current_user.get_id() if current_user.is_authenticated else None,
+        v2_team_id=team_id,
+        v2_session_id="%s:%s" % (team_id, now_date),
         # TODO(v2): wire fouls/timeouts/possession from backend when available.
         fouls_a=0,
         fouls_b=0,
@@ -605,6 +610,7 @@ def upload_game():
                             game_type=game_data["game_type"],
                             sort_date=game_data["sort_date"],
                             source="IMPORT",
+                            team_id=team_id,
                         )
                         db.session.add(game)
                         db.session.flush()
