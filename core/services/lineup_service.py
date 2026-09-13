@@ -733,3 +733,183 @@ def process_game_lineups(
     # 7. Update affected lineups
     for lid in lineup_ids:
         update_lineup_cached_stats(lid)
+
+
+# =============================================================================
+# Lineup Optimizer: context-aware "best 5 for this context" ranking
+# =============================================================================
+
+#: Minimum possessions for a lineup to be considered (excludes noise).
+OPTIMIZER_MIN_POSSESSIONS = 10
+
+#: Maximum lineups returned.
+OPTIMIZER_TOP_N = 5
+
+#: Valid contexts (query param values; default "balanced").
+OPTIMIZER_CONTEXTS = (
+    "balanced",
+    "vs_zone",
+    "vs_fast",
+    "protect_lead",
+    "need_stops",
+    "need_score",
+)
+
+#: Documented, simple per-context scoring scheme.
+#:
+#: Base signal is cached net_rating. Each context adds small, explainable
+#: adjustments derived from already-aggregated Lineup columns:
+#:
+#: - balanced:      score = net
+#: - vs_zone:       score = net + 0.4*(efg_pct - 50) + 0.3*ast_rate
+#:                  (shooting + ball movement beats a zone)
+#: - vs_fast:       score = net + 0.3*(ortg - 110) + 1.0*stocks_rate
+#:                  (efficient offense + STL/BLK fuel transition)
+#: - protect_lead:  score = net + 0.3*(110 - drtg) - 0.5*tov_rate
+#:                  (get stops without giving it away)
+#: - need_stops:    score = 0.5*net + 0.5*(110 - drtg) + 1.0*stocks_rate
+#:                  (defense first: low DRtg + stocks)
+#: - need_score:    score = 0.5*net + 0.5*(ortg - 110) + 0.4*(efg_pct - 50)
+#:                  (offense first: high ORtg + efficient shooting)
+#:
+#: where efg_pct = (fgm + 0.5*tpm) / fga * 100 (0 when fga == 0),
+#: tov_rate / ast_rate / stocks_rate are per-100-possession rates
+#: (0 when possessions == 0). League-average anchors (50% eFG, 110 ORtg/DRtg)
+#: keep adjustments on the same scale as net rating points.
+OPTIMIZER_WEIGHTS_DOC = (
+    "balanced=net; vs_zone=net+0.4*(efg-50)+0.3*ast_rate; "
+    "vs_fast=net+0.3*(ortg-110)+stocks_rate; "
+    "protect_lead=net+0.3*(110-drtg)-0.5*tov_rate; "
+    "need_stops=0.5*net+0.5*(110-drtg)+stocks_rate; "
+    "need_score=0.5*net+0.5*(ortg-110)+0.4*(efg-50)"
+)
+
+
+def _optimizer_players(lineup) -> list:
+    raw = lineup.players or []
+    if isinstance(raw, str):
+        try:
+            import json
+
+            parsed = json.loads(raw)
+            return list(parsed) if isinstance(parsed, list) else []
+        except Exception:
+            return []
+    return list(raw)
+
+
+def _optimizer_efg_pct(lineup) -> float:
+    fga = lineup.fga or 0
+    if not fga:
+        return 0.0
+    return round(((lineup.fgm or 0) + 0.5 * (lineup.tpm or 0)) / fga * 100, 1)
+
+
+def _optimizer_rate(count, possessions) -> float:
+    if not possessions:
+        return 0.0
+    return (count or 0) / possessions * 100
+
+
+def _optimizer_score(lineup, context: str, efg_pct: float) -> float:
+    net = lineup.net_rating or 0
+    ortg = lineup.ortg or 0
+    drtg = lineup.drtg or 0
+    poss = lineup.total_possessions or 0
+    tov_rate = _optimizer_rate(lineup.tov, poss)
+    ast_rate = _optimizer_rate(lineup.ast, poss)
+    stocks_rate = _optimizer_rate((lineup.stl or 0) + (lineup.blk or 0), poss)
+    if context == "vs_zone":
+        return net + 0.4 * (efg_pct - 50) + 0.3 * ast_rate
+    if context == "vs_fast":
+        return net + 0.3 * (ortg - 110) + stocks_rate
+    if context == "protect_lead":
+        return net + 0.3 * (110 - drtg) - 0.5 * tov_rate
+    if context == "need_stops":
+        return 0.5 * net + 0.5 * (110 - drtg) + stocks_rate
+    if context == "need_score":
+        return 0.5 * net + 0.5 * (ortg - 110) + 0.4 * (efg_pct - 50)
+    return float(net)
+
+
+def rank_lineups_for_context(team_id: int, context: str = "balanced") -> dict:
+    """Rank candidate 5-man units for a game context.
+
+    Args:
+        team_id: Team scope (only Lineup rows for this team are considered).
+        context: One of balanced, vs_zone, vs_fast, protect_lead,
+            need_stops, need_score. Unknown values fall back to balanced.
+
+    Returns:
+        Dict with keys ``context``, ``lineups`` (top 5, each with
+        lineup_id, players, net_rating, ortg, drtg, possessions, minutes,
+        score, explanation) and ``reason`` (None on success, human-readable
+        string when data is empty/insufficient). Never raises: unexpected
+        errors yield ``{"lineups": [], "reason": ...}``.
+    """
+    from core.models import Lineup
+
+    if context not in OPTIMIZER_CONTEXTS:
+        context = "balanced"
+    try:
+        candidates = (
+            Lineup.query.filter_by(team_id=team_id)
+            .filter(Lineup.total_possessions >= OPTIMIZER_MIN_POSSESSIONS)
+            .all()
+        )
+    except Exception as exc:  # never error on DB issues
+        return {"context": context, "lineups": [], "reason": f"Unable to load lineups: {exc}"}
+    if not candidates:
+        return {
+            "context": context,
+            "lineups": [],
+            "reason": (
+                "Insufficient lineup data for this team "
+                f"(need >= {OPTIMIZER_MIN_POSSESSIONS} possessions per unit)"
+            ),
+        }
+
+    scored = []
+    for lineup in candidates:
+        efg = _optimizer_efg_pct(lineup)
+        score = _optimizer_score(lineup, context, efg)
+        scored.append((lineup, efg, score))
+    # Score desc, then net desc, then possessions desc (deterministic).
+    scored.sort(
+        key=lambda t: (t[2], t[0].net_rating or 0, t[0].total_possessions or 0),
+        reverse=True,
+    )
+
+    context_labels = {
+        "balanced": "balanced",
+        "vs_zone": "vs zone",
+        "vs_fast": "vs fast",
+        "protect_lead": "to protect a lead",
+        "need_stops": "to get stops",
+        "need_score": "to score",
+    }
+    label = context_labels.get(context, context)
+    ranked = []
+    for lineup, efg, score in scored[:OPTIMIZER_TOP_N]:
+        net = lineup.net_rating or 0
+        poss = lineup.total_possessions or 0
+        minutes = round((lineup.total_seconds or 0) / 60, 1)
+        ranked.append(
+            {
+                "lineup_id": lineup.id,
+                "players": _optimizer_players(lineup),
+                "net_rating": net,
+                "ortg": lineup.ortg or 0,
+                "drtg": lineup.drtg or 0,
+                "possessions": poss,
+                "minutes": minutes,
+                "efg_pct": efg,
+                "score": round(score, 1),
+                "explanation": (
+                    f"{net:+.1f} net in {poss} poss {label} "
+                    f"(ORtg {lineup.ortg or 0:.1f} / DRtg {lineup.drtg or 0:.1f}, "
+                    f"eFG {efg:.1f}%)"
+                ),
+            }
+        )
+    return {"context": context, "lineups": ranked, "reason": None}
