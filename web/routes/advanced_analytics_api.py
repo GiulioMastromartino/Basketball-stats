@@ -1817,7 +1817,7 @@ def promote_external_game(ext_game_id):
         codice_fase=champ["codice_fase"],
         codice_girone=champ["codice_girone"],
         season_label=champ["season_label"]).first()
-    if tracked is None:
+    if tracked is None or tracked.team is None:
         return jsonify(
             {"error": "External championship is not tracked by your team"}
         ), 403
