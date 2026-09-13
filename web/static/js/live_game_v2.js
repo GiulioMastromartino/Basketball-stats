@@ -45,9 +45,12 @@
     if (n < 1) {
       n = 1;
     }
+    var changed = n !== state.period;
     state.period = n;
     renderPeriod();
-    appendLog("START OF PERIOD " + state.period);
+    if (changed) {
+      appendLog("START OF PERIOD " + state.period);
+    }
   }
 
   // TODO(v2): roster rails — render Team A / Team B rails into
