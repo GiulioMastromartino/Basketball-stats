@@ -399,6 +399,55 @@ def live_game():
     )
 
 
+@main_bp.route("/live-v2")
+@login_required
+@team_access_required
+def live_game_v2():
+    """Live Game v2 console shell (slice A1): score strip + stub rails."""
+    team_id = session.get("current_team_id")
+    existing_players = [
+        r[0]
+        for r in db.session.query(PlayerStat.player_name)
+        .join(Game)
+        .filter(Game.team_id == team_id)
+        .distinct()
+        .order_by(PlayerStat.player_name)
+        .all()
+    ]
+
+    plays_query = Play.query.filter_by(team_id=team_id).order_by(Play.play_type, Play.name).all()
+    plays_list = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "type": p.play_type,
+            "description": p.description,
+        }
+        for p in plays_query
+    ]
+
+    now_date = datetime.now().strftime("%Y-%m-%d")
+    team_name = session.get("current_team_name") or "Team A"
+    return render_template(
+        "live_game_v2.html",
+        existing_players=existing_players,
+        now_date=now_date,
+        plays=plays_list,
+        team_name_a=team_name,
+        team_name_b="Opponent",
+        score_a=0,
+        score_b=0,
+        period=1,
+        clock="10:00",
+        # TODO(v2): wire fouls/timeouts/possession from backend when available.
+        fouls_a=0,
+        fouls_b=0,
+        timeouts_a="0/0",
+        timeouts_b="0/0",
+        possession="◀",
+    )
+
+
 @main_bp.route("/api/plays")
 @login_required
 @team_access_required
