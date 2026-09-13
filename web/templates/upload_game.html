@@ -102,8 +102,9 @@
         </div>
 
         <!-- Import wizard: preview-first CSV flow (legacy direct import below unchanged) -->
-        <!-- TODO(PDF): the PDF parser does not yield row structures reusable for
-             inline error display yet; PDF path intentionally left untouched. -->
+        <!-- PDF preview lives in #pdf-wizard below and reuses the same
+             preview-dict shape (CSVProcessor.build_preview_pdf), so the
+             shared renderer highlights errors identically. -->
         <div id="import-wizard" style="margin-bottom: 20px; padding: 14px; background: #fff; border-radius: 8px; border: 1px solid var(--border-color);">
             <div style="font-weight: 700; color: var(--secondary); margin-bottom: 8px;">
                 <i class="fas fa-wand-magic-sparkles"></i> Import wizard (CSV preview &amp; fix)
@@ -129,6 +130,46 @@
                     <button type="button" id="wiz-commit" class="btn btn-primary">Review &amp; Import</button>
                 </div>
                 <div id="wiz-status" style="margin-top: 8px; font-size: 0.9rem;"></div>
+            </div>
+        </div>
+
+        <!-- PDF import wizard: preview-first flow mirroring the CSV wizard above.
+             Same preview-dict shape via CSVProcessor.build_preview_pdf, so error
+             highlighting + mapping selects render identically through the shared
+             wizRenderPreview() renderer (called with the 'pdf-wiz-' namespace).
+             TODO(backend, follow-up; routes owner — DO NOT implement here):
+               POST /upload-game/preview-pdf    {filename, pdf_base64, column_mapping, date_override}
+               POST /upload-game/revalidate-pdf (same body; client caches base64, no re-upload)
+               POST /upload-game/commit-pdf     (rebuild preview, require valid, insert Game/PlayerStat)
+             Handler sketch: base64-decode pdf_base64, then
+               preview = CSVProcessor.build_preview_pdf(raw, filename, mapping, date_override)
+             400 when preview has "fatal", else 200 — mirroring upload_game_preview.
+             Until wired, Revalidate/Import show the pending note below. -->
+        <div id="pdf-wizard" style="margin-bottom: 20px; padding: 14px; background: #fff; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="font-weight: 700; color: var(--secondary); margin-bottom: 8px;">
+                <i class="fas fa-file-pdf"></i> Import wizard (PDF preview &amp; fix)
+            </div>
+            <div id="pdf-wiz-drop" role="button" tabindex="0" aria-label="Choose a PDF file for preview" style="padding: 18px; border: 2px dashed var(--border-color); border-radius: 8px; background: #f8f9fa; text-align: center; cursor: pointer; color: var(--text-muted);">
+                Drag &amp; drop a PDF here, or click to choose one file for preview
+            </div>
+            <input id="pdf-wiz-file" type="file" accept=".pdf" style="display: none;" />
+            <div id="pdf-wiz-preview" style="margin-top: 12px; display: none;">
+                <div id="pdf-wiz-gameinfo" style="font-size: 0.9rem; margin-bottom: 8px;"></div>
+                <div id="pdf-wiz-missing" style="margin-bottom: 8px;"></div>
+                <div id="pdf-wiz-fixtable" style="margin-bottom: 8px; overflow-x: auto;"></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px; align-items: end;">
+                    <div>
+                        <label style="display:block; font-weight: 600; font-size: 0.85rem;">Date fix (DD-MM-YYYY)</label>
+                        <input id="pdf-wiz-date" type="text" placeholder="e.g. 15-03-2025" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);" />
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight: 600; font-size: 0.85rem;">Column map (uploaded → required)</label>
+                        <div id="pdf-wiz-mapping" style="font-size: 0.85rem;"></div>
+                    </div>
+                    <button type="button" id="pdf-wiz-revalidate" class="btn btn-outline">Revalidate</button>
+                    <button type="button" id="pdf-wiz-commit" class="btn btn-primary" disabled>Review &amp; Import</button>
+                </div>
+                <div id="pdf-wiz-status" style="margin-top: 8px; font-size: 0.9rem;"></div>
             </div>
         </div>
 
@@ -358,15 +399,18 @@ async function wizPost(url, payload) {
 
 function wizCellKey(row, col) { return row + "||" + col; }
 
-function wizRenderPreview(data) {
+function wizRenderPreview(data, ns) {
+    // ns namespaces the wizard DOM: 'wiz-' (CSV, default) or 'pdf-wiz-'
+    // (PDF). Same preview-dict shape, so one renderer serves both flows.
+    ns = ns || 'wiz-';
     wizPreview = data;
-    const box = document.getElementById('wiz-preview');
-    const info = document.getElementById('wiz-gameinfo');
-    const missing = document.getElementById('wiz-missing');
-    const table = document.getElementById('wiz-fixtable');
-    const mapping = document.getElementById('wiz-mapping');
-    const status = document.getElementById('wiz-status');
-    const commit = document.getElementById('wiz-commit');
+    const box = document.getElementById(ns + 'preview');
+    const info = document.getElementById(ns + 'gameinfo');
+    const missing = document.getElementById(ns + 'missing');
+    const table = document.getElementById(ns + 'fixtable');
+    const mapping = document.getElementById(ns + 'mapping');
+    const status = document.getElementById(ns + 'status');
+    const commit = document.getElementById(ns + 'commit');
     box.style.display = 'block';
 
     if (data.fatal) {
@@ -433,9 +477,9 @@ function wizRenderPreview(data) {
     commit.textContent = data.valid ? 'Import (' + data.player_rows + ' players)' : 'Review & Import';
 }
 
-function wizCollectMapping() {
+function wizCollectMapping(ns) {
     const map = {};
-    document.querySelectorAll('#wiz-mapping select').forEach(sel => {
+    document.querySelectorAll('#' + (ns || 'wiz-') + 'mapping select').forEach(sel => {
         if (sel.value) map[sel.value] = sel.dataset.target;
     });
     return map;
@@ -500,6 +544,80 @@ document.addEventListener('DOMContentLoaded', () => {
                 : 'Import blocked until validation passes.';
             box.innerHTML += '<br><span style="color:#721c24;">' + reason + '</span>';
         }
+    });
+});
+
+// ---- PDF wizard (mirrors the CSV flow; endpoints pending backend TODO) ----
+let pdfWizBase64 = "";
+let pdfWizFilename = "";
+
+function pdfWizReadAsBase64(file) {
+    return file.arrayBuffer().then(buf => {
+        const bytes = new Uint8Array(buf);
+        let bin = "";
+        const CHUNK = 0x8000;
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+            bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+        }
+        return btoa(bin);
+    });
+}
+
+async function pdfWizPreviewFile(file) {
+    pdfWizFilename = file.name;
+    try {
+        pdfWizBase64 = await pdfWizReadAsBase64(file);
+    } catch (e) {
+        wizRenderPreview({valid: false, fatal: "Could not read PDF file."}, 'pdf-wiz-');
+        return;
+    }
+    document.getElementById('pdf-wiz-date').value = '';
+    const {data} = await wizPost('/upload-game/preview-pdf', {
+        filename: pdfWizFilename, pdf_base64: pdfWizBase64,
+        column_mapping: {}, date_override: '',
+    });
+    wizRenderPreview(data, 'pdf-wiz-');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const drop = document.getElementById('pdf-wiz-drop');
+    const picker = document.getElementById('pdf-wiz-file');
+    if (!drop || !picker) return;
+    drop.addEventListener('click', () => picker.click());
+    drop.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            picker.click();
+        }
+    });
+    picker.addEventListener('change', () => {
+        if (picker.files.length) pdfWizPreviewFile(picker.files[0]);
+    });
+    ['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => {
+        e.preventDefault(); drop.style.borderColor = 'var(--primary)';
+    }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => {
+        e.preventDefault(); drop.style.borderColor = 'var(--border-color)';
+    }));
+    drop.addEventListener('drop', e => {
+        const f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) pdfWizPreviewFile(f);
+    });
+    document.getElementById('pdf-wiz-revalidate').addEventListener('click', async () => {
+        const {data} = await wizPost('/upload-game/revalidate-pdf', {
+            filename: pdfWizFilename, pdf_base64: pdfWizBase64,
+            column_mapping: wizCollectMapping('pdf-wiz-'),
+            date_override: document.getElementById('pdf-wiz-date').value,
+        });
+        wizRenderPreview(data, 'pdf-wiz-');
+    });
+    document.getElementById('pdf-wiz-commit').addEventListener('click', async () => {
+        // Backend route wiring is a follow-up TODO (see panel comment):
+        // POST /upload-game/commit-pdf. Until then, explain instead of failing.
+        document.getElementById('pdf-wiz-status').innerHTML =
+            '<span style="color:#856404;">PDF import endpoint is not wired yet ' +
+            '(TODO: POST /upload-game/commit-pdf). Your preview above is valid ' +
+            'and will import unchanged once the route lands.</span>';
     });
 });
 
