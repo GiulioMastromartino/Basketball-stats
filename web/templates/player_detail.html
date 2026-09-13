@@ -649,7 +649,7 @@
                 <a href="{{ back_url if back_url is defined else url_for('main.players', game_type=game_type) }}" class="btn btn-light shadow-sm">
                     <i class="fas fa-arrow-left me-2"></i>Back
                 </a>
-                {% if current_user.is_authenticated and player_id %}
+                {% if current_user.is_authenticated and player_id and not pdf_mode %}
                 <span class="d-inline-flex align-items-center gap-2" data-share-box data-share-target-type="player" data-share-target-id="{{ player_id }}">
                     <select class="form-select form-select-sm shadow-sm" data-share-expiry aria-label="Share link expiry" style="width: auto;">
                         <option value="7" selected>7 days</option>
@@ -670,7 +670,7 @@
         </div>
     </div>
 
-    {% if current_user.is_authenticated and player_id %}
+    {% if current_user.is_authenticated and player_id and not pdf_mode %}
     <div class="alert alert-success alert-dismissible d-none align-items-center gap-2" role="alert" data-share-result data-share-target-type="player" data-share-target-id="{{ player_id }}">
         <i class="fas fa-link me-2"></i>
         <a href="#" data-share-url target="_blank" rel="noopener" class="alert-link text-break"></a>
