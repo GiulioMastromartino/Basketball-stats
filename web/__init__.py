@@ -257,6 +257,7 @@ def register_blueprints(app: Flask):
     from web.routes.advanced_analytics_api import advanced_api_bp
     from web.routes.health import health_bp
     from web.routes.pdf_export import pdf_export_bp
+    from web.routes.share import share_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(main_bp)
@@ -267,6 +268,7 @@ def register_blueprints(app: Flask):
     app.register_blueprint(advanced_api_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(pdf_export_bp, url_prefix="/api/pdf")
+    app.register_blueprint(share_bp)
 
 
 def register_commands(app: Flask):
