@@ -928,6 +928,232 @@ def upload_game():
     return render_template("upload_game.html")
 
 
+# =============================================================================
+# IMPORT WIZARD (preview-first CSV flow; legacy direct import above unchanged)
+# =============================================================================
+
+
+def _wizard_inputs():
+    """Extract (content, filename, mapping, date_override) for the wizard.
+
+    Accepts either a multipart upload (``csv_file`` + optional
+    ``column_mapping`` JSON string + ``date_override`` fields) or a JSON
+    body (``content``/``filename``/``column_mapping``/``date_override``).
+    Returns (content, filename, mapping, date_override, error_response).
+    Never raises.
+    """
+    content, filename, mapping, date_override = "", "", {}, ""
+    try:
+        if request.is_json:
+            body = request.get_json(silent=True) or {}
+            content = body.get("content") or ""
+            filename = body.get("filename") or ""
+            mapping = body.get("column_mapping") or {}
+            date_override = body.get("date_override") or ""
+        else:
+            file = request.files.get("csv_file")
+            if file is not None:
+                try:
+                    content = file.read().decode("utf-8-sig")
+                except (UnicodeDecodeError, ValueError):
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "File is not valid UTF-8 CSV text."}),
+                        400,
+                    )
+                filename = file.filename or ""
+            else:
+                content = request.form.get("content") or ""
+                filename = request.form.get("filename") or ""
+            raw_mapping = request.form.get("column_mapping") or ""
+            if raw_mapping:
+                try:
+                    mapping = json.loads(raw_mapping)
+                except (ValueError, TypeError):
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "column_mapping is not valid JSON."}),
+                        400,
+                    )
+            date_override = request.form.get("date_override") or ""
+        if not isinstance(mapping, dict):
+            return None, None, None, None, (
+                jsonify({"valid": False,
+                         "fatal": "column_mapping must be an object."}),
+                400,
+            )
+        mapping = {str(k): str(v) for k, v in mapping.items()}
+        if not content or not str(content).strip():
+            return None, None, None, None, (
+                jsonify({"valid": False, "fatal": "No CSV content received."}),
+                400,
+            )
+        if not (filename or "").strip().lower().endswith(".csv"):
+            filename = (filename or "").strip() or "upload.csv"
+        return str(content), filename, mapping, (date_override or "").strip(), None
+    except Exception as e:
+        current_app.logger.warning(f"Import wizard input error: {e}")
+        return None, None, None, None, (
+            jsonify({"valid": False, "fatal": "Could not read upload."}),
+            400,
+        )
+
+
+@main_bp.route("/upload-game/preview", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_preview():
+    """Preview-first validation for a CSV upload (JSON response).
+
+    Never 500s on bad input: malformed files yield 400 with a ``fatal``
+    message; column/row problems yield 200 with valid=false plus
+    ``columns_missing`` and per-row ``row_errors``.
+    """
+    try:
+        content, filename, mapping, date_override, err = _wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview(
+            content, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        return jsonify(preview), 200
+    except Exception as e:
+        current_app.logger.error(f"Import wizard preview error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Preview failed; file not imported."}), 400
+
+
+@main_bp.route("/upload-game/revalidate", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_revalidate():
+    """Re-run preview after in-UI fixes (column mapping / date override).
+
+    Takes the already-uploaded CSV text back from the browser, so the user
+    fixes issues WITHOUT picking the file again.
+    """
+    try:
+        content, filename, mapping, date_override, err = _wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview(
+            content, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        return jsonify(preview), 200
+    except Exception as e:
+        current_app.logger.error(f"Import wizard revalidate error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Revalidation failed; file not imported."}), 400
+
+
+@main_bp.route("/upload-game/commit", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_commit():
+    """Import a wizard-validated CSV. Commits ONLY when validation passes."""
+    from core.validators import parse_import_date
+
+    try:
+        content, filename, mapping, date_override, err = _wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview(
+            content, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        if not preview.get("valid"):
+            return jsonify(preview), 400
+
+        team_id = session.get("current_team_id")
+        info = dict(preview["game_info"])
+        if date_override:
+            display, sort_date = parse_import_date(date_override)
+            if display:
+                info["date"], info["sort_date"] = display, sort_date
+
+        existing = Game.query.filter_by(
+            sort_date=info["sort_date"], opponent=info["opponent"],
+            team_id=team_id).first()
+        if existing:
+            return jsonify({
+                "valid": False,
+                "error": (f"Game already exists: {existing.opponent} "
+                          f"on {existing.date}"),
+                "game_info": info,
+            }), 409
+
+        try:
+            df = CSVProcessor.mapped_frame(content, mapping)
+        except ValueError as e:
+            return jsonify({"valid": False, "fatal": str(e)}), 400
+        players = CSVProcessor.frame_to_players(df)
+
+        game = Game(
+            date=info["date"],
+            opponent=info["opponent"],
+            team_score=info["team_score"],
+            opponent_score=info["opponent_score"],
+            result=info["result"],
+            game_type=info["game_type"],
+            sort_date=info["sort_date"],
+            source="IMPORT",
+            team_id=team_id,
+        )
+        db.session.add(game)
+        db.session.flush()
+
+        for player in players:
+            if not player.get("name"):
+                continue
+            db.session.add(PlayerStat(
+                game_id=game.id,
+                player_name=player["name"],
+                minutes=player["minutes"],
+                points=player["points"],
+                fgm=player["fgm"],
+                fga=player["fga"],
+                fg_percent=player["fg_percent"],
+                tpm=player["tpm"],
+                tpa=player["tpa"],
+                tp_percent=player["tp_percent"],
+                ftm=player["ftm"],
+                fta=player["fta"],
+                ft_percent=player["ft_percent"],
+                oreb=player["oreb"],
+                dreb=player["dreb"],
+                reb=player["reb"],
+                ast=player["ast"],
+                tov=player["tov"],
+                stl=player["stl"],
+                blk=player["blk"],
+                pf=player["pf"],
+                plus_minus=int(player.get("plus_minus", 0) or 0),
+                reb_conceded=int(player.get("reb_conceded", 0) or 0),
+            ))
+        db.session.commit()
+        try:
+            _notify_users_game_saved(game)
+        except Exception:
+            pass
+        return jsonify({"valid": True, "success": True,
+                        "game_id": game.id,
+                        "message": (f"Imported {info['opponent']} "
+                                    f"({info['result']})")}), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Import wizard commit error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Commit failed; nothing was imported."}), 400
+
+
 def serialize_model_instance(instance):
     """Serialize a single SQLAlchemy model instance to a dict of column values."""
     if not instance:

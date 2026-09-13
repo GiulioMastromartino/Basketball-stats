@@ -101,6 +101,37 @@
             </p>
         </div>
 
+        <!-- Import wizard: preview-first CSV flow (legacy direct import below unchanged) -->
+        <!-- TODO(PDF): the PDF parser does not yield row structures reusable for
+             inline error display yet; PDF path intentionally left untouched. -->
+        <div id="import-wizard" style="margin-bottom: 20px; padding: 14px; background: #fff; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="font-weight: 700; color: var(--secondary); margin-bottom: 8px;">
+                <i class="fas fa-wand-magic-sparkles"></i> Import wizard (CSV preview &amp; fix)
+            </div>
+            <div id="wiz-drop" role="button" tabindex="0" aria-label="Choose a CSV file for preview" style="padding: 18px; border: 2px dashed var(--border-color); border-radius: 8px; background: #f8f9fa; text-align: center; cursor: pointer; color: var(--text-muted);">
+                Drag &amp; drop a CSV here, or click to choose one file for preview
+            </div>
+            <input id="wiz-file" type="file" accept=".csv" style="display: none;" />
+            <div id="wiz-preview" style="margin-top: 12px; display: none;">
+                <div id="wiz-gameinfo" style="font-size: 0.9rem; margin-bottom: 8px;"></div>
+                <div id="wiz-missing" style="margin-bottom: 8px;"></div>
+                <div id="wiz-fixtable" style="margin-bottom: 8px; overflow-x: auto;"></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px; align-items: end;">
+                    <div>
+                        <label style="display:block; font-weight: 600; font-size: 0.85rem;">Date fix (DD-MM-YYYY)</label>
+                        <input id="wiz-date" type="text" placeholder="e.g. 15-03-2025" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);" />
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight: 600; font-size: 0.85rem;">Column map (uploaded → required)</label>
+                        <div id="wiz-mapping" style="font-size: 0.85rem;"></div>
+                    </div>
+                    <button type="button" id="wiz-revalidate" class="btn btn-outline">Revalidate</button>
+                    <button type="button" id="wiz-commit" class="btn btn-primary">Review &amp; Import</button>
+                </div>
+                <div id="wiz-status" style="margin-top: 8px; font-size: 0.9rem;"></div>
+            </div>
+        </div>
+
         <!-- PDF input -->
         <div id="pdf-input" style="margin-bottom: 20px; display: none;">
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--secondary);">
@@ -295,6 +326,183 @@
 </div>
 
 <script>
+let wizContent = "";
+let wizFilename = "";
+let wizPreview = null;
+
+function wizCsrf() {
+    const el = document.querySelector('input[name="csrf_token"]');
+    return el ? el.value : "";
+}
+
+// Escape CSV-derived / error text before innerHTML insertion (XSS guard).
+function wizEsc(v) {
+    return String(v === null || v === undefined ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+async function wizPost(url, payload) {
+    const res = await fetch(url, {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "X-CSRFToken": wizCsrf()},
+        body: JSON.stringify(payload),
+    });
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = {valid: false, fatal: "Bad server response."}; }
+    return {status: res.status, data};
+}
+
+function wizCellKey(row, col) { return row + "||" + col; }
+
+function wizRenderPreview(data) {
+    wizPreview = data;
+    const box = document.getElementById('wiz-preview');
+    const info = document.getElementById('wiz-gameinfo');
+    const missing = document.getElementById('wiz-missing');
+    const table = document.getElementById('wiz-fixtable');
+    const mapping = document.getElementById('wiz-mapping');
+    const status = document.getElementById('wiz-status');
+    const commit = document.getElementById('wiz-commit');
+    box.style.display = 'block';
+
+    if (data.fatal) {
+        info.innerHTML = '<span style="color:#721c24;">' + wizEsc(data.fatal) + '</span>';
+        missing.innerHTML = ''; table.innerHTML = ''; mapping.innerHTML = '';
+        status.textContent = 'Fix the file and preview again.';
+        commit.disabled = true;
+        return;
+    }
+    const g = data.game_info;
+    info.innerHTML = g
+        ? 'Detected: <strong>' + wizEsc(g.opponent) + '</strong> — ' + wizEsc(g.date) + ' (' + wizEsc(g.game_type) + ', ' + wizEsc(g.team_score) + '-' + wizEsc(g.opponent_score) + ')'
+        : '<span style="color:#721c24;">' + wizEsc(data.filename_error || 'Unrecognized filename.') + '</span>';
+
+    missing.innerHTML = (data.columns_missing && data.columns_missing.length)
+        ? 'Missing columns: ' + data.columns_missing.map(c => '<code class="wiz-err">' + wizEsc(c) + '</code>').join(' ')
+        : '<span style="color:#155724;">All required columns present.</span>';
+
+    // Column-mapping selects: for each missing canonical column, offer uploaded headers.
+    const found = data.columns_found || [];
+    mapping.innerHTML = '';
+    (data.columns_missing || []).forEach(col => {
+        const sel = document.createElement('select');
+        sel.dataset.target = col;
+        sel.setAttribute('aria-label', 'Map a column to ' + col);
+        sel.style.cssText = 'max-width: 160px; padding: 6px; border-radius: 6px; border: 1px solid var(--border-color); margin: 2px 4px 2px 0;';
+        const none = document.createElement('option');
+        none.value = ''; none.textContent = col + ' ← (choose)';
+        sel.appendChild(none);
+        found.forEach(h => {
+            const o = document.createElement('option');
+            o.value = h; o.textContent = col + ' ← ' + h;
+            sel.appendChild(o);
+        });
+        mapping.appendChild(sel);
+    });
+    if (!(data.columns_missing || []).length) {
+        mapping.textContent = 'No mapping needed.';
+    }
+
+    // Row table with offending cells highlighted.
+    const errKeys = {};
+    (data.row_errors || []).forEach(e => {
+        if (e.row !== null && e.column) errKeys[wizCellKey(e.row, e.column)] = e.message;
+    });
+    const cols = found.slice(0, 12);
+    let html = '<table style="border-collapse: collapse; font-size: 0.8rem; width: 100%;">';
+    html += '<tr>' + cols.map(c => '<th style="border: 1px solid #dee2e6; padding: 4px 6px; background: #f1f3f5;">' + wizEsc(c) + '</th>').join('') + '</tr>';
+    (data.rows || []).slice(0, 20).forEach((r, i) => {
+        html += '<tr>' + cols.map(c => {
+            const bad = errKeys[wizCellKey(i, c)];
+            const v = wizEsc((r[c] === null || r[c] === undefined) ? '' : String(r[c]));
+            return '<td class="' + (bad ? 'wiz-err-cell' : '') + '" title="' + wizEsc(bad || '') + '" style="border: 1px solid #dee2e6; padding: 4px 6px;' + (bad ? ' background: #f8d7da;' : '') + '">' + v + '</td>';
+        }).join('') + '</tr>';
+    });
+    html += '</table>';
+    table.innerHTML = html;
+
+    const n = (data.row_errors || []).length;
+    status.innerHTML = data.valid
+        ? '<span style="color:#155724;">Valid — ready to import (' + data.player_rows + ' players).</span>'
+        : '<span style="color:#721c24;">' + n + ' issue(s) to fix inline, then Revalidate.</span>';
+    commit.disabled = !data.valid;
+    commit.textContent = data.valid ? 'Import (' + data.player_rows + ' players)' : 'Review & Import';
+}
+
+function wizCollectMapping() {
+    const map = {};
+    document.querySelectorAll('#wiz-mapping select').forEach(sel => {
+        if (sel.value) map[sel.value] = sel.dataset.target;
+    });
+    return map;
+}
+
+async function wizPreviewFile(file) {
+    wizFilename = file.name;
+    wizContent = await file.text();
+    document.getElementById('wiz-date').value = '';
+    const {data} = await wizPost('/upload-game/preview', {
+        content: wizContent, filename: wizFilename,
+        column_mapping: {}, date_override: '',
+    });
+    wizRenderPreview(data);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const drop = document.getElementById('wiz-drop');
+    const picker = document.getElementById('wiz-file');
+    if (!drop || !picker) return;
+    drop.addEventListener('click', () => picker.click());
+    drop.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            picker.click();
+        }
+    });
+    picker.addEventListener('change', () => {
+        if (picker.files.length) wizPreviewFile(picker.files[0]);
+    });
+    ['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => {
+        e.preventDefault(); drop.style.borderColor = 'var(--primary)';
+    }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => {
+        e.preventDefault(); drop.style.borderColor = 'var(--border-color)';
+    }));
+    drop.addEventListener('drop', e => {
+        const f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) wizPreviewFile(f);
+    });
+    document.getElementById('wiz-revalidate').addEventListener('click', async () => {
+        const {data} = await wizPost('/upload-game/revalidate', {
+            content: wizContent, filename: wizFilename,
+            column_mapping: wizCollectMapping(),
+            date_override: document.getElementById('wiz-date').value,
+        });
+        wizRenderPreview(data);
+    });
+    document.getElementById('wiz-commit').addEventListener('click', async () => {
+        const {status, data} = await wizPost('/upload-game/commit', {
+            content: wizContent, filename: wizFilename,
+            column_mapping: wizCollectMapping(),
+            date_override: document.getElementById('wiz-date').value,
+        });
+        const box = document.getElementById('wiz-status');
+        if (status === 201 && data.game_id) {
+            box.innerHTML = '<span style="color:#155724;">Imported! <a href="/game/' + encodeURIComponent(data.game_id) + '">View game</a></span>';
+        } else {
+            wizRenderPreview(data);
+            const reason = data.error
+                ? wizEsc(data.error)
+                : 'Import blocked until validation passes.';
+            box.innerHTML += '<br><span style="color:#721c24;">' + reason + '</span>';
+        }
+    });
+});
+
 function toggleImportType() {
     const csvInput = document.getElementById('csv-input');
     const pdfInput = document.getElementById('pdf-input');
@@ -467,6 +675,17 @@ async function handleCreateTestGame(event) {
 
 .alert {
     animation: slideDown 0.3s ease;
+}
+
+.wiz-err {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.wiz-err-cell {
+    background: #f8d7da !important;
 }
 
 @keyframes slideDown {
