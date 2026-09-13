@@ -108,7 +108,7 @@
             <div style="font-weight: 700; color: var(--secondary); margin-bottom: 8px;">
                 <i class="fas fa-wand-magic-sparkles"></i> Import wizard (CSV preview &amp; fix)
             </div>
-            <div id="wiz-drop" style="padding: 18px; border: 2px dashed var(--border-color); border-radius: 8px; background: #f8f9fa; text-align: center; cursor: pointer; color: var(--text-muted);">
+            <div id="wiz-drop" role="button" tabindex="0" aria-label="Choose a CSV file for preview" style="padding: 18px; border: 2px dashed var(--border-color); border-radius: 8px; background: #f8f9fa; text-align: center; cursor: pointer; color: var(--text-muted);">
                 Drag &amp; drop a CSV here, or click to choose one file for preview
             </div>
             <input id="wiz-file" type="file" accept=".csv" style="display: none;" />
@@ -335,6 +335,16 @@ function wizCsrf() {
     return el ? el.value : "";
 }
 
+// Escape CSV-derived / error text before innerHTML insertion (XSS guard).
+function wizEsc(v) {
+    return String(v === null || v === undefined ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 async function wizPost(url, payload) {
     const res = await fetch(url, {
         method: "POST",
@@ -360,7 +370,7 @@ function wizRenderPreview(data) {
     box.style.display = 'block';
 
     if (data.fatal) {
-        info.innerHTML = '<span style="color:#721c24;">' + data.fatal + '</span>';
+        info.innerHTML = '<span style="color:#721c24;">' + wizEsc(data.fatal) + '</span>';
         missing.innerHTML = ''; table.innerHTML = ''; mapping.innerHTML = '';
         status.textContent = 'Fix the file and preview again.';
         commit.disabled = true;
@@ -368,11 +378,11 @@ function wizRenderPreview(data) {
     }
     const g = data.game_info;
     info.innerHTML = g
-        ? 'Detected: <strong>' + g.opponent + '</strong> — ' + g.date + ' (' + g.game_type + ', ' + g.team_score + '-' + g.opponent_score + ')'
-        : '<span style="color:#721c24;">' + (data.filename_error || 'Unrecognized filename.') + '</span>';
+        ? 'Detected: <strong>' + wizEsc(g.opponent) + '</strong> — ' + wizEsc(g.date) + ' (' + wizEsc(g.game_type) + ', ' + wizEsc(g.team_score) + '-' + wizEsc(g.opponent_score) + ')'
+        : '<span style="color:#721c24;">' + wizEsc(data.filename_error || 'Unrecognized filename.') + '</span>';
 
     missing.innerHTML = (data.columns_missing && data.columns_missing.length)
-        ? 'Missing columns: ' + data.columns_missing.map(c => '<code class="wiz-err">' + c + '</code>').join(' ')
+        ? 'Missing columns: ' + data.columns_missing.map(c => '<code class="wiz-err">' + wizEsc(c) + '</code>').join(' ')
         : '<span style="color:#155724;">All required columns present.</span>';
 
     // Column-mapping selects: for each missing canonical column, offer uploaded headers.
@@ -381,6 +391,7 @@ function wizRenderPreview(data) {
     (data.columns_missing || []).forEach(col => {
         const sel = document.createElement('select');
         sel.dataset.target = col;
+        sel.setAttribute('aria-label', 'Map a column to ' + col);
         sel.style.cssText = 'max-width: 160px; padding: 6px; border-radius: 6px; border: 1px solid var(--border-color); margin: 2px 4px 2px 0;';
         const none = document.createElement('option');
         none.value = ''; none.textContent = col + ' ← (choose)';
@@ -403,12 +414,12 @@ function wizRenderPreview(data) {
     });
     const cols = found.slice(0, 12);
     let html = '<table style="border-collapse: collapse; font-size: 0.8rem; width: 100%;">';
-    html += '<tr>' + cols.map(c => '<th style="border: 1px solid #dee2e6; padding: 4px 6px; background: #f1f3f5;">' + c + '</th>').join('') + '</tr>';
+    html += '<tr>' + cols.map(c => '<th style="border: 1px solid #dee2e6; padding: 4px 6px; background: #f1f3f5;">' + wizEsc(c) + '</th>').join('') + '</tr>';
     (data.rows || []).slice(0, 20).forEach((r, i) => {
         html += '<tr>' + cols.map(c => {
             const bad = errKeys[wizCellKey(i, c)];
-            const v = (r[c] === null || r[c] === undefined) ? '' : String(r[c]);
-            return '<td class="' + (bad ? 'wiz-err-cell' : '') + '" title="' + (bad || '') + '" style="border: 1px solid #dee2e6; padding: 4px 6px;' + (bad ? ' background: #f8d7da;' : '') + '">' + v + '</td>';
+            const v = wizEsc((r[c] === null || r[c] === undefined) ? '' : String(r[c]));
+            return '<td class="' + (bad ? 'wiz-err-cell' : '') + '" title="' + wizEsc(bad || '') + '" style="border: 1px solid #dee2e6; padding: 4px 6px;' + (bad ? ' background: #f8d7da;' : '') + '">' + v + '</td>';
         }).join('') + '</tr>';
     });
     html += '</table>';
@@ -446,6 +457,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const picker = document.getElementById('wiz-file');
     if (!drop || !picker) return;
     drop.addEventListener('click', () => picker.click());
+    drop.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            picker.click();
+        }
+    });
     picker.addEventListener('change', () => {
         if (picker.files.length) wizPreviewFile(picker.files[0]);
     });
@@ -475,10 +492,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const box = document.getElementById('wiz-status');
         if (status === 201 && data.game_id) {
-            box.innerHTML = '<span style="color:#155724;">Imported! <a href="/game/' + data.game_id + '">View game</a></span>';
+            box.innerHTML = '<span style="color:#155724;">Imported! <a href="/game/' + encodeURIComponent(data.game_id) + '">View game</a></span>';
         } else {
             wizRenderPreview(data);
-            box.innerHTML += '<br><span style="color:#721c24;">Import blocked until validation passes.</span>';
+            const reason = data.error
+                ? wizEsc(data.error)
+                : 'Import blocked until validation passes.';
+            box.innerHTML += '<br><span style="color:#721c24;">' + reason + '</span>';
         }
     });
 });

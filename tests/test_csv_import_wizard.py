@@ -107,3 +107,34 @@ def test_malformed_file_rejected_cleanly(auth_client):
     resp = _preview(auth_client, "")
     assert resp.status_code == 400
     assert json.loads(resp.data)["valid"] is False
+
+
+def test_blank_name_row_flagged_not_silently_skipped(auth_client):
+    bad_row = "," + ROW1.split(",", 1)[1]  # empty Name
+    body = "\n".join([HEADER, bad_row, ROW2, TOTAL]) + "\n"
+    resp = _preview(auth_client, body)
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    assert data["valid"] is False
+    assert any(e["column"] == "Name" for e in data["row_errors"])
+
+
+def test_conflicting_column_mapping_rejected_cleanly(auth_client):
+    # PTS already exists: mapping another header onto it must 400, not 500.
+    resp = _preview(auth_client, VALID_CSV, mapping={"MIN": "PTS"})
+    assert resp.status_code == 400
+    assert json.loads(resp.data)["valid"] is False
+
+
+def test_duplicate_commit_reports_conflict(auth_client):
+    first = auth_client.post("/upload-game/commit", json={
+        "content": VALID_CSV, "filename": FILENAME,
+        "column_mapping": {}, "date_override": "",
+    })
+    assert first.status_code == 201
+    second = auth_client.post("/upload-game/commit", json={
+        "content": VALID_CSV, "filename": FILENAME,
+        "column_mapping": {}, "date_override": "",
+    })
+    assert second.status_code == 409
+    assert "already exists" in json.loads(second.data)["error"]

@@ -328,8 +328,14 @@ class CSVProcessor:
         allowed_targets = set(REQUIRED_CSV_COLUMNS) | set(OPTIONAL_CSV_COLUMNS)
         rename = {}
         for src, dst in (column_mapping or {}).items():
-            if src in df.columns and dst in allowed_targets:
-                rename[src] = dst
+            if src not in df.columns or dst not in allowed_targets:
+                continue
+            if dst != src and (dst in df.columns or dst in rename.values()):
+                raise ValueError(
+                    f"Cannot map '{src}' to '{dst}': "
+                    "target column already present."
+                )
+            rename[src] = dst
         if rename:
             df = df.rename(columns=rename)
         return CSVProcessor.normalize_columns(df)
@@ -423,10 +429,11 @@ class CSVProcessor:
             rows_out.append(clean)
 
             name_val = row.get('Name', row.get('name', row.get('Player', '')))
-            if pd.isna(name_val) or str(name_val).lower() == 'total':
+            name_text = '' if pd.isna(name_val) else str(name_val).strip()
+            if name_text.lower() == 'total':
                 continue
             data_rows += 1
-            if pd.isna(name_val) or not str(name_val).strip():
+            if not name_text:
                 result['row_errors'].append({
                     'row': idx, 'column': 'Name',
                     'message': 'Missing player name.', 'value': clean.get('Name'),
@@ -462,7 +469,11 @@ class CSVProcessor:
                         'message': f"Not a number: {val!r}.",
                         'value': clean.get(col),
                     })
-            if 'MIN' in df.columns and not is_valid_minutes(row.get('MIN')):
+            min_val = row.get('MIN') if 'MIN' in df.columns else None
+            min_blank = (min_val is None or pd.isna(min_val)
+                         or (isinstance(min_val, str) and not min_val.strip()))
+            if 'MIN' in df.columns and not min_blank \
+                    and not is_valid_minutes(min_val):
                 result['row_errors'].append({
                     'row': idx, 'column': 'MIN',
                     'message': 'Bad minutes format. Use MM:SS or minutes.',
