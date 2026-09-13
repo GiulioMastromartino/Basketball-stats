@@ -795,6 +795,21 @@ def get_four_factors():
     )
 
 
+@advanced_api_bp.route("/trend-alerts")
+@login_required
+@team_access_required
+def get_trend_alerts():
+    """Team-scoped performance trend alerts (last-N vs prior-N averages)."""
+    from core.services.analytics_service import AnalyticsService
+
+    team_id = session.get("current_team_id")
+    if team_id is None:
+        return jsonify({"error": "No team in scope"}), 400
+    last_n = request.args.get("last_n", 3, type=int) or 3
+    alerts = AnalyticsService.compute_trend_alerts(team_id, last_n)
+    return jsonify({"team_id": team_id, "last_n": last_n, "alerts": alerts})
+
+
 # =============================================================================
 # POSSESSION RECONSTRUCTION
 # =============================================================================
