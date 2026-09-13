@@ -649,6 +649,18 @@
                 <a href="{{ back_url if back_url is defined else url_for('main.players', game_type=game_type) }}" class="btn btn-light shadow-sm">
                     <i class="fas fa-arrow-left me-2"></i>Back
                 </a>
+                {% if current_user.is_authenticated and player_id %}
+                <span class="d-inline-flex align-items-center gap-2" data-share-box data-share-target-type="player" data-share-target-id="{{ player_id }}">
+                    <select class="form-select form-select-sm shadow-sm" data-share-expiry aria-label="Share link expiry" style="width: auto;">
+                        <option value="7" selected>7 days</option>
+                        <option value="14">14 days</option>
+                        <option value="30">30 days</option>
+                    </select>
+                    <button type="button" class="btn btn-outline-light shadow-sm" data-share-button data-share-target-type="player" data-share-target-id="{{ player_id }}">
+                        <i class="fas fa-share-alt me-2"></i>Share
+                    </button>
+                </span>
+                {% endif %}
                 <a href="{{ url_for('analytics.player_report_pdf', player_name=player_name, game_type=game_type) }}" 
                    class="btn btn-sm" 
                    style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 15px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; text-decoration: none; border-radius: 6px;">
@@ -657,6 +669,129 @@
             </div>
         </div>
     </div>
+
+    {% if current_user.is_authenticated and player_id %}
+    <div class="alert alert-success alert-dismissible d-none align-items-center gap-2" role="alert" data-share-result data-share-target-type="player" data-share-target-id="{{ player_id }}">
+        <i class="fas fa-link me-2"></i>
+        <a href="#" data-share-url target="_blank" rel="noopener" class="alert-link text-break"></a>
+        <button type="button" class="btn btn-sm btn-outline-success ms-2" data-share-copy>Copy</button>
+        <span class="small text-muted" data-share-copied style="display: none;">Copied!</span>
+        <button type="button" class="btn-close" data-share-dismiss aria-label="Close"></button>
+    </div>
+    <div class="alert alert-danger alert-dismissible d-none" role="alert" data-share-error>
+        <span data-share-error-text></span>
+        <button type="button" class="btn-close" data-share-dismiss aria-label="Close"></button>
+    </div>
+    <script>
+    (function () {
+        function csrfToken() {
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            return meta ? meta.getAttribute('content') : '';
+        }
+        var box = document.querySelector('[data-share-box][data-share-target-type="player"]');
+        if (!box) return;
+        var button = box.querySelector('[data-share-button]');
+        var expiry = box.querySelector('[data-share-expiry]');
+        var result = document.querySelector('[data-share-result][data-share-target-type="player"]');
+        var errorBox = document.querySelector('[data-share-error]');
+        function showError(message) {
+            if (errorBox) {
+                var text = errorBox.querySelector('[data-share-error-text]');
+                if (text) text.textContent = message;
+                errorBox.classList.remove('d-none');
+            }
+            if (result) { result.classList.add('d-none'); result.classList.remove('d-flex'); }
+        }
+        function dismissible(scope) {
+            if (!scope) return;
+            scope.querySelectorAll('[data-share-dismiss]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    scope.classList.add('d-none');
+                    scope.classList.remove('d-flex');
+                });
+            });
+        }
+        dismissible(result);
+        dismissible(errorBox);
+        var copyBtn = result ? result.querySelector('[data-share-copy]') : null;
+        if (copyBtn && result) {
+            copyBtn.addEventListener('click', function () {
+                var link = result.querySelector('[data-share-url]');
+                var url = link ? link.textContent : '';
+                if (!url) return;
+                var done = function () {
+                    var note = result.querySelector('[data-share-copied]');
+                    if (note) {
+                        note.style.display = '';
+                        setTimeout(function () { note.style.display = 'none'; }, 2000);
+                    }
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(done, function () { fallbackCopy(url, done); });
+                } else {
+                    fallbackCopy(url, done);
+                }
+            });
+        }
+        function fallbackCopy(text, done) {
+            try {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'absolute';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                done();
+            } catch (e) { /* clipboard unavailable; URL remains visible for manual copy */ }
+        }
+        if (!button) return;
+        button.addEventListener('click', function () {
+            var targetId = parseInt(button.getAttribute('data-share-target-id'), 10);
+            var days = expiry ? parseInt(expiry.value, 10) : 7;
+            if (!targetId || days < 1 || days > 30) {
+                showError('Could not create share link. Please try again.');
+                return;
+            }
+            button.disabled = true;
+            fetch('/share', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken()},
+                body: JSON.stringify({target_type: 'player', target_id: targetId, expires_in_days: days})
+            }).then(function (resp) {
+                return resp.json().then(function (data) {
+                    return {status: resp.status, data: data};
+                }).catch(function () {
+                    return {status: resp.status, data: {}};
+                });
+            }).then(function (out) {
+                button.disabled = false;
+                if (out.status === 201 && out.data && out.data.url) {
+                    var url = String(out.data.url);
+                    if (!/^https?:\/\//i.test(url)) {
+                        showError('Server returned an invalid share URL.');
+                        return;
+                    }
+                    var link = result.querySelector('[data-share-url]');
+                    link.textContent = url;
+                    link.setAttribute('href', url);
+                    result.classList.remove('d-none');
+                    result.classList.add('d-flex');
+                    if (errorBox) errorBox.classList.add('d-none');
+                } else {
+                    var msg = (out.data && out.data.error) ? String(out.data.error) : 'Could not create share link. Please try again.';
+                    showError(msg);
+                }
+            }).catch(function () {
+                button.disabled = false;
+                showError('Could not create share link. Please try again.');
+            });
+        });
+    })();
+    </script>
+    {% endif %}
 
     <!-- Quick Overview (Key Stats) -->
     <div class="stat-grid quick-overview-grid">
