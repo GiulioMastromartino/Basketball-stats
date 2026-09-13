@@ -71,6 +71,23 @@ services:
     command: ["python", "scripts/migrate.py"]
     networks:
       - backend
+    # ── Championship sync cron (daily external scrape → SQLite sidecar) ──
+  scraper:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    env_file: .env.prod
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
+      EXT_CACHE_PATH: /app/data/external_cache.db
+      LOG_FILE: /dev/stdout
+    volumes:
+      - external_data:/app/data
+    command: ["python", "-m", "jobs.championship_sync", "--daemon"]
+    networks:
+      - backend
    # ── App replica 1 ─────────────────────────────────────────────────────────
   web_1:
     build: .
@@ -92,6 +109,7 @@ services:
       - games_data:/app/Games
       - output_data:/app/Output
       - uploads_data:/app/uploads
+      - external_data:/app/data:ro
     command: ["gunicorn", "-c", "gunicorn_config.py", "run:app"]
     networks:
       - backend
@@ -116,6 +134,7 @@ services:
       - games_data:/app/Games
       - output_data:/app/Output
       - uploads_data:/app/uploads
+      - external_data:/app/data:ro
     command: ["gunicorn", "-c", "gunicorn_config.py", "run:app"]
     networks:
       - backend
@@ -140,6 +159,7 @@ services:
       - games_data:/app/Games
       - output_data:/app/Output
       - uploads_data:/app/uploads
+      - external_data:/app/data:ro
     command: ["gunicorn", "-c", "gunicorn_config.py", "run:app"]
     networks:
       - backend
@@ -222,6 +242,7 @@ services:
     networks:
       - backend
 volumes:
+  external_data:
   postgres_data:
   games_data:
   output_data:

@@ -42,6 +42,22 @@ services:
       - "8080:8080"
     command: ["./entrypoint.sh"]
 
+  scraper:
+    build: .
+    container_name: basketball_stats_scraper
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://basketball_user:basketball_pass@db/basketball_stats
+      EXT_CACHE_PATH: /app/data/external_cache.db
+      LOG_LEVEL: INFO
+    volumes:
+      - .:/app
+      - external_data:/app/data
+    command: ["python", "-m", "jobs.championship_sync", "--daemon"]
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: basketball_stats_cloudflared
@@ -53,3 +69,4 @@ services:
 
 volumes:
   postgres_data:
+  external_data:

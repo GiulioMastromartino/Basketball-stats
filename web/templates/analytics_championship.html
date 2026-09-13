@@ -12,6 +12,13 @@
                 {% endfor %}
             </select>
             {% if source == 'playbasket' %}
+            {% if ext_championships|length > 1 %}
+            <select name="ext" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                {% for c in ext_championships %}
+                <option value="{{ c.id }}" {% if c.id == ext_id %}selected{% endif %}>{{ c.display_name or c.codice_girone }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
             <input type="text" name="team" class="form-control form-control-sm w-auto" placeholder="Filter team…"
                    value="{{ team_filter or '' }}"/>
             <button type="submit" class="btn btn-sm btn-outline-primary">Filter</button>
