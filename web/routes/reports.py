@@ -65,6 +65,7 @@ from core.advanced_analytics import (
     LineupAnalytics,
     parse_time_to_seconds,
 )
+from core.game_recap import build_recap
 
 # Import functions extracted to report_service
 from core.services.report_service import (
@@ -109,6 +110,17 @@ VALID_GAME_TYPES = {"ALL", "Season", "Friendly"}
 MAX_PLAYERS_IN_ZIP = 50
 MIN_TOP_LINEUP_MINUTES = 10
 MIN_TOP_LINEUP_SECONDS = MIN_TOP_LINEUP_MINUTES * 60
+
+
+@reports_bp.route("/recap/<int:game_id>")
+@login_required
+@team_access_required
+def game_recap_json(game_id):
+    """Template-based 5-bullet game auto-recap (JSON, no LLM)."""
+    recap = build_recap(game_id, session.get('current_team_id'))
+    if recap is None:
+        abort(404)
+    return jsonify(recap)
 
 
 @reports_bp.route("/games/<int:game_id>/summary.pdf")
