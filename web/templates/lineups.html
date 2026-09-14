@@ -159,6 +159,111 @@
         </div>
     </div>
 
+    <!-- Lineup Optimizer -->
+    {% if current_team_id %}
+    <div class="card mb-4 shadow-sm" id="optimizerCard" data-endpoint="/api/advanced/lineup-optimizer">
+        <div class="card-body">
+            <h5 class="card-title mb-1"><i class="fas fa-wand-magic-sparkles me-2" aria-hidden="true"></i>Lineup Optimizer</h5>
+            <p class="text-muted small mb-3">Top 5-man units for a game situation, ranked by tracked possessions.</p>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-6">
+                    <label for="optimizerContext" class="form-label small fw-bold">Game context</label>
+                    <select id="optimizerContext" class="form-select">
+                        <option value="balanced" selected>Balanced</option>
+                        <option value="vs_zone">vs Zone</option>
+                        <option value="vs_fast">vs Fast</option>
+                        <option value="protect_lead">Protect Lead</option>
+                        <option value="need_stops">Need Stops</option>
+                        <option value="need_score">Need Score</option>
+                    </select>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <button id="optimizerBtn" class="btn btn-outline-primary px-3" type="button"><i class="fas fa-fire me-1" aria-hidden="true"></i><span id="optimizerBtnLabel">Get suggestions</span></button>
+                </div>
+            </div>
+            <div id="optimizerResults" class="mt-3" aria-live="polite"></div>
+        </div>
+    </div>
+    <script>
+    (function () {
+        var card = document.getElementById('optimizerCard');
+        if (!card) { return; }
+        var endpoint = card.getAttribute('data-endpoint') || '/api/advanced/lineup-optimizer';
+        var select = document.getElementById('optimizerContext');
+        var btn = document.getElementById('optimizerBtn');
+        var btnLabel = document.getElementById('optimizerBtnLabel');
+        var results = document.getElementById('optimizerResults');
+        if (!select || !btn || !results) { return; }
+        function clearResults() {
+            while (results.firstChild) { results.removeChild(results.firstChild); }
+        }
+        btn.addEventListener('click', function () {
+            var context = (select.value || 'balanced');
+            btn.disabled = true;
+            if (btnLabel) { btnLabel.textContent = 'Loading...'; }
+            clearResults();
+            var loading = document.createElement('div');
+            loading.className = 'text-muted small';
+            loading.textContent = 'Finding best units...';
+            results.appendChild(loading);
+            fetch(endpoint + '?context=' + encodeURIComponent(context), { headers: { 'Accept': 'application/json' } })
+                .then(function (resp) {
+                    if (!resp.ok) { throw new Error('request failed: ' + resp.status); }
+                    return resp.json();
+                })
+                .then(function (data) {
+                    clearResults();
+                    var lineups = (data && data.lineups) || [];
+                    if (!lineups.length) {
+                        var empty = document.createElement('div');
+                        empty.className = 'text-muted small';
+                        empty.textContent = (data && data.reason) || 'Not enough tracked possessions to suggest lineups yet.';
+                        results.appendChild(empty);
+                        return;
+                    }
+                    var list = document.createElement('ol');
+                    list.className = 'list-group list-group-numbered';
+                    lineups.slice(0, 5).forEach(function (entry) {
+                        var item = document.createElement('li');
+                        item.className = 'list-group-item';
+                        var head = document.createElement('div');
+                        head.className = 'd-flex justify-content-between align-items-baseline gap-2';
+                        var names = document.createElement('span');
+                        names.className = 'fw-semibold';
+                        names.textContent = (entry.players || []).join(', ');
+                        var score = document.createElement('span');
+                        score.className = 'badge bg-primary';
+                        score.textContent = 'Score ' + entry.score;
+                        head.appendChild(names);
+                        head.appendChild(score);
+                        var expl = document.createElement('div');
+                        expl.className = 'small text-muted mt-1';
+                        expl.textContent = entry.explanation || '';
+                        item.appendChild(head);
+                        item.appendChild(expl);
+                        list.appendChild(item);
+                    });
+                    results.appendChild(list);
+                })
+                .catch(function (err) {
+                    // Graceful degradation: keep the rest of the page usable
+                    // and replace the loading state with a muted note.
+                    console.error('Lineup optimizer fetch failed', err);
+                    clearResults();
+                    var failure = document.createElement('div');
+                    failure.className = 'text-muted small';
+                    failure.textContent = 'Could not load suggestions right now. Try again.';
+                    results.appendChild(failure);
+                })
+                .finally(function () {
+                    btn.disabled = false;
+                    if (btnLabel) { btnLabel.textContent = 'Get suggestions'; }
+                });
+        });
+    })();
+    </script>
+    {% endif %}
+
     <!-- Loading State -->
     <div id="loadingBar" class="text-center py-5">
         <div class="spinner-border text-primary mb-3" role="status"></div>
