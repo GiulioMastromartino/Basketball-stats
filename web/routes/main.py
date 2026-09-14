@@ -791,6 +791,7 @@ def upload_game():
                         game_type=game_type,
                         sort_date=sort_date,
                         source="IMPORT",
+                        team_id=team_id,
                     )
                     db.session.add(game)
                     db.session.flush()

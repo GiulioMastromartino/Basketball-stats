@@ -1744,6 +1744,39 @@ def get_lineup_by_players():
     )
 
 
+@advanced_api_bp.route("/lineup-optimizer")
+@login_required
+@team_access_required
+def get_lineup_optimizer():
+    """Rank the best 5-man units for a game context (team-scoped).
+
+    Query params:
+        context: one of balanced, vs_zone, vs_fast, protect_lead,
+            need_stops, need_score (default: balanced).
+    """
+    from core.services.lineup_service import (
+        OPTIMIZER_CONTEXTS,
+        rank_lineups_for_context,
+    )
+
+    context = request.args.get("context", "balanced")
+    if context not in OPTIMIZER_CONTEXTS:
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Invalid context. Use one of: "
+                        + ", ".join(OPTIMIZER_CONTEXTS)
+                    )
+                }
+            ),
+            400,
+        )
+    team_id = session.get("current_team_id")
+    result = rank_lineups_for_context(team_id, context)
+    return jsonify(result)
+
+
 # =============================================================================
 # EXTERNAL SIDECAR PROMOTION (explicit GM action)
 # =============================================================================

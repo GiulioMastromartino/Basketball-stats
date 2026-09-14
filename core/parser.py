@@ -17,6 +17,34 @@ def _safe_float_pct(val, default=0.0):
         return default
 
 
+def parse_game_pdf_bytes(pdf_bytes):
+    """Bytes-input seam over :func:`parse_game_pdf`.
+
+    Upload handlers hold raw bytes, while :func:`parse_game_pdf` only
+    accepts a filesystem path. This helper spills *pdf_bytes* to a temp
+    file and delegates, so both paths share the exact same extraction
+    logic. Raises ``ValueError`` on empty input; other exceptions from
+    the underlying parse propagate (preview builders convert them into
+    fatal preview dicts instead of 500s).
+    """
+    import os
+    import tempfile
+
+    if not isinstance(pdf_bytes, (bytes, bytearray)) \
+            or not bytes(pdf_bytes).strip():
+        raise ValueError("Empty file: no PDF content found.")
+    fd, tmp_path = tempfile.mkstemp(suffix=".pdf")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(bytes(pdf_bytes))
+        return parse_game_pdf(tmp_path)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
 def parse_game_pdf(pdf_path):
     """Parse a basketball box-score PDF into the internal game_data format."""
 
