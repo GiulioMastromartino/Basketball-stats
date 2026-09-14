@@ -1161,6 +1161,272 @@ def upload_game_commit():
                         "fatal": "Commit failed; nothing was imported."}), 400
 
 
+def _pdf_wizard_inputs():
+    """Extract (pdf_bytes, filename, mapping, date_override) for PDF wizard.
+
+    Accepts either a JSON body (``filename``/``pdf_base64``/
+    ``column_mapping``/``date_override``) or a multipart upload
+    (``pdf_file`` + optional ``column_mapping`` JSON string +
+    ``date_override`` fields). Returns
+    (raw_bytes, filename, mapping, date_override, error_response).
+    Never raises.
+    """
+    import base64
+    import binascii
+
+    raw, filename, mapping, date_override = b"", "", {}, ""
+    try:
+        if request.is_json:
+            body = request.get_json(silent=True) or {}
+            filename = body.get("filename") or ""
+            mapping = body.get("column_mapping") or {}
+            date_override = body.get("date_override") or ""
+            b64 = body.get("pdf_base64") or ""
+            if not b64 or not str(b64).strip():
+                return None, None, None, None, (
+                    jsonify({"valid": False,
+                             "fatal": "No PDF content received."}),
+                    400,
+                )
+            try:
+                raw = base64.b64decode(str(b64), validate=True)
+            except (binascii.Error, ValueError, TypeError):
+                return None, None, None, None, (
+                    jsonify({"valid": False,
+                             "fatal": "pdf_base64 is not valid base64."}),
+                    400,
+                )
+        else:
+            file = request.files.get("pdf_file")
+            if file is not None:
+                try:
+                    raw = file.read()
+                except Exception:
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "Could not read upload."}),
+                        400,
+                    )
+                filename = file.filename or ""
+            else:
+                # Form fallback: base64 passed as a plain field.
+                b64 = request.form.get("pdf_base64") or ""
+                if not b64.strip():
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "No PDF content received."}),
+                        400,
+                    )
+                try:
+                    raw = base64.b64decode(b64, validate=True)
+                except (binascii.Error, ValueError, TypeError):
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "pdf_base64 is not valid base64."}),
+                        400,
+                    )
+                filename = request.form.get("filename") or ""
+            raw_mapping = request.form.get("column_mapping") or ""
+            if raw_mapping:
+                try:
+                    mapping = json.loads(raw_mapping)
+                except (ValueError, TypeError):
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "column_mapping is not valid JSON."}),
+                        400,
+                    )
+            date_override = request.form.get("date_override") or ""
+        if not isinstance(mapping, dict):
+            return None, None, None, None, (
+                jsonify({"valid": False,
+                         "fatal": "column_mapping must be an object."}),
+                400,
+            )
+        mapping = {str(k): str(v) for k, v in mapping.items()}
+        if not raw:
+            return None, None, None, None, (
+                jsonify({"valid": False,
+                         "fatal": "No PDF content received."}),
+                400,
+            )
+        if not (filename or "").strip().lower().endswith(".pdf"):
+            filename = (filename or "").strip() or "upload.pdf"
+        return (bytes(raw), filename, mapping,
+                (date_override or "").strip(), None)
+    except Exception as e:
+        current_app.logger.warning(f"PDF wizard input error: {e}")
+        return None, None, None, None, (
+            jsonify({"valid": False, "fatal": "Could not read upload."}),
+            400,
+        )
+
+
+@main_bp.route("/upload-game/preview-pdf", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_preview_pdf():
+    """Preview-first validation for a PDF upload (JSON response).
+
+    Never 500s on bad input: malformed files yield 400 with a ``fatal``
+    message; column/row problems yield 200 with valid=false plus
+    ``columns_missing`` and per-row ``row_errors``.
+    """
+    try:
+        raw, filename, mapping, date_override, err = _pdf_wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview_pdf(
+            raw, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        return jsonify(preview), 200
+    except Exception as e:
+        current_app.logger.error(f"PDF wizard preview error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Preview failed; file not imported."}), 400
+
+
+@main_bp.route("/upload-game/revalidate-pdf", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_revalidate_pdf():
+    """Re-run PDF preview after in-UI fixes (column mapping / date override).
+
+    Takes the already-uploaded PDF bytes back from the browser (cached
+    base64), so the user fixes issues WITHOUT picking the file again.
+    """
+    try:
+        raw, filename, mapping, date_override, err = _pdf_wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview_pdf(
+            raw, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        return jsonify(preview), 200
+    except Exception as e:
+        current_app.logger.error(f"PDF wizard revalidate error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Revalidation failed; file not imported."}), 400
+
+
+@main_bp.route("/upload-game/commit-pdf", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_commit_pdf():
+    """Import a wizard-validated PDF. Commits ONLY when validation passes."""
+    from core.validators import parse_import_date
+
+    try:
+        raw, filename, mapping, date_override, err = _pdf_wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview_pdf(
+            raw, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        if not preview.get("valid"):
+            return jsonify(preview), 400
+
+        team_id = session.get("current_team_id")
+        info = dict(preview["game_info"])
+        if date_override:
+            display, sort_date = parse_import_date(date_override)
+            if display:
+                info["date"], info["sort_date"] = display, sort_date
+
+        existing = Game.query.filter_by(
+            sort_date=info["sort_date"], opponent=info["opponent"],
+            team_id=team_id).first()
+        if existing:
+            return jsonify({
+                "valid": False,
+                "error": (f"Game already exists: {existing.opponent} "
+                          f"on {existing.date}"),
+                "game_info": info,
+            }), 409
+
+        from core.parser import parse_game_pdf_bytes
+        try:
+            game_data = parse_game_pdf_bytes(raw)
+        except ValueError as e:
+            return jsonify({"valid": False, "fatal": str(e)}), 400
+        except Exception as e:
+            return jsonify({"valid": False,
+                            "fatal": (f"Could not parse PDF: {e}. "
+                                      "The file may be corrupted or not a "
+                                      "box-score PDF.")}), 400
+        try:
+            df = CSVProcessor._pdf_players_frame(game_data, mapping)
+        except ValueError as e:
+            return jsonify({"valid": False, "fatal": str(e)}), 400
+        players = CSVProcessor.frame_to_players(df)
+
+        game = Game(
+            date=info["date"],
+            opponent=info["opponent"],
+            team_score=info["team_score"],
+            opponent_score=info["opponent_score"],
+            result=info["result"],
+            game_type=info["game_type"],
+            sort_date=info["sort_date"],
+            source="IMPORT",
+            team_id=team_id,
+        )
+        db.session.add(game)
+        db.session.flush()
+
+        for player in players:
+            if not player.get("name"):
+                continue
+            db.session.add(PlayerStat(
+                game_id=game.id,
+                player_name=player["name"],
+                minutes=player["minutes"],
+                points=player["points"],
+                fgm=player["fgm"],
+                fga=player["fga"],
+                fg_percent=player["fg_percent"],
+                tpm=player["tpm"],
+                tpa=player["tpa"],
+                tp_percent=player["tp_percent"],
+                ftm=player["ftm"],
+                fta=player["fta"],
+                ft_percent=player["ft_percent"],
+                oreb=player["oreb"],
+                dreb=player["dreb"],
+                reb=player["reb"],
+                ast=player["ast"],
+                tov=player["tov"],
+                stl=player["stl"],
+                blk=player["blk"],
+                pf=player["pf"],
+                plus_minus=int(player.get("plus_minus", 0) or 0),
+                reb_conceded=int(player.get("reb_conceded", 0) or 0),
+            ))
+        db.session.commit()
+        try:
+            _notify_users_game_saved(game)
+        except Exception:
+            pass
+        return jsonify({"valid": True, "success": True,
+                        "game_id": game.id,
+                        "message": (f"Imported {info['opponent']} "
+                                    f"({info['result']})")}), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"PDF wizard commit error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Commit failed; nothing was imported."}), 400
+
+
 def serialize_model_instance(instance):
     """Serialize a single SQLAlchemy model instance to a dict of column values."""
     if not instance:

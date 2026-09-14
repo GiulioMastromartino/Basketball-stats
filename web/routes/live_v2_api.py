@@ -428,3 +428,37 @@ def undo_event():
         return _error("Failed to undo event", 500)
 
     return jsonify({"undone_id": undone_id})
+
+
+@live_v2_bp.route("/win-probability", methods=["GET"])
+@login_required
+@team_access_required
+def win_probability_curve():
+    """Return the live win-probability curve for a team-scoped game."""
+    from core.win_probability import build_win_curve
+
+    game_id = request.args.get("game_id", request.args.get("gameId"))
+    if game_id is None or game_id == "":
+        return _error("game_id is required", 400)
+    try:
+        game_id = int(game_id)
+    except (TypeError, ValueError):
+        return _error("game_id must be an integer", 400)
+
+    game, denied = _scoped_game(game_id)
+    if denied is not None:
+        # Normalize cross-team access to 404 so game existence is not
+        # leaked across teams (spec: 404 for unknown/cross-team games).
+        status = denied[1] if isinstance(denied, tuple) else 404
+        if status == 403:
+            return _error("Game not found", 404)
+        return denied
+
+    try:
+        curve = build_win_curve(game.id, game.team_id)
+    except LookupError:
+        return _error("Game not found", 404)
+    current_prob = curve[-1]["prob"] if curve else 0.5
+    return jsonify(
+        {"game_id": game.id, "current_prob": current_prob, "curve": curve}
+    )
