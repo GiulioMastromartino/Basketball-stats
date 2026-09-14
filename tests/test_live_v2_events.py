@@ -323,6 +323,33 @@ class TestUndo:
         assert ShotEvent.query.filter_by(game_id=sample_game.id).count() == 0
 
     @pytest.mark.integration
+    def test_undo_removes_shot_matching_type_and_result(
+        self, auth_client, sample_game
+    ):
+        """Same player/quarter 2PT-made + 3PT-missed: undo pops the 3PT miss."""
+        auth_client.post(
+            "/api/live-v2/events", json=_shot_payload(sample_game.id)
+        )
+        auth_client.post(
+            "/api/live-v2/events",
+            json=_shot_payload(
+                sample_game.id,
+                event_type="3PT MISS",
+                client_event_id="v2-test-3miss",
+                points=0,
+            ),
+        )
+        assert ShotEvent.query.filter_by(game_id=sample_game.id).count() == 2
+        resp = auth_client.post(
+            "/api/live-v2/undo", json={"game_id": sample_game.id}
+        )
+        assert resp.status_code == 200
+        remaining = ShotEvent.query.filter_by(game_id=sample_game.id).all()
+        assert len(remaining) == 1
+        assert remaining[0].shot_type == "2pt"
+        assert remaining[0].result == "made"
+
+    @pytest.mark.integration
     def test_undo_empty_log_404(self, auth_client, sample_game):
         resp = auth_client.post(
             "/api/live-v2/undo", json={"game_id": sample_game.id}

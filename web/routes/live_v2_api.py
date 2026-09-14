@@ -11,7 +11,7 @@ so the console can sync each queued event individually.
 import json
 import time
 
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, current_app, jsonify, request, session
 from flask_login import current_user, login_required
 
 from core.models import Game, GameEvent, ShotEvent, db
@@ -92,11 +92,15 @@ def _scoped_game(game_id):
     team_id = session.get("current_team_id")
     if game.team_id != team_id:
         return None, _error("Game belongs to another team", 403)
+    if current_app.config.get("LOGIN_DISABLED", False):
+        return game, None
     try:
         allowed = {t.id for t in current_user.assigned_teams}
     except Exception:
         allowed = set()
-    if allowed and game.team_id not in allowed:
+    # No empty-set bypass: a user with no team assignments may not act on
+    # any game, even when the session still carries a stale team id.
+    if game.team_id not in allowed:
         return None, _error("Game belongs to another team", 403)
     return game, None
 
@@ -180,11 +184,22 @@ def _detail_payload(client_event_id, team, number, action):
 
 
 def _find_duplicate(game_id, client_event_id):
-    """Return an existing event with this client_event_id, if any."""
+    """Return an existing event with this client_event_id, if any.
+
+    Scans only the most recent rows: duplicates arrive as immediate retries
+    of a just-sent event, so materializing the whole game log per request is
+    wasteful. Deliberately backend-agnostic — detail is a plain String
+    holding JSON, with no portable JSON operator across SQLite/Postgres.
+    """
     if not client_event_id:
         return None
-    events = GameEvent.query.filter_by(game_id=game_id).all()
-    for event in events:
+    recent = (
+        GameEvent.query.filter_by(game_id=game_id)
+        .order_by(GameEvent.id.desc())
+        .limit(50)
+        .all()
+    )
+    for event in recent:
         try:
             detail = json.loads(event.detail) if event.detail else {}
         except (TypeError, ValueError):
@@ -393,16 +408,17 @@ def undo_event():
     try:
         if event.event_type in _SHOT_TYPES:
             # ShotEvent rows carry no event FK: remove the most recent shot
-            # matching this event's context (correct in undo-last flows).
-            shot = (
-                ShotEvent.query.filter_by(
-                    game_id=game.id,
-                    player_name=event.player_name,
-                    quarter=event.quarter,
-                )
-                .order_by(ShotEvent.id.desc())
-                .first()
+            # matching this event's type AND result — one quarter can hold a
+            # 2PT made and a 3PT missed by the same player.
+            shot_query = ShotEvent.query.filter_by(
+                game_id=game.id,
+                player_name=event.player_name,
+                quarter=event.quarter,
+                shot_type=_SHOT_TYPE_MAP[event.event_type],
             )
+            if event.shot_attempt in ("made", "missed"):
+                shot_query = shot_query.filter_by(result=event.shot_attempt)
+            shot = shot_query.order_by(ShotEvent.id.desc()).first()
             if shot is not None:
                 db.session.delete(shot)
         db.session.delete(event)
