@@ -2,7 +2,7 @@ import statistics
 from collections import defaultdict
 
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, session
-from flask_login import login_required
+from flask_login import current_user, login_required
 from sqlalchemy import desc, func
 
 from core.models import Game, PlayerStat, db
@@ -96,7 +96,8 @@ def _load_playbasket_from_store(ext_id: int | None = None):
             "games": [{"turno": g["round_label"], "data": g["game_date"],
                        "casa": g["home"], "ospite": g["away"],
                        "pc": g["home_score"] if g["home_score"] is not None else "-",
-                       "po": g["away_score"] if g["away_score"] is not None else "-"}
+                       "po": g["away_score"] if g["away_score"] is not None else "-",
+                       "ext_id": g["id"]}
                       for g in games],
         }
         return snapshot, champs
@@ -159,6 +160,42 @@ def championship():
                              or tl in (g.get("ospite") or "").lower()]
         snapshot["standings"] = [r for r in snapshot.get("standings", [])
                                  if tl in (r.get("team") or "").lower()]
+    try:
+        can_promote = bool(
+            current_user.is_authenticated
+            and (current_user.is_gm or current_user.is_coach)
+            and not getattr(current_user, "is_auditor", False)
+        )
+    except Exception:
+        can_promote = False
+    if snapshot and snapshot.get("games"):
+        try:
+            promoted = {
+                (g.opponent, g.sort_date)
+                for g in Game.query.filter_by(
+                    team_id=team_id, source="EXTERNAL").all()
+            }
+            from web.routes.advanced_analytics_api import (
+                _external_draft_dates,
+            )
+            season_label = (snapshot.get("meta") or {}).get("season", "")
+            for row in snapshot["games"]:
+                home = (row.get("casa") or "").strip()
+                away = (row.get("ospite") or "").strip()
+                if home and away:
+                    opp = f"{home} vs {away}"[:100]
+                else:
+                    opp = (home or away or "")[:100]
+                try:
+                    _, sort_date = _external_draft_dates(
+                        row.get("data"), season_label)
+                except Exception:
+                    sort_date = ""
+                row["already_promoted"] = bool(
+                    opp and (opp, sort_date) in promoted)
+        except Exception:
+            for row in snapshot["games"]:
+                row.setdefault("already_promoted", False)
     return render_template(
         "analytics_championship.html",
         source=source,
@@ -169,6 +206,7 @@ def championship():
         ext_id=ext_id,
         team_filter=team_filter,
         season_id=season_id,
+        can_promote=can_promote,
     )
 
 
