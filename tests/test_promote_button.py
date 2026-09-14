@@ -145,8 +145,12 @@ class TestPromoteButton:
         other = ext_seed["Team C vs Team D"]
         assert f'data-ext-id="{other}"' in html
 
-    def test_bundled_fallback_has_no_buttons(self, admin_client):
+    def test_bundled_fallback_has_no_buttons(self, admin_client, tmp_path,
+                                             monkeypatch):
         # No sidecar seeded: bundled JSON snapshot has no ext ids.
+        # Pin EXT_CACHE_PATH at an empty location so a real default sidecar
+        # file can never leak ext ids into this fallback assertion.
+        monkeypatch.setenv("EXT_CACHE_PATH", str(tmp_path / "empty.db"))
         resp = admin_client.get("/analytics/championship?source=playbasket")
         assert resp.status_code == 200
         assert "data-promote-button data-ext-id" not in resp.data.decode()
