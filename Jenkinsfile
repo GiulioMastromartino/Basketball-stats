@@ -59,6 +59,16 @@ print('All dependencies verified')
         stage('Deploy to Production') {
             steps {
                 sh '''
+                    # .env.prod is gitignored so the checkout lacks it, but the
+                    # Jenkins container has real secrets at /app/.env.prod
+                    # (see docker-compose.jenkins.yml). Stage it into the
+                    # workspace: compose 'env_file: .env.prod' resolves here.
+                    if [ -f /app/.env.prod ]; then
+                        cp /app/.env.prod .env.prod
+                        echo '[OK] Staged .env.prod from /app/.env.prod'
+                    else
+                        echo '[WARN] /app/.env.prod not mounted; deploy may fail'
+                    fi
                     chmod +x scripts/deploy.sh
                     ./scripts/deploy.sh
                 '''
