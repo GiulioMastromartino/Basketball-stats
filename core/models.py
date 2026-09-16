@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask_bcrypt import Bcrypt
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
@@ -14,6 +15,10 @@ class Organization(db.Model):
     name = db.Column(db.String(100), nullable=False)
     slug = db.Column(db.String(50), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Org defaults inherited by teams (GM plan: idea 2).
+    timezone = db.Column(db.String(50), nullable=False, default="UTC", server_default="UTC")
+    sport = db.Column(db.String(50), nullable=False, default="basketball", server_default="basketball")
+    season_convention = db.Column(db.String(20), nullable=False, default="sept-june", server_default="sept-june")
 
     teams = db.relationship("Team", backref="organization", lazy=True)
     memberships = db.relationship("OrganizationMembership", backref="organization", lazy=True)
@@ -64,6 +69,8 @@ class TeamAssignment(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     is_coach = db.Column(db.Boolean, default=False)
+    # Per-team GM: head coach managing only their team (GM plan idea 1).
+    is_team_gm = db.Column(db.Boolean, default=False, server_default=text("false"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (db.UniqueConstraint("user_id", "team_id"),)
@@ -91,6 +98,8 @@ class User(UserMixin, db.Model):
         server_default="email"
     )
     whatsapp_phone = db.Column(db.String(20), nullable=True)
+    # Read-only auditor: view everything, change nothing (GM plan idea 5).
+    is_auditor = db.Column(db.Boolean, default=False, server_default=text("false"))
 
     memberships = db.relationship("OrganizationMembership", backref="user", lazy=True)
     team_assignments = db.relationship("TeamAssignment", backref="user", lazy=True)
@@ -134,6 +143,95 @@ class User(UserMixin, db.Model):
         return Team.query.join(TeamAssignment).filter(
             TeamAssignment.user_id == self.id
         ).all()
+
+    @property
+    def managed_team_ids(self):
+        """Team ids this user can manage: org GM manages all, else team-GM flags."""
+        if self.is_gm:
+            return [t.id for t in Team.query.filter_by(
+                organization_id=self.organization_id).all()]
+        rows = TeamAssignment.query.filter_by(
+            user_id=self.id, is_team_gm=True).all()
+        return [r.team_id for r in rows]
+
+    def can_manage_team(self, team_id: int) -> bool:
+        if self.is_gm:
+            return True
+        return TeamAssignment.query.filter_by(
+            user_id=self.id, team_id=team_id, is_team_gm=True).first() is not None
+
+
+class AdminAudit(db.Model):
+    """Audit trail for admin mutations (GM plan C-Phase 4).
+
+    Written by admin mutations, read via the Admin → Activity tab.
+    """
+
+    __tablename__ = "admin_audit"
+    id = db.Column(db.Integer, primary_key=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
+    action = db.Column(db.String(50), nullable=False)
+    target_type = db.Column(db.String(50), nullable=True)
+    target_id = db.Column(db.Integer, nullable=True)
+    summary = db.Column(db.String(500), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    actor = db.relationship("User", backref=db.backref("audit_entries", lazy=True))
+
+
+class TrackedChampionship(db.Model):
+    """External championship tracked by the daily sync cron (GM plan add-on).
+
+    Pure configuration: tells ``jobs.championship_sync`` which external
+    championships to poll. Scraped data lands in the SQLite sidecar
+    (``core.external_store``), never in internal tables.
+    """
+
+    __tablename__ = "tracked_championships"
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    provider = db.Column(db.String(30), nullable=False, default="fip_api")
+    comitato_codice = db.Column(db.String(20), nullable=False, default="")
+    province_codice = db.Column(db.String(20), nullable=False, default="MI")
+    codice_campionato = db.Column(db.String(20), nullable=False, default="")
+    codice_fase = db.Column(db.String(20), nullable=False, default="1")
+    codice_girone = db.Column(db.String(20), nullable=False, default="")
+    season_label = db.Column(db.String(20), nullable=False, default="")
+    display_name = db.Column(db.String(150), nullable=False, default="")
+    active = db.Column(db.Boolean, nullable=False, default=True,
+                       server_default=text("true"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           nullable=False)
+
+    __table_args__ = (db.UniqueConstraint(
+        "team_id", "provider", "comitato_codice", "province_codice",
+        "codice_campionato", "codice_fase", "codice_girone",
+        "season_label"),)
+
+    team = db.relationship("Team", backref=db.backref(
+        "tracked_championships", lazy=True))
+
+
+def log_admin_action(actor, action: str, summary: str,
+                     target_type: str | None = None,
+                     target_id: int | None = None,
+                     organization_id: int | None = None):
+    """Best-effort audit write; never breaks the calling mutation."""
+    try:
+        entry = AdminAudit(
+            actor_id=getattr(actor, "id", None),
+            organization_id=organization_id if organization_id is not None
+            else getattr(actor, "organization_id", None),
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            summary=summary,
+        )
+        db.session.add(entry)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 class SystemSetting(db.Model):
@@ -233,6 +331,7 @@ class Play(db.Model):
 
     canvas_data = db.Column(db.JSON, nullable=True)
     diagram_svg = db.Column(db.Text, nullable=True)
+    court_type = db.Column(db.String(10), default="half", server_default="half", nullable=False)
     difficulty = db.Column(db.String(20), server_default="Medium", nullable=False)
     personnel_required = db.Column(db.Text, nullable=True)
     tags = db.Column(db.Text, nullable=True)
@@ -257,6 +356,62 @@ class PlayType(db.Model):
     name = db.Column(db.String(50), unique=True, nullable=False)
 
     team = db.relationship("Team", backref=db.backref("play_types", lazy=True))
+
+
+class TrainingSession(db.Model):
+    """A scheduled training session (practice) for a team."""
+
+    __tablename__ = "training_sessions"
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    title = db.Column(db.String(150), nullable=False)
+    session_date = db.Column(db.String(10), nullable=False)  # YYYY-MM-DD
+    start_time = db.Column(db.String(5), nullable=True)  # HH:MM
+    location = db.Column(db.String(150), nullable=True)
+    focus = db.Column(db.String(50), nullable=True)  # e.g. Offense/Defense
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    team = db.relationship("Team", backref=db.backref("training_sessions", lazy=True))
+    segments = db.relationship(
+        "TrainingSegment", backref="session", cascade="all, delete-orphan",
+        order_by="TrainingSegment.position", lazy=True)
+    attendance = db.relationship(
+        "TrainingAttendance", backref="session", cascade="all, delete-orphan",
+        lazy=True)
+
+
+class TrainingSegment(db.Model):
+    """One timed agenda block inside a training session, optionally linked
+    to a play from the playbook (drill to run)."""
+
+    __tablename__ = "training_segments"
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("training_sessions.id"), nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    title = db.Column(db.String(150), nullable=False)
+    duration_min = db.Column(db.Integer, nullable=True)
+    play_id = db.Column(db.Integer, db.ForeignKey("plays.id", ondelete="SET NULL"), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+
+    play = db.relationship("Play")
+
+
+class TrainingAttendance(db.Model):
+    """Per-player attendance row for a training session."""
+
+    __tablename__ = "training_attendance"
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("training_sessions.id"), nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey("players.id", ondelete="CASCADE"), nullable=False)
+    status = db.Column(db.String(20), default="present", server_default="present", nullable=False)
+
+    player = db.relationship("Player")
+
+    __table_args__ = (
+        db.UniqueConstraint("session_id", "player_id", name="uq_attendance_session_player"),
+    )
 
 
 class ShotEvent(db.Model):
@@ -461,3 +616,32 @@ class Player(db.Model):
 
     def __repr__(self):
         return f"<Player {self.name}>"
+
+
+class ShareLink(db.Model):
+    """Expiring, revocable, read-only public link for a game or player."""
+
+    __tablename__ = "share_links"
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    target_type = db.Column(db.String(10), nullable=False)
+    target_id = db.Column(db.Integer, nullable=False)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    expires_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=lambda: datetime.utcnow() + timedelta(days=7),
+    )
+    revoked = db.Column(db.Boolean, nullable=False, default=False,
+                        server_default=text("false"))
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    team = db.relationship("Team", backref=db.backref("share_links", lazy=True))
+
+    @property
+    def is_expired(self):
+        return datetime.utcnow() >= self.expires_at
+
+    def __repr__(self):
+        return f"<ShareLink {self.target_type}:{self.target_id} revoked={self.revoked}>"

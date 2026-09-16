@@ -21,15 +21,19 @@
 
     /* Top Navigation Bar */
     .top-nav {
-        height: 60px;
+        min-height: 60px;
         background-color: var(--primary-teal);
         color: white;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0 20px;
+        flex-wrap: wrap;
+        gap: 8px;
+        row-gap: 8px;
+        padding: 8px 20px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         z-index: 1000;
+        flex-shrink: 0;
     }
 
     .nav-tabs-custom {
@@ -63,13 +67,17 @@
 
     /* Sub-header / Timeline Bar */
     .sub-header {
-        height: 50px;
+        min-height: 50px;
         background-color: white;
         border-bottom: 1px solid var(--border-color);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0 20px;
+        flex-wrap: wrap;
+        gap: 8px;
+        row-gap: 8px;
+        padding: 6px 20px;
+        flex-shrink: 0;
     }
 
     .phase-indicator {
@@ -99,22 +107,68 @@
         color: var(--primary-teal);
     }
 
-    /* Main Layout */
+    /* Main Layout: flex child of #app-content (which is 100dvh-56px).
+       flex:1 + min-height:0 keeps the sidebar/canvas on screen instead of
+       overflowing by the outer navbar height. */
     .main-workspace {
         display: flex;
-        height: calc(100vh - 110px); /* Total height - header - subheader */
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
         position: relative; /* For overlays */
     }
 
     /* Canvas Area */
     .canvas-area {
         flex-grow: 1;
+        flex-shrink: 1;
+        min-width: 0;
+        min-height: 0;
         background-color: #f4f4f4;
         display: flex;
-        justify-content: center;
-        align-items: center;
-        overflow: auto;
+        flex-direction: column;
+        overflow: hidden;
         position: relative;
+    }
+
+    .canvas-scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        display: flex;
+        padding: 16px;
+        position: relative;
+    }
+
+    /* Bottom timeline filmstrip (was missing: SequenceManager renders here) */
+    #timeline-bar {
+        flex-shrink: 0;
+        background: #fff;
+        border-top: 1px solid var(--border-color);
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        max-width: 100%;
+    }
+
+    #timeline-frames {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        overflow-x: auto;
+        padding: 2px;
+        min-height: 64px;
+        flex: 1 1 auto;
+    }
+
+    #timeline-frames .frame-item {
+        flex: 0 0 auto;
+    }
+
+    #layers-list {
+        max-height: 220px;
+        overflow-y: auto;
     }
     
     /* Notes Overlay/Panel */
@@ -167,19 +221,54 @@
         background-color: #c82333;
     }
 
-    /* Inline SVG court background */
+    /* Court backdrop is drawn on the canvas itself (court_backdrop.js),
+       so it renders identically in every browser. Plain surround color.
+       NOTE: never constrain the fabric <canvas> with max-width — it would
+       squash width without height and distort the court (3pt arc would
+       read as off-center). margin:auto centers when it fits and keeps the
+       left edge reachable by scroll when it overflows (flex centering
+       alone clips the left side). */
     #canvas-wrapper {
-        background-image: url('data:image/svg+xml;utf8,<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="500" fill="%23e8c89b"/><!-- Wood Floor Color --><!-- Main Court Boundary (50x47ft) --><rect x="150" y="15" width="500" height="470" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Key / Paint --><rect x="320" y="15" width="160" height="190" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Free Throw Circle --><path d="M 320 205 A 60 60 0 1 1 480 205" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Dashed lower arc --><path d="M 320 205 A 60 60 0 0 0 480 205" fill="none" stroke="%23ffffff" stroke-width="3" stroke-dasharray="10,10"/><!-- Backboard --><line x1="370" y1="55" x2="430" y2="55" stroke="%23ffffff" stroke-width="3"/><!-- Hoop --><circle cx="400" cy="67.5" r="7.5" fill="none" stroke="%23333" stroke-width="2"/><!-- 3-Point Line --><path d="M 180 15 L 180 157 A 237.5 237.5 0 0 0 620 157 L 620 15" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Center Circle --><path d="M 340 485 A 60 60 0 1 1 460 485" fill="none" stroke="%23ffffff" stroke-width="3"/><!-- Mid Court Line --><line x1="150" y1="485" x2="650" y2="485" stroke="%23ffffff" stroke-width="3"/></svg>');
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: 800px 500px;
+        position: relative;
+        background-color: #e8e2d4;
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
         border-radius: 4px;
+        max-width: none;
+        margin: auto;
+        flex-shrink: 0;
+    }
+
+    /* Responsive: stack sidebar below court on narrow screens so nothing
+       is squeezed off-canvas. */
+    @media (max-width: 992px) {
+        .main-workspace {
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        .canvas-area {
+            min-height: 420px;
+        }
+        .right-sidebar {
+            width: 100%;
+            border-left: none;
+            border-top: 1px solid var(--border-color);
+            overflow-y: visible;
+        }
+        .toolbar-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        #meta-name {
+            width: 140px !important;
+        }
     }
 
     /* Right Sidebar */
     .right-sidebar {
         width: 320px;
+        flex-shrink: 0;
+        min-height: 0;
         background-color: var(--sidebar-bg);
         border-left: 1px solid var(--border-color);
         display: flex;
@@ -203,17 +292,25 @@
         gap: 5px;
     }
 
-    /* Action Buttons Grid - Custom Icons */
+    /* Action Buttons Grid - Custom Icons.
+       Grouped toggle toolbar (single active action, dividers by group):
+       move actions | shot actions. Color-coded left accent per action
+       (tactics-board convention) + visible focus + kbd hints. */
     .action-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 10px;
     }
 
+    .action-toolbar-group {
+        display: contents;
+    }
+
     .btn-action {
         background-color: var(--action-btn-bg);
         color: white;
         border: none;
+        border-left: 4px solid transparent;
         padding: 8px;
         border-radius: 6px;
         font-size: 0.85rem;
@@ -221,9 +318,27 @@
         align-items: center;
         justify-content: flex-start; /* Left align for icon + text */
         gap: 8px;
-        transition: background 0.2s;
+        transition: background 0.2s, box-shadow 0.2s, transform 0.05s;
         position: relative;
         overflow: hidden;
+        cursor: pointer;
+    }
+
+    .btn-action[data-action="dribble"] { border-left-color: #f59e0b; }
+    .btn-action[data-action="pass"] { border-left-color: #3b82f6; }
+    .btn-action[data-action="cut"] { border-left-color: #22c55e; }
+    .btn-action[data-action="screen"] { border-left-color: #a855f7; }
+    .btn-action[data-action="shot"] { border-left-color: #ef4444; }
+    .btn-action[data-action="handoff"] { border-left-color: #14b8a6; }
+    .btn-action[data-tool="select"] { border-left-color: #94a3b8; }
+
+    .btn-action kbd {
+        margin-left: auto;
+        font-size: 0.65rem;
+        background: rgba(255,255,255,0.15);
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-family: inherit;
     }
 
     .btn-action:hover {
@@ -231,9 +346,35 @@
         color: white;
         text-decoration: none;
     }
+
+    .btn-action:active {
+        transform: scale(0.98);
+    }
     
     .btn-action.active {
-        box-shadow: 0 0 0 2px var(--primary-teal);
+        background-color: #34495e;
+        box-shadow: 0 0 0 2px var(--primary-teal), 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .btn-action:focus-visible {
+        outline: 2px solid var(--primary-teal);
+        outline-offset: 2px;
+    }
+
+    /* Contextual hint under the toolbar: what the active action does. */
+    .action-hint {
+        margin-top: 10px;
+        font-size: 0.78rem;
+        color: #64748b;
+        background: #f8fafc;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 8px 10px;
+        min-height: 52px;
+    }
+
+    .action-hint strong {
+        color: var(--text-dark);
     }
     
     /* Custom SVG Icons for Actions */
@@ -308,9 +449,17 @@
         justify-content: center;
         font-weight: bold;
         font-size: 0.9rem;
-        cursor: pointer;
+        cursor: grab;
         border: 1px solid #ddd;
         transition: transform 0.1s;
+        /* Drag-and-drop palette: take the gesture, don't scroll the page. */
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    .player-icon:active {
+        cursor: grabbing;
     }
 
     .player-icon:hover {
@@ -339,12 +488,31 @@
         justify-content: center;
         font-size: 1.2rem;
         color: #555;
-        cursor: pointer;
+        cursor: grab;
+        /* Drag-and-drop palette: take the gesture, don't scroll the page. */
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    .btn-misc:active {
+        cursor: grabbing;
+    }
+
+    /* Fabric object dragging on tablets: the canvas owns touch gestures. */
+    #canvas-wrapper canvas {
+        touch-action: none;
     }
     
     .btn-misc:hover {
         border-color: var(--primary-teal);
         color: var(--primary-teal);
+    }
+
+    .btn-misc.active {
+        border-color: var(--primary-teal);
+        color: var(--primary-teal);
+        box-shadow: 0 0 0 2px var(--primary-teal);
     }
 
     /* Save Button */
@@ -385,26 +553,41 @@
         </div>
     </div>
 
-    <div class="d-flex align-items-center gap-3">
-        <span id="status-bar" class="text-white-50 small mr-2"></span>
-        <button class="btn btn-link text-white p-0 mr-3" onclick="app.undo()"><i class="fas fa-undo"></i></button>
-        <button class="btn btn-link text-white p-0 mr-3" onclick="app.redo()"><i class="fas fa-redo"></i></button>
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span id="status-bar" class="text-white-50 small me-2"></span>
+        <button type="button" class="btn btn-link text-white p-0 me-3" onclick="app.undo()"><i class="fas fa-undo"></i></button>
+        <button type="button" class="btn btn-link text-white p-0 me-3" onclick="app.redo()"><i class="fas fa-redo"></i></button>
         <button class="btn btn-save" id="save-btn"><i class="fas fa-save"></i> Save Play</button>
     </div>
 </div>
 
 <!-- Sub-Header / Timeline Actions -->
 <div class="sub-header">
-    <div class="d-flex align-items-center">
+    <div class="d-flex align-items-center flex-wrap gap-2">
         <!-- Play Name Input -->
-        <input type="text" id="meta-name" class="form-control form-control-sm mr-2" placeholder="Play Name" style="width: 200px;" value="{{ play.name if play else '' }}">
+        <input type="text" id="meta-name" class="form-control form-control-sm me-2" placeholder="Play Name" style="width: 200px; max-width: 40vw;" value="{{ play.name if play else '' }}">
         
-        <!-- Play Type Select -->
-        <select id="meta-type" class="form-control form-control-sm" style="width: 120px;">
+        <!-- Play Type Select (falls back to defaults when no PlayTypes exist yet) -->
+        <select id="meta-type" class="form-control form-control-sm" style="width: 140px; max-width: 40vw;">
+            {% if play_types %}
             {% for pt in play_types %}
             <option value="{{ pt.name }}" {% if play and play.play_type == pt.name %}selected{% endif %}>{{ pt.name }}</option>
             {% endfor %}
+            {% else %}
+            <option value="Offense" {% if not play or play.play_type == 'Offense' %}selected{% endif %}>Offense</option>
+            <option value="Defense" {% if play and play.play_type == 'Defense' %}selected{% endif %}>Defense</option>
+            <option value="Special" {% if play and play.play_type == 'Special' %}selected{% endif %}>Special</option>
+            <option value="Drill" {% if play and play.play_type == 'Drill' %}selected{% endif %}>Drill</option>
+            {% endif %}
         </select>
+
+        <!-- Court size toggle: half court (800x500) or full court (800x1000).
+             Switching with a drawing on canvas asks for confirmation and
+             starts fresh, since frames belong to one geometry. -->
+        <div class="btn-group btn-group-sm" role="group" aria-label="Court size" id="court-toggle">
+            <button type="button" class="btn btn-outline-secondary" data-court="half" aria-pressed="true" title="Half court" onclick="app.setCourtType('half')">Half</button>
+            <button type="button" class="btn btn-outline-secondary" data-court="full" aria-pressed="false" title="Full court" onclick="app.setCourtType('full')">Full</button>
+        </div>
     </div>
 
     <div class="phase-indicator mx-3">
@@ -438,15 +621,15 @@
     <div id="notes-panel">
         <div class="notes-container">
             <h4 class="mb-3">Play Notes & Description</h4>
-            <div class="form-group">
-                <label class="text-muted small text-uppercase font-weight-bold">Description</label>
+            <div class="form-group mb-3">
+                <label class="text-muted small text-uppercase fw-bold">Description</label>
                 <textarea id="meta-description" class="form-control" rows="8" placeholder="Enter play details, key reads, or instructions here...">{{ play.description if play else '' }}</textarea>
             </div>
-            <div class="form-group">
-                <label class="text-muted small text-uppercase font-weight-bold">Tags (comma separated)</label>
+            <div class="form-group mb-3">
+                <label class="text-muted small text-uppercase fw-bold">Tags (comma separated)</label>
                 <input type="text" id="meta-tags" class="form-control" placeholder="e.g. baseline, late-game, vs-zone" value="{{ play.tags if play else '' }}">
             </div>
-            <div class="text-right mt-3">
+            <div class="text-end mt-3">
                 <button class="btn btn-primary" onclick="app.setMode('draw')">Return to Drawing</button>
             </div>
         </div>
@@ -454,80 +637,96 @@
 
     <!-- Center Canvas -->
     <div class="canvas-area">
-        <div id="canvas-wrapper">
-            <canvas id="playCanvas" width="800" height="500"></canvas>
+        <div class="canvas-scroll">
+            <div id="canvas-wrapper">
+                <canvas id="playCanvas" width="800" height="{% if play and play.court_type == 'full' %}1000{% else %}500{% endif %}"></canvas>
+            </div>
         </div>
         
         <!-- Contextual Delete Button Overlay -->
         <div id="delete-overlay">
-            <button class="btn-delete-selected" onclick="app.deleteSelected()">
+            <button type="button" class="btn-delete-selected" onclick="app.deleteSelected()">
                 <i class="fas fa-trash-alt"></i> Delete Selected
             </button>
+        </div>
+
+        <!-- Animation timeline filmstrip (rendered by SequenceManager) -->
+        <div id="timeline-bar" aria-label="Animation phases">
+            <span class="text-muted small fw-bold text-uppercase">Frames</span>
+            <div id="timeline-frames"></div>
         </div>
     </div>
 
     <!-- Right Sidebar -->
     <div class="right-sidebar">
         
-        <!-- Actions Section -->
+        <!-- Actions Section: grouped toggle toolbar (role=toolbar,
+             single-select). Shortcuts: V select, D dribble, P pass,
+             C cut, T screen, S shot, H handoff. -->
         <div class="sidebar-section">
             <div class="section-title">
-                ADD ACTIONS <i class="far fa-question-circle ml-1"></i>
+                ADD ACTIONS <i class="far fa-question-circle ms-1"></i>
             </div>
-            <div class="action-grid">
-                <button class="btn-action" onclick="app.tools['arrow'].setType('dribble'); app.selectTool('arrow');">
-                    <span class="icon-dribble"></span> Dribble
+            <div class="action-grid" role="toolbar" aria-label="Play actions" id="action-toolbar">
+                <button type="button" class="btn-action" data-tool="select" aria-pressed="true" title="Select / move (V)" onclick="app.selectTool('select', this);">
+                    <i class="fas fa-mouse-pointer"></i> Select <kbd>V</kbd>
                 </button>
-                <button class="btn-action" onclick="app.tools['arrow'].setType('pass'); app.selectTool('arrow');">
-                    <span class="icon-pass"></span> Pass
+                <button type="button" class="btn-action" data-action="dribble" aria-pressed="false" title="Dribble path — drag from ball-handler (D)" onclick="app.setAction('dribble', this);">
+                    <span class="icon-dribble"></span> Dribble <kbd>D</kbd>
                 </button>
-                <button class="btn-action" onclick="app.tools['arrow'].setType('cut'); app.selectTool('arrow');">
-                    <span class="icon-cut"></span> Cut
+                <button type="button" class="btn-action" data-action="pass" aria-pressed="false" title="Pass — drag from passer to receiver (P)" onclick="app.setAction('pass', this);">
+                    <span class="icon-pass"></span> Pass <kbd>P</kbd>
                 </button>
-                <button class="btn-action" onclick="app.tools['arrow'].setType('screen'); app.selectTool('arrow');">
-                    <span class="icon-screen"></span> Screen
+                <button type="button" class="btn-action" data-action="cut" aria-pressed="false" title="Cut / run — drag from start to finish (C)" onclick="app.setAction('cut', this);">
+                    <span class="icon-cut"></span> Cut <kbd>C</kbd>
                 </button>
-                <button class="btn-action" onclick="app.tools['arrow'].setType('shot'); app.selectTool('arrow');">
-                    <span class="icon-shot"></span> Shot
+                <button type="button" class="btn-action" data-action="screen" aria-pressed="false" title="Screen — drag to place the screener wall (T)" onclick="app.setAction('screen', this);">
+                    <span class="icon-screen"></span> Screen <kbd>T</kbd>
                 </button>
-                <button class="btn-action" onclick="app.tools['arrow'].setType('handoff'); app.selectTool('arrow');">
-                    <i class="fas fa-plus"></i> Handoff
+                <button type="button" class="btn-action" data-action="shot" aria-pressed="false" title="Shot — drag to the hoop (S)" onclick="app.setAction('shot', this);">
+                    <span class="icon-shot"></span> Shot <kbd>S</kbd>
                 </button>
+                <button type="button" class="btn-action" data-action="handoff" aria-pressed="false" title="Handoff — drag between the two players (H)" onclick="app.setAction('handoff', this);">
+                    <i class="fas fa-plus"></i> Handoff <kbd>H</kbd>
+                </button>
+            </div>
+            <div class="action-hint" id="action-hint" aria-live="polite">
+                <strong>Select</strong> — click a player, line or shape to move / edit it. Court lines stay locked.
             </div>
         </div>
 
         <!-- Players Section -->
         <div class="sidebar-section">
             <div class="section-title">
-                ADD PLAYERS <i class="far fa-question-circle ml-1"></i>
+                ADD PLAYERS <i class="far fa-question-circle ms-1"></i>
             </div>
             
             <!-- Row 1: Offense White Circles -->
             <div class="player-grid">
                 {% for i in range(1, 6) %}
-                <div class="player-icon p-offense-white" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'offense', style: 'circle'});">{{i}}</div>
+                <div class="player-icon p-offense-white" draggable="true" data-pb-kind="player" data-pb-props='{"label": "{{i}}", "team": "offense", "style": "circle"}' onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'offense', style: 'circle'});">{{i}}</div>
                 {% endfor %}
-                <div class="player-icon p-offense-white" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '?', team: 'offense', style: 'circle'});">?</div>
+                <div class="player-icon p-offense-white" draggable="true" data-pb-kind="player" data-pb-props='{"label": "?", "team": "offense", "style": "circle"}' onclick="app.selectTool('player'); app.tools['player'].setProps({label: '?', team: 'offense', style: 'circle'});">?</div>
             </div>
 
             <!-- Row 2: Offense Squares -->
             <div class="player-grid">
                 {% for i in range(1, 6) %}
-                <div class="player-icon p-offense-square" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'offense', style: 'square'});">{{i}}</div>
+                <div class="player-icon p-offense-square" draggable="true" data-pb-kind="player" data-pb-props='{"label": "{{i}}", "team": "offense", "style": "square"}' onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'offense', style: 'square'});">{{i}}</div>
                 {% endfor %}
             </div>
 
             <!-- Row 3: Defense X -->
             <div class="player-grid">
                 {% for i in range(1, 6) %}
-                <div class="player-icon p-defense-x" onclick="app.selectTool('player'); app.tools['player'].setProps({label: 'x{{i}}', team: 'defense', style: 'text'});">x{{i}}</div>
+                <div class="player-icon p-defense-x" draggable="true" data-pb-kind="player" data-pb-props='{"label": "x{{i}}", "team": "defense", "style": "text"}' onclick="app.selectTool('player'); app.tools['player'].setProps({label: 'x{{i}}', team: 'defense', style: 'text'});">x{{i}}</div>
                 {% endfor %}
             </div>
 
             <!-- Row 4: Defense Dark Circles -->
             <div class="player-grid">
                 {% for i in range(1, 6) %}
-                <div class="player-icon p-defense-dark" onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'defense', style: 'dark-circle'});">{{i}}</div>
+                <div class="player-icon p-defense-dark" draggable="true" data-pb-kind="player" data-pb-props='{"label": "{{i}}", "team": "defense", "style": "dark-circle"}' onclick="app.selectTool('player'); app.tools['player'].setProps({label: '{{i}}', team: 'defense', style: 'dark-circle'});">{{i}}</div>
                 {% endfor %}
             </div>
         </div>
@@ -535,19 +734,27 @@
         <!-- Misc Section -->
         <div class="sidebar-section">
             <div class="section-title">
-                ADD MISC <i class="far fa-question-circle ml-1"></i>
+                ADD MISC <i class="far fa-question-circle ms-1"></i>
             </div>
             <div class="misc-grid">
-                <button class="btn-misc" onclick="app.tools['shape'].setType('cone'); app.selectTool('shape');" title="Cone"><i class="fas fa-map-marker-alt"></i></button>
-                <button class="btn-misc" onclick="app.tools['shape'].setType('cone-tall'); app.selectTool('shape');" title="Tall Cone"><i class="fas fa-cone"></i></button>
-                <button class="btn-misc" onclick="app.selectTool('text')" title="Text"><i class="fas fa-font"></i></button>
-                <button class="btn-misc" onclick="app.tools['shape'].setType('box'); app.selectTool('shape');" title="Box"><i class="far fa-square"></i></button>
-                <button class="btn-misc" onclick="app.tools['shape'].setType('circle'); app.selectTool('shape');" title="Circle"><i class="far fa-circle"></i></button>
-                <button class="btn-misc" onclick="app.tools['shape'].setType('triangle'); app.selectTool('shape');" title="Triangle"><i class="fas fa-caret-up"></i></button>
-                <button class="btn-misc" onclick="app.tools['shape'].setType('diamond'); app.selectTool('shape');" title="Diamond"><i class="fas fa-gem"></i></button>
-                <button class="btn-misc" onclick="app.tools['shape'].setType('line'); app.selectTool('shape');" title="Line"><i class="fas fa-minus"></i></button>
-                <button class="btn-misc" onclick="app.selectTool('image')" title="Image"><i class="far fa-image"></i></button>
+                <button type="button" class="btn-misc" draggable="true" data-pb-kind="shape" data-pb-type="cone" onclick="app.tools['shape'].setType('cone'); app.selectTool('shape', this);" title="Cone"><i class="fas fa-map-marker-alt"></i></button>
+                <button type="button" class="btn-misc" draggable="true" data-pb-kind="shape" data-pb-type="cone-tall" onclick="app.tools['shape'].setType('cone-tall'); app.selectTool('shape', this);" title="Tall Cone"><i class="fas fa-cone"></i></button>
+                <button type="button" class="btn-misc" onclick="app.selectTool('text', this)" title="Text"><i class="fas fa-font"></i></button>
+                <button type="button" class="btn-misc" draggable="true" data-pb-kind="shape" data-pb-type="box" onclick="app.tools['shape'].setType('box'); app.selectTool('shape', this);" title="Box"><i class="far fa-square"></i></button>
+                <button type="button" class="btn-misc" draggable="true" data-pb-kind="shape" data-pb-type="circle" onclick="app.tools['shape'].setType('circle'); app.selectTool('shape', this);" title="Circle"><i class="far fa-circle"></i></button>
+                <button type="button" class="btn-misc" draggable="true" data-pb-kind="shape" data-pb-type="triangle" onclick="app.tools['shape'].setType('triangle'); app.selectTool('shape', this);" title="Triangle"><i class="fas fa-caret-up"></i></button>
+                <button type="button" class="btn-misc" draggable="true" data-pb-kind="shape" data-pb-type="diamond" onclick="app.tools['shape'].setType('diamond'); app.selectTool('shape', this);" title="Diamond"><i class="fas fa-gem"></i></button>
+                <button type="button" class="btn-misc" draggable="true" data-pb-kind="shape" data-pb-type="line" onclick="app.tools['shape'].setType('line'); app.selectTool('shape', this);" title="Line"><i class="fas fa-minus"></i></button>
+                <button type="button" class="btn-misc" onclick="app.selectTool('image', this)" title="Image"><i class="far fa-image"></i></button>
             </div>
+        </div>
+
+        <!-- Layers Section (rendered by LayersPanel) -->
+        <div class="sidebar-section">
+            <div class="section-title">
+                LAYERS <i class="far fa-question-circle ms-1"></i>
+            </div>
+            <ul id="layers-list" class="list-group list-group-flush border rounded"></ul>
         </div>
         
         <div class="mt-auto text-center pt-4 border-top">
@@ -574,8 +781,11 @@
 <script>
     window.PlayBuilderConfig = {
         playId: "{{ play.id if play else '' }}",
-        apiBase: "/api/v1"
+        apiBase: "/api/v1",
+        court: "{{ play.court_type if play and play.court_type else 'half' }}"
     };
+    // Shared halfcourt asset (single source of truth, also used by reports).
+    window.COURT_SVG_INNER = {{ court_svg_inner|default('')|tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/playbuilder/tools/tool_base.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/tools/select_tool.js') }}"></script>
@@ -584,8 +794,8 @@
 <script src="{{ url_for('static', filename='js/playbuilder/tools/text_tool.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/tools/shape_tool.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/tools/image_tool.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/state/history.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/state/sequence.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/state/history.js') }}"></script><script src="{{ url_for('static', filename='js/playbuilder/state/sequence.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/services/layers.js') }}"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/court_backdrop.js') }}"></script>
 <script src="{{ url_for('static', filename='js/playbuilder/app.js') }}"></script>
 {% endblock %}

@@ -20,12 +20,16 @@
             background: var(--hs-bg-main);
             color: #fff8eb;
             height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
         }
         .play-builder-nav {
             background: linear-gradient(165deg, #151a22 0%, #0d1015 100%);
             border-bottom: 1px solid var(--hs-line);
             box-shadow: 0 8px 32px rgba(0,0,0,0.35);
             z-index: 1000;
+            flex-shrink: 0;
         }
         .play-builder-nav .navbar-brand {
             font-family: var(--hs-font-display);
@@ -34,8 +38,13 @@
             color: #fff8eb !important;
         }
         #app-content {
-            height: calc(100vh - 56px);
+            flex: 1 1 auto;
+            min-height: 0;
+            height: auto;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
         }
     </style>
     {% block extra_css %}{% endblock %}

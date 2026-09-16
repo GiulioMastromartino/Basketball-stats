@@ -32,52 +32,70 @@ class PlayerTool extends ToolBase {
         }
 
         const pointer = this.canvas.getPointer(opt.e);
-        let playerObj;
-        
+        const playerObj = this.createToken(null, pointer.x, pointer.y);
+        if (playerObj) {
+            this.canvas.add(playerObj);
+            this.canvas.setActiveObject(playerObj);
+            this.canvas.requestRenderAll();
+        }
+
+        // Auto-switch to Select tool (One-Shot)
+        if (window.app) {
+            window.app.selectTool('select');
+        }
+    }
+
+    /**
+     * Factory shared by click-to-place and drag-and-drop palette flows.
+     * Returns the configured token (not yet added to the canvas) or null.
+     */
+    createToken(props, x, y) {
+        const merged = { ...this.currentProps, ...(props || {}) };
         const commonProps = {
-            left: pointer.x,
-            top: pointer.y,
+            left: x,
+            top: y,
             originX: 'center',
             originY: 'center',
             selectable: true,
             hasControls: true
         };
+        let playerObj = null;
 
-        if (this.currentProps.style === 'circle') {
+        if (merged.style === 'circle') {
             playerObj = new fabric.Group([
                 new fabric.Circle({
                     radius: 15, fill: '#ffffff', stroke: '#000000', strokeWidth: 1, originX: 'center', originY: 'center'
                 }),
-                new fabric.Text(this.currentProps.label, {
+                new fabric.Text(merged.label, {
                     fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', originX: 'center', originY: 'center'
                 })
             ], commonProps);
-        } else if (this.currentProps.style === 'square') {
+        } else if (merged.style === 'square') {
              // "Just number" style as requested
-             playerObj = new fabric.Text(this.currentProps.label, {
+             playerObj = new fabric.Text(merged.label, {
                 ...commonProps,
-                fontSize: 20, 
-                fontFamily: 'Arial', 
-                fontWeight: 'bold', 
+                fontSize: 20,
+                fontFamily: 'Arial',
+                fontWeight: 'bold',
                 fill: '#000000'
              });
-        } else if (this.currentProps.style === 'text') {
+        } else if (merged.style === 'text') {
              // Defense 'x' usually
-             playerObj = new fabric.Text(this.currentProps.label, {
+             playerObj = new fabric.Text(merged.label, {
                 ...commonProps,
                 fontSize: 24, fontFamily: 'monospace', fontWeight: 'bold', fill: '#333'
              });
-        } else if (this.currentProps.style === 'dark-circle') {
+        } else if (merged.style === 'dark-circle') {
              playerObj = new fabric.Group([
                 new fabric.Circle({
                     radius: 15, fill: '#333333', stroke: '#000000', strokeWidth: 1, originX: 'center', originY: 'center'
                 }),
-                new fabric.Text(this.currentProps.label, {
+                new fabric.Text(merged.label, {
                     fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', fill: '#ffffff', originX: 'center', originY: 'center'
                 })
             ], commonProps);
         }
-        
+
         if (playerObj) {
             // Custom serialization
             playerObj.toObject = (function(toObject) {
@@ -87,22 +105,14 @@ class PlayerTool extends ToolBase {
                     });
                 };
             })(playerObj.toObject);
-            
-            playerObj.custom = { 
-                kind: 'player-token', 
-                team: this.currentProps.team,
-                label: this.currentProps.label,
-                style: this.currentProps.style // PERSIST STYLE
+
+            playerObj.custom = {
+                kind: 'player-token',
+                team: merged.team,
+                label: merged.label,
+                style: merged.style // PERSIST STYLE
             };
-            
-            this.canvas.add(playerObj);
-            this.canvas.setActiveObject(playerObj);
-            this.canvas.requestRenderAll();
         }
-        
-        // Auto-switch to Select tool (One-Shot)
-        if (window.app) {
-            window.app.selectTool('select');
-        }
+        return playerObj;
     }
 }

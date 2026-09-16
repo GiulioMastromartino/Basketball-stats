@@ -17,8 +17,9 @@ class LayersPanel {
         const objects = this.canvas.getObjects().slice().reverse();
 
         objects.forEach((obj, index) => {
-            // Skip court lines
+            // Skip court lines and the locked court backdrop
             if (obj.custom?.kind === 'court-line') return;
+            if (obj.custom?.kind === 'court-backdrop') return;
 
             const li = document.createElement('li');
             li.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center p-2';
@@ -43,10 +44,20 @@ class LayersPanel {
             const isActive = this.canvas.getActiveObject() === obj;
             if (isActive) li.classList.add('active');
 
-            li.innerHTML = `
-                <span><i class="fas ${icon} mr-2"></i> ${label}</span>
-                <span class="badge badge-light badge-pill action-btn delete-btn" title="Delete">&times;</span>
-            `;
+            // Build row with DOM APIs: label holds user-controlled text
+            // (player labels, text objects) so it must go through
+            // textContent, never innerHTML (stored XSS otherwise).
+            const row = document.createElement('span');
+            const glyph = document.createElement('i');
+            glyph.className = `fas ${icon} me-2`;
+            row.appendChild(glyph);
+            row.appendChild(document.createTextNode(label));
+            const del = document.createElement('span');
+            del.className = 'badge bg-light text-dark rounded-pill action-btn delete-btn';
+            del.title = 'Delete';
+            del.textContent = '×';
+            li.appendChild(row);
+            li.appendChild(del);
 
             // Click to select
             li.addEventListener('click', (e) => {

@@ -2,7 +2,7 @@ import statistics
 from collections import defaultdict
 
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, session
-from flask_login import login_required
+from flask_login import current_user, login_required
 from sqlalchemy import desc, func
 
 from core.models import Game, PlayerStat, db
@@ -42,6 +42,175 @@ def dashboard():
     players = players_q.distinct().order_by(PlayerStat.player_name).all()
     player_names = [p[0] for p in players]
     return render_template("analytics.html", players=player_names)
+
+
+CHAMPIONSHIP_SOURCES = ("internal", "playbasket")
+
+
+def _load_playbasket_snapshot():
+    """Bundled Playbasket scrape: DR4 Lombardia 2025/26, Girone M."""
+    import json
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[2] / "data" / "playbasket_dr4_2025_26.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"meta": {}, "standings": [], "games": []}
+
+
+def _load_playbasket_from_store(ext_id: int | None = None):
+    """Playbasket snapshot from the SQLite sidecar, if populated.
+
+    Returns (snapshot, championships) where championships lists all
+    available playbasket snapshots for the selector. Falls back to
+    (None, []) when the store is empty.
+    """
+    from core import external_store as store
+    import sqlite3
+    try:
+        conn = store.connect()
+    except (OSError, sqlite3.Error):
+        return None, []
+    try:
+        champs = [c for c in store.list_championships(conn)
+                  if c["provider"] == "playbasket_html"]
+        if not champs:
+            return None, []
+        chosen = next((c for c in champs if c["id"] == ext_id), champs[0])
+        games = store.list_games(conn, chosen["id"])
+        standings = [{"pos": r["position"], "team": r["team"],
+                      "pts": r["points"], "g": r["played"], "w": r["won"],
+                      "l": r["lost"], "pf": r["scored"], "ps": r["conceded"]}
+                     for r in store.get_standings(conn, chosen["id"])]
+        snapshot = {
+            "meta": {
+                "competition": chosen["display_name"] or "External championship",
+                "girone": chosen["codice_girone"],
+                "season": chosen["season_label"],
+                "source": "playbasket.it",
+                "source_url": chosen["source_url"],
+                "scraped_at": chosen["last_checked"] or "unknown",
+                "note": "Live sidecar cache, refreshed by the daily sync.",
+            },
+            "standings": standings,
+            "games": [{"turno": g["round_label"], "data": g["game_date"],
+                       "casa": g["home"], "ospite": g["away"],
+                       "pc": g["home_score"] if g["home_score"] is not None else "-",
+                       "po": g["away_score"] if g["away_score"] is not None else "-",
+                       "ext_id": g["id"]}
+                      for g in games],
+        }
+        return snapshot, champs
+    finally:
+        conn.close()
+
+
+@analytics_bp.route("/analytics/championship")
+@login_required
+@team_access_required
+def championship():
+    """Championship subpage with selectable info source.
+
+    - ``internal``: standings/record computed from this team's DB games.
+    - ``playbasket``: bundled Playbasket scrape (DR4 Lombardia 2025/26).
+    """
+    from core.services.season_service import resolve_request_season_id
+    source = (request.args.get("source") or "internal").strip().lower()
+    if source not in CHAMPIONSHIP_SOURCES:
+        source = "internal"
+    team_id = session.get("current_team_id")
+    season_id = resolve_request_season_id(team_id)
+
+    internal = None
+    if source == "internal":
+        q = Game.query.filter(
+            Game.team_id == team_id,
+            Game.game_type != "Draft",
+        ).order_by(Game.sort_date)
+        if season_id != "ALL":
+            q = q.filter(Game.season_id == int(season_id))
+        games = q.all()
+        wins = sum(1 for g in games if g.result == "W")
+        opp_table = {}
+        for g in games:
+            row = opp_table.setdefault(g.opponent, {"g": 0, "w": 0, "l": 0,
+                                                    "pf": 0, "ps": 0})
+            row["g"] += 1
+            row["w" if g.result == "W" else "l"] += 1
+            row["pf"] += g.team_score or 0
+            row["ps"] += g.opponent_score or 0
+        internal = {
+            "games": games,
+            "wins": wins,
+            "losses": len(games) - wins,
+            "opponents": sorted(opp_table.items()),
+            "season_id": season_id,
+        }
+
+    snapshot = None
+    ext_championships: list = []
+    ext_id = request.args.get("ext", type=int)
+    if source == "playbasket":
+        snapshot, ext_championships = _load_playbasket_from_store(ext_id)
+        if snapshot is None:
+            snapshot = _load_playbasket_snapshot()
+    team_filter = (request.args.get("team") or "").strip()
+    if snapshot and team_filter:
+        tl = team_filter.lower()
+        snapshot = dict(snapshot)
+        snapshot["games"] = [g for g in snapshot.get("games", [])
+                             if tl in (g.get("casa") or "").lower()
+                             or tl in (g.get("ospite") or "").lower()]
+        snapshot["standings"] = [r for r in snapshot.get("standings", [])
+                                 if tl in (r.get("team") or "").lower()]
+    try:
+        can_promote = bool(
+            current_user.is_authenticated
+            and (current_user.is_gm or current_user.is_coach)
+            and not getattr(current_user, "is_auditor", False)
+        )
+    except Exception:
+        can_promote = False
+    if snapshot and snapshot.get("games"):
+        try:
+            promoted = {
+                (g.opponent, g.sort_date)
+                for g in Game.query.filter_by(
+                    team_id=team_id, source="EXTERNAL").all()
+            }
+            from web.routes.advanced_analytics_api import (
+                _external_draft_dates,
+            )
+            season_label = (snapshot.get("meta") or {}).get("season", "")
+            for row in snapshot["games"]:
+                home = (row.get("casa") or "").strip()
+                away = (row.get("ospite") or "").strip()
+                if home and away:
+                    opp = f"{home} vs {away}"[:100]
+                else:
+                    opp = (home or away or "")[:100]
+                try:
+                    _, sort_date = _external_draft_dates(
+                        row.get("data"), season_label)
+                except Exception:
+                    sort_date = ""
+                row["already_promoted"] = bool(
+                    opp and (opp, sort_date) in promoted)
+        except Exception:
+            for row in snapshot["games"]:
+                row.setdefault("already_promoted", False)
+    return render_template(
+        "analytics_championship.html",
+        source=source,
+        sources=CHAMPIONSHIP_SOURCES,
+        internal=internal,
+        snapshot=snapshot,
+        ext_championships=ext_championships,
+        ext_id=ext_id,
+        team_filter=team_filter,
+        season_id=season_id,
+        can_promote=can_promote,
+    )
 
 
 @analytics_bp.route("/api/analytics/team_overview")

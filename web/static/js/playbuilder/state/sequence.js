@@ -129,6 +129,7 @@ class SequenceManager {
         // Lock history to prevent undo stack pollution from frame switching
         this.app.isHistoryLocked = true;
         this.app.canvas.loadFromJSON(frame.data, () => {
+            if (typeof CourtBackdrop !== 'undefined') CourtBackdrop.lockAll(this.app.canvas);
             this.app.canvas.renderAll();
             this.app.isHistoryLocked = false;
             // Also refresh layers
@@ -142,6 +143,23 @@ class SequenceManager {
         }
     }
 
+    moveFrame(from, to) {
+        // Drag-and-drop reorder of timeline phases. Keeps the previously
+        // current frame selected by identity (not stale index).
+        if (!Number.isInteger(from) || !Number.isInteger(to)) return;
+        if (from < 0 || from >= this.frames.length) return;
+        if (to < 0 || to >= this.frames.length) return;
+        if (from === to) return;
+        this.updateCurrentFrameData();
+        const currentFrame = this.frames[this.currentIndex];
+        const [moved] = this.frames.splice(from, 1);
+        this.frames.splice(to, 0, moved);
+        this.currentIndex = this.frames.indexOf(currentFrame);
+        if (this.currentIndex < 0) this.currentIndex = this.frames.indexOf(moved);
+        this.loadFrame(this.currentIndex);
+        this.renderTimeline();
+    }
+
     renderTimeline() {
         // Update text indicator
         if (this.indicatorElement) {
@@ -153,7 +171,7 @@ class SequenceManager {
 
         this.frames.forEach((frame, index) => {
             const el = document.createElement('div');
-            el.className = `frame-item bg-light text-dark p-2 mr-2 rounded text-center position-relative ${index === this.currentIndex ? 'border border-primary' : ''}`;
+            el.className = `frame-item bg-light text-dark p-2 me-2 rounded text-center position-relative ${index === this.currentIndex ? 'border border-primary' : ''}`;
             el.style.width = '100px';
             el.style.cursor = 'pointer';
             if (index === this.currentIndex) el.style.backgroundColor = '#e6f0ff';
@@ -165,6 +183,34 @@ class SequenceManager {
             `;
             
             el.addEventListener('click', () => this.selectFrame(index));
+
+            // Drag-and-drop reorder: drag a phase onto another phase's slot.
+            el.draggable = true;
+            el.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('application/x-pb-frame', String(index));
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            el.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                el.style.outline = '2px dashed #0d6efd';
+                el.style.outlineOffset = '2px';
+            });
+            el.addEventListener('dragleave', () => {
+                el.style.outline = '';
+                el.style.outlineOffset = '';
+            });
+            el.addEventListener('drop', (e) => {
+                e.preventDefault();
+                el.style.outline = '';
+                el.style.outlineOffset = '';
+                const from = parseInt(e.dataTransfer.getData('application/x-pb-frame'), 10);
+                this.moveFrame(from, index);
+            });
+            el.addEventListener('dragend', () => {
+                el.style.outline = '';
+                el.style.outlineOffset = '';
+            });
             
             const delBtn = el.querySelector('.delete-frame-btn');
             if(delBtn) delBtn.addEventListener('click', (e) => this.deleteFrame(index, e));

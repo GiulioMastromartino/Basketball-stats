@@ -5,7 +5,7 @@
     <div class="page-hero">
         <div>
             <h1 class="page-hero__title"><i class="fas fa-th-large" aria-hidden="true"></i> Dashboard</h1>
-            <p class="page-hero__lead">Welcome back, Coach</p>
+            <p class="page-hero__lead">Welcome back, {{ current_user.username }}</p>
         </div>
         <div>
             <a href="{{ url_for('main.upload_game') }}" class="btn btn-primary">
@@ -45,6 +45,41 @@
             </div>
         </div>
     </div>
+
+    <div class="card mb-4 border-0 shadow-sm" id="trend-alerts-card" hidden>
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">Trend Alerts</h3>
+            <button type="button" class="btn-close" id="trend-alerts-dismiss" aria-label="Dismiss trend alerts"></button>
+        </div>
+        <div class="card-body">
+            <ul class="list-group list-group-flush" id="trend-alerts-list"></ul>
+        </div>
+    </div>
+    <script>
+    (function () {
+        var card = document.getElementById("trend-alerts-card");
+        var list = document.getElementById("trend-alerts-list");
+        var dismiss = document.getElementById("trend-alerts-dismiss");
+        if (dismiss && card) {
+            dismiss.addEventListener("click", function () { card.hidden = true; });
+        }
+        if (!card || !list) { return; }
+        fetch("/api/advanced/trend-alerts", { headers: { "Accept": "application/json" } })
+            .then(function (resp) { if (!resp.ok) { throw new Error("trend alerts unavailable"); } return resp.json(); })
+            .then(function (data) {
+                var alerts = (data && data.alerts) || [];
+                if (!alerts.length) { return; }
+                alerts.forEach(function (a) {
+                    var li = document.createElement("li");
+                    li.className = "list-group-item" + (a.favorable === false ? " list-group-item-warning" : " list-group-item-info");
+                    li.textContent = a.message || ((a.label || a.metric) + " " + (a.direction || "") + " " + (a.magnitude != null ? a.magnitude : ""));
+                    list.appendChild(li);
+                });
+                card.hidden = false;
+            })
+            .catch(function () { /* degrade silently: leave card hidden */ });
+    })();
+    </script>
 
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-transparent">

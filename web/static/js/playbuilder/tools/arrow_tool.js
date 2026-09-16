@@ -34,18 +34,89 @@ class ArrowTool extends ToolBase {
         super.activate();
         this.canvas.selection = false;
         this.canvas.defaultCursor = 'crosshair';
-        this.canvas.forEachObject(o => (o.selectable = false));
+        this.canvas.forEachObject(o => {
+            if (typeof CourtBackdrop !== 'undefined' && CourtBackdrop.isBackdrop(o)) {
+                CourtBackdrop.lock(o);
+                return;
+            }
+            o.selectable = false;
+        });
     }
 
     deactivate() {
         super.deactivate();
         this.canvas.selection = true;
         this.canvas.defaultCursor = 'default';
-        this.canvas.forEachObject(o => (o.selectable = true));
+        this.canvas.forEachObject(o => {
+            if (typeof CourtBackdrop !== 'undefined' && CourtBackdrop.isBackdrop(o)) {
+                CourtBackdrop.lock(o);
+                return;
+            }
+            o.selectable = true;
+        });
     }
 
     setType(type) {
         if (this.typeConfig[type]) this.currentType = type;
+    }
+
+    /**
+     * Visual end-trim per action type (px): the stored custom.start/end
+     * stay snapped to the token (phase logic + handles untouched) while the
+     * *rendered* line stops short, so strokes and end-caps never paint over
+     * the player symbol.
+     * Start snaps to the token CENTER on first click, so START_TRIM must
+     * clear the whole symbol radius (~15px) + gap. Ends snap to the token
+     * border, so they only need room for the end-cap (arrowheads, centered
+     * on the tip, need the most). The shot target sits on the rim by design.
+     */
+    static get TRIM_START() { return 20; }
+    endTrimFor(type) {
+        switch (type) {
+            case 'pass':
+            case 'cut':
+            case 'dribble':
+                return 13;
+            case 'screen':
+            case 'handoff':
+                return 7;
+            case 'shot':
+                return 3;
+            default:
+                return 10;
+        }
+    }
+
+    static shiftToward(from, toward, dist) {
+        const dx = toward.x - from.x;
+        const dy = toward.y - from.y;
+        const len = Math.hypot(dx, dy);
+        if (len < 1e-6 || dist <= 0) return { x: from.x, y: from.y };
+        const k = dist / len;
+        return { x: from.x + dx * k, y: from.y + dy * k };
+    }
+
+    /**
+     * Shorten a start→end line along its end tangents so it begins/ends
+     * outside the player symbol. Only affects rendering; callers keep the
+     * original points for snapping, handles and phase logic.
+     */
+    trimmedEnds(start, end, pointOnCurve, trimStart, trimEnd) {
+        const len = Math.hypot(end.x - start.x, end.y - start.y);
+        if (len < 1e-6) return { start: { ...start }, end: { ...end } };
+        // Never trim a short flick out of existence: keep >= 6px visible.
+        let ts = trimStart;
+        let te = trimEnd;
+        if (len <= ts + te + 6) {
+            const f = Math.max(0, (len - 6) / (ts + te || 1));
+            ts *= f;
+            te *= f;
+        }
+        const anchor = pointOnCurve || { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+        return {
+            start: ArrowTool.shiftToward(start, anchor, ts),
+            end: ArrowTool.shiftToward(end, anchor, te),
+        };
     }
 
     // --- Math Helpers ---
@@ -303,15 +374,18 @@ class ArrowTool extends ToolBase {
 
     createArrowGroup(start, end, pointOnCurve) {
         const config = this.typeConfig[this.currentType];
+        // Render trimmed so the stroke/cap clears the player symbols;
+        // logical start/end/control below stay snapped for phase logic.
+        const trimmed = this.trimmedEnds(start, end, pointOnCurve, ArrowTool.TRIM_START, this.endTrimFor(this.currentType));
         // Generate path using the pointOnCurve -> BezierCP transformation
-        const pathData = this.getPathDataForCurrentType(start, end, pointOnCurve);
+        const pathData = this.getPathDataForCurrentType(trimmed.start, trimmed.end, pointOnCurve);
         
         const path = new fabric.Path(pathData, {
             stroke: config.stroke, strokeWidth: 2, strokeDashArray: config.strokeDashArray,
             fill: 'transparent', originX: 'center', originY: 'center'
         });
 
-        const angle = this.endAngle(start, pointOnCurve, end);
+        const angle = this.endAngle(trimmed.start, pointOnCurve, trimmed.end);
         let head;
 
         if (config.arrow) {
@@ -324,21 +398,21 @@ class ArrowTool extends ToolBase {
                 stroke: config.stroke, strokeWidth: 3, originX: 'center', originY: 'center', angle: angle
             });
         } else if (config.endCap === 'target') {
-             const c = new fabric.Circle({ radius: 8, fill: 'transparent', stroke: config.stroke, strokeWidth: 2, originX: 'center', originY: 'center' });
-             const l1 = new fabric.Line([0, -8, 0, 8], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
-             const l2 = new fabric.Line([-8, 0, 8, 0], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
-             head = new fabric.Group([c, l1, l2], { originX: 'center', originY: 'center', angle: angle });
+              const c = new fabric.Circle({ radius: 8, fill: 'transparent', stroke: config.stroke, strokeWidth: 2, originX: 'center', originY: 'center' });
+              const l1 = new fabric.Line([0, -8, 0, 8], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
+              const l2 = new fabric.Line([-8, 0, 8, 0], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
+              head = new fabric.Group([c, l1, l2], { originX: 'center', originY: 'center', angle: angle });
         } else if (config.endCap === 'handoff') {
-             head = new fabric.Text('H', {
-                 fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', fill: config.stroke,
-                 originX: 'center', originY: 'center', angle: angle
-             });
+              head = new fabric.Text('H', {
+                  fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', fill: config.stroke,
+                  originX: 'center', originY: 'center', angle: angle
+              });
         }
 
         const objs = [path];
         if (head) {
-            head.left = end.x;
-            head.top = end.y;
+            head.left = trimmed.end.x;
+            head.top = trimmed.end.y;
             objs.push(head);
         }
 
@@ -364,35 +438,39 @@ class ArrowTool extends ToolBase {
         if (this.line) this.canvas.remove(this.line);
         if (this.arrowHead) this.canvas.remove(this.arrowHead);
 
-        const pathData = this.getPathDataForCurrentType(this.startPoint, endPoint, pointOnCurve);
+        // Same visual trim as the final group: preview must match the
+        // saved arrow, with the tip stopping outside the player symbol.
+        const trimmed = this.trimmedEnds(this.startPoint, endPoint, pointOnCurve, ArrowTool.TRIM_START, this.endTrimFor(this.currentType));
+        const pathData = this.getPathDataForCurrentType(trimmed.start, trimmed.end, pointOnCurve);
         this.line = new fabric.Path(pathData, {
             stroke: config.stroke, strokeWidth: 2, strokeDashArray: config.strokeDashArray,
             fill: 'transparent', selectable: false, evented: false
         });
         this.canvas.add(this.line);
 
-        const angle = this.endAngle(this.startPoint, pointOnCurve, endPoint);
+        const angle = this.endAngle(trimmed.start, pointOnCurve, trimmed.end);
+        const tip = trimmed.end;
         // ... Heads ...
         if (config.arrow) {
-             this.arrowHead = new fabric.Triangle({
-                width: 12, height: 12, fill: config.stroke,
-                left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle + 90, selectable: false, evented: false
-            });
-        } else if (config.endCap === 'T') {
-             this.arrowHead = new fabric.Line([0, -15, 0, 15], {
-                stroke: config.stroke, strokeWidth: 3,
-                left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle, selectable: false, evented: false
-            });
-        } else if (config.endCap === 'target') {
-             const c = new fabric.Circle({ radius: 8, fill: 'transparent', stroke: config.stroke, strokeWidth: 2, originX: 'center', originY: 'center' });
-             const l1 = new fabric.Line([0, -8, 0, 8], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
-             const l2 = new fabric.Line([-8, 0, 8, 0], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
-             this.arrowHead = new fabric.Group([c, l1, l2], { left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle, selectable: false, evented: false });
-        } else if (config.endCap === 'handoff') {
-             this.arrowHead = new fabric.Text('H', {
-                 fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', fill: config.stroke,
-                 left: endPoint.x, top: endPoint.y, originX: 'center', originY: 'center', angle: angle, selectable: false, evented: false
+              this.arrowHead = new fabric.Triangle({
+                 width: 12, height: 12, fill: config.stroke,
+                 left: tip.x, top: tip.y, originX: 'center', originY: 'center', angle: angle + 90, selectable: false, evented: false
              });
+        } else if (config.endCap === 'T') {
+              this.arrowHead = new fabric.Line([0, -15, 0, 15], {
+                 stroke: config.stroke, strokeWidth: 3,
+                 left: tip.x, top: tip.y, originX: 'center', originY: 'center', angle: angle, selectable: false, evented: false
+             });
+        } else if (config.endCap === 'target') {
+              const c = new fabric.Circle({ radius: 8, fill: 'transparent', stroke: config.stroke, strokeWidth: 2, originX: 'center', originY: 'center' });
+              const l1 = new fabric.Line([0, -8, 0, 8], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
+              const l2 = new fabric.Line([-8, 0, 8, 0], { stroke: config.stroke, strokeWidth: 1, originX: 'center', originY: 'center' });
+              this.arrowHead = new fabric.Group([c, l1, l2], { left: tip.x, top: tip.y, originX: 'center', originY: 'center', angle: angle, selectable: false, evented: false });
+        } else if (config.endCap === 'handoff') {
+              this.arrowHead = new fabric.Text('H', {
+                  fontSize: 16, fontFamily: 'Arial', fontWeight: 'bold', fill: config.stroke,
+                  left: tip.x, top: tip.y, originX: 'center', originY: 'center', angle: angle, selectable: false, evented: false
+              });
         }
         
         if (this.arrowHead) this.canvas.add(this.arrowHead);

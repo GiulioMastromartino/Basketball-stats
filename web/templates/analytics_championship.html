@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h2><i class="fas fa-trophy"></i> Championship</h2>
+        <form method="GET" action="{{ url_for('analytics.championship') }}" class="d-flex gap-2 align-items-center">
+            <label class="text-muted small mb-0" for="source">Source:</label>
+            <select id="source" name="source" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                {% for s in sources %}
+                <option value="{{ s }}" {% if s == source %}selected{% endif %}>{{ s|capitalize }}</option>
+                {% endfor %}
+            </select>
+            {% if source == 'playbasket' %}
+            {% if ext_championships|length > 1 %}
+            <select name="ext" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                {% for c in ext_championships %}
+                <option value="{{ c.id }}" {% if c.id == ext_id %}selected{% endif %}>{{ c.display_name or c.codice_girone }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            <input type="text" name="team" class="form-control form-control-sm w-auto" placeholder="Filter team…"
+                   value="{{ team_filter or '' }}"/>
+            <button type="submit" class="btn btn-sm btn-outline-primary">Filter</button>
+            {% endif %}
+        </form>
+    </div>
+
+    {% if source == 'internal' %}
+    <p class="text-muted small">Computed from this team's games in the database
+        ({% if season_id == 'ALL' %}all seasons{% else %}current season scope{% endif %}).</p>
+    <div class="card shadow-sm mb-3"><div class="card-body">
+        <h5 class="card-title">Record: <span class="text-success">{{ internal.wins }}W</span> –
+            <span class="text-danger">{{ internal.losses }}L</span>
+            <small class="text-muted">({{ internal.games|length }} games)</small></h5>
+    </div></div>
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-light"><h6 class="mb-0">Games</h6></div>
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="bg-light"><tr><th class="ps-4">Date</th><th>Opponent</th><th>Score</th><th>Result</th></tr></thead>
+                <tbody>
+                {% for g in internal.games %}
+                <tr><td class="ps-4">{{ g.date }}</td><td>{{ g.opponent }}</td>
+                    <td>{{ g.team_score }} – {{ g.opponent_score }}</td>
+                    <td>{% if g.result == 'W' %}<span class="badge bg-success">W</span>{% else %}<span class="badge bg-danger">{{ g.result }}</span>{% endif %}</td></tr>
+                {% else %}
+                <tr><td colspan="4" class="text-muted p-4">No games in scope.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card shadow-sm">
+        <div class="card-header bg-light"><h6 class="mb-0">By opponent</h6></div>
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="bg-light"><tr><th class="ps-4">Opponent</th><th>G</th><th>W</th><th>L</th><th>PF</th><th>PS</th></tr></thead>
+                <tbody>
+                {% for name, row in internal.opponents %}
+                <tr><td class="ps-4">{{ name }}</td><td>{{ row.g }}</td><td>{{ row.w }}</td><td>{{ row.l }}</td><td>{{ row.pf }}</td><td>{{ row.ps }}</td></tr>
+                {% else %}
+                <tr><td colspan="6" class="text-muted p-4">No games in scope.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    {% if snapshot.meta %}
+    <p class="text-muted small">{{ snapshot.meta.competition }} · Girone {{ snapshot.meta.girone }} ·
+        Season {{ snapshot.meta.season }} · via {{ snapshot.meta.source }}
+        (scraped {{ snapshot.meta.scraped_at }}). {{ snapshot.meta.note }}</p>
+    {% else %}
+    <p class="alert alert-warning">External championship snapshot unavailable — showing nothing from Playbasket.</p>
+    {% endif %}
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-light"><h6 class="mb-0">Standings</h6></div>
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="bg-light"><tr><th class="ps-4">#</th><th>Team</th><th>Pts</th><th>G</th><th>W</th><th>L</th><th>PF</th><th>PS</th><th>Q</th></tr></thead>
+                <tbody>
+                {% for row in snapshot.standings %}
+                <tr><td class="ps-4">{{ row.pos }}</td><td><strong>{{ row.team }}</strong></td>
+                    <td>{{ row.pts }}</td><td>{{ row.g }}</td><td>{{ row.w }}</td><td>{{ row.l }}</td>
+                    <td>{{ row.pf }}</td><td>{{ row.ps }}</td><td>{{ row.q }}</td></tr>
+                {% else %}
+                <tr><td colspan="9" class="text-muted p-4">No standings data.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card shadow-sm">
+        <div class="card-header bg-light"><h6 class="mb-0">Results{% if team_filter %} — filtered: {{ team_filter }}{% endif %}</h6></div>
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="bg-light"><tr><th class="ps-4">Round</th><th>Date</th><th>Home</th><th>Away</th><th>Score</th><th>Action</th></tr></thead>
+                <tbody>
+                {% for g in snapshot.games %}
+                <tr><td class="ps-4 small">{{ g.turno }}</td><td>{{ g.data }}</td><td>{{ g.casa }}</td><td>{{ g.ospite }}</td>
+                    <td><strong>{{ g.pc }} – {{ g.po }}</strong></td>
+                    <td>
+                        {% if g.already_promoted %}
+                        <span class="badge bg-success">Drafted ✓</span>
+                        {% elif g.ext_id and can_promote %}
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-promote-button data-ext-id="{{ g.ext_id }}">Promote</button>
+                        <span class="small ms-2 text-muted" data-promote-msg="{{ g.ext_id }}"></span>
+                        {% endif %}
+                    </td></tr>
+                {% else %}
+                <tr><td colspan="6" class="text-muted p-4">No games found.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% if can_promote %}
+    <script>
+    (function () {
+        function csrfToken() {
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            return meta ? meta.getAttribute('content') : '';
+        }
+        function msgFor(extId) {
+            return document.querySelector('[data-promote-msg="' + extId + '"]');
+        }
+        function showError(extId, message) {
+            var el = msgFor(extId);
+            if (el) {
+                el.textContent = message;
+                el.classList.remove('text-muted');
+                el.classList.add('text-danger');
+            }
+        }
+        function showSuccess(button, extId, gameId, already) {
+            var el = msgFor(extId);
+            button.disabled = true;
+            button.textContent = already ? 'Drafted ✓' : 'Promoted ✓';
+            button.classList.remove('btn-outline-primary');
+            button.classList.add('btn-outline-success');
+            if (el) {
+                el.textContent = '';
+                var link = document.createElement('a');
+                link.setAttribute('href', '/game/' + encodeURIComponent(String(gameId)));
+                link.textContent = already ? 'Open draft' : 'Open draft game';
+                el.appendChild(link);
+                el.classList.remove('text-danger');
+                el.classList.add('text-muted');
+            }
+        }
+        document.querySelectorAll('[data-promote-button]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var extId = parseInt(button.getAttribute('data-ext-id'), 10);
+                if (!extId) {
+                    showError(button.getAttribute('data-ext-id'), 'Could not promote this game.');
+                    return;
+                }
+                button.disabled = true;
+                fetch('/api/advanced/external/games/' + extId + '/promote', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken()},
+                    body: JSON.stringify({})
+                }).then(function (resp) {
+                    return resp.json().then(function (data) {
+                        return {status: resp.status, data: data};
+                    }).catch(function () {
+                        return {status: resp.status, data: {}};
+                    });
+                }).then(function (out) {
+                    var ok = (out.status === 200 || out.status === 201);
+                    if (ok && out.data && out.data.game_id) {
+                        var gid = parseInt(out.data.game_id, 10);
+                        if (!gid) {
+                            button.disabled = false;
+                            showError(extId, 'Server returned an invalid game.');
+                            return;
+                        }
+                        showSuccess(button, extId, gid, !!out.data.already_promoted);
+                    } else {
+                        button.disabled = false;
+                        var msg = (out.data && out.data.error) ? String(out.data.error) : 'Could not promote this game. Please try again.';
+                        showError(extId, msg);
+                    }
+                }).catch(function () {
+                    button.disabled = false;
+                    showError(extId, 'Could not promote this game. Please try again.');
+                });
+            });
+        });
+    })();
+    </script>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

@@ -94,11 +94,22 @@ class Config:
     OPENWA_API_KEY    = os.getenv("OPENWA_API_KEY", "")
     OPENWA_SESSION_ID = os.getenv("OPENWA_SESSION_ID", "basketball-bot")
 
+    # Alpha feature flag: V2 live-game console entry point. Off unless
+    # explicitly enabled; enabled by default in development.
+    V2_CONSOLE_ALPHA = os.getenv("V2_CONSOLE_ALPHA", "").lower() in (
+        "1", "true", "yes", "on",
+    )
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
     SESSION_COOKIE_SECURE = False
     LOG_LEVEL = "DEBUG"
+    # V2 console alpha entry point visible by default in development
+    # (V2_CONSOLE_ALPHA=0 to hide it).
+    V2_CONSOLE_ALPHA = os.getenv("V2_CONSOLE_ALPHA", "1").lower() in (
+        "1", "true", "yes", "on",
+    )
     # Development defaults for WorkOS
     WORKOS_REDIRECT_URI = os.getenv(
         "WORKOS_REDIRECT_URI", "http://localhost:8080/auth/callback"
@@ -114,6 +125,9 @@ class TestingConfig(Config):
     RATELIMIT_ENABLED = False
     SECRET_KEY = "test-secret-key"
     WORKOS_REDIRECT_URI = "http://localhost:8080/auth/callback"
+    V2_CONSOLE_ALPHA = os.getenv("V2_CONSOLE_ALPHA", "1").lower() in (
+        "1", "true", "yes", "on",
+    )
 
 
 class ProductionConfig(Config):

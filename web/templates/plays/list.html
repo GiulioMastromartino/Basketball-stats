@@ -37,7 +37,7 @@
                         <ul class="list-inline mb-0">
                             {% for pt in play_types %}
                             <li class="list-inline-item mb-2">
-                                <span class="badge rounded-pill bg-light text-dark border px-3 py-2">
+                                <span class="badge rounded-pill bg-light text-dark border px-3 py-2 play-type-drop" data-drop-type="{{ pt.name }}" title="Drop a play here to file it under {{ pt.name }}">
                                     {{ pt.name }}
                                     <form action="{{ url_for('plays.delete_play_type', type_id=pt.id) }}" method="POST" class="d-inline ms-2" onsubmit="return confirm('Delete this type?');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -64,14 +64,17 @@
 <div class="row">
     {% if plays %}
         {% for play in plays %}
-        <div class="col-md-4 mb-4">
+        <div class="col-md-4 mb-4" draggable="true" data-play-id="{{ play.id }}" data-play-name="{{ play.name }}">
             <div class="card h-100 shadow-sm play-card border-0">
                 <div class="card-body" onclick="window.location.href='{{ url_for('plays.view_play', play_id=play.id) }}'" style="cursor: pointer;">
                     <h5 class="card-title text-primary">{{ play.name }}</h5>
-                    <h6 class="card-subtitle mb-2 text-muted">{{ play.play_type }}</h6>
+                    <h6 class="card-subtitle mb-2 text-muted" data-play-type-label>{{ play.play_type }}</h6>
 
                     {% if play.difficulty %}
                     <span class="badge bg-light text-dark border mb-2">{{ play.difficulty }}</span>
+                    {% endif %}
+                    {% if play.court_type == 'full' %}
+                    <span class="badge bg-light text-dark border mb-2">Full court</span>
                     {% endif %}
 
                     {% if play.tags %}
@@ -123,5 +126,74 @@
     .play-card .card-body:hover {
         background-color: rgba(232, 226, 214, 0.35);
     }
+    [data-play-id] {
+        cursor: grab;
+    }
+    [data-play-id]:active {
+        cursor: grabbing;
+    }
+    .play-type-drop.play-type-drop-active {
+        outline: 2px dashed var(--hs-accent, #0d6efd);
+        outline-offset: 2px;
+    }
 </style>
+<script>
+// Plays library drag-and-drop: drop a play card onto a type badge to
+// re-file it. PATCHes JSON (CSRF from the page's hidden token inputs).
+(function () {
+    function csrfToken() {
+        const input = document.querySelector('input[name="csrf_token"]');
+        return input ? input.value : '';
+    }
+    document.addEventListener('dragstart', function (e) {
+        const card = e.target && e.target.closest ? e.target.closest('[data-play-id]') : null;
+        if (!card || !e.dataTransfer) return;
+        e.dataTransfer.setData('application/x-pb-play', card.dataset.playId);
+        e.dataTransfer.effectAllowed = 'move';
+    });
+    document.querySelectorAll('[data-drop-type]').forEach(function (badge) {
+        badge.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            badge.classList.add('play-type-drop-active');
+        });
+        badge.addEventListener('dragleave', function () {
+            badge.classList.remove('play-type-drop-active');
+        });
+        badge.addEventListener('drop', function (e) {
+            e.preventDefault();
+            badge.classList.remove('play-type-drop-active');
+            const playId = parseInt(e.dataTransfer.getData('application/x-pb-play'), 10);
+            const targetType = badge.dataset.dropType;
+            if (!playId || !targetType) return;
+            fetch('/plays/' + playId + '/type', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken(),
+                },
+                body: JSON.stringify({ play_type: targetType }),
+            }).then(function (resp) {
+                return resp.json().then(function (data) {
+                    return { status: resp.status, data: data };
+                });
+            }).then(function (result) {
+                if (result.status !== 200) {
+                    alert(result.data.error || 'Could not move play.');
+                    return;
+                }
+                const card = document.querySelector('[data-play-id="' + playId + '"]');
+                const label = card ? card.querySelector('[data-play-type-label]') : null;
+                if (label) {
+                    label.textContent = result.data.play_type;
+                    card.classList.add('border-success');
+                    setTimeout(function () { card.classList.remove('border-success'); }, 1500);
+                }
+            }).catch(function () {
+                alert('Could not move play (network error).');
+            });
+        });
+    });
+})();
+</script>
 {% endblock %}

@@ -795,6 +795,27 @@ def get_four_factors():
     )
 
 
+@advanced_api_bp.route("/trend-alerts")
+@login_required
+@team_access_required
+def get_trend_alerts():
+    """Team-scoped performance trend alerts (last-N vs prior-N averages)."""
+    from core.services.analytics_service import AnalyticsService
+
+    team_id = session.get("current_team_id")
+    if team_id is None:
+        return jsonify({"error": "No team in scope"}), 400
+    try:
+        last_n = int(request.args.get("last_n", 3))
+    except (TypeError, ValueError):
+        last_n = 3
+    if last_n < 1:
+        last_n = 3
+    last_n = min(last_n, 10)
+    alerts = AnalyticsService.compute_trend_alerts(team_id, last_n)
+    return jsonify({"team_id": team_id, "last_n": last_n, "alerts": alerts})
+
+
 # =============================================================================
 # POSSESSION RECONSTRUCTION
 # =============================================================================
@@ -1721,3 +1742,210 @@ def get_lineup_by_players():
             "redirect": f"/api/advanced/lineup/{lineup.id}",
         }
     )
+
+
+@advanced_api_bp.route("/lineup-optimizer")
+@login_required
+@team_access_required
+def get_lineup_optimizer():
+    """Rank the best 5-man units for a game context (team-scoped).
+
+    Query params:
+        context: one of balanced, vs_zone, vs_fast, protect_lead,
+            need_stops, need_score (default: balanced).
+    """
+    from core.services.lineup_service import (
+        OPTIMIZER_CONTEXTS,
+        rank_lineups_for_context,
+    )
+
+    context = request.args.get("context", "balanced")
+    if context not in OPTIMIZER_CONTEXTS:
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Invalid context. Use one of: "
+                        + ", ".join(OPTIMIZER_CONTEXTS)
+                    )
+                }
+            ),
+            400,
+        )
+    team_id = session.get("current_team_id")
+    result = rank_lineups_for_context(team_id, context)
+    return jsonify(result)
+
+
+# =============================================================================
+# EXTERNAL SIDECAR PROMOTION (explicit GM action)
+# =============================================================================
+
+EXTERNAL_DRAFT_SOURCE = "EXTERNAL"
+EXTERNAL_DRAFT_GAME_TYPE = "Draft"
+
+
+def _external_draft_dates(game_date, season_label):
+    """Normalize sidecar dates to (display, sort_date).
+
+    Sidecar dates are "DD/MM" (playbasket calendars carry no year),
+    "DD/MM/YYYY", or ISO. Follows the repo convention (DD-MM-YYYY display,
+    YYYY-MM-DD sort). Bare "DD/MM" years come from the season label
+    ("2025/2026": Sept-Dec -> first year, else second).
+    """
+    from datetime import datetime
+
+    raw = (game_date or "").strip().replace("-", "/")
+    year = month = day = None
+    cells = [c.strip() for c in raw.split("/")]
+    try:
+        if len(cells) == 3 and len(cells[0]) == 4:
+            year, month, day = int(cells[0]), int(cells[1]), int(cells[2])
+        elif len(cells) == 3:
+            day, month, year = int(cells[0]), int(cells[1]), int(cells[2])
+        elif len(cells) == 2 and cells[0] and cells[1]:
+            day, month = int(cells[0]), int(cells[1])
+    except ValueError:
+        year = month = day = None
+    if year is None:
+        years = [int(p) for p in (season_label or "").replace("-", "/").split("/")
+                 if p.strip().isdigit() and len(p.strip()) == 4]
+        if len(years) >= 2:
+            year = years[0] if (month or 0) >= 9 else years[1]
+        elif years:
+            year = years[0]
+        else:
+            year = datetime.utcnow().year
+    month = month or 9
+    day = day or 1
+    try:
+        datetime(year, month, day)
+    except ValueError:
+        month, day = 9, 1
+    return f"{day:02d}-{month:02d}-{year:04d}", f"{year:04d}-{month:02d}-{day:02d}"
+
+
+@advanced_api_bp.route("/external/games/<int:ext_game_id>/promote", methods=["POST"])
+@login_required
+@team_access_required
+def promote_external_game(ext_game_id):
+    """Promote one sidecar game to an internal draft (explicit GM action).
+
+    The SQLite sidecar (core.external_store) is reference data only: this
+    endpoint is the single sanctioned path to an internal Game. It creates
+    a draft (game_type "Draft" so it stays out of Season/Friendly views,
+    source "EXTERNAL") scoped to the session team, only when the sidecar
+    championship is tracked by that team. Unplayed fixtures (no score yet)
+    are rejected with 400 so they never become 0-0 losses; the GM promotes
+    only played games, then corrects sides when filling the draft. The championship source_url lives in the sidecar and is
+    echoed back in the response (Game has no URL column).
+    Re-promoting the same fixture returns the existing draft (idempotent).
+    """
+    from flask import current_app
+    from flask_login import current_user
+    from core import external_store as store
+    from core.models import Game, TrackedChampionship, log_admin_action
+    from core.services.season_service import resolve_season_id
+
+    team_id = session.get("current_team_id")
+    if team_id is None:
+        return jsonify({"error": "No team in scope"}), 400
+
+    try:
+        conn = store.connect()
+    except Exception:
+        return jsonify({"error": "External cache unavailable"}), 503
+    try:
+        ext = store.get_game(conn, ext_game_id)
+        champ = (store.get_championship(conn, ext["championship_id"])
+                 if ext is not None else None)
+    finally:
+        conn.close()
+    if ext is None or champ is None:
+        return jsonify({"error": "Unknown external game"}), 404
+
+    tracked = TrackedChampionship.query.filter_by(
+        team_id=team_id, provider=champ["provider"],
+        comitato_codice=champ["comitato_codice"],
+        codice_campionato=champ["codice_campionato"],
+        codice_fase=champ["codice_fase"],
+        codice_girone=champ["codice_girone"],
+        season_label=champ["season_label"]).first()
+    if tracked is None or tracked.team is None:
+        return jsonify(
+            {"error": "External championship is not tracked by your team"}
+        ), 403
+    if not current_app.config.get("LOGIN_DISABLED", False):
+        own_org = getattr(current_user, "organization_id", None)
+        if own_org is None or own_org != tracked.team.organization_id:
+            return jsonify(
+                {"error": "You do not administer this organization"}
+            ), 403
+
+    home = (ext["home"] or "").strip()
+    away = (ext["away"] or "").strip()
+    if home and away:
+        opponent = f"{home} vs {away}"
+    else:
+        opponent = home or away or f"External game {ext_game_id}"
+    opponent = opponent[:100]
+    if ext["home_score"] is None and ext["away_score"] is None:
+        return jsonify(
+            {"error": "Cannot promote an unplayed game (no score yet)"}
+        ), 400
+    team_score = ext["home_score"] if ext["home_score"] is not None else 0
+    opponent_score = ext["away_score"] if ext["away_score"] is not None else 0
+    display_date, sort_date = _external_draft_dates(ext["game_date"],
+                                                    champ["season_label"])
+
+    existing = Game.query.filter_by(
+        team_id=team_id, source=EXTERNAL_DRAFT_SOURCE,
+        opponent=opponent, sort_date=sort_date).first()
+    if existing is not None:
+        return jsonify({
+            "game_id": existing.id,
+            "already_promoted": True,
+            "opponent": existing.opponent,
+            "date": existing.date,
+            "sort_date": existing.sort_date,
+            "game_type": existing.game_type,
+            "source": existing.source,
+            "ext_game_id": ext_game_id,
+            "stable_hash": ext["stable_hash"],
+            "source_url": champ["source_url"],
+        }), 200
+
+    game = Game(
+        team_id=team_id,
+        date=display_date,
+        opponent=opponent,
+        team_score=team_score,
+        opponent_score=opponent_score,
+        result="W" if team_score > opponent_score else "L",
+        game_type=EXTERNAL_DRAFT_GAME_TYPE,
+        sort_date=sort_date,
+        source=EXTERNAL_DRAFT_SOURCE,
+        schema_version=1,
+        season_id=resolve_season_id(team_id, None, sort_date),
+    )
+    db.session.add(game)
+    db.session.commit()
+    log_admin_action(
+        current_user, "external.promote",
+        f"promoted external game {ext_game_id} ({home} vs {away}) "
+        f"to draft game {game.id}",
+        target_type="game", target_id=game.id,
+        organization_id=tracked.team.organization_id,
+    )
+    return jsonify({
+        "game_id": game.id,
+        "already_promoted": False,
+        "opponent": game.opponent,
+        "date": game.date,
+        "sort_date": game.sort_date,
+        "game_type": game.game_type,
+        "source": game.source,
+        "ext_game_id": ext_game_id,
+        "stable_hash": ext["stable_hash"],
+        "source_url": champ["source_url"],
+    }), 201

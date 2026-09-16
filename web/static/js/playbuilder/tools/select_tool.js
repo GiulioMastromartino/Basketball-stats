@@ -12,9 +12,13 @@ class SelectTool extends ToolBase {
         this.canvas.selection = true;
         this.canvas.defaultCursor = 'default';
         
-        // Enable selection for all non-locked objects
+        // Enable selection for all non-locked objects.
+        // Court backdrop (and legacy court-line) stays locked: selectable
+        // must never be re-enabled or the court becomes draggable.
         this.canvas.getObjects().forEach(obj => {
-            if (obj.custom?.kind !== 'court-line') {
+            if (typeof CourtBackdrop !== 'undefined' && CourtBackdrop.isBackdrop(obj)) {
+                CourtBackdrop.lock(obj);
+            } else if (obj.custom?.kind !== 'court-line') {
                 obj.selectable = true;
                 obj.evented = true;
             }
@@ -28,8 +32,12 @@ class SelectTool extends ToolBase {
         this.canvas.selection = false;
         this.canvas.discardActiveObject();
         
-        // Disable selection for everything
+        // Disable selection for everything (court stays locked).
         this.canvas.getObjects().forEach(obj => {
+            if (typeof CourtBackdrop !== 'undefined' && CourtBackdrop.isBackdrop(obj)) {
+                CourtBackdrop.lock(obj);
+                return;
+            }
             obj.selectable = false;
             // We keep evented=true usually if we want hover effects, 
             // but for strict tools we might disable it. 

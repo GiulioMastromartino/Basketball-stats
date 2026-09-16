@@ -131,6 +131,73 @@ class TestMainRoutes(unittest.TestCase):
         self.assertIn(b"100", response.data)
         self.assertIn(b"90", response.data)
 
+    def test_nav_has_single_live_link(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"/live-game", response.data)
+        self.assertNotIn(b"/live-v2", response.data)
+
+    def test_live_setup_v2_alpha_button_gated_by_flag(self):
+        self.app.config["V2_CONSOLE_ALPHA"] = True
+        response = self.client.get("/live-game")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"/live-v2", response.data)
+        self.assertIn(b"V2 tablet console", response.data)
+        self.app.config["V2_CONSOLE_ALPHA"] = False
+        response = self.client.get("/live-game")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(b"/live-v2", response.data)
+
+    def test_legacy_live_game_uses_bootstrap5_modal_api(self):
+        import os
+        import re
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, "web", "templates", "live_game.html")) as f:
+            template = f.read()
+        with open(os.path.join(root, "web", "static", "js", "live_game.js")) as f:
+            js = f.read()
+        # No Bootstrap 4 dismiss attributes or .close buttons left.
+        self.assertNotIn('data-dismiss="modal"', template)
+        self.assertNotRegex(template, r'class="close[\s"]')
+        self.assertIn('data-bs-dismiss="modal"', template)
+        self.assertIn('btn-close', template)
+        # No Bootstrap 4 backdrop/keyboard attributes (ignored by BS5).
+        self.assertNotIn('data-backdrop="', template)
+        self.assertNotIn('data-keyboard="', template)
+        # No dead Bootstrap 4 utilities (mr/ml/pl/pr, font-weight-*, btn-block,
+        # form-group, text-left/right): spacing/labels silently broke under BS5
+        # (e.g. "Q100:00", "Remove Last0").
+        import re as _re
+        dead = _re.findall(
+            r'(mr|ml|pl|pr)-[0-5]|mr-auto|ml-auto|font-weight-[a-z]+|'
+            r'btn-block|form-group|text-left|text-right|float-left|float-right',
+            template,
+        )
+        self.assertEqual(dead, [])
+        dead_js = _re.findall(
+            r'(mr|ml|pl|pr)-[0-5]|font-weight-[a-z]+|btn-block|'
+            r'form-group|text-left|text-right',
+            js,
+        )
+        self.assertEqual(dead_js, [])
+        # Every modal close path works: declarative dismiss buttons exist and
+        # the JS bridge backs the programmatic .modal() calls.
+        self.assertIn('getOrCreateInstance', js)
+        # Fullscreen covers Safari (webkit fallback + event + CSS).
+        self.assertIn('webkitRequestFullscreen', js)
+        self.assertIn('webkitfullscreenchange', js)
+        self.assertIn(':-webkit-full-screen', template)
+        # Theater-mode fallback for browsers gating the Fullscreen API.
+        self.assertIn('_isTheaterMode', js)
+        self.assertIn('theater-mode', js)
+        self.assertIn('.theater-mode', template)
+        # Fullscreen auto-fit: content zoom shrinks to viewport, no scroll.
+        self.assertIn('fitFullscreenContent', js)
+        # No ResizeObserver feedback loop: refits are explicit (panel
+        # switches, fullscreen change) or trailing-edge throttled.
+        self.assertNotIn('ResizeObserver', js)
+        self.assertIn('scheduleFitFullscreen', js)
+
     def test_game_detail(self):
         response = self.client.get(f"/game/{self.game_id}")
         self.assertEqual(response.status_code, 200)

@@ -43,6 +43,8 @@ from core.models import (
     Team,
     Season,
     TeamAssignment,
+    AdminAudit,
+    log_admin_action,
 )
 from core.services.season_service import (
     create_season as create_team_season,
@@ -77,7 +79,7 @@ from core.utils import (
 from core.services.notification_service import notify_game, notify_player_performance
 from core.services import create_game_from_live_data
 from core.services.analytics_service import AnalyticsService
-from web.decorators import gm_required, team_access_required
+from web.decorators import gm_required, team_access_required, admin_view_required, require_own_org
 
 main_bp = Blueprint("main", __name__)
 
@@ -397,6 +399,60 @@ def live_game():
     )
 
 
+@main_bp.route("/live-v2")
+@login_required
+@team_access_required
+def live_game_v2():
+    """Live Game v2 console shell (slice A1): score strip + stub rails."""
+    team_id = session.get("current_team_id")
+    existing_players = [
+        r[0]
+        for r in db.session.query(PlayerStat.player_name)
+        .join(Game)
+        .filter(Game.team_id == team_id)
+        .distinct()
+        .order_by(PlayerStat.player_name)
+        .all()
+    ]
+
+    plays_query = Play.query.filter_by(team_id=team_id).order_by(Play.play_type, Play.name).all()
+    plays_list = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "type": p.play_type,
+            "description": p.description,
+        }
+        for p in plays_query
+    ]
+
+    now_date = datetime.now().strftime("%Y-%m-%d")
+    team_name = session.get("current_team_name") or "Team A"
+    return render_template(
+        "live_game_v2.html",
+        existing_players=existing_players,
+        now_date=now_date,
+        plays=plays_list,
+        team_name_a=team_name,
+        team_name_b="Opponent",
+        score_a=0,
+        score_b=0,
+        period=1,
+        clock="10:00",
+        # v2 console identity: JS keys persisted state on these and discards
+        # the cache when user/team/session differ (cross-login protection).
+        v2_user_id=current_user.get_id() if current_user.is_authenticated else None,
+        v2_team_id=team_id,
+        v2_session_id="%s:%s" % (team_id, now_date),
+        # TODO(v2): wire fouls/timeouts/possession from backend when available.
+        fouls_a=0,
+        fouls_b=0,
+        timeouts_a="0/0",
+        timeouts_b="0/0",
+        possession="◀",
+    )
+
+
 @main_bp.route("/api/plays")
 @login_required
 @team_access_required
@@ -554,6 +610,7 @@ def upload_game():
                             game_type=game_data["game_type"],
                             sort_date=game_data["sort_date"],
                             source="IMPORT",
+                            team_id=team_id,
                         )
                         db.session.add(game)
                         db.session.flush()
@@ -734,6 +791,7 @@ def upload_game():
                         game_type=game_type,
                         sort_date=sort_date,
                         source="IMPORT",
+                        team_id=team_id,
                     )
                     db.session.add(game)
                     db.session.flush()
@@ -877,6 +935,498 @@ def upload_game():
     return render_template("upload_game.html")
 
 
+# =============================================================================
+# IMPORT WIZARD (preview-first CSV flow; legacy direct import above unchanged)
+# =============================================================================
+
+
+def _wizard_inputs():
+    """Extract (content, filename, mapping, date_override) for the wizard.
+
+    Accepts either a multipart upload (``csv_file`` + optional
+    ``column_mapping`` JSON string + ``date_override`` fields) or a JSON
+    body (``content``/``filename``/``column_mapping``/``date_override``).
+    Returns (content, filename, mapping, date_override, error_response).
+    Never raises.
+    """
+    content, filename, mapping, date_override = "", "", {}, ""
+    try:
+        if request.is_json:
+            body = request.get_json(silent=True) or {}
+            content = body.get("content") or ""
+            filename = body.get("filename") or ""
+            mapping = body.get("column_mapping") or {}
+            date_override = body.get("date_override") or ""
+        else:
+            file = request.files.get("csv_file")
+            if file is not None:
+                try:
+                    content = file.read().decode("utf-8-sig")
+                except (UnicodeDecodeError, ValueError):
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "File is not valid UTF-8 CSV text."}),
+                        400,
+                    )
+                filename = file.filename or ""
+            else:
+                content = request.form.get("content") or ""
+                filename = request.form.get("filename") or ""
+            raw_mapping = request.form.get("column_mapping") or ""
+            if raw_mapping:
+                try:
+                    mapping = json.loads(raw_mapping)
+                except (ValueError, TypeError):
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "column_mapping is not valid JSON."}),
+                        400,
+                    )
+            date_override = request.form.get("date_override") or ""
+        if not isinstance(mapping, dict):
+            return None, None, None, None, (
+                jsonify({"valid": False,
+                         "fatal": "column_mapping must be an object."}),
+                400,
+            )
+        mapping = {str(k): str(v) for k, v in mapping.items()}
+        if not content or not str(content).strip():
+            return None, None, None, None, (
+                jsonify({"valid": False, "fatal": "No CSV content received."}),
+                400,
+            )
+        if not (filename or "").strip().lower().endswith(".csv"):
+            filename = (filename or "").strip() or "upload.csv"
+        return str(content), filename, mapping, (date_override or "").strip(), None
+    except Exception as e:
+        current_app.logger.warning(f"Import wizard input error: {e}")
+        return None, None, None, None, (
+            jsonify({"valid": False, "fatal": "Could not read upload."}),
+            400,
+        )
+
+
+@main_bp.route("/upload-game/preview", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_preview():
+    """Preview-first validation for a CSV upload (JSON response).
+
+    Never 500s on bad input: malformed files yield 400 with a ``fatal``
+    message; column/row problems yield 200 with valid=false plus
+    ``columns_missing`` and per-row ``row_errors``.
+    """
+    try:
+        content, filename, mapping, date_override, err = _wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview(
+            content, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        return jsonify(preview), 200
+    except Exception as e:
+        current_app.logger.error(f"Import wizard preview error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Preview failed; file not imported."}), 400
+
+
+@main_bp.route("/upload-game/revalidate", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_revalidate():
+    """Re-run preview after in-UI fixes (column mapping / date override).
+
+    Takes the already-uploaded CSV text back from the browser, so the user
+    fixes issues WITHOUT picking the file again.
+    """
+    try:
+        content, filename, mapping, date_override, err = _wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview(
+            content, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        return jsonify(preview), 200
+    except Exception as e:
+        current_app.logger.error(f"Import wizard revalidate error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Revalidation failed; file not imported."}), 400
+
+
+@main_bp.route("/upload-game/commit", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_commit():
+    """Import a wizard-validated CSV. Commits ONLY when validation passes."""
+    from core.validators import parse_import_date
+
+    try:
+        content, filename, mapping, date_override, err = _wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview(
+            content, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        if not preview.get("valid"):
+            return jsonify(preview), 400
+
+        team_id = session.get("current_team_id")
+        info = dict(preview["game_info"])
+        if date_override:
+            display, sort_date = parse_import_date(date_override)
+            if display:
+                info["date"], info["sort_date"] = display, sort_date
+
+        existing = Game.query.filter_by(
+            sort_date=info["sort_date"], opponent=info["opponent"],
+            team_id=team_id).first()
+        if existing:
+            return jsonify({
+                "valid": False,
+                "error": (f"Game already exists: {existing.opponent} "
+                          f"on {existing.date}"),
+                "game_info": info,
+            }), 409
+
+        try:
+            df = CSVProcessor.mapped_frame(content, mapping)
+        except ValueError as e:
+            return jsonify({"valid": False, "fatal": str(e)}), 400
+        players = CSVProcessor.frame_to_players(df)
+
+        game = Game(
+            date=info["date"],
+            opponent=info["opponent"],
+            team_score=info["team_score"],
+            opponent_score=info["opponent_score"],
+            result=info["result"],
+            game_type=info["game_type"],
+            sort_date=info["sort_date"],
+            source="IMPORT",
+            team_id=team_id,
+        )
+        db.session.add(game)
+        db.session.flush()
+
+        for player in players:
+            if not player.get("name"):
+                continue
+            db.session.add(PlayerStat(
+                game_id=game.id,
+                player_name=player["name"],
+                minutes=player["minutes"],
+                points=player["points"],
+                fgm=player["fgm"],
+                fga=player["fga"],
+                fg_percent=player["fg_percent"],
+                tpm=player["tpm"],
+                tpa=player["tpa"],
+                tp_percent=player["tp_percent"],
+                ftm=player["ftm"],
+                fta=player["fta"],
+                ft_percent=player["ft_percent"],
+                oreb=player["oreb"],
+                dreb=player["dreb"],
+                reb=player["reb"],
+                ast=player["ast"],
+                tov=player["tov"],
+                stl=player["stl"],
+                blk=player["blk"],
+                pf=player["pf"],
+                plus_minus=int(player.get("plus_minus", 0) or 0),
+                reb_conceded=int(player.get("reb_conceded", 0) or 0),
+            ))
+        db.session.commit()
+        try:
+            _notify_users_game_saved(game)
+        except Exception:
+            pass
+        return jsonify({"valid": True, "success": True,
+                        "game_id": game.id,
+                        "message": (f"Imported {info['opponent']} "
+                                    f"({info['result']})")}), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Import wizard commit error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Commit failed; nothing was imported."}), 400
+
+
+def _pdf_wizard_inputs():
+    """Extract (pdf_bytes, filename, mapping, date_override) for PDF wizard.
+
+    Accepts either a JSON body (``filename``/``pdf_base64``/
+    ``column_mapping``/``date_override``) or a multipart upload
+    (``pdf_file`` + optional ``column_mapping`` JSON string +
+    ``date_override`` fields). Returns
+    (raw_bytes, filename, mapping, date_override, error_response).
+    Never raises.
+    """
+    import base64
+    import binascii
+
+    raw, filename, mapping, date_override = b"", "", {}, ""
+    try:
+        if request.is_json:
+            body = request.get_json(silent=True) or {}
+            filename = body.get("filename") or ""
+            mapping = body.get("column_mapping") or {}
+            date_override = body.get("date_override") or ""
+            b64 = body.get("pdf_base64") or ""
+            if not b64 or not str(b64).strip():
+                return None, None, None, None, (
+                    jsonify({"valid": False,
+                             "fatal": "No PDF content received."}),
+                    400,
+                )
+            try:
+                raw = base64.b64decode(str(b64), validate=True)
+            except (binascii.Error, ValueError, TypeError):
+                return None, None, None, None, (
+                    jsonify({"valid": False,
+                             "fatal": "pdf_base64 is not valid base64."}),
+                    400,
+                )
+        else:
+            file = request.files.get("pdf_file")
+            if file is not None:
+                try:
+                    raw = file.read()
+                except Exception:
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "Could not read upload."}),
+                        400,
+                    )
+                filename = file.filename or ""
+            else:
+                # Form fallback: base64 passed as a plain field.
+                b64 = request.form.get("pdf_base64") or ""
+                if not b64.strip():
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "No PDF content received."}),
+                        400,
+                    )
+                try:
+                    raw = base64.b64decode(b64, validate=True)
+                except (binascii.Error, ValueError, TypeError):
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "pdf_base64 is not valid base64."}),
+                        400,
+                    )
+                filename = request.form.get("filename") or ""
+            raw_mapping = request.form.get("column_mapping") or ""
+            if raw_mapping:
+                try:
+                    mapping = json.loads(raw_mapping)
+                except (ValueError, TypeError):
+                    return None, None, None, None, (
+                        jsonify({"valid": False,
+                                 "fatal": "column_mapping is not valid JSON."}),
+                        400,
+                    )
+            date_override = request.form.get("date_override") or ""
+        if not isinstance(mapping, dict):
+            return None, None, None, None, (
+                jsonify({"valid": False,
+                         "fatal": "column_mapping must be an object."}),
+                400,
+            )
+        mapping = {str(k): str(v) for k, v in mapping.items()}
+        if not raw:
+            return None, None, None, None, (
+                jsonify({"valid": False,
+                         "fatal": "No PDF content received."}),
+                400,
+            )
+        if not (filename or "").strip().lower().endswith(".pdf"):
+            filename = (filename or "").strip() or "upload.pdf"
+        return (bytes(raw), filename, mapping,
+                (date_override or "").strip(), None)
+    except Exception as e:
+        current_app.logger.warning(f"PDF wizard input error: {e}")
+        return None, None, None, None, (
+            jsonify({"valid": False, "fatal": "Could not read upload."}),
+            400,
+        )
+
+
+@main_bp.route("/upload-game/preview-pdf", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_preview_pdf():
+    """Preview-first validation for a PDF upload (JSON response).
+
+    Never 500s on bad input: malformed files yield 400 with a ``fatal``
+    message; column/row problems yield 200 with valid=false plus
+    ``columns_missing`` and per-row ``row_errors``.
+    """
+    try:
+        raw, filename, mapping, date_override, err = _pdf_wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview_pdf(
+            raw, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        return jsonify(preview), 200
+    except Exception as e:
+        current_app.logger.error(f"PDF wizard preview error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Preview failed; file not imported."}), 400
+
+
+@main_bp.route("/upload-game/revalidate-pdf", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_revalidate_pdf():
+    """Re-run PDF preview after in-UI fixes (column mapping / date override).
+
+    Takes the already-uploaded PDF bytes back from the browser (cached
+    base64), so the user fixes issues WITHOUT picking the file again.
+    """
+    try:
+        raw, filename, mapping, date_override, err = _pdf_wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview_pdf(
+            raw, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        return jsonify(preview), 200
+    except Exception as e:
+        current_app.logger.error(f"PDF wizard revalidate error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Revalidation failed; file not imported."}), 400
+
+
+@main_bp.route("/upload-game/commit-pdf", methods=["POST"])
+@login_required
+@team_access_required
+def upload_game_commit_pdf():
+    """Import a wizard-validated PDF. Commits ONLY when validation passes."""
+    from core.validators import parse_import_date
+
+    try:
+        raw, filename, mapping, date_override, err = _pdf_wizard_inputs()
+        if err:
+            return err
+        preview = CSVProcessor.build_preview_pdf(
+            raw, filename,
+            column_mapping=mapping, date_override=date_override)
+        if preview.get("fatal"):
+            return jsonify(preview), 400
+        if not preview.get("valid"):
+            return jsonify(preview), 400
+
+        team_id = session.get("current_team_id")
+        info = dict(preview["game_info"])
+        if date_override:
+            display, sort_date = parse_import_date(date_override)
+            if display:
+                info["date"], info["sort_date"] = display, sort_date
+
+        existing = Game.query.filter_by(
+            sort_date=info["sort_date"], opponent=info["opponent"],
+            team_id=team_id).first()
+        if existing:
+            return jsonify({
+                "valid": False,
+                "error": (f"Game already exists: {existing.opponent} "
+                          f"on {existing.date}"),
+                "game_info": info,
+            }), 409
+
+        from core.parser import parse_game_pdf_bytes
+        try:
+            game_data = parse_game_pdf_bytes(raw)
+        except ValueError as e:
+            return jsonify({"valid": False, "fatal": str(e)}), 400
+        except Exception as e:
+            return jsonify({"valid": False,
+                            "fatal": (f"Could not parse PDF: {e}. "
+                                      "The file may be corrupted or not a "
+                                      "box-score PDF.")}), 400
+        try:
+            df = CSVProcessor._pdf_players_frame(game_data, mapping)
+        except ValueError as e:
+            return jsonify({"valid": False, "fatal": str(e)}), 400
+        players = CSVProcessor.frame_to_players(df)
+
+        game = Game(
+            date=info["date"],
+            opponent=info["opponent"],
+            team_score=info["team_score"],
+            opponent_score=info["opponent_score"],
+            result=info["result"],
+            game_type=info["game_type"],
+            sort_date=info["sort_date"],
+            source="IMPORT",
+            team_id=team_id,
+        )
+        db.session.add(game)
+        db.session.flush()
+
+        for player in players:
+            if not player.get("name"):
+                continue
+            db.session.add(PlayerStat(
+                game_id=game.id,
+                player_name=player["name"],
+                minutes=player["minutes"],
+                points=player["points"],
+                fgm=player["fgm"],
+                fga=player["fga"],
+                fg_percent=player["fg_percent"],
+                tpm=player["tpm"],
+                tpa=player["tpa"],
+                tp_percent=player["tp_percent"],
+                ftm=player["ftm"],
+                fta=player["fta"],
+                ft_percent=player["ft_percent"],
+                oreb=player["oreb"],
+                dreb=player["dreb"],
+                reb=player["reb"],
+                ast=player["ast"],
+                tov=player["tov"],
+                stl=player["stl"],
+                blk=player["blk"],
+                pf=player["pf"],
+                plus_minus=int(player.get("plus_minus", 0) or 0),
+                reb_conceded=int(player.get("reb_conceded", 0) or 0),
+            ))
+        db.session.commit()
+        try:
+            _notify_users_game_saved(game)
+        except Exception:
+            pass
+        return jsonify({"valid": True, "success": True,
+                        "game_id": game.id,
+                        "message": (f"Imported {info['opponent']} "
+                                    f"({info['result']})")}), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"PDF wizard commit error: {e}",
+                                 exc_info=True)
+        return jsonify({"valid": False,
+                        "fatal": "Commit failed; nothing was imported."}), 400
+
+
 def serialize_model_instance(instance):
     """Serialize a single SQLAlchemy model instance to a dict of column values."""
     if not instance:
@@ -1011,7 +1561,8 @@ def player_detail(player_name):
     season_id = resolve_request_season_id(session.get("current_team_id"))
     try:
         context = AnalyticsService.build_player_detail(
-            player_name, game_type, season_id=season_id
+            player_name, game_type,
+            team_id=session.get("current_team_id"), season_id=season_id
         )
     except ValueError as e:
         flash(str(e) + " for " + player_name, "warning")
@@ -1038,7 +1589,8 @@ def player_game_detail(player_name):
     season_id = resolve_request_season_id(session.get("current_team_id"))
     try:
         context = AnalyticsService.build_player_game_detail(
-            player_name, game_type, season_id=season_id
+            player_name, game_type,
+            team_id=session.get("current_team_id"), season_id=season_id
         )
     except ValueError:
         flash("No stats available for this player", "warning")
@@ -1065,7 +1617,8 @@ def team_detail():
     excluded_player = (request.args.get("exclude_player") or "").strip()
     season_id = resolve_request_season_id(session.get("current_team_id"))
     context = AnalyticsService.build_team_detail_context(
-        game_type, excluded_player, season_id=season_id
+        game_type, excluded_player,
+        team_id=session.get("current_team_id"), season_id=season_id
     )
     return render_template("player_detail.html", **context)
 
@@ -1093,7 +1646,8 @@ def players():
     season_id = resolve_request_season_id(session.get("current_team_id"))
 
     context = AnalyticsService.build_players_listing_context(
-        game_type, limit, sort_by, order, excluded_player, season_id=season_id
+        game_type, limit, sort_by, order, excluded_player,
+        team_id=session.get("current_team_id"), season_id=season_id
     )
 
     template = "players_table.html" if view == "table" else "players.html"
@@ -1128,6 +1682,7 @@ def players_cards_pdf():
 
     context = AnalyticsService.build_players_listing_context(
         game_type, limit, sort_by, order, excluded_player,
+        team_id=session.get("current_team_id"),
         season_id=resolve_request_season_id(session.get("current_team_id")),
     )
 
@@ -1166,13 +1721,15 @@ def players_pages_zip():
     season_id = resolve_request_season_id(session.get("current_team_id"))
 
     context = AnalyticsService.build_players_listing_context(
-        game_type, limit, sort_by, order, excluded_player, season_id=season_id
+        game_type, limit, sort_by, order, excluded_player,
+        team_id=session.get("current_team_id"), season_id=season_id
     )
     zip_buffer = BytesIO()
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
         team_context = AnalyticsService.build_team_detail_context(
-            game_type, excluded_player, season_id=season_id
+            game_type, excluded_player,
+            team_id=session.get("current_team_id"), season_id=season_id
         )
         team_html = render_template(
             "player_detail.html",
@@ -1186,7 +1743,8 @@ def players_pages_zip():
 
         for player in context["stats"]:
             detail_context = AnalyticsService.build_player_detail(
-                player["player_name"], game_type, season_id=season_id
+                player["player_name"], game_type,
+                team_id=session.get("current_team_id"), season_id=season_id
             )
             html = render_template(
                 "player_detail.html",
@@ -1462,7 +2020,7 @@ def create_test_game():
 
 @main_bp.route("/gm/dashboard")
 @login_required
-@gm_required
+@admin_view_required
 def gm_dashboard():
     """GM dashboard showing org-wide overview with all teams."""
     org = Organization.query.get(getattr(current_user, "organization_id", None) or 0)
@@ -1471,6 +2029,18 @@ def gm_dashboard():
     if org is None:
         flash("No organization exists yet.", "warning")
         return redirect(url_for("main.index"))
+    # Session org switcher (GM plan idea 4): multi-org GMs pick context.
+    requested_org = request.args.get("org_id", type=int)
+    if requested_org:
+        mem = OrganizationMembership.query.filter_by(
+            user_id=current_user.id, organization_id=requested_org).first()
+        if mem or current_app.config.get("LOGIN_DISABLED"):
+            org = Organization.query.get(requested_org) or org
+    my_orgs = (Organization.query
+               .join(OrganizationMembership,
+                     OrganizationMembership.organization_id == Organization.id)
+               .filter(OrganizationMembership.user_id == current_user.id)
+               .order_by(Organization.name).all())
     teams = list(current_user.assigned_teams)
     if not teams and current_app.config.get("LOGIN_DISABLED"):
         # Dev/no-auth mode acts as GM without assignments: show the org's teams.
@@ -1496,13 +2066,33 @@ def gm_dashboard():
             "avg_ppg": round(pts / total, 1) if total else 0,
             "avg_opp_ppg": round(opp_pts / total, 1) if total else 0,
             "players": players,
+            "tracked": [
+                {"id": t.id, "display_name": t.display_name,
+                 "provider": t.provider, "active": t.active}
+                for t in team.tracked_championships
+            ],
         })
     members = OrganizationMembership.query.filter_by(organization_id=org.id).count()
+    # Empty-state guidance (GM plan idea 6): checklist for fresh orgs.
+    has_seasons = Season.query.join(Team).filter(
+        Team.organization_id == org.id).count() > 0
+    has_games = Game.query.join(Team).filter(
+        Team.organization_id == org.id).count() > 0
+    checklist = {
+        "has_teams": len(team_data) > 0,
+        "has_members": members > 0,
+        "has_seasons": has_seasons,
+        "has_players": sum(t["players"] for t in team_data) > 0,
+        "has_games": has_games,
+    }
     return render_template(
         "gm/dashboard.html",
         org=org,
         team_data=team_data,
         members=members,
+        my_orgs=my_orgs,
+        checklist=checklist,
+        is_auditor=bool(getattr(current_user, "is_auditor", False)),
     )
 
 
@@ -1524,11 +2114,47 @@ def switch_team():
     return redirect(request.referrer or url_for("main.index"))
 
 
+@main_bp.route("/switch-org", methods=["POST"])
+@login_required
+def switch_org():
+    """Switch the session org context (GM plan idea 4, mirrors switch_team)."""
+    org_id = request.form.get("org_id", type=int)
+    if not org_id:
+        flash("No organization selected.", "warning")
+        return redirect(request.referrer or url_for("main.index"))
+    org = Organization.query.get(org_id)
+    if not org:
+        flash("Unknown organization.", "danger")
+        return redirect(request.referrer or url_for("main.index"))
+    mem = OrganizationMembership.query.filter_by(
+        user_id=current_user.id, organization_id=org.id).first()
+    if not mem and not current_app.config.get("LOGIN_DISABLED"):
+        flash("You do not belong to that organization.", "danger")
+        return redirect(request.referrer or url_for("main.index"))
+    session["current_org_id"] = org.id
+    # Point the team context at an accessible team of that org: GMs (and
+    # dev mode) see all of it, members only their assigned ones.
+    if (getattr(current_user, "is_gm", False)
+            or current_app.config.get("LOGIN_DISABLED")):
+        teams = Team.query.filter_by(organization_id=org.id).order_by(Team.name).all()
+    else:
+        teams = [t for t in current_user.assigned_teams
+                 if t.organization_id == org.id]
+    if teams:
+        session["current_team_id"] = teams[0].id
+        session["current_team_name"] = teams[0].name
+    else:
+        session.pop("current_team_id", None)
+        session.pop("current_team_name", None)
+    flash(f"Switched to {org.name}.", "success")
+    return redirect(request.referrer or url_for("main.index"))
+
+
 # =============================================================================
 # ADMIN PANEL
 # =============================================================================
 
-VALID_SECTIONS = {"users", "players", "settings", "seasons", "orgs"}
+VALID_SECTIONS = {"users", "players", "settings", "seasons", "orgs", "matrix", "activity"}
 
 
 def _slugify(name: str) -> str:
@@ -1549,10 +2175,19 @@ def _gm_org_ids():
     return org_ids
 
 
+def _safe_next(default_endpoint="main.admin_panel", **values):
+    """Redirect target for org/team forms: honor a relative ``next`` field."""
+    nxt = (request.form.get("next") or "").strip()
+    if (nxt.startswith("/") and not nxt.startswith("//")
+            and "\\" not in nxt):
+        return redirect(nxt)
+    return redirect(url_for(default_endpoint, **values))
+
+
 @main_bp.route("/admin")
 @main_bp.route("/admin/<section>")
 @login_required
-@gm_required
+@admin_view_required
 def admin_panel(section="users"):
     """Admin panel - manage users, players, settings and seasons"""
     if section not in VALID_SECTIONS:
@@ -1582,6 +2217,45 @@ def admin_panel(section="users"):
             if allowed
             else []
         )
+        if getattr(current_user, "organization_id", None):
+            # Users list stays home-org only (no cross-org email disclosure).
+            own = current_user.organization_id
+            users = [u for u in users if u.organization_id == own]
+        elif allowed:
+            # No home org (e.g. auditor): fall back to member orgs so the
+            # users list is never unscoped.
+            users = [u for u in users if u.organization_id in allowed]
+        else:
+            users = []
+
+    # Org workspace filter (GM plan C-Phase 2): ?org_id narrows orgs/matrix.
+    active_org_id = request.args.get("org_id", type=int) \
+        or session.get("current_org_id") \
+        or getattr(current_user, "organization_id", None)
+    if active_org_id and not Organization.query.get(active_org_id):
+        active_org_id = None
+    visible_orgs = ([o for o in orgs if o.id == active_org_id]
+                    if active_org_id else orgs)
+    visible_teams = ([t for t in all_teams if t.organization_id == active_org_id]
+                     if active_org_id else all_teams)
+
+    # Assignment matrix (GM plan C-Phase 1): team ids per user id.
+    assignments = {}
+    team_gms = {}
+    for ta in TeamAssignment.query.all():
+        assignments.setdefault(ta.user_id, set()).add(ta.team_id)
+        if ta.is_team_gm:
+            team_gms.setdefault(ta.user_id, set()).add(ta.team_id)
+
+    # Audit trail viewer (GM plan C-Phase 4): latest 100 entries, scoped to
+    # orgs the viewer administers (no cross-org activity leak).
+    allowed = _gm_org_ids()
+    audit_q = AdminAudit.query
+    if allowed is not None:
+        audit_q = (audit_q.filter(AdminAudit.organization_id.in_(allowed))
+                   if allowed else audit_q.filter(db.false()))
+    audit_entries = (audit_q.order_by(AdminAudit.created_at.desc())
+                     .limit(100).all())
 
     settings_data = db.session.query(SystemSetting).all()
     settings = {s.key: s.value for s in settings_data}
@@ -1592,7 +2266,14 @@ def admin_panel(section="users"):
         players=players,
         seasons=seasons,
         orgs=orgs,
+        visible_orgs=visible_orgs,
         all_teams=all_teams,
+        visible_teams=visible_teams,
+        active_org_id=active_org_id,
+        assignments=assignments,
+        team_gms=team_gms,
+        audit_entries=audit_entries,
+        is_auditor=bool(getattr(current_user, "is_auditor", False)),
         settings=settings,
         section=section,
     )
@@ -1679,6 +2360,8 @@ def create_org():
             user_id=current_user.id, organization_id=org.id, is_gm=True
         ))
     db.session.commit()
+    log_admin_action(current_user, "org.create", f"created organization '{name}'",
+                     target_type="org", target_id=org.id)
     flash(f"Organization '{name}' created.", "success")
     return redirect(url_for("main.admin_panel", section="orgs"))
 
@@ -1706,7 +2389,65 @@ def delete_org(org_id):
     OrganizationMembership.query.filter_by(organization_id=org.id).delete()
     db.session.delete(org)
     db.session.commit()
+    log_admin_action(current_user, "org.delete", f"deleted organization '{org.name}'",
+                     target_type="org", target_id=org_id)
     flash(f"Organization '{org.name}' deleted.", "success")
+    return redirect(url_for("main.admin_panel", section="orgs"))
+
+
+@main_bp.route("/orgs/<int:org_id>/rename", methods=["POST"])
+@login_required
+@gm_required
+def rename_org(org_id):
+    """Rename an organization (GM plan C-Phase 3). Slugs stay internal."""
+    org = Organization.query.get_or_404(org_id)
+    denied = require_own_org(org.id)
+    if denied:
+        return denied
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("Organization name is required.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    slug = _slugify(name)
+    dup = Organization.query.filter(
+        Organization.slug == slug, Organization.id != org.id).first()
+    if dup:
+        flash(f"Another organization already uses '{name}'.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    old = org.name
+    org.name = name
+    org.slug = slug
+    db.session.commit()
+    log_admin_action(current_user, "org.rename",
+                     f"renamed organization '{old}' → '{name}'",
+                     target_type="org", target_id=org.id)
+    flash(f"Organization renamed to '{name}'.", "success")
+    return redirect(url_for("main.admin_panel", section="orgs"))
+
+
+@main_bp.route("/orgs/<int:org_id>/settings", methods=["POST"])
+@login_required
+@gm_required
+def update_org_settings(org_id):
+    """Per-org defaults inherited by teams (GM plan idea 2)."""
+    org = Organization.query.get_or_404(org_id)
+    denied = require_own_org(org.id)
+    if denied:
+        return denied
+    timezone = (request.form.get("timezone") or "UTC").strip() or "UTC"
+    sport = (request.form.get("sport") or "basketball").strip() or "basketball"
+    convention = (request.form.get("season_convention") or "sept-june").strip()
+    if convention not in ("sept-june", "calendar"):
+        convention = "sept-june"
+    org.timezone = timezone[:50]
+    org.sport = sport[:50]
+    org.season_convention = convention
+    db.session.commit()
+    log_admin_action(current_user, "org.settings",
+                     f"updated defaults for '{org.name}' "
+                     f"(tz={org.timezone}, sport={org.sport}, season={convention})",
+                     target_type="org", target_id=org.id)
+    flash(f"Defaults for '{org.name}' saved.", "success")
     return redirect(url_for("main.admin_panel", section="orgs"))
 
 
@@ -1721,18 +2462,94 @@ def create_team():
     allowed = _gm_org_ids()
     if org is None or (allowed is not None and org.id not in allowed):
         flash("Valid organization is required.", "danger")
-        return redirect(url_for("main.admin_panel", section="orgs"))
+        return _safe_next("main.admin_panel", section="orgs")
+    denied = require_own_org(org.id)
+    if denied:
+        return denied
     if not name:
         flash("Team name is required.", "danger")
-        return redirect(url_for("main.admin_panel", section="orgs"))
+        return _safe_next("main.admin_panel", section="orgs")
     slug = _slugify(name)
     if Team.query.filter_by(organization_id=org.id, slug=slug).first():
         flash(f"Team '{name}' already exists in {org.name}.", "danger")
-        return redirect(url_for("main.admin_panel", section="orgs"))
+        return _safe_next("main.admin_panel", section="orgs")
     team = Team(name=name, organization_id=org.id, slug=slug)
     db.session.add(team)
     db.session.commit()
+    log_admin_action(current_user, "team.create",
+                     f"created team '{name}' in {org.name}",
+                     target_type="team", target_id=team.id,
+                     organization_id=org.id)
     flash(f"Team '{name}' created in {org.name}.", "success")
+    return _safe_next("main.admin_panel", section="orgs")
+
+
+@main_bp.route("/teams/<int:team_id>/rename", methods=["POST"])
+@login_required
+@gm_required
+def rename_team(team_id):
+    """Rename a team (GM plan C-Phase 3)."""
+    team = Team.query.get_or_404(team_id)
+    denied = require_own_org(team.organization_id)
+    if denied:
+        return denied
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("Team name is required.", "danger")
+        return _safe_next("main.admin_panel", section="orgs")
+    slug = _slugify(name)
+    dup = Team.query.filter(
+        Team.organization_id == team.organization_id,
+        Team.slug == slug, Team.id != team.id).first()
+    if dup:
+        flash(f"Team '{name}' already exists in this organization.", "danger")
+        return _safe_next("main.admin_panel", section="orgs")
+    old = team.name
+    team.name = name
+    team.slug = slug
+    db.session.commit()
+    log_admin_action(current_user, "team.rename",
+                     f"renamed team '{old}' → '{name}'",
+                     target_type="team", target_id=team.id,
+                     organization_id=team.organization_id)
+    flash(f"Team renamed to '{name}'.", "success")
+    return _safe_next("main.admin_panel", section="orgs")
+
+
+@main_bp.route("/teams/<int:team_id>/transfer", methods=["POST"])
+@login_required
+@gm_required
+def transfer_team(team_id):
+    """Move a team to another org, keeping games & seasons (C-Phase 3)."""
+    team = Team.query.get_or_404(team_id)
+    denied = require_own_org(team.organization_id)
+    if denied:
+        return denied
+    org_id = request.form.get("organization_id", type=int)
+    org = Organization.query.get(org_id) if org_id else None
+    if org is None:
+        flash("Valid target organization is required.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    allowed = _gm_org_ids()
+    if allowed is not None and org.id not in allowed:
+        # Don't let teams be dumped into orgs the GM isn't part of.
+        flash("You do not administer the target organization.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    if org.id == team.organization_id:
+        flash("Team is already in that organization.", "warning")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    if Team.query.filter_by(organization_id=org.id, slug=team.slug).first():
+        flash(f"A team named '{team.name}' already exists there.", "danger")
+        return redirect(url_for("main.admin_panel", section="orgs"))
+    old_org_id = team.organization_id
+    team.organization_id = org.id
+    db.session.commit()
+    log_admin_action(current_user, "team.transfer",
+                     f"transferred team '{team.name}' to {org.name}, "
+                     f"kept games & seasons",
+                     target_type="team", target_id=team.id,
+                     organization_id=org.id)
+    flash(f"Team '{team.name}' moved to {org.name}.", "success")
     return redirect(url_for("main.admin_panel", section="orgs"))
 
 
@@ -1742,10 +2559,9 @@ def create_team():
 def delete_team(team_id):
     """Delete a team with no games, players, seasons or assignments."""
     team = Team.query.get_or_404(team_id)
-    allowed = _gm_org_ids()
-    if allowed is not None and team.organization_id not in allowed:
-        flash("You do not administer this team.", "danger")
-        return redirect(url_for("main.admin_panel", section="orgs"))
+    denied = require_own_org(team.organization_id)
+    if denied:
+        return denied
     blockers = {
         "games": Game.query.filter_by(team_id=team.id).count(),
         "players": Player.query.filter_by(team_id=team.id).count(),
@@ -1763,8 +2579,95 @@ def delete_team(team_id):
         session.pop("current_season_id", None)
     db.session.delete(team)
     db.session.commit()
+    log_admin_action(current_user, "team.delete", f"deleted team '{team.name}'",
+                     target_type="team", target_id=team_id,
+                     organization_id=team.organization_id)
     flash(f"Team '{team.name}' deleted.", "success")
     return redirect(url_for("main.admin_panel", section="orgs"))
+
+
+TRACK_PROVIDERS = ("fip_api", "playbasket_html")
+
+
+@main_bp.route("/teams/<int:team_id>/track", methods=["POST"])
+@login_required
+@gm_required
+def track_championship(team_id):
+    """Track an external championship for a team (daily sync cron)."""
+    from core.models import TrackedChampionship
+    team = Team.query.get_or_404(team_id)
+    denied = require_own_org(team.organization_id)
+    if denied:
+        return denied
+    provider = (request.form.get("provider") or "fip_api").strip()
+    if provider not in TRACK_PROVIDERS:
+        provider = "fip_api"
+    data = {
+        "team_id": team.id,
+        "provider": provider,
+        "comitato_codice": (request.form.get("comitato_codice") or "").strip(),
+        "province_codice": (request.form.get("province_codice") or "MI").strip() or "MI",
+        "codice_campionato": (request.form.get("codice_campionato") or "").strip(),
+        "codice_fase": (request.form.get("codice_fase") or "1").strip() or "1",
+        "codice_girone": (request.form.get("codice_girone") or "").strip(),
+        "season_label": (request.form.get("season_label") or "").strip(),
+        "display_name": (request.form.get("display_name") or "").strip()
+        or f"{provider} {request.form.get('codice_girone', '')}".strip(),
+    }
+    existing = TrackedChampionship.query.filter_by(
+        team_id=team.id, provider=data["provider"],
+        comitato_codice=data["comitato_codice"],
+        province_codice=data["province_codice"],
+        codice_campionato=data["codice_campionato"],
+        codice_fase=data["codice_fase"],
+        codice_girone=data["codice_girone"],
+        season_label=data["season_label"]).first()
+    if existing:
+        existing.active = True
+        existing.display_name = data["display_name"]
+    else:
+        db.session.add(TrackedChampionship(**data))
+    db.session.commit()
+    log_admin_action(current_user, "team.track",
+                     f"tracking {data['display_name']} for {team.name}",
+                     target_type="team", target_id=team.id,
+                     organization_id=team.organization_id)
+    flash(f"Tracking {data['display_name']} for {team.name}.", "success")
+    return _safe_next("main.gm_dashboard")
+
+
+@main_bp.route("/tracked/<int:track_id>/toggle", methods=["POST"])
+@login_required
+@gm_required
+def toggle_tracked(track_id):
+    """Enable/disable a tracked championship."""
+    from core.models import TrackedChampionship
+    tracked = TrackedChampionship.query.get_or_404(track_id)
+    denied = require_own_org(tracked.team.organization_id)
+    if denied:
+        return denied
+    tracked.active = not tracked.active
+    db.session.commit()
+    state = "enabled" if tracked.active else "paused"
+    flash(f"Tracking {state} for {tracked.display_name}.", "success")
+    return _safe_next("main.gm_dashboard")
+
+
+@main_bp.route("/tracked/<int:track_id>/delete", methods=["POST"])
+@login_required
+@gm_required
+def delete_tracked(track_id):
+    """Stop tracking a championship (external cache rows are kept)."""
+    from core.models import TrackedChampionship
+    tracked = TrackedChampionship.query.get_or_404(track_id)
+    denied = require_own_org(tracked.team.organization_id)
+    if denied:
+        return denied
+    name = tracked.display_name
+    db.session.delete(tracked)
+    db.session.commit()
+    flash(f"Stopped tracking {name}.", "success")
+    return _safe_next("main.gm_dashboard")
 
 
 @main_bp.route("/season/switch")

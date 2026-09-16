@@ -10,13 +10,64 @@ from flask import (
     session,
     abort,
 )
-from flask_login import login_required
+from flask_login import current_user, login_required
 from core.models import db, Play, PlayType, PlaySequence
 from web.decorators import admin_required, team_access_required
 from werkzeug.utils import secure_filename
 import os
 
 plays_bp = Blueprint("plays", __name__)
+
+
+def _court_svg_inner():
+    """Inner markup of the shared halfcourt asset (single source of truth).
+
+    The 500x470 court from the live-game shot-location popup, saved as
+    static/images/halfcourt.svg. The builder editor, SVG export, and detail
+    preview all reuse it instead of copy-pasted courts.
+    Returns "" when the file is missing (callers fall back gracefully).
+    """
+    try:
+        path = os.path.join(current_app.static_folder, "images", "halfcourt.svg")
+        with open(path, encoding="utf-8") as f:
+            svg = f.read()
+        start = svg.find(">") + 1
+        end = svg.rfind("</svg>")
+        if start > 0 and end > start:
+            return svg[start:end].strip()
+    except OSError:
+        pass
+    return ""
+
+
+def _court_svg_full():
+    """Whole halfcourt file (for inline <svg> embedding in the editor)."""
+    try:
+        path = os.path.join(current_app.static_folder, "images", "halfcourt.svg")
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def _court_bg_data_uri():
+    """Halfcourt asset as an inline data-URI for the editor CSS background.
+
+    Same file as _court_svg_inner (single source of truth), inlined so the
+    background paints with no subresource request. Fully URL-encoded:
+    WebKit (Safari, DuckDuckGo) refuses data-URI SVG with raw <>" chars,
+    which is why the court flashed then vanished there.
+    """
+    import urllib.parse
+
+    try:
+        path = os.path.join(current_app.static_folder, "images", "halfcourt.svg")
+        with open(path, encoding="utf-8") as f:
+            svg = f.read()
+        one_line = " ".join(svg.split())
+        return "data:image/svg+xml;utf8," + urllib.parse.quote(one_line, safe="")
+    except OSError:
+        return ""
 
 
 # Alias routes for template compatibility
@@ -118,7 +169,10 @@ def list_plays():
 def create_play():
     """Render the Play Builder for a new play"""
     play_types = PlayType.query.filter_by(team_id=session.get('current_team_id')).order_by(PlayType.name).all()
-    return render_template("plays/create.html", play=None, play_types=play_types)
+    return render_template("plays/create.html", play=None, play_types=play_types,
+                           court_svg_inner=_court_svg_inner(),
+                           court_bg_uri=_court_bg_data_uri(),
+                           court_svg_full=_court_svg_full())
 
 
 @plays_bp.route("/plays/<int:play_id>")
@@ -131,7 +185,8 @@ def view_play(play_id):
         abort(404)
     # Sort sequences by sequence_number just in case
     play.sequences.sort(key=lambda x: x.sequence_number)
-    return render_template("plays/detail.html", play=play)
+    return render_template("plays/detail.html", play=play,
+                           court_svg_inner=_court_svg_inner())
 
 
 @plays_bp.route("/plays/<int:play_id>/edit-builder")
@@ -143,7 +198,10 @@ def edit_play_builder(play_id):
     if not play:
         abort(404)
     play_types = PlayType.query.filter_by(team_id=session.get('current_team_id')).order_by(PlayType.name).all()
-    return render_template("plays/create.html", play=play, play_types=play_types)
+    return render_template("plays/create.html", play=play, play_types=play_types,
+                           court_svg_inner=_court_svg_inner(),
+                           court_bg_uri=_court_bg_data_uri(),
+                           court_svg_full=_court_svg_full())
 
 
 @plays_bp.route("/plays/<int:play_id>/delete", methods=["POST"])
@@ -175,6 +233,32 @@ def clear_all_plays():
         db.session.rollback()
         flash(f"Error clearing plays: {str(e)}", "danger")
     return redirect(url_for("plays.list_plays"))
+
+
+@plays_bp.route("/plays/<int:play_id>/type", methods=["PATCH"])
+@login_required
+@team_access_required
+def set_play_type(play_id):
+    """Re-file a play into another section (drag-and-drop in the library)."""
+    if getattr(current_user, "is_auditor", False):
+        return jsonify({"error": "Auditors have read-only access"}), 403
+    team_id = session.get('current_team_id')
+    play = Play.query.filter_by(id=play_id, team_id=team_id).first()
+    if not play:
+        return jsonify({"error": "Play not found"}), 404
+    data = request.get_json(silent=True) or {}
+    name = (data.get("play_type") or "").strip()
+    if not name or len(name) > 50:
+        return jsonify({"error": "play_type must be a non-empty name"}), 400
+    known = {
+        pt.name
+        for pt in PlayType.query.filter_by(team_id=team_id).all()
+    }
+    if name not in known:
+        return jsonify({"error": "Unknown play type"}), 400
+    play.play_type = name
+    db.session.commit()
+    return jsonify({"id": play.id, "play_type": play.play_type}), 200
 
 
 @plays_bp.route("/plays/types/add", methods=["POST"])
