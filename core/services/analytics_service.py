@@ -2389,6 +2389,15 @@ class AnalyticsService:
             "fta_rate": True,
             "pts": True,
         }
+        # Display units: percentage metrics use pp (percentage points),
+        # PTS uses pts (points per game).
+        units = {
+            "efg_pct": "pp",
+            "tov_pct": "pp",
+            "oreb_share": "pp",
+            "fta_rate": "pp",
+            "pts": "pts",
+        }
 
         alerts = []
         for metric, threshold in thresholds.items():
@@ -2411,7 +2420,7 @@ class AnalyticsService:
                     "favorable": favorable,
                     "message": (
                         f"{labels[metric]} {direction} "
-                        f"{abs(delta):.1f} pts "
+                        f"{abs(delta):.1f} {units[metric]} "
                         f"({p:.1f} -> {r:.1f}, last {last_n} vs prior {last_n})"
                     ),
                 }

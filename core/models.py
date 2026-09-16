@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask_bcrypt import Bcrypt
 from flask_login import UserMixin
@@ -627,7 +627,11 @@ class ShareLink(db.Model):
     target_type = db.Column(db.String(10), nullable=False)
     target_id = db.Column(db.Integer, nullable=False)
     token = db.Column(db.String(64), unique=True, nullable=False, index=True)
-    expires_at = db.Column(db.DateTime, nullable=False)
+    expires_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=lambda: datetime.utcnow() + timedelta(days=7),
+    )
     revoked = db.Column(db.Boolean, nullable=False, default=False,
                         server_default=text("false"))
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
