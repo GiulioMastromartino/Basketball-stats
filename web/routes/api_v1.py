@@ -411,6 +411,8 @@ def save_canvas():
     play.name = name
     play.description = metadata.get("description")
     play.play_type = metadata.get("play_type", "Offense")
+    court_type = (metadata.get("court_type") or "half").strip().lower()
+    play.court_type = court_type if court_type in ("half", "full") else "half"
     play.difficulty = metadata.get("difficulty", "Medium")
     play.personnel_required = metadata.get("personnel")
     play.tags = metadata.get("tags")
@@ -490,6 +492,7 @@ def load_canvas(play_id):
             "name": play.name,
             "description": play.description,
             "play_type": play.play_type,
+            "court_type": play.court_type or "half",
             "difficulty": play.difficulty,
             "personnel": play.personnel_required,
             "tags": play.tags,

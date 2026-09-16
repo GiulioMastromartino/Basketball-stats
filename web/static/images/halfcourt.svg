@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 470" width="500" height="470">
+  <!-- Shared halfcourt: extracted from the live-game shot-location popup
+       (web/templates/live_game.html #halfCourtSvg). Single source of truth
+       for the play builder (editor bg, SVG export, detail preview).
+       Interactive bits (hitbox, marker) live only in the popup. -->
+  <!-- Court Floor -->
+  <rect x="0" y="0" width="500" height="470" fill="#f0e6d2" stroke="none" />
+
+  <!-- 3-Point Arc (Approximate) -->
+  <path d="M 30,0 L 30,140 A 220,220 0 0,0 470,140 L 470,0" fill="none" stroke="#000" stroke-width="3" />
+
+  <!-- Key / Paint Area -->
+  <rect x="170" y="0" width="160" height="190" fill="none" stroke="#000" stroke-width="3" />
+
+  <!-- Free Throw Circle -->
+  <circle cx="250" cy="190" r="60" fill="none" stroke="#000" stroke-width="3" />
+
+  <!-- Hoop / Backboard -->
+  <line x1="220" y1="40" x2="280" y2="40" stroke="#000" stroke-width="3" />
+  <circle cx="250" cy="55" r="7.5" fill="none" stroke="#f00" stroke-width="2" />
+
+  <!-- Baseline -->
+  <line x1="0" y1="0" x2="500" y2="0" stroke="#000" stroke-width="5" />
+</svg>

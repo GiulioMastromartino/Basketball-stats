@@ -17,8 +17,9 @@ class LayersPanel {
         const objects = this.canvas.getObjects().slice().reverse();
 
         objects.forEach((obj, index) => {
-            // Skip court lines
+            // Skip court lines and the locked court backdrop
             if (obj.custom?.kind === 'court-line') return;
+            if (obj.custom?.kind === 'court-backdrop') return;
 
             const li = document.createElement('li');
             li.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center p-2';
@@ -44,8 +45,8 @@ class LayersPanel {
             if (isActive) li.classList.add('active');
 
             li.innerHTML = `
-                <span><i class="fas ${icon} mr-2"></i> ${label}</span>
-                <span class="badge badge-light badge-pill action-btn delete-btn" title="Delete">&times;</span>
+                <span><i class="fas ${icon} me-2"></i> ${label}</span>
+                <span class="badge bg-light text-dark rounded-pill action-btn delete-btn" title="Delete">&times;</span>
             `;
 
             // Click to select

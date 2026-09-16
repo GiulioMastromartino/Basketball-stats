@@ -160,6 +160,7 @@ def create_app(config_name: str = None) -> Flask:
         ctx = {
             "current_team_id": session.get("current_team_id"),
             "current_team_name": session.get("current_team_name"),
+            "v2_console_alpha": bool(app.config.get("V2_CONSOLE_ALPHA", False)),
         }
         try:
             if current_user.is_authenticated:
@@ -253,6 +254,7 @@ def register_blueprints(app: Flask):
     from web.routes.api_v1 import api_v1_bp
     from web.routes.main import main_bp
     from web.routes.plays import plays_bp
+    from web.routes.training import training_bp
     from web.routes.reports import reports_bp
     from web.routes.advanced_analytics_api import advanced_api_bp
     from web.routes.health import health_bp
@@ -265,6 +267,7 @@ def register_blueprints(app: Flask):
     app.register_blueprint(api_v1_bp, url_prefix="/api/v1")
     app.register_blueprint(analytics_bp)
     app.register_blueprint(plays_bp)
+    app.register_blueprint(training_bp)
     app.register_blueprint(reports_bp, url_prefix="/reports")
     app.register_blueprint(advanced_api_bp)
     app.register_blueprint(health_bp)

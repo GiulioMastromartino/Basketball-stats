@@ -66,7 +66,7 @@
                         </a>
                     </li>
                     <li>
-                        <a href="{{ url_for('main.live_game') }}" class="app-nav__link app-nav__link--live {% if request.endpoint == 'main.live_game' %}is-active{% endif %}">
+                        <a href="{{ url_for('main.live_game') }}" class="app-nav__link app-nav__link--live {% if request.endpoint in ('main.live_game', 'main.live_game_v2') %}is-active{% endif %}">
                             <i class="fas fa-tower-broadcast" aria-hidden="true"></i><span>Live Game</span>
                         </a>
                     </li>
@@ -98,6 +98,11 @@
                     <li>
                         <a href="{{ url_for('plays.list_plays') }}" class="app-nav__link {% if request.endpoint and 'plays' in request.endpoint %}is-active{% endif %}">
                             <i class="fas fa-clipboard-list" aria-hidden="true"></i><span>Plays</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('training.list_sessions') }}" class="app-nav__link {% if request.endpoint and 'training' in request.endpoint %}is-active{% endif %}">
+                            <i class="fas fa-dumbbell" aria-hidden="true"></i><span>Training</span>
                         </a>
                     </li>
                     <li>

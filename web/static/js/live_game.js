@@ -1,3 +1,26 @@
+/* Bootstrap 5 compatibility bridge.
+ *
+ * This file historically used the Bootstrap 4 jQuery modal API
+ * ($('.x').modal('show'|'hide')). Bootstrap 5 removed the jQuery plugin,
+ * which left every popup's close path dead. The bridge below re-implements
+ * just the show/hide/toggle calls used here on top of the Bootstrap 5
+ * Modal API. It activates only when the old plugin is absent, so behavior
+ * under Bootstrap 4 is untouched. Declarative buttons use data-bs-dismiss.
+ */
+(function () {
+    if (typeof window === "undefined" || !window.jQuery || !window.bootstrap) return;
+    var $ = window.jQuery;
+    if (typeof $.fn.modal === "function") return;
+    $.fn.modal = function (action) {
+        return this.each(function () {
+            var modal = window.bootstrap.Modal.getOrCreateInstance(this);
+            if (action === "show") modal.show();
+            else if (action === "hide") modal.hide();
+            else if (action === "toggle") modal.toggle();
+        });
+    };
+})();
+
 class GameTracker {
     constructor() {
         this.fullRoster = [];
@@ -123,6 +146,7 @@ class GameTracker {
 
             this.renderActivePlayers();
             this.updateScoreboard();
+            this.fitFullscreenContent(true);
 
             this.startAutoCacheTimer();
         }
@@ -135,6 +159,14 @@ class GameTracker {
             if (this.isClockRunning) return "Game is in progress. Are you sure?";
         };
         document.addEventListener('fullscreenchange', () => this.updateFullscreenToggleUI());
+        // Safari < 16 uses the prefixed event/API only.
+        document.addEventListener('webkitfullscreenchange', () => this.updateFullscreenToggleUI());
+        // Refit on viewport changes (rotation, window resize). Trailing-edge
+        // throttled: rapid stat tapping re-renders constantly, and refitting
+        // every frame shimmers. Panel switches call fitFullscreenContent()
+        // directly (setup -> starters -> tracking changes content size).
+        window.addEventListener('resize', () => this.scheduleFitFullscreen());
+        window.addEventListener('orientationchange', () => this.scheduleFitFullscreen());
         this.updateFullscreenToggleUI();
     }
 
@@ -168,21 +200,128 @@ class GameTracker {
     }
 
 
+    _fullscreenElement() {
+        return document.fullscreenElement || document.webkitFullscreenElement || null;
+    }
+
+    scheduleFitFullscreen() {
+        if (this._fitTimer) return;
+        this._fitTimer = setTimeout(() => {
+            this._fitTimer = null;
+            this.fitFullscreenContent(true);
+        }, 200);
+    }
+
+    fitFullscreenContent(force) {
+        // Shrink the console to fit the viewport height so fullscreen /
+        // theater never needs scrolling. Modals live outside
+        // #live-game-shell, so zooming the shell cannot disturb them.
+        //
+        // The measure + apply below run synchronously in one task: the
+        // browser only paints between tasks, so no intermediate unzoomed
+        // frame can ever flash on screen.
+        const shell = document.getElementById('live-game-shell');
+        if (!shell) return;
+        if (!this._fullscreenElement() && !this._isTheaterMode()) {
+            if (shell.style.zoom) shell.style.zoom = '';
+            this._lastFitScale = 1;
+            this._lastFitHeight = 0;
+            this._lastFitApply = 0;
+            return;
+        }
+        // Settle guard: ignore background refits shortly after an applied
+        // change (forestalls any toggle loop); panel switches and
+        // fullscreen transitions always force through.
+        const now = Date.now();
+        if (!force && this._lastFitApply && now - this._lastFitApply < 500) {
+            return;
+        }
+        const previous = shell.style.zoom || '';
+        shell.style.zoom = '';
+        const naturalH = shell.scrollHeight;
+        // Restore synchronously before any guard can return: clearing only
+        // exists to take an unscaled measurement, and everything here runs
+        // in one task so no unzoomed frame can paint in between.
+        shell.style.zoom = previous;
+        const viewportH = window.innerHeight || document.documentElement.clientHeight;
+        // Skip when content height is effectively unchanged: avoids work and
+        // any visible adjustment during rapid stat tapping.
+        if (this._lastFitHeight && Math.abs(naturalH - this._lastFitHeight) < 24) {
+            return;
+        }
+        this._lastFitHeight = naturalH;
+        let scale = 1;
+        if (naturalH > viewportH && naturalH > 0 && viewportH > 0) {
+            // Coarse 0.05 steps: fractional zoom shimmers on some tablets.
+            scale = Math.max(0.4, Math.floor((viewportH / naturalH) * 20) / 20);
+        }
+        const current = this._lastFitScale || 1;
+        // Hysteresis: ignore sub-0.03 wobbles so measurement noise cannot
+        // oscillate the zoom (flicker).
+        if (Math.abs(scale - current) < 0.03) {
+            return;
+        }
+        this._lastFitScale = scale;
+        const next = scale >= 1 ? '' : String(scale);
+        if (next !== previous) {
+            shell.style.zoom = next;
+            this._lastFitApply = now;
+        }
+    }
+
+    _isTheaterMode() {
+        const shell = document.getElementById('live-game-shell');
+        return !!shell && shell.classList.contains('theater-mode');
+    }
+
     async toggleFullscreen() {
         const fullscreenRoot = document.getElementById('live-game-shell');
         if (!fullscreenRoot) return;
 
+        // Standard API with Safari fallback (webkitRequestFullscreen).
+        const requester = fullscreenRoot.requestFullscreen || fullscreenRoot.webkitRequestFullscreen;
+        const exiter = document.exitFullscreen || document.webkitExitFullscreen;
         try {
-            if (document.fullscreenElement === fullscreenRoot) {
-                await document.exitFullscreen();
+            if (this._isTheaterMode()) {
+                // Theater fallback is plain CSS: just switch it off.
+                fullscreenRoot.classList.remove('theater-mode');
+            } else if (this._fullscreenElement()) {
+                await exiter.call(document);
+            } else if (requester) {
+                // Must be called directly in the click gesture: no awaits before it.
+                await requester.call(fullscreenRoot);
             } else {
-                await fullscreenRoot.requestFullscreen();
+                // No Fullscreen API at all (old browsers): CSS fallback.
+                fullscreenRoot.classList.add('theater-mode');
             }
         } catch (error) {
             console.error('Fullscreen toggle failed:', error);
+            // Browsers that gate the API (e.g. DuckDuckGo's app browser denies
+            // element fullscreen): fall back to CSS theater mode, which needs
+            // no API and looks identical for tracking purposes.
+            if (!this._fullscreenElement()) {
+                fullscreenRoot.classList.add('theater-mode');
+            }
+            if (!this._isTheaterMode() && !this._fullscreenElement()) {
+                this.flashFullscreenHint('Blocked: ' + (error && error.name ? error.name : 'denied'));
+            }
         } finally {
             this.updateFullscreenToggleUI();
         }
+    }
+
+    flashFullscreenHint(message) {
+        const label = document.getElementById('fullscreen-toggle-label');
+        if (!label) return;
+        const original = label.textContent;
+        label.textContent = 'Blocked';
+        label.title = message;
+        setTimeout(() => {
+            this.updateFullscreenToggleUI();
+            if (label.textContent === 'Blocked' && !this._fullscreenElement()) {
+                label.textContent = original;
+            }
+        }, 2500);
     }
 
 
@@ -192,7 +331,7 @@ class GameTracker {
         if (!btn || !label) return;
 
         const fullscreenRoot = document.getElementById('live-game-shell');
-        const isFullscreen = !!fullscreenRoot && document.fullscreenElement === fullscreenRoot;
+        const isFullscreen = !!fullscreenRoot && (this._fullscreenElement() === fullscreenRoot || this._isTheaterMode());
         const icon = btn.querySelector('i');
 
         if (icon) {
@@ -200,6 +339,7 @@ class GameTracker {
         }
 
         label.textContent = isFullscreen ? 'Exit' : 'Full';
+        this.fitFullscreenContent(true);
     }
 
 
@@ -332,7 +472,7 @@ class GameTracker {
         if (targetType === 'Offense' && this.recentPlays.length > 0) {
             const recentHeader = document.createElement('div');
             recentHeader.className = 'px-3 py-2 bg-light border-bottom';
-            recentHeader.innerHTML = '<small class="text-primary font-weight-bold"><i class="fas fa-history"></i> RECENT</small>';
+            recentHeader.innerHTML = '<small class="text-primary fw-bold"><i class="fas fa-history"></i> RECENT</small>';
             container.appendChild(recentHeader);
 
             const recentGrid = document.createElement('div');
@@ -347,7 +487,7 @@ class GameTracker {
             
             const divider = document.createElement('div');
             divider.className = 'px-3 py-2 bg-light border-top border-bottom';
-            divider.innerHTML = '<small class="text-secondary font-weight-bold"><i class="fas fa-list"></i> ALL PLAYS</small>';
+            divider.innerHTML = '<small class="text-secondary fw-bold"><i class="fas fa-list"></i> ALL PLAYS</small>';
             container.appendChild(divider);
         }
 
@@ -403,7 +543,7 @@ class GameTracker {
         
         card.innerHTML = `
             <div class="card-header ${headerClass} py-2 px-2 text-center">
-                <div class="font-weight-bold" style="font-size: 0.9rem; line-height: 1.2;">${displayName}</div>
+                <div class="fw-bold" style="font-size: 0.9rem; line-height: 1.2;">${displayName}</div>
                 ${isMacro ? '<small class="badge badge-light mt-1" style="font-size: 0.65rem;"><i class="fas fa-layer-group"></i> Group</small>' : ''}
                 ${isRecent ? '<small class="badge badge-light mt-1" style="font-size: 0.65rem;"><i class="fas fa-star"></i></small>' : ''}
             </div>
@@ -693,6 +833,7 @@ class GameTracker {
 
             this.renderActivePlayers();
             this.updateScoreboard();
+            this.fitFullscreenContent(true);
 
             this.startAutoCacheTimer();
         }
@@ -943,6 +1084,7 @@ class GameTracker {
 
         document.getElementById('setup-panel').style.display = 'none';
         document.getElementById('lineup-panel').style.display = 'block';
+        this.fitFullscreenContent(true);
 
         const container = document.getElementById('starter-selection');
         container.innerHTML = '';
@@ -1059,6 +1201,7 @@ class GameTracker {
 
         this.renderActivePlayers();
         this.saveState();
+        this.fitFullscreenContent(true);
 
         this.startAutoCacheTimer();
     }
@@ -1097,7 +1240,7 @@ class GameTracker {
                 const qMins = quarterMins[q] || 0;
                 const isCurrentQ = (q === this.quarter);
                 const displayQ = isCurrentQ ? displayedQuarterSeconds : qMins;
-                const qClass = isCurrentQ ? 'text-primary font-weight-bold' : 'text-muted';
+                const qClass = isCurrentQ ? 'text-primary fw-bold' : 'text-muted';
                 quarterBreakdown += `<span class="${qClass} mx-1" style="font-size: 0.75rem;">Q${q}: ${this.formatMinutes(displayQ)}</span>`;
             }
 
@@ -1108,8 +1251,8 @@ class GameTracker {
                         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
                             <h5 class="mb-0 text-truncate" style="max-width: 50%; font-weight: bold;">${p}</h5>
                             <div>
-                                <span class="badge ${pmClass} mr-1" id="pm-${p}" style="font-size: 0.9em;" title="Plus/Minus">${pmSign}${s.plus_minus}</span>
-                                <span class="badge badge-light mr-1" id="pts-${p}" style="font-size: 0.9em;">${s.points} PTS</span>
+                                <span class="badge ${pmClass} me-1" id="pm-${p}" style="font-size: 0.9em;" title="Plus/Minus">${pmSign}${s.plus_minus}</span>
+                                <span class="badge badge-light me-1" id="pts-${p}" style="font-size: 0.9em;">${s.points} PTS</span>
                                 <span class="badge badge-warning" id="pf-badge-${p}" style="font-size: 0.9em;">${s.pf} PF</span>
                             </div>
                         </div>
@@ -1119,39 +1262,39 @@ class GameTracker {
                             <div class="mb-2 border-bottom pb-2">
                                 <!-- 2PT -->
                                 <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="font-weight-bold small text-muted" style="width: 40px;">2PT</span>
+                                    <span class="fw-bold small text-muted" style="width: 40px;">2PT</span>
                                     <div class="btn-group btn-group-sm">
                                         <button class="btn btn-outline-danger py-0" onclick="gameTracker.updateShooting('${p}', '2pt', -1, -1)">-M</button>
                                         <button class="btn btn-outline-secondary py-0" onclick="gameTracker.updateShooting('${p}', '2pt', 0, -1)">-A</button>
                                     </div>
-                                    <span class="mx-2 font-weight-bold" id="disp-2pt-${p}">${(s.fgm - s.tpm)}/${(s.fga - s.tpa)}</span>
+                                    <span class="mx-2 fw-bold" id="disp-2pt-${p}">${(s.fgm - s.tpm)}/${(s.fga - s.tpa)}</span>
                                     <div class="btn-group btn-group-sm">
                                         <button class="btn btn-outline-danger py-0" onclick="gameTracker.openMissShotLocModal('${p}', '2pt', 0)">Miss</button>
-                                        <button class="btn btn-success font-weight-bold py-0" onclick="gameTracker.openAssistModal('${p}', '2pt', 2)">+2</button>
+                                        <button class="btn btn-success fw-bold py-0" onclick="gameTracker.openAssistModal('${p}', '2pt', 2)">+2</button>
                                     </div>
                                 </div>
 
                                 <!-- 3PT -->
                                 <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="font-weight-bold small text-muted" style="width: 40px;">3PT</span>
+                                    <span class="fw-bold small text-muted" style="width: 40px;">3PT</span>
                                     <div class="btn-group btn-group-sm">
                                         <button class="btn btn-outline-danger py-0" onclick="gameTracker.updateShooting('${p}', '3pt', -1, -1)">-M</button>
                                         <button class="btn btn-outline-secondary py-0" onclick="gameTracker.updateShooting('${p}', '3pt', 0, -1)">-A</button>
                                     </div>
-                                    <span class="mx-2 font-weight-bold" id="disp-3pt-${p}">${s.tpm}/${s.tpa}</span>
+                                    <span class="mx-2 fw-bold" id="disp-3pt-${p}">${s.tpm}/${s.tpa}</span>
                                     <div class="btn-group btn-group-sm">
                                         <button class="btn btn-outline-danger py-0" onclick="gameTracker.openMissShotLocModal('${p}', '3pt', 0)">Miss</button>
-                                        <button class="btn btn-success font-weight-bold py-0" onclick="gameTracker.openAssistModal('${p}', '3pt', 3)">+3</button>
+                                        <button class="btn btn-success fw-bold py-0" onclick="gameTracker.openAssistModal('${p}', '3pt', 3)">+3</button>
                                     </div>
                                 </div>
 
                                 <!-- FT -->
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <span class="font-weight-bold small text-muted" style="width: 40px;">FT</span>
+                                    <span class="fw-bold small text-muted" style="width: 40px;">FT</span>
                                     <div></div>
-                                    <span class="mx-2 font-weight-bold" id="disp-ft-${p}">${s.ftm}/${s.fta}</span>
+                                    <span class="mx-2 fw-bold" id="disp-ft-${p}">${s.ftm}/${s.fta}</span>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-warning font-weight-bold py-0" onclick="gameTracker.openFTModal('${p}')">FT</button>
+                                        <button class="btn btn-warning fw-bold py-0" onclick="gameTracker.openFTModal('${p}')">FT</button>
                                     </div>
                                 </div>
                             </div>
@@ -1173,21 +1316,21 @@ class GameTracker {
                             <div class="row no-gutters text-center mt-1">
                                 <div class="col-6 px-1">
                                     <div class="bg-light rounded p-1 border">
-                                        <div class="small text-muted font-weight-bold mb-1">TECH</div>
-                                        <button class="btn btn-sm btn-warning py-1 px-2 mx-1 font-weight-bold" onclick="gameTracker.recordTechFoul('${p}')">T</button>
+                                        <div class="small text-muted fw-bold mb-1">TECH</div>
+                                        <button class="btn btn-sm btn-warning py-1 px-2 mx-1 fw-bold" onclick="gameTracker.recordTechFoul('${p}')">T</button>
                                     </div>
                                 </div>
                                 <div class="col-6 px-1">
                                     <div class="bg-light rounded p-1 border">
-                                        <div class="small text-muted font-weight-bold mb-1">FLAGRANT</div>
-                                        <button class="btn btn-sm btn-danger py-1 px-2 mx-1 font-weight-bold" onclick="gameTracker.recordFlagrantFoul('${p}')">F</button>
+                                        <div class="small text-muted fw-bold mb-1">FLAGRANT</div>
+                                        <button class="btn btn-sm btn-danger py-1 px-2 mx-1 fw-bold" onclick="gameTracker.recordFlagrantFoul('${p}')">F</button>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- MINUTES DISPLAY -->
                             <div class="mt-2 text-center small">
-                                <div class="font-weight-bold mb-1" id="time-${p}">TOTAL: ${this.formatMinutes(displayedSeconds)}</div>
+                                <div class="fw-bold mb-1" id="time-${p}">TOTAL: ${this.formatMinutes(displayedSeconds)}</div>
                                 <div class="d-flex justify-content-center flex-wrap" id="quarter-time-${p}">
                                     ${quarterBreakdown}
                                 </div>
@@ -1223,7 +1366,7 @@ class GameTracker {
         const foulRow = insights.foulAlerts.length > 0
             ? `<div class="live-tips-foul-row">${insights.foulAlerts.map(alert => `
                 <span class="live-tips-foul-chip">
-                    <i class="fas fa-exclamation-triangle mr-1"></i>${alert.player} ${alert.pf} PF
+                    <i class="fas fa-exclamation-triangle me-1"></i>${alert.player} ${alert.pf} PF
                 </span>
             `).join('')}</div>`
             : '';
@@ -1244,7 +1387,7 @@ class GameTracker {
             <div class="col-md-6 col-lg-4 mb-3" id="live-tips-card-col">
                 <div class="card h-100 shadow-sm border-0 live-tips-card">
                     <div class="card-header live-tips-header d-flex justify-content-between align-items-center py-2">
-                        <h5 class="mb-0 font-weight-bold">Live Tips</h5>
+                        <h5 class="mb-0 fw-bold">Live Tips</h5>
                         <span class="live-tips-context">Current Stint</span>
                     </div>
                     <div class="card-body p-2 d-flex flex-column">
@@ -1552,13 +1695,13 @@ class GameTracker {
         const tovHtml = isToV ? `
             <div class="d-flex justify-content-center align-items-center">
                 <button class="btn btn-sm btn-secondary py-1 px-2 mx-1" style="font-size: 0.95rem; min-width: 36px;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">−</button>
-                <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
-                <button class="btn btn-sm btn-danger py-1 px-2 mx-1 font-weight-bold" style="font-size: 1rem; min-width: 36px;" onclick="gameTracker.recordTurnover('${player}')">+</button>
+                <span class="h5 m-0 mx-2 fw-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
+                <button class="btn btn-sm btn-danger py-1 px-2 mx-1 fw-bold" style="font-size: 1rem; min-width: 36px;" onclick="gameTracker.recordTurnover('${player}')">+</button>
             </div>
         ` : `
             <div class="d-flex justify-content-center align-items-center">
                 <button class="btn btn-sm btn-secondary py-1 px-2 mx-1" style="font-size: 0.95rem; min-width: 36px;" onclick="gameTracker.updateStat('${player}', '${key}', -1)">−</button>
-                <span class="h5 m-0 mx-2 font-weight-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
+                <span class="h5 m-0 mx-2 fw-bold ${textClass}" id="disp-${key}-${player}">${value}</span>
                 <button class="btn btn-sm btn-dark py-1 px-2 mx-1" style="font-size: 0.95rem; min-width: 36px;" onclick="gameTracker.updateStat('${player}', '${key}', 1)">+</button>
             </div>
         `;
@@ -1566,7 +1709,7 @@ class GameTracker {
         return `
             <div class="col-4 px-1">
                 <div class="bg-light rounded p-1 border">
-                    <div class="small text-muted font-weight-bold mb-1">${label}</div>
+                    <div class="small text-muted fw-bold mb-1">${label}</div>
                     ${tovHtml}
                 </div>
             </div>
@@ -1585,7 +1728,7 @@ class GameTracker {
             const pmSign = s.plus_minus > 0 ? '+' : '';
             pmEl.innerText = `${pmSign}${s.plus_minus}`;
 
-            pmEl.className = 'badge mr-1';
+            pmEl.className = 'badge me-1';
             if (s.plus_minus > 0) pmEl.classList.add('badge-success');
             else if (s.plus_minus < 0) pmEl.classList.add('badge-danger');
             else pmEl.classList.add('badge-secondary');
@@ -2531,7 +2674,7 @@ class GameTracker {
                         const qMins = quarterMins[q] || 0;
                         const isCurrentQ = (q === this.quarter);
                         const displayQ = isCurrentQ ? quarterDisplayed : qMins;
-                        const qClass = isCurrentQ ? 'text-primary font-weight-bold' : 'text-muted';
+                        const qClass = isCurrentQ ? 'text-primary fw-bold' : 'text-muted';
                         quarterBreakdown += `<span class="${qClass} mx-1" style="font-size: 0.75rem;">Q${q}: ${this.formatMinutes(displayQ)}</span>`;
                     }
 
@@ -2676,7 +2819,7 @@ class GameTracker {
             btn.style.cursor = 'pointer';
             btn.innerHTML = `<div class="sub-player-main">
                                 <div class="flex-grow-1">
-                                    <div class="sub-player-name">${p} <small class="sub-player-pm ${pmClass} font-weight-bold">(${pmSign}${pmVal})</small></div>
+                                    <div class="sub-player-name">${p} <small class="sub-player-pm ${pmClass} fw-bold">(${pmSign}${pmVal})</small></div>
                                     <div class="sub-player-meta">
                                         <span class="sub-total-time">Total: ${totalTimeStr}</span>
                                     </div>
@@ -2684,7 +2827,7 @@ class GameTracker {
                                         ${quarterBreakdown}
                                     </div>
                                 </div>
-                                <small data-role="lineup-status" class="sub-status font-weight-bold">${isActive ? 'ON COURT' : 'BENCH'}</small>
+                                <small data-role="lineup-status" class="sub-status fw-bold">${isActive ? 'ON COURT' : 'BENCH'}</small>
                              </div>`;
 
             btn.onclick = () => {
@@ -2823,11 +2966,11 @@ class GameTracker {
                 : (p.plus_minus < 0 ? 'stats-chip stats-chip-pm-negative' : 'stats-chip stats-chip-pm-neutral');
 
             row.innerHTML = `
-                <td class="text-left text-nowrap font-weight-bold stats-player-cell">
+                <td class="text-start text-nowrap fw-bold stats-player-cell">
                     <div class="stats-player-name">
                         ${p.name}
                     </div>
-                    ${isActive ? '<span class="badge badge-success ml-1" style="font-size:0.6em">ON</span>' : ''}
+                    ${isActive ? '<span class="badge badge-success ms-1" style="font-size:0.6em">ON</span>' : ''}
                 </td>
                 <td><span class="stats-chip stats-chip-min">${p.display_minutes}</span></td>
                 <td class="border-left"><span class="stats-chip stats-chip-points">${p.points}</span></td>
@@ -2836,11 +2979,11 @@ class GameTracker {
                 <td>${p.stl}</td>
                 <td>${p.blk}</td>
                 <td>${p.tov}</td>
-                <td class="${p.pf >= 3 ? 'text-danger font-weight-bold' : ''}">${p.pf}</td>
+                <td class="${p.pf >= 3 ? 'text-danger fw-bold' : ''}">${p.pf}</td>
                 <td class="border-left text-nowrap">${p.fgm}/${p.fga}<span class="stats-subtext">${fgPct}%</span></td>
                 <td class="text-nowrap">${p.tpm}/${p.tpa}<span class="stats-subtext">${tpPct}%</span></td>
                 <td class="text-nowrap">${p.ftm}/${p.fta}<span class="stats-subtext">${ftPct}%</span></td>
-                <td class="${pmClass} font-weight-bold border-left"><span class="${pmChipClass}">${pmSign}${p.plus_minus}</span></td>
+                <td class="${pmClass} fw-bold border-left"><span class="${pmChipClass}">${pmSign}${p.plus_minus}</span></td>
             `;
             tbody.appendChild(row);
         });
@@ -2852,7 +2995,7 @@ class GameTracker {
 
         tfoot.innerHTML = `
             <tr>
-                <td class="text-left text-uppercase">Team Total</td>
+                <td class="text-start text-uppercase">Team Total</td>
                 <td><span class="stats-chip stats-chip-min">-</span></td>
                 <td class="border-left"><span class="stats-chip stats-chip-points">${team.points}</span></td>
                 <td>${team.reb}<span class="stats-subtext">${team.oreb}/${team.dreb}</span></td>
@@ -2896,7 +3039,7 @@ class GameTracker {
         // Visual feedback
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
         }
 
         if (this.isClockRunning) this.toggleClock();
@@ -2952,7 +3095,7 @@ class GameTracker {
             // Re-enable button
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-save mr-1"></i>Retry Save';
+                btn.innerHTML = '<i class="fas fa-save me-1"></i>Retry Save';
             }
 
             // Show error modal with rescue options

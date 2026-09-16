@@ -28,11 +28,27 @@ class ShapeTool extends ToolBase {
         }
 
         const pointer = this.canvas.getPointer(opt.e);
-        let shape;
+        const shape = this.createShape(this.currentType, pointer.x, pointer.y);
+        if (shape) {
+            this.canvas.add(shape);
+            this.canvas.setActiveObject(shape);
+            this.canvas.requestRenderAll();
+        }
 
+        // Auto-switch to Select tool (One-Shot)
+        if (window.app) {
+            window.app.selectTool('select');
+        }
+    }
+
+    /**
+     * Factory shared by click-to-place and drag-and-drop palette flows.
+     * Returns the configured shape (not yet added to the canvas) or null.
+     */
+    createShape(type, x, y) {
         const commonProps = {
-            left: pointer.x,
-            top: pointer.y,
+            left: x,
+            top: y,
             originX: 'center',
             originY: 'center',
             fill: 'transparent',
@@ -40,8 +56,9 @@ class ShapeTool extends ToolBase {
             strokeWidth: 2,
             selectable: true
         };
+        let shape = null;
 
-        if (this.currentType === 'cone') {
+        if (type === 'cone') {
             // Orange triangle
             shape = new fabric.Triangle({
                 ...commonProps,
@@ -51,7 +68,7 @@ class ShapeTool extends ToolBase {
                 stroke: '#cc6600',
                 strokeWidth: 1
             });
-        } else if (this.currentType === 'cone-tall') {
+        } else if (type === 'cone-tall') {
             // Taller cone
             shape = new fabric.Triangle({
                 ...commonProps,
@@ -61,32 +78,32 @@ class ShapeTool extends ToolBase {
                 stroke: '#cc6600',
                 strokeWidth: 1
             });
-        } else if (this.currentType === 'box') {
+        } else if (type === 'box') {
              shape = new fabric.Rect({
                 ...commonProps,
                 width: 30,
                 height: 30
              });
-        } else if (this.currentType === 'circle') {
+        } else if (type === 'circle') {
              shape = new fabric.Circle({
                 ...commonProps,
                 radius: 15
              });
-        } else if (this.currentType === 'triangle') {
+        } else if (type === 'triangle') {
              shape = new fabric.Triangle({
                 ...commonProps,
                 width: 30,
                 height: 30
              });
-        } else if (this.currentType === 'diamond') {
+        } else if (type === 'diamond') {
              shape = new fabric.Rect({
                 ...commonProps,
                 width: 25,
                 height: 25,
                 angle: 45
              });
-        } else if (this.currentType === 'line') {
-             shape = new fabric.Line([pointer.x - 20, pointer.y, pointer.x + 20, pointer.y], {
+        } else if (type === 'line') {
+             shape = new fabric.Line([x - 20, y, x + 20, y], {
                 ...commonProps,
                 strokeWidth: 3,
                 originX: 'center',
@@ -103,16 +120,8 @@ class ShapeTool extends ToolBase {
                     });
                 };
             })(shape.toObject);
-            shape.custom = { kind: 'shape', type: this.currentType };
-            
-            this.canvas.add(shape);
-            this.canvas.setActiveObject(shape);
-            this.canvas.requestRenderAll();
+            shape.custom = { kind: 'shape', type: type };
         }
-        
-        // Auto-switch to Select tool (One-Shot)
-        if (window.app) {
-            window.app.selectTool('select');
-        }
+        return shape;
     }
 }

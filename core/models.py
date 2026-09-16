@@ -331,6 +331,7 @@ class Play(db.Model):
 
     canvas_data = db.Column(db.JSON, nullable=True)
     diagram_svg = db.Column(db.Text, nullable=True)
+    court_type = db.Column(db.String(10), default="half", server_default="half", nullable=False)
     difficulty = db.Column(db.String(20), server_default="Medium", nullable=False)
     personnel_required = db.Column(db.Text, nullable=True)
     tags = db.Column(db.Text, nullable=True)
@@ -355,6 +356,62 @@ class PlayType(db.Model):
     name = db.Column(db.String(50), unique=True, nullable=False)
 
     team = db.relationship("Team", backref=db.backref("play_types", lazy=True))
+
+
+class TrainingSession(db.Model):
+    """A scheduled training session (practice) for a team."""
+
+    __tablename__ = "training_sessions"
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    title = db.Column(db.String(150), nullable=False)
+    session_date = db.Column(db.String(10), nullable=False)  # YYYY-MM-DD
+    start_time = db.Column(db.String(5), nullable=True)  # HH:MM
+    location = db.Column(db.String(150), nullable=True)
+    focus = db.Column(db.String(50), nullable=True)  # e.g. Offense/Defense
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    team = db.relationship("Team", backref=db.backref("training_sessions", lazy=True))
+    segments = db.relationship(
+        "TrainingSegment", backref="session", cascade="all, delete-orphan",
+        order_by="TrainingSegment.position", lazy=True)
+    attendance = db.relationship(
+        "TrainingAttendance", backref="session", cascade="all, delete-orphan",
+        lazy=True)
+
+
+class TrainingSegment(db.Model):
+    """One timed agenda block inside a training session, optionally linked
+    to a play from the playbook (drill to run)."""
+
+    __tablename__ = "training_segments"
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("training_sessions.id"), nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    title = db.Column(db.String(150), nullable=False)
+    duration_min = db.Column(db.Integer, nullable=True)
+    play_id = db.Column(db.Integer, db.ForeignKey("plays.id", ondelete="SET NULL"), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+
+    play = db.relationship("Play")
+
+
+class TrainingAttendance(db.Model):
+    """Per-player attendance row for a training session."""
+
+    __tablename__ = "training_attendance"
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("training_sessions.id"), nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey("players.id", ondelete="CASCADE"), nullable=False)
+    status = db.Column(db.String(20), default="present", server_default="present", nullable=False)
+
+    player = db.relationship("Player")
+
+    __table_args__ = (
+        db.UniqueConstraint("session_id", "player_id", name="uq_attendance_session_player"),
+    )
 
 
 class ShotEvent(db.Model):

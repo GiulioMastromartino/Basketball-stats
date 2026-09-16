@@ -10,6 +10,7 @@
             <h2 class="mb-1">{{ play.name }}</h2>
             <div class="text-muted">
                 <span class="badge bg-primary me-2">{{ play.play_type }}</span>
+                <span class="badge bg-secondary me-2">{{ 'Full court' if play.court_type == 'full' else 'Half court' }}</span>
                 {% if play.difficulty %}
                 <span class="badge bg-info me-2">{{ play.difficulty }}</span>
                 {% endif %}
@@ -45,7 +46,7 @@
                         
                         <!-- Canvas Interactive View -->
                         <div id="interactive-canvas-wrapper" class="bg-white p-2 rounded border" style="display: {% if play.diagram_svg %}none{% else %}block{% endif %};">
-                            <canvas id="preview-canvas" width="800" height="500" style="max-width: 100%; height: auto;"></canvas>
+                            <canvas id="preview-canvas" width="800" height="{% if play.court_type == 'full' %}1000{% else %}500{% endif %}" style="max-width: 100%; height: auto;"></canvas>
                         </div>
                     </div>
                 </div>
@@ -144,13 +145,33 @@
     let canvas = null;
     let isAnimating = false;
 
-    // Court Background SVG (Same as builder)
-    const courtUrl = 'data:image/svg+xml;utf8,<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="500" fill="%23e8c89b"/><rect x="150" y="15" width="500" height="470" fill="none" stroke="%23ffffff" stroke-width="3"/><rect x="320" y="15" width="160" height="190" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 1 1 480 205" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 320 205 A 60 60 0 0 0 480 205" fill="none" stroke="%23ffffff" stroke-width="3" stroke-dasharray="10,10"/><line x1="370" y1="55" x2="430" y2="55" stroke="%23ffffff" stroke-width="3"/><circle cx="400" cy="67.5" r="7.5" fill="none" stroke="%23333" stroke-width="2"/><path d="M 180 15 L 180 157 A 237.5 237.5 0 0 0 620 157 L 620 15" fill="none" stroke="%23ffffff" stroke-width="3"/><path d="M 340 485 A 60 60 0 1 1 460 485" fill="none" stroke="%23ffffff" stroke-width="3"/><line x1="150" y1="485" x2="650" y2="485" stroke="%23ffffff" stroke-width="3"/></svg>';
+    // Court background: shared halfcourt asset (live-game shot popup
+    // court). Centered: 500x470 court on the 800x500 preview canvas.
+    const courtUrl = '/static/images/halfcourt.svg';
+    const courtBgOpts = {
+        originX: 'left',
+        originY: 'top',
+        left: 150,
+        top: 15
+    };
 
     function initCanvas() {
         if (canvas) return;
         
         canvas = new fabric.StaticCanvas('preview-canvas');
+
+        // New saves carry the canvas-drawn court backdrop; legacy saves
+        // predate it and still need the shared file background.
+        function ensurePreviewCourt() {
+            const hasCourt = canvas.getObjects().some(function (o) {
+                return o.custom && o.custom.kind === 'court-backdrop';
+            });
+            if (!hasCourt) {
+                canvas.setBackgroundImage(courtUrl, canvas.renderAll.bind(canvas), courtBgOpts);
+            } else {
+                canvas.renderAll();
+            }
+        }
         
         // If no frames, load initial
         if (frames.length === 0 && initialCanvasData) {
@@ -160,10 +181,7 @@
             loadFrameData(frames[0].data);
         } else {
             // Just background if nothing else
-            canvas.setBackgroundImage(courtUrl, canvas.renderAll.bind(canvas), {
-                originX: 'left',
-                originY: 'top'
-            });
+            ensurePreviewCourt();
         }
     }
 
@@ -179,11 +197,17 @@
         }
         
         canvas.loadFromJSON(data, () => {
-             // Always re-apply background after load, as JSON load wipes it
-             canvas.setBackgroundImage(courtUrl, canvas.renderAll.bind(canvas), {
-                originX: 'left',
-                originY: 'top'
-            });
+             // Re-apply background after load, as JSON load wipes it. New
+             // saves carry the canvas-drawn backdrop; legacy ones need the
+             // shared file background.
+             const hasCourt = canvas.getObjects().some(function (o) {
+                 return o.custom && o.custom.kind === 'court-backdrop';
+             });
+             if (!hasCourt) {
+                 canvas.setBackgroundImage(courtUrl, canvas.renderAll.bind(canvas), courtBgOpts);
+             } else {
+                 canvas.renderAll();
+             }
         });
     }
 
