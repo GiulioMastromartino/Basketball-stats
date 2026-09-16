@@ -74,6 +74,7 @@ def add_missing_columns(app):
                 "source": "VARCHAR(20) DEFAULT 'imported'",
                 "canvas_data": "JSON",
                 "diagram_svg": "TEXT",
+                "court_type": "VARCHAR(10) DEFAULT 'half'",
                 "difficulty": "VARCHAR(20) DEFAULT 'Medium'",
                 "personnel_required": "TEXT",
                 "tags": "TEXT",
