@@ -88,8 +88,8 @@ services:
     command: ["python", "-m", "jobs.championship_sync", "--daemon"]
     networks:
       - backend
-   # ── App replica 1 ─────────────────────────────────────────────────────────
-  web_1:
+    # ── App replica 1 ─────────────────────────────────────────────────────────
+  web-1:
     build: .
     restart: unless-stopped
     depends_on:
@@ -113,8 +113,8 @@ services:
     command: ["gunicorn", "-c", "gunicorn_config.py", "run:app"]
     networks:
       - backend
-   # ── App replica 2 ─────────────────────────────────────────────────────────
-  web_2:
+    # ── App replica 2 ─────────────────────────────────────────────────────────
+  web-2:
     build: .
     restart: unless-stopped
     depends_on:
@@ -138,8 +138,8 @@ services:
     command: ["gunicorn", "-c", "gunicorn_config.py", "run:app"]
     networks:
       - backend
-   # ── App replica 3 ─────────────────────────────────────────────────────────
-  web_3:
+    # ── App replica 3 ─────────────────────────────────────────────────────────
+  web-3:
     build: .
     restart: unless-stopped
     depends_on:
@@ -231,9 +231,9 @@ services:
     image: nginx:1.27-alpine
     restart: unless-stopped
     depends_on:
-      - web_1
-      - web_2
-      - web_3
+      - web-1
+      - web-2
+      - web-3
     ports:
       - "80:80"
     volumes:
