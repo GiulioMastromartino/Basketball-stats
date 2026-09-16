@@ -624,19 +624,37 @@ def manage_players():
 @login_required
 @gm_required
 def create_player():
-    """Create a new player"""
+    """Create a new player (team selectable, defaults to session team)."""
     team_id = session.get("current_team_id")
     if not team_id:
         flash("No team selected.", "danger")
         return redirect(url_for("main.admin_panel", section="players"))
 
     if request.method == "POST":
-        name = request.form.get("name")
-        email = request.form.get("email")
+        name = (request.form.get("name") or "").strip()
+        email = (request.form.get("email") or "").strip()
 
         if not name or not email:
             flash("Name and email are required.", "danger")
             return redirect(url_for("main.admin_panel", section="players"))
+
+        requested_team_id = request.form.get("team_id", type=int)
+        if requested_team_id and requested_team_id != team_id:
+            team = Team.query.get(requested_team_id)
+            if team is None:
+                flash("Selected team does not exist.", "danger")
+                return redirect(url_for("main.admin_panel", section="players"))
+            if not current_app.config.get("LOGIN_DISABLED", False):
+                allowed_ids = set(current_user.managed_team_ids or [])
+                try:
+                    allowed_ids |= {t.id for t in
+                                    (current_user.assigned_teams or [])}
+                except Exception:
+                    pass
+                if requested_team_id not in allowed_ids:
+                    flash("You cannot add players to that team.", "danger")
+                    return redirect(url_for("main.admin_panel", section="players"))
+            team_id = team.id
 
         existing = Player.query.filter(
             (Player.name == name) | (Player.email == email)

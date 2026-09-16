@@ -133,11 +133,44 @@
             <a href="{{ url_for('main.players_pages_zip', game_type=filters.type, limit=filters.limit, sort=filters.sort, order=filters.order, exclude_player=filters.exclude_player) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
                 <i class="fas fa-file-archive"></i> Download All Player Pages
             </a>
-            <a href="#" class="btn btn-primary" onclick="alert('Add Player modal would open here')">
+            {% if current_user.is_gm %}
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPlayerModal">
                 <i class="fas fa-plus"></i> Add Player
-            </a>
+            </button>
+            {% endif %}
         </div>
     </div>
+
+    {% if current_user.is_gm %}
+    <div class="modal fade" id="addPlayerModal" tabindex="-1" aria-labelledby="addPlayerModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" action="{{ url_for('auth.create_player') }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="addPlayerModalLabel">Add Player</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="mb-3">
+                            <label for="new_player_name" class="form-label">Name</label>
+                            <input id="new_player_name" name="name" required class="form-control" placeholder="e.g. Marco Rossi" maxlength="100"/>
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_player_email" class="form-label">Email</label>
+                            <input id="new_player_email" name="email" type="email" required class="form-control" placeholder="player@club.it" maxlength="120"/>
+                        </div>
+                        <p class="text-muted small mb-0">The player is added to the current team.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Player</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Controls / Filter Bar -->
     <div class="card mb-4">

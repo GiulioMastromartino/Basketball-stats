@@ -2193,6 +2193,20 @@ def admin_panel(section="users"):
     if section not in VALID_SECTIONS:
         section = "users"
 
+    # Team filter (?team_id=): switch session context when the user may
+    # access that team (admin_panel has no team_access_required, so honor
+    # the param here like the decorator does elsewhere).
+    requested_team = request.args.get("team_id", type=int)
+    if requested_team:
+        team = Team.query.get(requested_team)
+        if team is not None and (
+            _gm_org_ids() is None
+            or (current_user.is_authenticated
+                and team in current_user.assigned_teams)
+        ):
+            session["current_team_id"] = team.id
+            session["current_team_name"] = team.name
+
     users = User.query.order_by(User.username).all()
     team_id = session.get("current_team_id")
     players = Player.query.filter_by(team_id=team_id).order_by(Player.name).all()
