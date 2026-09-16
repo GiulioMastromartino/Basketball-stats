@@ -123,7 +123,10 @@ def championship():
 
     internal = None
     if source == "internal":
-        q = Game.query.filter_by(team_id=team_id).order_by(Game.sort_date)
+        q = Game.query.filter(
+            Game.team_id == team_id,
+            Game.game_type != "Draft",
+        ).order_by(Game.sort_date)
         if season_id != "ALL":
             q = q.filter(Game.season_id == int(season_id))
         games = q.all()

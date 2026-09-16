@@ -68,6 +68,23 @@ def team_access_required(f):
             else:
                 flash("You are not assigned to any team.", "danger")
                 return redirect(url_for('main.index'))
+        else:
+            # Revalidate sticky session team: assignment may have been
+            # revoked since the session was set. Fall back to a currently
+            # assigned team; abort (no self-redirect) when none assigned.
+            try:
+                allowed = {t.id: t for t in
+                           (current_user.assigned_teams or [])}
+            except Exception:
+                allowed = {}
+            if allowed and team_id not in allowed:
+                fallback = next(iter(allowed.values()))
+                session['current_team_id'] = fallback.id
+                session['current_team_name'] = fallback.name
+            elif not allowed:
+                session.pop('current_team_id', None)
+                session.pop('current_team_name', None)
+                abort(403)
         return f(*args, **kwargs)
     return decorated_function
 

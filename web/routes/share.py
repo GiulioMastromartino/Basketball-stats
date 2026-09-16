@@ -38,7 +38,8 @@ def _session_team_is_fresh():
     team_access_required keeps a sticky session["current_team_id"]; if the
     TeamAssignment was removed afterwards, mutations must not use the stale id.
     Checked locally (not in the shared decorator) to avoid changing every
-    route's behavior.
+    route's behavior. Scoped to the active organization so a team assigned
+    in another org cannot authorize mutations while a different org is active.
     """
     from flask import current_app
 
@@ -47,11 +48,34 @@ def _session_team_is_fresh():
     if not current_user.is_authenticated:
         return False
     team_id = session.get("current_team_id")
+    if not team_id:
+        return False
+    active_org_id = (
+        session.get("current_org_id")
+        or getattr(current_user, "organization_id", None)
+    )
     try:
-        assigned = {t.id for t in (current_user.assigned_teams or [])}
+        assigned = {
+            t.id for t in (current_user.assigned_teams or [])
+            if active_org_id is None
+            or getattr(t, "organization_id", None) == active_org_id
+        }
     except Exception:
         return False
-    return team_id in assigned
+    if team_id not in assigned:
+        return False
+    # The session team itself must belong to the active org.
+    try:
+        from core.models import Team
+        team = Team.query.get(team_id)
+        if team is None or (
+            active_org_id is not None
+            and getattr(team, "organization_id", None) != active_org_id
+        ):
+            return False
+    except Exception:
+        return False
+    return True
 
 
 def _generate_unique_token(max_attempts: int = 5) -> str:

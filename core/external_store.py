@@ -164,6 +164,32 @@ def _score(value) -> int | None:
     return number if number >= 0 else None
 
 
+def _game_sort_key(game_date: str = "", game_number: str = "") -> tuple:
+    """Canonical sort key for mixed sidecar date formats.
+
+    Sidecar dates are DD/MM (no year), DD/MM/YYYY, or ISO YYYY-MM-DD.
+    Raw TEXT ordering puts '02/11' before '14/10'. Parse to (year, month,
+    day) so championship views stay chronological. Bare DD/MM sorts by
+    (0, month, day) — correct within a single season. Unknown formats
+    fall back to raw string ordering.
+    """
+    raw = (game_date or "").strip().replace("-", "/")
+    cells = [c.strip() for c in raw.split("/")]
+    try:
+        if len(cells) == 3 and len(cells[0]) == 4 and cells[0].isdigit():
+            return (int(cells[0]), int(cells[1]), int(cells[2]),
+                    str(game_number or ""))
+        if len(cells) == 3 and cells[0].isdigit():
+            return (int(cells[2]), int(cells[1]), int(cells[0]),
+                    str(game_number or ""))
+        if len(cells) == 2 and cells[0].isdigit() and cells[1].isdigit():
+            return (0, int(cells[1]), int(cells[0]),
+                    str(game_number or ""))
+    except (ValueError, IndexError):
+        pass
+    return (0, 0, 0, str(game_date or ""), str(game_number or ""))
+
+
 def upsert_game(conn: sqlite3.Connection, championship_id: int,
                 game: dict) -> str:
     """Insert or update one game. Returns 'added', 'updated' or 'unchanged'."""
@@ -192,6 +218,10 @@ def upsert_game(conn: sqlite3.Connection, championship_id: int,
     ).fetchone()
     venue = str(game.get("venue") or game.get("campo") or "")
     city = str(game.get("city") or game.get("citta") or "")
+    game_date = str(game.get("date") or game.get("data") or "")
+    game_time = str(game.get("time") or game.get("ora") or "")
+    status = str(game.get("status") or game.get("stato") or "")
+    round_label = str(game.get("round") or game.get("turno") or "")
     if existing is None:
         conn.execute(
             """INSERT INTO ext_games
@@ -201,10 +231,7 @@ def upsert_game(conn: sqlite3.Connection, championship_id: int,
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (championship_id, game_hash,
              str(game.get("game_number") or game.get("n_gara") or ""),
-             str(game.get("round") or game.get("turno") or ""),
-             str(game.get("date") or game.get("data") or ""),
-             str(game.get("time") or game.get("ora") or ""),
-             str(game.get("status") or game.get("stato") or ""),
+             round_label, game_date, game_time, status,
              str(game.get("home") or game.get("casa") or ""),
              str(game.get("away") or game.get("ospite") or ""),
              home_score, away_score, venue, city, now, now),
@@ -214,18 +241,21 @@ def upsert_game(conn: sqlite3.Connection, championship_id: int,
     changed = (
         existing["home_score"] != home_score
         or existing["away_score"] != away_score
-        or existing["status"] != str(game.get("status") or game.get("stato") or "")
-        or existing["round_label"] != str(game.get("round") or game.get("turno") or "")
+        or existing["status"] != status
+        or existing["round_label"] != round_label
+        or existing["game_date"] != game_date
+        or existing["game_time"] != game_time
+        or existing["venue"] != venue
+        or existing["city"] != city
     )
     if changed:
         conn.execute(
             """UPDATE ext_games SET home_score=?, away_score=?, status=?,
-                                  round_label=?, venue=?, city=?,
+                                  round_label=?, game_date=?, game_time=?,
+                                  venue=?, city=?,
                                   last_updated=? WHERE id=?""",
-            (home_score, away_score,
-             str(game.get("status") or game.get("stato") or ""),
-             str(game.get("round") or game.get("turno") or ""),
-             venue, city, now, existing["id"]),
+            (home_score, away_score, status, round_label,
+             game_date, game_time, venue, city, now, existing["id"]),
         )
         conn.commit()
         return "updated"
@@ -310,6 +340,10 @@ def list_games(conn: sqlite3.Connection, championship_id: int,
         games = [g for g in games
                  if needle in (g["home"] or "").lower()
                  or needle in (g["away"] or "").lower()]
+    # Canonical chronological order: raw game_date mixes DD/MM and ISO,
+    # so TEXT ordering is wrong (02/11 < 14/10). Sort in Python.
+    games.sort(key=lambda g: _game_sort_key(g.get("game_date", ""),
+                                            g.get("game_number", "")))
     return games
 
 
@@ -331,11 +365,14 @@ def get_standings(conn: sqlite3.Connection,
 def new_since(conn: sqlite3.Connection, championship_id: int,
               since: str) -> list[dict]:
     """Games first seen or updated after an ISO timestamp (for badges)."""
-    return [dict(r) for r in conn.execute(
+    rows = [dict(r) for r in conn.execute(
         """SELECT * FROM ext_games WHERE championship_id=?
            AND (first_seen > ? OR last_updated > ?)
            ORDER BY game_date""",
         (championship_id, since, since)).fetchall()]
+    rows.sort(key=lambda g: _game_sort_key(g.get("game_date", ""),
+                                           g.get("game_number", "")))
+    return rows
 
 
 def seed_from_snapshot(conn: sqlite3.Connection, snapshot: dict,

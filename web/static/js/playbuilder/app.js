@@ -251,10 +251,14 @@ class PlayBuilder {
             return false;
         }
         // Manual transform (same math as fabric's getPointer): canvas CSS
-        // pixels -> court coordinates, honoring canvas zoom.
+        // pixels -> court coordinates, honoring canvas zoom and responsive
+        // CSS scaling (intrinsic canvas size vs displayed rect) plus
+        // viewport translation.
         const vpt = this.canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
-        const x = (clientX - rect.left) / (vpt[0] || 1);
-        const y = (clientY - rect.top) / (vpt[3] || 1);
+        const cssScaleX = this.canvas.getWidth() / rect.width;
+        const cssScaleY = this.canvas.getHeight() / rect.height;
+        const x = ((clientX - rect.left) * cssScaleX - vpt[4]) / (vpt[0] || 1);
+        const y = ((clientY - rect.top) * cssScaleY - vpt[5]) / (vpt[3] || 1);
 
         let obj = null;
         if (payload.kind === 'player' && this.tools.player && this.tools.player.createToken) {

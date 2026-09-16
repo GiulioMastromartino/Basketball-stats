@@ -44,10 +44,20 @@ class LayersPanel {
             const isActive = this.canvas.getActiveObject() === obj;
             if (isActive) li.classList.add('active');
 
-            li.innerHTML = `
-                <span><i class="fas ${icon} me-2"></i> ${label}</span>
-                <span class="badge bg-light text-dark rounded-pill action-btn delete-btn" title="Delete">&times;</span>
-            `;
+            // Build row with DOM APIs: label holds user-controlled text
+            // (player labels, text objects) so it must go through
+            // textContent, never innerHTML (stored XSS otherwise).
+            const row = document.createElement('span');
+            const glyph = document.createElement('i');
+            glyph.className = `fas ${icon} me-2`;
+            row.appendChild(glyph);
+            row.appendChild(document.createTextNode(label));
+            const del = document.createElement('span');
+            del.className = 'badge bg-light text-dark rounded-pill action-btn delete-btn';
+            del.title = 'Delete';
+            del.textContent = '×';
+            li.appendChild(row);
+            li.appendChild(del);
 
             // Click to select
             li.addEventListener('click', (e) => {

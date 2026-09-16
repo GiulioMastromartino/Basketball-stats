@@ -1835,9 +1835,9 @@ def promote_external_game(ext_game_id):
     endpoint is the single sanctioned path to an internal Game. It creates
     a draft (game_type "Draft" so it stays out of Season/Friendly views,
     source "EXTERNAL") scoped to the session team, only when the sidecar
-    championship is tracked by that team. Scores mirror the sidecar
-    home/away values (0 when unplayed); the GM corrects sides when filling
-    the draft. The championship source_url lives in the sidecar and is
+    championship is tracked by that team. Unplayed fixtures (no score yet)
+    are rejected with 400 so they never become 0-0 losses; the GM promotes
+    only played games, then corrects sides when filling the draft. The championship source_url lives in the sidecar and is
     echoed back in the response (Game has no URL column).
     Re-promoting the same fixture returns the existing draft (idempotent).
     """
@@ -1889,6 +1889,10 @@ def promote_external_game(ext_game_id):
     else:
         opponent = home or away or f"External game {ext_game_id}"
     opponent = opponent[:100]
+    if ext["home_score"] is None and ext["away_score"] is None:
+        return jsonify(
+            {"error": "Cannot promote an unplayed game (no score yet)"}
+        ), 400
     team_score = ext["home_score"] if ext["home_score"] is not None else 0
     opponent_score = ext["away_score"] if ext["away_score"] is not None else 0
     display_date, sort_date = _external_draft_dates(ext["game_date"],

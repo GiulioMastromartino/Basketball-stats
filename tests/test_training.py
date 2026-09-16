@@ -2,7 +2,7 @@ import json
 import unittest
 from web import create_app, db
 from core.models import (
-    User, Organization, Team, OrganizationMembership, Play,
+    User, Organization, Team, OrganizationMembership, TeamAssignment, Play,
     Player, TrainingSession, TrainingSegment, TrainingAttendance,
 )
 
@@ -29,6 +29,7 @@ def make_ctx(testcase, username="training_test_user"):
     db.session.flush()
     db.session.add(OrganizationMembership(
         user_id=user.id, organization_id=org.id, is_gm=False))
+    db.session.add(TeamAssignment(user_id=user.id, team_id=team.id))
     db.session.commit()
 
     with client.session_transaction() as sess:
@@ -106,7 +107,14 @@ class TestTraining(unittest.TestCase):
         db.session.flush()
         other_team = Team(name="Other Team", organization_id=other_org.id, slug="other-team")
         db.session.add(other_team)
-        db.session.commit()
+        db.session.flush()
+        # Assign the user to the other team so the session switch is
+        # honored; the original session's object must still be invisible.
+        from core.models import User as _User
+        user = _User.query.filter_by(username="training_test_user").first()
+        if user is not None:
+            db.session.add(TeamAssignment(user_id=user.id, team_id=other_team.id))
+            db.session.commit()
         with self.client.session_transaction() as sess:
             sess['current_team_id'] = other_team.id
         # consume the queued "scheduled" flash from setup first

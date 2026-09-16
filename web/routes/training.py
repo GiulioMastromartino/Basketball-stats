@@ -23,6 +23,15 @@ def _team_id():
     return session.get("current_team_id")
 
 
+def _valid_iso_date(value: str) -> bool:
+    """TrainingSession.session_date requires YYYY-MM-DD."""
+    try:
+        date.fromisoformat((value or "").strip())
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 @training_bp.route("/trainings/")
 @login_required
 @team_access_required
@@ -45,6 +54,9 @@ def create_session():
     session_date = (request.form.get("session_date") or "").strip()
     if not title or not session_date:
         flash("Title and date are required", "danger")
+        return redirect(url_for("training.list_sessions"))
+    if not _valid_iso_date(session_date):
+        flash("Date must be YYYY-MM-DD", "danger")
         return redirect(url_for("training.list_sessions"))
     ts = TrainingSession(
         team_id=_team_id(),
@@ -88,6 +100,9 @@ def edit_session(session_id):
     if not title or not session_date:
         flash("Title and date are required", "danger")
         return redirect(url_for("training.view_session", session_id=session_id))
+    if not _valid_iso_date(session_date):
+        flash("Date must be YYYY-MM-DD", "danger")
+        return redirect(url_for("training.view_session", session_id=session_id))
     ts.title = title
     ts.session_date = session_date
     ts.start_time = (request.form.get("start_time") or "").strip() or None
@@ -124,11 +139,18 @@ def add_segment(session_id):
     if not title:
         flash("Segment title is required", "danger")
         return redirect(url_for("training.view_session", session_id=session_id))
-    try:
-        duration = request.form.get("duration_min")
-        duration_min = int(duration) if duration else None
-    except (TypeError, ValueError):
+    raw_duration = request.form.get("duration_min")
+    if raw_duration in (None, ""):
         duration_min = None
+    else:
+        try:
+            duration_min = int(str(raw_duration).strip())
+        except (TypeError, ValueError):
+            flash("Duration must be 1-480 minutes", "danger")
+            return redirect(url_for("training.view_session", session_id=session_id))
+        if duration_min < 1 or duration_min > 480:
+            flash("Duration must be 1-480 minutes", "danger")
+            return redirect(url_for("training.view_session", session_id=session_id))
     play_id = request.form.get("play_id") or None
     if play_id:
         try:

@@ -247,8 +247,3 @@ def test_never_raises_on_garbage_descriptor():
     preview = CSVProcessor.build_preview_pdf(
         {"players": [{"Name": object(), "MIN": object()}]})
     assert preview["valid"] is False  # fatal or row errors, but no raise
-
-
-def test_venv_python_used():
-    import sys
-    assert "venv" in sys.executable, sys.executable

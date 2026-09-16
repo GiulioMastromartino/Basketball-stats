@@ -91,12 +91,15 @@ class TestPostponementIdentity:
             conn, champ, {"round": "Andata 3", "data": "28/10",
                           "casa": "Team A", "ospite": "Team B",
                           "pc": "49", "po": "73"}) == "added"
-        # Postponed to a new date, same round+teams: same fixture.
+        # Postponed to a new date, same round+teams: same fixture,
+        # but stored date must update (not stay stale).
         assert store.upsert_game(
             conn, champ, {"round": "Andata 3", "data": "04/11",
                           "casa": "Team A", "ospite": "Team B",
-                          "pc": "49", "po": "73"}) == "unchanged"
-        assert len(store.list_games(conn, champ)) == 1
+                          "pc": "49", "po": "73"}) == "updated"
+        games = store.list_games(conn, champ)
+        assert len(games) == 1
+        assert games[0]["game_date"] == "04/11"
 
     def test_numbered_identity_ignores_date(self, conn):
         from core import external_store as store

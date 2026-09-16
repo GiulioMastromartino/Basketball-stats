@@ -29,7 +29,6 @@ def fetch_games(comitato: str, campionato: str, fase: str = "1",
                 sleep: float = 0.3) -> list[dict]:
     """Fetch all rounds (andata + ritorno) for one girone."""
     games: list[dict] = []
-    first_error: Exception | None = None
     for code_ar, turno in (("1", "Andata"), ("0", "Ritorno")):
         giornata = 1
         empty_streak = 0
@@ -45,11 +44,9 @@ def fetch_games(comitato: str, campionato: str, fase: str = "1",
                     "giornata": giornata,
                 })
             except Exception as exc:
-                # Don't silently record a partial sweep as success: remember
-                # the failure; the caller decides (empty result -> raise).
-                if first_error is None:
-                    first_error = exc
-                break
+                raise RuntimeError(
+                    f"FIP API fetch failed at {turno} {giornata}: {exc}"
+                ) from exc
             partite = payload.get("partite", []) if payload else []
             if not partite:
                 empty_streak += 1
@@ -73,6 +70,4 @@ def fetch_games(comitato: str, campionato: str, fase: str = "1",
             giornata += 1
             if sleep:
                 time.sleep(sleep)
-    if not games and first_error is not None:
-        raise RuntimeError(f"FIP API fetch failed: {first_error}")
     return games

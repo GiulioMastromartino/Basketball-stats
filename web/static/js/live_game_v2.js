@@ -585,6 +585,33 @@
       renderRosters();
       persist();
       appendUndoNotice(entry);
+      // Propagate to backend for synced entries: the GameEvent/ShotEvent
+      // rows stay in the DB otherwise, so win-probability/analytics keep
+      // counting the undone action and resync resurfaces it. Local revert
+      // above is the fallback when the request fails. Same CSRF/JSON shape
+      // as postEntry().
+      try {
+        if (entry.synced && window.fetch) {
+          var gameId = getGameId();
+          if (gameId != null) {
+            window
+              .fetch("/api/live-v2/undo", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-CSRFToken": getCsrfToken(),
+                },
+                body: JSON.stringify({ game_id: gameId }),
+              })
+              .catch(function () {
+                /* keep local revert; stays pending-reconcile */
+              });
+          }
+        }
+      } catch (e) {
+        /* never break the page */
+      }
       return entry;
     }
     var hint = getEl("v2-need-player");
