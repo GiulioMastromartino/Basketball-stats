@@ -235,7 +235,9 @@ services:
       - web-2
       - web-3
     ports:
-      - "80:80"
+      # Host :80 is held by the system nginx (default page); Tailscale Funnel
+      # targets :8080, so the app nginx serves there.
+      - "8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d/basketball.conf:/etc/nginx/conf.d/default.conf:ro
