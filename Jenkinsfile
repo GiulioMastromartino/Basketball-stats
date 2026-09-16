@@ -11,7 +11,7 @@ pipeline {
             steps {
                 checkout([
                     $class: 'GitSCM',
-                    branches: [[name: '*/Demo']],
+                    branches: [[name: '*/beta']],
                     extensions: [[$class: 'CloneOption', depth: 1, noTags: true, shallow: true]],
                     userRemoteConfigs: [[url: 'https://github.com/GiulioMastromartino/Basketball-stats.git']]
                 ])
@@ -35,7 +35,7 @@ pipeline {
         stage('Smoke Test') {
             steps {
                 sh '''
-                    docker-compose -f $COMPOSE_FILE run --rm web_1 python -c "
+                    docker-compose -f $COMPOSE_FILE run --rm web-1 python -c "
 import sys
 print(f'Python {sys.version}')
 from core.rust_analytics import safe_percentage

@@ -6,9 +6,9 @@ scrape_configs:
   - job_name: "basketball-stats"
     static_configs:
       - targets:
-          - "web_1:8080"
-          - "web_2:8080"
-          - "web_3:8080"
+          - "web-1:8080"
+          - "web-2:8080"
+          - "web-3:8080"
     metrics_path: "/metrics"
     scheme: http
     relabel_configs:
