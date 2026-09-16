@@ -2420,7 +2420,7 @@ class AnalyticsService:
                     "favorable": favorable,
                     "message": (
                         f"{labels[metric]} {direction} "
-                        f"{abs(delta):.1f} {units[metric]} "
+                        f"{abs(delta):.1f} {units.get(metric, 'pts')} "
                         f"({p:.1f} -> {r:.1f}, last {last_n} vs prior {last_n})"
                     ),
                 }
