@@ -3,7 +3,7 @@ from collections import defaultdict
 from itertools import groupby
 from sqlalchemy import func, desc
 from types import SimpleNamespace
-from core.models import PlayerStat, db, Game, ShotEvent, LineupSegment, GameEvent
+from core.models import PlayerStat, db, Game, ShotEvent, LineupSegment, GameEvent, Player
 from core.utils import (
     calculate_possessions,
     calculate_efficiency,
@@ -1815,11 +1815,35 @@ class AnalyticsService:
         target_games = all_filtered_games[:limit] if limit > 0 else all_filtered_games
         target_game_ids = [g.id for g in target_games]
 
+        def _roster_fallback_players():
+            """Zero-game summaries for active roster players (no stats yet).
+
+            The Players page is stat-driven; without this, roster players
+            added via Admin never appear until their first game import.
+            """
+            if team_id is None:
+                return []
+            try:
+                roster = (
+                    Player.query.filter_by(team_id=team_id, active=True)
+                    .order_by(Player.name)
+                    .all()
+                )
+            except Exception:
+                return []
+            return [
+                AnalyticsService.build_player_summary_dict(
+                    p.name, 0, [], 0, [], 0
+                )
+                for p in roster
+            ]
+
         if not target_game_ids:
+            roster_data = _roster_fallback_players()
             return {
-                "stats": [],
+                "stats": roster_data,
                 "total_row": None,
-                "all_player_names": [],
+                "all_player_names": [d["player_name"] for d in roster_data],
                 "filters": {
                     "type": game_type,
                     "limit": limit,
@@ -1868,6 +1892,15 @@ class AnalyticsService:
                 )
             )
 
+        all_player_names.sort()
+        # Roster players without stats yet (e.g. just added via Admin):
+        # show them with zeros so the roster is always visible.
+        seen = {n.lower() for n in all_player_names}
+        for entry in _roster_fallback_players():
+            if entry["player_name"].lower() not in seen:
+                players_data.append(entry)
+                all_player_names.append(entry["player_name"])
+                seen.add(entry["player_name"].lower())
         all_player_names.sort()
         excluded_player = excluded_player if excluded_player in all_player_names else ""
 
