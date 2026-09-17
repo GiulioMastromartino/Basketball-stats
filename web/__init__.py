@@ -202,24 +202,35 @@ def create_app(config_name: str = None) -> Flask:
         )
         return response
 
-    # Configure login manager
-    login_manager.init_app(app)
+    # Configure login manager. The module-global LoginManager is
+    # process-global, so DISABLE_AUTH apps get a DEDICATED manager:
+    # mutating the shared one here leaked NoAuthUser/login_view=None into
+    # every other app in the process (broke anonymous-redirect tests).
+    # Flask-Login resolves login_required/current_user via
+    # current_app.login_manager, so per-app managers just work.
     if disable_auth:
-        login_manager.login_view = None
-        login_manager.login_message = None
-        login_manager.login_message_category = None
-        login_manager.anonymous_user = NoAuthUser
+        from flask_login import LoginManager as _LoginManager
+
+        app_login_manager = _LoginManager()
+        app_login_manager.init_app(app)
+        app_login_manager.login_view = None
+        app_login_manager.login_message = None
+        app_login_manager.login_message_category = None
+        app_login_manager.anonymous_user = NoAuthUser
+
+        @app_login_manager.user_loader
+        def load_user(user_id):
+            return User.query.get(int(user_id))
     else:
+        login_manager.init_app(app)
         login_manager.login_view = "auth.login"
         login_manager.login_message = "Please log in to access this page."
         login_manager.login_message_category = "info"
-        # login_manager is process-global: a previous DISABLE_AUTH app may
-        # have set anonymous_user to NoAuthUser. Always reset explicitly.
         login_manager.anonymous_user = AnonymousUserMixin
 
-    @login_manager.user_loader
-    def load_user(user_id):
-        return User.query.get(int(user_id))
+        @login_manager.user_loader
+        def load_user(user_id):
+            return User.query.get(int(user_id))
 
     # Register blueprints
     register_blueprints(app)

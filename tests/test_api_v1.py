@@ -1,7 +1,7 @@
 import unittest
 import json
 from web import create_app, db
-from core.models import User, Organization, Team, OrganizationMembership, Play
+from core.models import User, Organization, Team, OrganizationMembership, TeamAssignment, Play
 
 class TestApiV1(unittest.TestCase):
     def setUp(self):
@@ -28,6 +28,7 @@ class TestApiV1(unittest.TestCase):
         db.session.flush()
         membership = OrganizationMembership(user_id=user.id, organization_id=org.id, is_gm=False)
         db.session.add(membership)
+        db.session.add(TeamAssignment(user_id=user.id, team_id=team.id))
         
         # Create plays
         play1 = Play(name='PickAndRoll', play_type='Offense', description='Basic PnR', team_id=self.team_id)
