@@ -581,7 +581,12 @@ class ArrowTool extends ToolBase {
         
         this.canvas.remove(arrowGroup);
         this.canvas.add(newGroup);
-        this.canvas.sendToBack(newGroup);
+        if (typeof CourtBackdrop !== 'undefined') {
+            const objs = this.canvas.getObjects();
+            let idx = 0;
+            objs.forEach((o, i) => { if (CourtBackdrop.isBackdrop(o)) idx = i + 1; });
+            this.canvas.moveTo(newGroup, Math.min(idx, objs.length - 1));
+        }
 
         this.controlHandles.forEach(h => h.arrowRef = newGroup);
     }

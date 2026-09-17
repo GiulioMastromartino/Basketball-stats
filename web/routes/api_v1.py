@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request, session, abort, current_app
-from flask_login import login_required
+from flask_login import login_required, current_user
 from core.models import (
     Play,
     PlaySequence,
@@ -441,11 +441,13 @@ def save_canvas():
 
             # Create new sequences
             for idx, frame in enumerate(frames):
+                svg = frame.get("svg")
                 sequence = PlaySequence(
                     play_id=play.id,
                     sequence_number=idx + 1,
                     element_data=frame.get("data"),
                     caption=frame.get("caption", f"Frame {idx + 1}"),
+                    svg_snapshot=svg if isinstance(svg, str) else None,
                 )
                 db.session.add(sequence)
 
@@ -483,7 +485,12 @@ def load_canvas(play_id):
 
     frames = []
     for seq in sequences:
-        frames.append({"id": seq.id, "data": seq.element_data, "caption": seq.caption})
+        frames.append({
+            "id": seq.id,
+            "data": seq.element_data,
+            "caption": seq.caption,
+            "has_svg": bool(seq.svg_snapshot),
+        })
 
     response = {
         "success": True,
@@ -500,7 +507,46 @@ def load_canvas(play_id):
             "updated_at": play.updated_at.isoformat(),
         },
         "canvas_json": play.canvas_data,
+        "diagram_svg": play.diagram_svg,
         "frames": frames,
     }
 
     return jsonify(response)
+
+
+@api_v1_bp.route("/plays/api/<int:play_id>/frame-snapshots", methods=["POST"])
+@login_required
+@team_access_required
+def save_frame_snapshots(play_id):
+    """Backfill per-phase SVG snapshots (e.g. legacy plays at PDF export).
+
+    Expected JSON payload: {"snapshots": [{"id": <sequence_id>, "svg": <str>}]}
+    Unknown ids are ignored; non-string SVGs are skipped.
+    """
+    if getattr(current_user, "is_auditor", False):
+        return jsonify({"error": "Auditors have read-only access"}), 403
+    team_id = session.get('current_team_id')
+    play = Play.query.filter_by(id=play_id, team_id=team_id).first()
+    if not play:
+        return jsonify({"error": "Play not found"}), 404
+    payload = request.get_json(silent=True) or {}
+    snapshots = payload.get("snapshots")
+    if not isinstance(snapshots, list) or not snapshots:
+        return jsonify({"error": "snapshots must be a non-empty list"}), 400
+    if len(snapshots) > 60:
+        return jsonify({"error": "too many snapshots (max 60)"}), 400
+    by_id = {s.id: s for s in PlaySequence.query.filter_by(play_id=play.id).all()}
+    saved = 0
+    for item in snapshots:
+        if not isinstance(item, dict):
+            continue
+        seq = by_id.get(item.get("id"))
+        svg = item.get("svg")
+        if seq is None or not isinstance(svg, str) or not svg:
+            continue
+        if len(svg) > 2 * 1024 * 1024:
+            continue
+        seq.svg_snapshot = svg
+        saved += 1
+    db.session.commit()
+    return jsonify({"play_id": play.id, "saved": saved}), 200

@@ -78,6 +78,7 @@ def add_missing_columns(app):
                 "difficulty": "VARCHAR(20) DEFAULT 'Medium'",
                 "personnel_required": "TEXT",
                 "tags": "TEXT",
+                "is_active": "BOOLEAN DEFAULT 1",
             },
             # Game events table
             "game_events": {
@@ -98,6 +99,15 @@ def add_missing_columns(app):
             # Play types table
             "play_types": {
                 "team_id": "INTEGER",
+            },
+            # Training tables (created after the initial schema)
+            "training_sessions": {
+                "post_notes": "TEXT",
+            },
+            # Play phases table - svg_snapshot holds the save-time SVG
+            # still used to storyboard animations in PDF exports
+            "play_sequences": {
+                "svg_snapshot": "TEXT",
             },
             # Lineups table - these columns were added in later migrations
             "lineups": {

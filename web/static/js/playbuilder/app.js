@@ -444,7 +444,9 @@ class PlayBuilder {
         const cutEnds = [];
         const ballEnds = [];
 
-        const moveArrows = arrows.filter(a => a.custom?.type === 'cut' || a.custom?.type === 'dribble');
+        // Screen is a movement action for the screener: the player ends at
+        // the screen's end point (where the wall is set).
+        const moveArrows = arrows.filter(a => ['cut', 'dribble', 'screen'].includes(a.custom?.type));
         const possArrows = arrows.filter(a => a.custom?.type === 'pass' || a.custom?.type === 'handoff');
         const doneMove = new Set();
         const donePoss = new Set();
@@ -974,9 +976,22 @@ class PlayBuilder {
         const diagramSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CW} ${CH}" width="${CW}" height="${CH}" preserveAspectRatio="xMidYMid meet">${courtSvgContent}${svgBody}</svg>`;
         
         // ----------------------------------------
-        
-        // Frames data
+
+        // Frames data (+ per-phase SVG snapshots for PDF storyboards,
+        // rendered offscreen by the shared frame_snapshots module).
         const frames = this.sequence ? this.sequence.frames : [];
+        const sharedInner = (typeof window !== 'undefined' && window.COURT_SVG_INNER && this.court !== 'full')
+            ? window.COURT_SVG_INNER : null;
+        const frameSvgs = (typeof window.renderPhaseSnapshots === 'function')
+            ? await window.renderPhaseSnapshots(frames, {
+                width: CW, height: CH, court: this.court, courtSvgInner: sharedInner,
+            })
+            : frames.map(() => null);
+        const framesPayload = frames.map((fr, i) => ({
+            data: fr.data,
+            caption: fr.caption,
+            svg: (frameSvgs[i] || null)
+        }));
 
         const payload = {
             play_id: this.config.playId ? parseInt(this.config.playId) : null,
@@ -989,7 +1004,7 @@ class PlayBuilder {
             },
             canvas_json: canvasJson,
             diagram_svg: diagramSvg,
-            frames: frames 
+            frames: framesPayload
         };
         
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');

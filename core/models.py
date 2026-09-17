@@ -331,6 +331,7 @@ class Play(db.Model):
 
     canvas_data = db.Column(db.JSON, nullable=True)
     diagram_svg = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default="1")
     court_type = db.Column(db.String(10), default="half", server_default="half", nullable=False)
     difficulty = db.Column(db.String(20), server_default="Medium", nullable=False)
     personnel_required = db.Column(db.Text, nullable=True)
@@ -347,6 +348,9 @@ class PlaySequence(db.Model):
     sequence_number = db.Column(db.Integer, nullable=False)
     element_data = db.Column(db.JSON, nullable=True)
     caption = db.Column(db.String(255), nullable=True)
+    # Static SVG snapshot of this phase, captured at save time so PDF
+    # exports can storyboard the animation without a canvas runtime.
+    svg_snapshot = db.Column(db.Text, nullable=True)
 
 
 class PlayType(db.Model):
@@ -370,6 +374,7 @@ class TrainingSession(db.Model):
     location = db.Column(db.String(150), nullable=True)
     focus = db.Column(db.String(50), nullable=True)  # e.g. Offense/Defense
     notes = db.Column(db.Text, nullable=True)
+    post_notes = db.Column(db.Text, nullable=True)  # debrief written after the session
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -411,6 +416,28 @@ class TrainingAttendance(db.Model):
 
     __table_args__ = (
         db.UniqueConstraint("session_id", "player_id", name="uq_attendance_session_player"),
+    )
+
+
+class TrainingSegmentTemplate(db.Model):
+    """Reusable agenda block saved from a training session, per team."""
+
+    __tablename__ = "training_segment_templates"
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    title = db.Column(db.String(150), nullable=False)
+    duration_min = db.Column(db.Integer, nullable=True)
+    play_id = db.Column(db.Integer, db.ForeignKey("plays.id", ondelete="SET NULL"), nullable=True)
+    category = db.Column(db.String(50), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    usage_count = db.Column(db.Integer, default=0, server_default="0", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    team = db.relationship("Team", backref=db.backref("training_segment_templates", lazy=True))
+    play = db.relationship("Play")
+
+    __table_args__ = (
+        db.UniqueConstraint("team_id", "title", name="uq_segment_template_team_title"),
     )
 
 

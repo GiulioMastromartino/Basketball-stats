@@ -379,7 +379,7 @@ def live_game():
         .all()
     ]
 
-    plays_query = Play.query.filter_by(team_id=team_id).order_by(Play.play_type, Play.name).all()
+    plays_query = Play.query.filter_by(team_id=team_id, is_active=True).order_by(Play.play_type, Play.name).all()
     plays_list = [
         {
             "id": p.id,
@@ -415,7 +415,7 @@ def live_game_v2():
         .all()
     ]
 
-    plays_query = Play.query.filter_by(team_id=team_id).order_by(Play.play_type, Play.name).all()
+    plays_query = Play.query.filter_by(team_id=team_id, is_active=True).order_by(Play.play_type, Play.name).all()
     plays_list = [
         {
             "id": p.id,
@@ -459,7 +459,7 @@ def live_game_v2():
 def api_plays():
     """API endpoint to get list of plays for live game selector"""
     team_id = session.get("current_team_id")
-    plays = Play.query.filter_by(team_id=team_id).order_by(Play.play_type, Play.name).all()
+    plays = Play.query.filter_by(team_id=team_id, is_active=True).order_by(Play.play_type, Play.name).all()
     return jsonify(
         [
             {

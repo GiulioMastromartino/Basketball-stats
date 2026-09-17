@@ -348,6 +348,22 @@ class TestProductionMigration:
                 columns = [c["name"] for c in inspector.get_columns(table)]
                 assert col in columns, f"Migration did not add: {table}.{col}"
 
+    def test_migrate_adds_svg_snapshot_to_play_sequences(self, pre_migration_db):
+        """Old play_sequences tables gain svg_snapshot (phase stills for PDFs)."""
+        from scripts.migrate import run as run_migration
+
+        app, db = pre_migration_db
+        with app.app_context():
+            inspector = inspect(db.engine)
+            columns = [c["name"] for c in inspector.get_columns("play_sequences")]
+            assert "svg_snapshot" not in columns
+
+            run_migration(app)
+
+            inspector = inspect(db.engine)
+            columns = [c["name"] for c in inspector.get_columns("play_sequences")]
+            assert "svg_snapshot" in columns
+
     def test_migrate_is_idempotent(self, pre_migration_db):
         """Running twice must be safe."""
         from scripts.migrate import run as run_migration

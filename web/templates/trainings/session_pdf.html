@@ -1,0 +1,243 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Training Session</title>
+        <style>
+            @page {
+                size: A4;
+                margin: 1.5cm;
+                @bottom-right {
+                    content: "Page " counter(page) " of " counter(pages);
+                    font-size: 8px;
+                    color: #718096;
+                }
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                color: #1a202c;
+                font-size: 11px;
+                line-height: 1.5;
+            }
+            .header-container {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                border-bottom: 2px solid #2c3e50;
+                padding-bottom: 10px;
+                margin-bottom: 20px;
+            }
+            .header-left h1 { margin: 0; font-size: 20px; color: #2c3e50; }
+            .header-right { text-align: right; font-size: 10px; color: #718096; }
+
+            .section-title {
+                background: #2c3e50;
+                color: white;
+                padding: 5px 10px;
+                font-size: 12px;
+                font-weight: bold;
+                margin: 15px 0 10px 0;
+                border-radius: 4px;
+                page-break-after: avoid;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 10px;
+            }
+            th {
+                background: #edf2f7;
+                text-align: left;
+                padding: 6px;
+                border-bottom: 2px solid #cbd5e0;
+                font-weight: 700;
+                color: #4a5568;
+            }
+            td {
+                padding: 5px 6px;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            tr:nth-child(even) { background-color: #f8fafc; }
+            tr { page-break-inside: avoid; }
+
+            .notes-card {
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 10px 12px;
+                white-space: pre-wrap;
+            }
+            .muted { color: #718096; }
+            .badge-present { color: #166534; font-weight: 700; }
+            .badge-absent { color: #c53030; font-weight: 700; }
+            .badge-excused { color: #b7791f; font-weight: 700; }
+
+            .diagram-card {
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 10px 12px;
+                margin-bottom: 12px;
+                page-break-inside: avoid;
+            }
+            .diagram-title {
+                font-weight: 700;
+                font-size: 11px;
+                color: #2c3e50;
+                margin-bottom: 6px;
+            }
+            .diagram-body { text-align: center; }
+            .diagram-body svg {
+                width: 100%;
+                height: auto;
+                display: block;
+            }
+            .phases-title {
+                font-weight: 700;
+                font-size: 10px;
+                color: #2c3e50;
+                margin: 8px 0 4px 0;
+            }
+            .phase-grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            .phase-grid td {
+                width: 50%;
+                text-align: center;
+                vertical-align: top;
+                padding: 4px;
+                border: none;
+                background: transparent;
+            }
+            .phase-grid tr:nth-child(even) { background: transparent; }
+            .phase-chunk { page-break-inside: avoid; }
+            .phase-thumb svg { width: 100%; height: auto; display: block; }
+            .phase-cap { font-size: 8px; color: #4a5568; margin-top: 2px; }
+        </style>
+    </head>
+    <body>
+        <div class="header-container">
+            <div class="header-left">
+                <h1>Training Session</h1>
+                <div style="font-size: 12px; margin-top: 2px">{{ ts.title }}</div>
+            </div>
+            <div class="header-right">
+                <div>Generated: {{ generated_date }}</div>
+                <div>{{ team_name }}</div>
+            </div>
+        </div>
+
+        <div class="section-title">Session Details</div>
+        <table>
+            <tr>
+                <th style="width: 25%">Date</th>
+                <td>{{ ts.session_date }}{% if ts.start_time %} · {{ ts.start_time }}{% endif %}</td>
+            </tr>
+            {% if ts.location %}
+            <tr><th>Location</th><td>{{ ts.location }}</td></tr>
+            {% endif %}
+            {% if ts.focus %}
+            <tr><th>Focus</th><td>{{ ts.focus }}</td></tr>
+            {% endif %}
+            <tr><th>Agenda total</th><td>{{ total_min }} min</td></tr>
+        </table>
+
+        <div class="section-title">Agenda</div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 5%">#</th>
+                    <th style="width: 40%">Segment</th>
+                    <th style="width: 12%">Duration</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for seg in ts.segments %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                        <strong>{{ seg.title }}</strong>
+                        {% if seg.play %}
+                        <div class="muted" style="font-size: 9px">Play: {{ seg.play.name }}</div>
+                        {% endif %}
+                    </td>
+                    <td>{% if seg.duration_min %}{{ seg.duration_min }} min{% else %}—{% endif %}</td>
+                    <td>{{ seg.notes or "" }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="muted">No agenda segments.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if diagram_segments %}
+        <div class="section-title">Drill Diagrams</div>
+        {% for seg in diagram_segments %}
+        <div class="diagram-card">
+            <div class="diagram-title">{{ seg.title }} — {{ seg.play.name }}{% if seg.duration_min %} · {{ seg.duration_min }} min{% endif %}</div>
+            <div class="diagram-body">{{ seg.play.diagram_svg|safe }}</div>
+            {% if storyboard.get(seg.id) %}
+            {% set board = storyboard.get(seg.id) %}
+            {% set per_page = 4 if board.court == 'full' else 8 %}
+            <div class="phases-title">Phases ({{ board.frames|length }}{% if board.total > board.frames|length %} of {{ board.total }}{% endif %})</div>
+            {% for chunk in board.frames|batch(per_page) %}
+            <div class="phase-chunk">
+            <table class="phase-grid">
+                <tbody>
+                {% for row in chunk|batch(2) %}
+                {% if row|select|list %}
+                <tr>
+                    {% for sq in row %}
+                    {% if sq %}
+                    <td>
+                        <div class="phase-thumb">{{ sq.svg_snapshot|safe }}</div>
+                        <div class="phase-cap">Phase {{ sq.sequence_number }}{% if sq.caption %} · {{ sq.caption }}{% endif %}</div>
+                    </td>
+                    {% endif %}
+                    {% endfor %}
+                </tr>
+                {% endif %}
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% endfor %}
+            {% if board.total > board.frames|length %}
+            <div class="muted" style="font-size: 8px">+{{ board.total - board.frames|length }} more phase(s) — view the full animation in the playbook.</div>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if ts.notes %}
+        <div class="section-title">Session Notes</div>
+        <div class="notes-card">{{ ts.notes }}</div>
+        {% endif %}
+
+        {% if ts.post_notes %}
+        <div class="section-title">Post-Training Notes</div>
+        <div class="notes-card">{{ ts.post_notes }}</div>
+        {% endif %}
+
+        {% if ts.attendance %}
+        <div class="section-title">Attendance</div>
+        <table>
+            <thead>
+                <tr><th style="width: 60%">Player</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                {% for att in ts.attendance %}
+                <tr>
+                    <td>{{ att.player.name }}</td>
+                    <td><span class="badge-{{ att.status }}">{{ att.status|capitalize }}</span></td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td><strong>Summary</strong></td>
+                    <td>{{ attendance_counts.present }} present · {{ attendance_counts.absent }} absent · {{ attendance_counts.excused }} excused</td>
+                </tr>
+            </tbody>
+        </table>
+        {% endif %}
+    </body>
+</html>

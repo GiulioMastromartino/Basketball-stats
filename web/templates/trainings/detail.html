@@ -14,6 +14,12 @@
         <a href="{{ url_for('training.list_sessions') }}" class="btn btn-secondary">
             <i class="fas fa-arrow-left" aria-hidden="true"></i> All Sessions
         </a>
+        <a href="{{ url_for('training.export_session_pdf', session_id=ts.id) }}" id="exportPdfBtn" class="btn btn-outline-primary">
+            <i class="fas fa-file-pdf" aria-hidden="true"></i> Export PDF
+        </a>
+        <a href="{{ url_for('training.export_session_file', session_id=ts.id) }}" class="btn btn-outline-secondary" title="Download session file">
+            <i class="fas fa-download" aria-hidden="true"></i> Export
+        </a>
         <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editSessionModal">
             <i class="fas fa-edit" aria-hidden="true"></i> Edit
         </button>
@@ -40,7 +46,7 @@
             </div>
             <div class="list-group list-group-flush">
                 {% for seg in ts.segments %}
-                <div class="list-group-item">
+                <div class="list-group-item segment-row" data-edit-url="{{ url_for('training.edit_segment', segment_id=seg.id) }}" data-title="{{ seg.title }}" data-duration="{{ seg.duration_min or '' }}" data-notes="{{ seg.notes or '' }}" data-play-id="{{ seg.play_id or '' }}" data-category="{{ template_category_by_title.get(seg.title, '') }}" title="Double-click to edit">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
                             <span class="badge bg-light text-dark border me-2">{{ loop.index }}</span>
@@ -58,12 +64,31 @@
                             <div class="text-muted small mt-1">{{ seg.notes }}</div>
                             {% endif %}
                         </div>
-                        <form action="{{ url_for('training.delete_segment', segment_id=seg.id) }}" method="POST" onsubmit="return confirm('Remove this segment?');">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger border-0" title="Remove segment">
-                                <i class="fas fa-times"></i>
+                        <div class="d-flex flex-column ms-2">
+                            <form action="{{ url_for('training.move_segment', segment_id=seg.id) }}" method="POST" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="direction" value="up">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary border-0 py-0" title="Move up" {% if loop.first %}disabled{% endif %}>
+                                    <i class="fas fa-chevron-up"></i>
+                                </button>
+                            </form>
+                            <form action="{{ url_for('training.move_segment', segment_id=seg.id) }}" method="POST" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="direction" value="down">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary border-0 py-0" title="Move down" {% if loop.last %}disabled{% endif %}>
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                            </form>
+                            <button type="button" class="btn btn-sm btn-outline-primary border-0 py-0 segment-edit-btn" title="Edit segment">
+                                <i class="fas fa-pen"></i>
                             </button>
-                        </form>
+                            <form action="{{ url_for('training.delete_segment', segment_id=seg.id) }}" method="POST" onsubmit="return confirm('Remove this segment?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger border-0 py-0" title="Remove segment">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
                 {% else %}
@@ -82,6 +107,20 @@
             <div class="card-body" style="white-space: pre-wrap;">{{ ts.notes }}</div>
         </div>
         {% endif %}
+
+        <div class="card shadow-sm border-0 mt-4">
+            <div class="card-header bg-white fw-bold border-bottom d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-clipboard-check text-success me-2"></i> Post-Training Notes</span>
+                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editSessionModal">
+                    <i class="fas fa-pen"></i> {% if ts.post_notes %}Edit{% else %}Add{% endif %}
+                </button>
+            </div>
+            {% if ts.post_notes %}
+            <div class="card-body" style="white-space: pre-wrap;">{{ ts.post_notes }}</div>
+            {% else %}
+            <div class="card-body text-muted small">No debrief yet — record how the session went after training.</div>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Attendance -->
@@ -121,15 +160,45 @@
 
 <!-- Add Segment Modal -->
 <div class="modal fade" id="addSegmentModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Add Agenda Segment</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form action="{{ url_for('training.add_segment', session_id=ts.id) }}" method="POST">
-                <div class="modal-body">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-body">
+            {% if templates %}
+                <div class="mb-3">
+                    <label class="form-label">From library</label>
+                        <div class="input-group">
+                            <select id="templatePicker" class="form-select">
+                                <option value="">— pick a saved segment —</option>
+                                {% for tpl in templates %}
+                                <option value="{{ tpl.id }}" data-title="{{ tpl.title }}" data-duration="{{ tpl.duration_min or '' }}" data-notes="{{ tpl.notes or '' }}" data-play-id="{{ tpl.play_id or '' }}" data-category="{{ tpl.category or '' }}">
+                                    {% if tpl.category %}[{{ tpl.category }}] {% endif %}{{ tpl.title }}{% if tpl.duration_min %} ({{ tpl.duration_min }} min){% endif %} · used {{ tpl.usage_count }}×
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="btn btn-outline-secondary" id="templateFillBtn" title="Fill the form with this template">
+                                <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> Fill
+                            </button>
+                        </div>
+                        <div class="form-text">Or add the template directly:</div>
+                        <div class="d-flex flex-wrap gap-1 mt-1" id="templateQuickAdd">
+                            {% for tpl in templates[:6] %}
+                            <form action="{{ url_for('training.apply_template', session_id=ts.id, template_id=tpl.id) }}" method="POST" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-success" title="Add '{{ tpl.title }}' to the agenda now">
+                                    <i class="fas fa-plus" aria-hidden="true"></i> {{ tpl.title }}
+                                </button>
+                            </form>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <hr>
+                    {% endif %}
+                    <form id="addSegmentForm" action="{{ url_for('training.add_segment', session_id=ts.id) }}" method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label class="form-label">Title</label>
                         <input type="text" name="title" class="form-control" required placeholder="e.g. Warm-up, Shell drill">
@@ -153,10 +222,99 @@
                         <label class="form-label">Notes</label>
                         <textarea name="notes" class="form-control" rows="2"></textarea>
                     </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Category</label>
+                            <input type="text" name="category" class="form-control" list="templateCategoryList" placeholder="e.g. Warm-up">
+                            <datalist id="templateCategoryList">
+                                {% for c in template_categories %}
+                                <option value="{{ c }}"></option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-6 mb-3 d-flex align-items-end">
+                            <div class="form-text">Saved to the team library when added.</div>
+                        </div>
+                    </div>
+                </form>
+                <div class="mt-3">
+                <button class="btn btn-sm btn-link p-0" type="button" data-bs-toggle="collapse" data-bs-target="#saveTemplateCollapse">
+                    Save a template to the library without adding it here
+                </button>
+                <div class="collapse mt-2" id="saveTemplateCollapse">
+                    <form action="{{ url_for('training.create_template', session_id=ts.id) }}" method="POST" class="border rounded p-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="text" name="title" class="form-control form-control-sm" required placeholder="Title">
+                            </div>
+                            <div class="col-3">
+                                <input type="number" name="duration_min" class="form-control form-control-sm" min="1" max="480" placeholder="Min">
+                            </div>
+                            <div class="col-3">
+                                <input type="text" name="category" class="form-control form-control-sm" list="templateCategoryList" placeholder="Category">
+                            </div>
+                            <div class="col-10">
+                                <input type="text" name="notes" class="form-control form-control-sm" placeholder="Notes (optional)">
+                            </div>
+                            <div class="col-2">
+                                <button type="submit" class="btn btn-sm btn-outline-primary w-100">Save</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="addSegmentForm" class="btn btn-primary">Add</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Segment Modal (shared, filled by double-click or pen button) -->
+<div class="modal fade" id="editSegmentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Agenda Segment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editSegmentForm" method="POST" action="">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Duration (min)</label>
+                            <input type="number" name="duration_min" class="form-control" min="1" max="480">
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Linked Play</label>
+                            <select name="play_id" class="form-select">
+                                <option value="">— none —</option>
+                                {% for p in plays %}
+                                <option value="{{ p.id }}">{{ p.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea name="notes" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <input type="text" name="category" class="form-control" list="templateCategoryList" placeholder="e.g. Warm-up">
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
                 </div>
             </form>
         </div>
@@ -202,6 +360,10 @@
                         <label class="form-label">Notes</label>
                         <textarea name="notes" class="form-control" rows="3">{{ ts.notes or '' }}</textarea>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Post-Training Notes</label>
+                        <textarea name="post_notes" class="form-control" rows="3" placeholder="Debrief: what worked, what to repeat, injuries...">{{ ts.post_notes or '' }}</textarea>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -211,4 +373,138 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+<script src="{{ url_for('static', filename='js/playbuilder/frame_snapshots.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var picker = document.getElementById('templatePicker');
+    var fillBtn = document.getElementById('templateFillBtn');
+    if (picker && fillBtn) {
+        fillBtn.addEventListener('click', function () {
+            var opt = picker.options[picker.selectedIndex];
+            if (!opt || !opt.value) return;
+            var form = document.getElementById('addSegmentForm');
+            form.querySelector('input[name="title"]').value = opt.dataset.title || '';
+            form.querySelector('input[name="duration_min"]').value = opt.dataset.duration || '';
+            form.querySelector('textarea[name="notes"]').value = opt.dataset.notes || '';
+            var catInput = form.querySelector('input[name="category"]');
+            if (catInput) catInput.value = opt.dataset.category || '';
+            var playSelect = form.querySelector('select[name="play_id"]');
+            if (playSelect) playSelect.value = opt.dataset.playId || '';
+        });
+    }
+
+    var editModal = document.getElementById('editSegmentModal');
+    var editForm = document.getElementById('editSegmentForm');
+    function openSegmentEditor(row) {
+        if (!editModal || !editForm || !row) return;
+        editForm.action = row.dataset.editUrl || '';
+        editForm.querySelector('input[name="title"]').value = row.dataset.title || '';
+        editForm.querySelector('input[name="duration_min"]').value = row.dataset.duration || '';
+        editForm.querySelector('textarea[name="notes"]').value = row.dataset.notes || '';
+        var playSelect = editForm.querySelector('select[name="play_id"]');
+        if (playSelect) playSelect.value = row.dataset.playId || '';
+        var catInput = editForm.querySelector('input[name="category"]');
+        if (catInput) catInput.value = row.dataset.category || '';
+        bootstrap.Modal.getOrCreateInstance(editModal).show();
+    }
+    document.querySelectorAll('.segment-row').forEach(function (row) {
+        row.addEventListener('dblclick', function (e) {
+            if (e.target.closest('button, a, form, select, input, textarea')) return;
+            openSegmentEditor(row);
+        });
+    });
+    document.querySelectorAll('.segment-edit-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            openSegmentEditor(btn.closest('.segment-row'));
+        });
+    });
+
+    // Export PDF: generate any missing phase snapshots first so legacy
+    // drills (saved before snapshots existed) storyboard correctly.
+    // Snapshots persist server-side, so this only runs once per play.
+    var exportBtn = document.getElementById('exportPdfBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            var url = exportBtn.getAttribute('href');
+            var playIds = [];
+            document.querySelectorAll('.segment-row').forEach(function (row) {
+                var pid = row.dataset.playId;
+                if (pid && playIds.indexOf(pid) === -1) playIds.push(pid);
+            });
+            if (playIds.length === 0 || typeof window.renderPhaseSnapshots !== 'function') {
+                window.location.href = url;
+                return;
+            }
+            var original = exportBtn.innerHTML;
+            exportBtn.classList.add('disabled');
+            exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Preparing…';
+            var chain = Promise.resolve();
+            playIds.forEach(function (pid) {
+                chain = chain.then(function () { return backfillPlaySnapshots(pid); });
+            });
+            chain.then(function () {
+                window.location.href = url;
+            }).catch(function (err) {
+                console.warn('Snapshot backfill failed, exporting anyway:', err);
+                window.location.href = url;
+            });
+        });
+    }
+
+    function csrfToken() {
+        var input = document.querySelector('input[name="csrf_token"]');
+        return input ? input.value : '';
+    }
+
+    async function backfillPlaySnapshots(playId) {
+        var res = await fetch('/api/v1/plays/api/load-canvas/' + playId, {
+            headers: { 'X-CSRFToken': csrfToken() }
+        });
+        if (!res.ok) return;
+        var body = await res.json();
+        var frames = body.frames || [];
+        var missing = frames.filter(function (f) { return !f.has_svg && f.data; });
+        if (missing.length === 0) return;
+        var W = 800, H = 500;
+        var m = /<svg[^>]*\bwidth="(\d+)"[^>]*\bheight="(\d+)"/.exec(body.diagram_svg || '');
+        if (m) {
+            W = parseInt(m[1], 10);
+            H = parseInt(m[2], 10);
+        }
+        var court = (body.metadata && body.metadata.court_type) || 'half';
+        var courtInner = null;
+        if (court !== 'full') {
+            try {
+                var r = await fetch('/static/images/halfcourt.svg');
+                if (r.ok) {
+                    var txt = await r.text();
+                    var s = txt.indexOf('>') + 1, en = txt.lastIndexOf('</svg>');
+                    if (s > 0 && en > s) courtInner = txt.substring(s, en);
+                }
+            } catch (e) { /* fall back to drawn court */ }
+        }
+        var svgs = await window.renderPhaseSnapshots(missing, {
+            width: W, height: H, court: court, courtSvgInner: courtInner
+        });
+        var snapshots = [];
+        missing.forEach(function (f, i) {
+            if (svgs[i]) snapshots.push({ id: f.id, svg: svgs[i] });
+        });
+        if (snapshots.length === 0) return;
+        await fetch('/api/v1/plays/api/' + playId + '/frame-snapshots', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken()
+            },
+            body: JSON.stringify({ snapshots: snapshots })
+        });
+    }
+});
+</script>
 {% endblock %}

@@ -10,6 +10,11 @@
             <h2 class="mb-1">{{ play.name }}</h2>
             <div class="text-muted">
                 <span class="badge bg-primary me-2">{{ play.play_type }}</span>
+                {% if play.is_active %}
+                <span class="badge bg-success me-2">Active</span>
+                {% else %}
+                <span class="badge bg-secondary me-2">Inactive</span>
+                {% endif %}
                 <span class="badge bg-secondary me-2">{{ 'Full court' if play.court_type == 'full' else 'Half court' }}</span>
                 {% if play.difficulty %}
                 <span class="badge bg-info me-2">{{ play.difficulty }}</span>
@@ -17,6 +22,9 @@
             </div>
         </div>
         <div>
+            <a href="{{ url_for('plays.export_play', play_id=play.id) }}" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-download"></i> Export
+            </a>
             <a href="{{ url_for('plays.edit_play_builder', play_id=play.id) }}" class="btn btn-outline-primary me-2">
                 <i class="fas fa-edit"></i> Edit
             </a>
