@@ -44,14 +44,16 @@ def sync():
     snapshot = sync_health_snapshot()
     champs = snapshot.get("championships", [])
     stale = [c["display_name"] or c["id"] for c in champs if c.get("stale")]
-    errors = [e for c in champs for e in (c.get("recent_errors") or [])]
+    error_count = sum(len(c.get("recent_errors") or []) for c in champs)
     if snapshot.get("error") and not champs:
-        return jsonify({"status": "unknown",
-                        "error": snapshot["error"]}), 503
+        # Unauthenticated probe: log the detail, expose only the status.
+        current_app.logger.error("sync probe failed: %s", snapshot["error"])
+        return jsonify({"status": "unknown", "championships": 0,
+                        "whatsapp": "unknown"}), 503
     from core.services.whatsapp_service import get_connection_state
     body = {"championships": len(champs),
             "whatsapp": get_connection_state()}
-    if stale or errors:
+    if stale or error_count:
         return jsonify({"status": "stale", "stale": stale,
-                        "recent_errors": errors[:3], **body}), 503
+                        "error_count": error_count, **body}), 503
     return jsonify({"status": "ok", **body}), 200

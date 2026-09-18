@@ -40,6 +40,17 @@ class TestValidate:
         errors = validate_halftime_payload(_payload(team_score="many"))
         assert "team_score must be an integer" in errors
 
+    def test_non_string_fields_rejected(self):
+        errors = validate_halftime_payload(_payload(opponent=123))
+        assert "opponent is required" in errors
+        errors = validate_halftime_payload(_payload(date=["2026-09-18"]))
+        assert "date is required" in errors
+
+    def test_non_dict_player_rows_rejected(self):
+        errors = validate_halftime_payload(
+            _payload(player_stats={"Anna": 12}))
+        assert any("must be objects" in e for e in errors)
+
 
 class TestBuildText:
     def test_contains_score_and_leaders(self):
@@ -136,3 +147,35 @@ class TestRoute:
                            content_type="application/json")
         assert resp.status_code == 502
         assert json.loads(resp.data)["sent"] is False
+
+    def test_default_group_resolution(self, client, editor_user,
+                                      default_team, db_session, mocker):
+        group = WhatsAppGroup(team_id=default_team.id, group_name="Staff",
+                              group_wa_id="staff@g.us", active=True)
+        db_session.add(group)
+        db_session.commit()
+        sent = mocker.patch(
+            "core.services.whatsapp_service.send_text_message",
+            return_value=True)
+        _login(client, editor_user, default_team)
+        resp = client.post("/reports/live/halftime-share",
+                           data=json.dumps(_payload()),
+                           content_type="application/json")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["sent"] is True
+        assert data["channel"] == {"kind": "whatsapp_group",
+                                   "group_id": group.id}
+        assert sent.call_args.args[0] == "staff@g.us"
+
+    def test_no_destination_no_group_returns_text(
+            self, client, editor_user, default_team):
+        _login(client, editor_user, default_team)
+        resp = client.post("/reports/live/halftime-share",
+                           data=json.dumps(_payload()),
+                           content_type="application/json")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["sent"] is False
+        assert "45 - 42" in data["text"]
+        assert "hint" in data

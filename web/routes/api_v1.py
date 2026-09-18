@@ -622,7 +622,7 @@ def video_export(game_id):
     if fmt != "json":
         return jsonify({"error": "format must be 'json' or 'csv'"}), 400
     from core.usage_meter import bump as _bump_usage
-    _bump_usage("video_exports")
+    _bump_usage("video_exports", team_id=team_id)
     return jsonify({"game_id": game.id, "count": len(rows), "events": rows}), 200
 
 
@@ -646,17 +646,22 @@ def import_game_webhook():
     team_id = session.get("current_team_id")
     game_data = payload.get("game") if isinstance(
         payload.get("game"), dict) else payload
-    raw_date = (game_data.get("sort_date") or game_data.get("sortdate")
-                or game_data.get("date") or "").strip()
+    # Duplicate-check date EXACTLY as create_game_from_live_data derives
+    # it (date/Date/game_date → normalize_sort_date): any format the
+    # creation path understands collapses to one sort_date, so a repeated
+    # push can never slip past on format alone.
+    from core.services.game_service import normalize_sort_date
+    raw = ""
+    for _key in ("date", "Date", "game_date"):
+        value = game_data.get(_key)
+        if isinstance(value, str) and value.strip():
+            raw = value.strip()
+            break
+    sort_date = normalize_sort_date(raw)
     opponent = (game_data.get("opponent") or "").strip()
-    if not raw_date or not opponent:
-        return jsonify({"error": "game.sort_date/date and game.opponent "
+    if not sort_date or not opponent:
+        return jsonify({"error": "game date and game.opponent "
                                  "are required"}), 400
-    sort_date = raw_date
-    if "/" in raw_date:
-        parts = raw_date.split("/")
-        if len(parts) == 3:
-            sort_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
     if Game.query.filter_by(sort_date=sort_date, opponent=opponent,
                             team_id=team_id).first():
         return jsonify({"error": "game already exists",
@@ -675,7 +680,7 @@ def import_game_webhook():
         db.session.rollback()
         return jsonify({"error": f"import failed: {exc}"}), 400
     from core.usage_meter import bump as _bump_usage
-    _bump_usage("api_imports")
+    _bump_usage("api_imports", team_id=team_id)
     return jsonify({"success": True, "game_id": game.id,
                     "sort_date": sort_date, "opponent": opponent}), 201
 
@@ -686,6 +691,23 @@ def _require_gm():
         return jsonify({"error": "Auditors have read-only access"}), 403
     if not getattr(current_user, "is_gm", False):
         return jsonify({"error": "GM access required"}), 403
+    return None
+
+
+def _ambiguous_player_name(player, team_id):
+    """PlayerStat rows are name-keyed (legacy): refuse when the name is
+    shared with another roster player, so one GDPR request can never
+    touch somebody else's rows. Returns an error response or None."""
+    from core.models import Player
+
+    clash = Player.query.filter(
+        Player.team_id == team_id,
+        Player.name == player.name,
+        Player.id != player.id).first()
+    if clash is not None:
+        return jsonify({"error": "Player name is shared with another "
+                                 "roster entry — resolve the duplicate "
+                                 "first (refusing to touch shared rows)"}), 409
     return None
 
 
@@ -703,6 +725,9 @@ def export_player(player_id):
     player = Player.query.filter_by(id=player_id, team_id=team_id).first()
     if player is None:
         return jsonify({"error": "Player not found"}), 404
+    ambiguous = _ambiguous_player_name(player, team_id)
+    if ambiguous:
+        return ambiguous
     stats = (PlayerStat.query.join(Game, PlayerStat.game_id == Game.id)
              .filter(Game.team_id == team_id,
                      PlayerStat.player_name == player.name)
@@ -733,6 +758,9 @@ def delete_player(player_id):
     player = Player.query.filter_by(id=player_id, team_id=team_id).first()
     if player is None:
         return jsonify({"error": "Player not found"}), 404
+    ambiguous = _ambiguous_player_name(player, team_id)
+    if ambiguous:
+        return ambiguous
     name = player.name
     removed = (PlayerStat.query.join(Game, PlayerStat.game_id == Game.id)
                .filter(Game.team_id == team_id,

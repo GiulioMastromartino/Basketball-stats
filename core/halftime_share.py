@@ -13,13 +13,21 @@ def validate_halftime_payload(data) -> list:
     errors = []
     if not isinstance(data, dict):
         return ["payload must be a JSON object"]
-    if not (data.get("opponent") or "").strip():
+    if not isinstance(data.get("opponent"), str) \
+            or not data["opponent"].strip():
         errors.append("opponent is required")
-    if not (data.get("date") or "").strip():
+    if not isinstance(data.get("date"), str) or not data["date"].strip():
         errors.append("date is required")
     stats = data.get("player_stats")
     if not isinstance(stats, dict) or not stats:
         errors.append("player_stats must be a non-empty object")
+    else:
+        bad_rows = [name for name, row in stats.items()
+                    if not isinstance(row, dict)]
+        if bad_rows:
+            errors.append(
+                "player_stats rows must be objects: "
+                + ", ".join(str(n) for n in bad_rows[:5]))
     for key in ("team_score", "opp_score"):
         try:
             value = int(data.get(key, 0))

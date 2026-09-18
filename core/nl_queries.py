@@ -82,8 +82,11 @@ def _answer_top_scorer(team_id, game_type):
     from core.models import Game, PlayerStat
     from sqlalchemy import func
 
-    rows = (PlayerStat.query.join(Game, PlayerStat.game_id == Game.id)
-            .filter(Game.team_id == team_id)
+    query = (PlayerStat.query.join(Game, PlayerStat.game_id == Game.id)
+             .filter(Game.team_id == team_id))
+    if game_type and game_type != "ALL":
+        query = query.filter(Game.game_type == game_type)
+    rows = (query
             .with_entities(PlayerStat.player_name,
                            func.avg(PlayerStat.points),
                            func.count(PlayerStat.id))

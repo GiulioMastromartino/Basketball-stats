@@ -36,6 +36,26 @@ class TestNLQueries:
         assert data["intent"] == "top_scorer"
         assert data["data"]["player"] == "Jane Smith"
 
+    def test_top_scorer_respects_game_type(
+            self, admin_client, db_session, default_team, sample_game,
+            sample_player_stats):
+        from core.models import Game, PlayerStat
+        friendly = Game(date="20-02-2024", opponent="Friendly Foes",
+                        team_score=90, opponent_score=10, result="W",
+                        game_type="Friendly", sort_date="2024-02-20",
+                        source="MANUAL", team_id=default_team.id)
+        db_session.add(friendly)
+        db_session.flush()
+        db_session.add(PlayerStat(game_id=friendly.id, player_name="Zed",
+                                  points=50, minutes="20:00"))
+        db_session.commit()
+        season = json.loads(_ask(admin_client, "who scores most?",
+                                 game_type="Season").data)
+        assert season["data"]["player"] == "Jane Smith"
+        everyone = json.loads(_ask(admin_client, "who scores most?",
+                                   game_type="ALL").data)
+        assert everyone["data"]["player"] == "Zed"
+
     def test_form(self, admin_client, sample_games):
         data = json.loads(_ask(admin_client, "how is our recent form?",
                                game_type="ALL").data)
@@ -154,3 +174,45 @@ class TestDevGoals:
                                             "metric": "points", "target": 10}),
                            content_type="application/json")
         assert resp.status_code == 403
+
+    def _login_as(self, client, db_session, default_org, default_team,
+                  username, is_gm=False, is_coach=False):
+        from core.models import User, OrganizationMembership, TeamAssignment
+        user = User(username=username, email=f"{username}@t.com",
+                    organization_id=default_org.id)
+        user.set_password("password123")
+        db_session.add(user)
+        db_session.flush()
+        db_session.add(OrganizationMembership(
+            user_id=user.id, organization_id=default_org.id, is_gm=is_gm))
+        db_session.add(TeamAssignment(user_id=user.id, team_id=default_team.id,
+                                      is_coach=is_coach))
+        db_session.commit()
+        with client.session_transaction() as sess:
+            sess["_user_id"] = str(user.id)
+            sess["_fresh"] = True
+            sess["current_team_id"] = default_team.id
+
+    def test_editor_without_role_cannot_mutate(
+            self, client, db_session, default_org, default_team):
+        self._login_as(client, db_session, default_org, default_team,
+                       "nl_editor")
+        body = json.dumps({"player_name": "Anna", "metric": "points",
+                           "target": 10})
+        assert client.post("/coaching/dev-goals", data=body,
+                           content_type="application/json").status_code == 403
+        assert client.delete("/coaching/dev-goals/1").status_code == 403
+
+    def test_coach_can_mutate(self, client, db_session, default_org,
+                              default_team):
+        self._login_as(client, db_session, default_org, default_team,
+                       "nl_coach", is_coach=True)
+        resp = client.post(
+            "/coaching/dev-goals",
+            data=json.dumps({"player_name": "Anna", "metric": "points",
+                             "target": 10}),
+            content_type="application/json")
+        assert resp.status_code == 201
+        goal_id = json.loads(resp.data)["goal_id"]
+        assert client.delete(
+            f"/coaching/dev-goals/{goal_id}").status_code == 200

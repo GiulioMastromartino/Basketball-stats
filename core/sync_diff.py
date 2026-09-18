@@ -184,7 +184,9 @@ def sync_health_snapshot(championship_id: int = None) -> dict:
     except Exception as exc:
         return {"error": f"sidecar unavailable: {exc}", "championships": []}
     try:
-        champs = store.list_championships(conn)
+        # Only active championships count: an intentionally disabled one
+        # must never page anyone via /health/sync or check_sync_health.
+        champs = store.list_championships(conn, active_only=True)
         if championship_id is not None:
             champs = [c for c in champs if c["id"] == championship_id]
         now = datetime.utcnow()

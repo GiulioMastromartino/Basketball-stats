@@ -36,8 +36,14 @@ def play_effectiveness(team_id: int, game_type: str = "ALL",
     game_query = Game.query.filter_by(team_id=team_id)
     if game_type and game_type != "ALL":
         game_query = game_query.filter(Game.game_type == game_type)
-    if season_id is not None and season_id != "ALL":
-        game_query = game_query.filter(Game.season_id == int(season_id))
+    if season_id is None or season_id == "ALL":
+        pass
+    else:
+        try:
+            season_id = int(season_id)
+        except (TypeError, ValueError):
+            raise ValueError(f"invalid season_id: {season_id!r}")
+        game_query = game_query.filter(Game.season_id == season_id)
     game_ids = [g.id for g in game_query.all()]
     if not game_ids:
         return []
@@ -49,6 +55,9 @@ def play_effectiveness(team_id: int, game_type: str = "ALL",
     by_quarter = defaultdict(lambda: defaultdict(lambda: {"possessions": 0,
                                                           "points": 0}))
     games_used = defaultdict(set)
+    # (play_id, game_id) pairs already covered by tagged possessions —
+    # the shot fallback below only fills pairs with no possession data.
+    covered_pairs = set()
 
     for poss in (Possession.query
                  .filter(Possession.game_id.in_(game_ids),
@@ -56,17 +65,19 @@ def play_effectiveness(team_id: int, game_type: str = "ALL",
         pid = poss.play_id
         possessions[pid] += 1
         points[pid] += int(poss.points or 0)
+        covered_pairs.add((pid, poss.game_id))
         cell = by_quarter[pid][_quarter_bucket(poss.quarter)]
         cell["possessions"] += 1
         cell["points"] += int(poss.points or 0)
         games_used[pid].add(poss.game_id)
 
-    # Fallback: tagged shots in games with no tagged possessions for that play.
+    # Fallback: tagged shots in (play, game) pairs with no tagged
+    # possessions, so partially-tagged games still produce a row.
     for shot in (ShotEvent.query
                  .filter(ShotEvent.game_id.in_(game_ids),
                          ShotEvent.play_id.isnot(None)).all()):
         pid = shot.play_id
-        if possessions[pid]:
+        if (pid, shot.game_id) in covered_pairs:
             continue
         possessions[pid] += 1
         pts = int(shot.points or 0)

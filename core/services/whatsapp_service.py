@@ -47,6 +47,19 @@ def _configured() -> bool:
     return bool(_base_url() and _api_key())
 
 
+def _mask(dest: str) -> str:
+    """Mask a phone/JID for logs (GDPR: no raw recipient ids on disk)."""
+    text = str(dest or "")
+    if "@" in text:
+        local, _, domain = text.partition("@")
+        if len(local) > 6:
+            return f"{local[:4]}…{local[-2:]}@{domain}"
+        return f"…@{domain}"
+    if len(text) > 5:
+        return f"{text[:3]}…{text[-2:]}"
+    return "…"
+
+
 def _to_number(phone_or_jid: str) -> str:
     """Normalize a destination: group JIDs pass through, phones → digits."""
     text = (phone_or_jid or "").strip()
@@ -62,17 +75,19 @@ def _post(path: str, payload: dict, label: str = "") -> bool:
     if not _configured():
         current_app.logger.warning(
             "Evolution API not configured — skipping send to %s",
-            label or path,
+            _mask(label) or path,
         )
         return False
     try:
         with _client() as c:
             r = c.post(path, json=payload)
             r.raise_for_status()
-            current_app.logger.info(f"WhatsApp sent to {label or path}")
+            current_app.logger.info("WhatsApp sent to %s",
+                                    _mask(label) or path)
             return True
     except httpx.HTTPError as e:
-        current_app.logger.error(f"WhatsApp send failed to {label or path}: {e}")
+        current_app.logger.error("WhatsApp send failed to %s: %s",
+                                 _mask(label) or path, e)
         return False
 
 

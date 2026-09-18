@@ -62,8 +62,46 @@ class TestSyncProbe:
     def test_check_script_runs(self, capsys):
         from jobs.check_sync_health import main
         rc = main(["--championship", "999999"])
-        assert rc == 0
+        assert rc == 2  # unknown id must not report healthy
         assert "championships" in capsys.readouterr().out
+
+    def test_usage_scoped_per_team(self, db_session, default_org,
+                                   default_team):
+        from core.models import Organization, Team
+        from core.usage_meter import bump, get_usage
+        org_b = Organization(name="Org B", slug="org-b")
+        db_session.add(org_b)
+        db_session.flush()
+        team_b = Team(name="Team B", organization_id=org_b.id, slug="team-b")
+        db_session.add(team_b)
+        db_session.commit()
+        assert bump("halftime_shares", team_id=default_team.id) == 1
+        assert bump("halftime_shares", team_id=default_team.id) == 2
+        assert bump("halftime_shares", team_id=team_b.id) == 1
+        assert get_usage(team_id=default_team.id)["halftime_shares"] == 2
+        assert get_usage(team_id=team_b.id)["halftime_shares"] == 1
+
+    def test_ambiguous_player_name_refused(self, client, mocker):
+        import core.models as models
+        from web.routes.api_v1 import _ambiguous_player_name
+        from types import SimpleNamespace
+        mock_query = mocker.MagicMock()
+        mock_query.filter.return_value.first.return_value = object()
+        mocker.patch.object(models, "Player")
+        models.Player.query = mock_query
+        resp, status = _ambiguous_player_name(
+            SimpleNamespace(id=1, name="Dup"), team_id=1)
+        assert status == 409
+        assert "shared" in resp.get_json()["error"]
+
+    def test_unambiguous_player_name_passes(self, client, db_session,
+                                            default_team):
+        from core.models import Player
+        from web.routes.api_v1 import _ambiguous_player_name
+        player = Player(team_id=default_team.id, name="Solo Solo")
+        db_session.add(player)
+        db_session.commit()
+        assert _ambiguous_player_name(player, default_team.id) is None
 
 
 class TestGdpr:

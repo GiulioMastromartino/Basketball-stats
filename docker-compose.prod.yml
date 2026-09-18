@@ -38,10 +38,15 @@ services:
       DATABASE_PROVIDER: postgresql
       # Shares the app Postgres server; Prisma keeps to its own schema.
       DATABASE_CONNECTION_URI: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}?schema=evolution_api
+      # Persist Baileys auth state in Postgres so container recreation
+      # never forces a QR re-pairing.
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+    volumes:
+      - evolution_instances:/evolution/instances
     networks:
       - backend
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:8080/').then(()=>process.exit(0)).catch(()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:8080/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -252,6 +257,7 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
+  evolution_instances:
 networks:
   backend:
     driver: bridge

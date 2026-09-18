@@ -85,13 +85,28 @@ def build_season_plan(games_by_month: dict, season_label: str = "") -> dict:
     }
 
 
+def _coerce_season_id(season_id):
+    """Normalize a season scope to int | 'ALL' (raises ValueError if bad).
+
+    Routes validate user input before calling; this guards the contract
+    for any other (programmer) caller.
+    """
+    if season_id is None or season_id == "ALL":
+        return "ALL"
+    try:
+        return int(season_id)
+    except (TypeError, ValueError):
+        raise ValueError(f"invalid season_id: {season_id!r}")
+
+
 def games_per_month(team_id: int, season_id=None) -> dict:
     """Count a team's games per calendar month from ``Game.sort_date``."""
     from core.models import Game
 
+    season_id = _coerce_season_id(season_id)
     query = Game.query.filter_by(team_id=team_id)
-    if season_id is not None and season_id != "ALL":
-        query = query.filter(Game.season_id == int(season_id))
+    if season_id != "ALL":
+        query = query.filter(Game.season_id == season_id)
     counts = {}
     for game in query.all():
         try:

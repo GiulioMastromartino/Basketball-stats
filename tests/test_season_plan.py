@@ -74,6 +74,37 @@ class TestCoachingRoutes:
         assert resp.status_code == 200
         assert json.loads(resp.data) == {"plays": [], "count": 0}
 
+    def test_bad_season_id_400(self, admin_client):
+        for path in ("/coaching/season-plan?season_id=abc",
+                     "/coaching/drill-suggestions?season_id=abc",
+                     "/coaching/play-effectiveness?season_id=abc"):
+            assert admin_client.get(path).status_code == 400
+
+    def test_unknown_season_id_404(self, admin_client):
+        assert admin_client.get(
+            "/coaching/season-plan?season_id=999999").status_code == 404
+
+    def test_season_plan_defaults_to_active_season(
+            self, admin_client, db_session, default_team, sample_game):
+        from core.models import Season
+        season = Season(team_id=default_team.id, name="2025/26",
+                        start_date="2025-09-01", end_date="2026-06-30",
+                        is_active=True)
+        db_session.add(season)
+        db_session.commit()
+        sample_game.season_id = season.id
+        db_session.commit()
+        data = json.loads(admin_client.get(
+            "/coaching/season-plan").data)
+        assert data["season_id"] == season.id
+        assert data["summary"]["total_games"] == 1
+
+    def test_season_plan_explicit_all(self, admin_client, sample_games):
+        data = json.loads(admin_client.get(
+            "/coaching/season-plan?season_id=ALL").data)
+        assert data["season_id"] == "ALL"
+        assert data["summary"]["total_games"] == 3
+
     def test_play_effectiveness_ranked(self, admin_client, db_session,
                                        default_team, sample_game):
         from core.models import Play, Possession
@@ -98,3 +129,28 @@ class TestCoachingRoutes:
         assert row["ppp"] == 1.0
         assert row["by_quarter"]["1"]["ppp"] == 2.0
         assert row["verdict"] == "keep"
+
+    def test_shot_fallback_is_per_game(self, admin_client, db_session,
+                                       default_team, sample_game,
+                                       sample_games):
+        from core.models import Play, Possession, ShotEvent
+        play = Play(team_id=default_team.id, name="Mixed",
+                    play_type="Offense")
+        db_session.add(play)
+        db_session.flush()
+        other_game = sample_games[0]
+        db_session.add(Possession(
+            game_id=sample_game.id, start_event_id=1,
+            team_possession=True, quarter=1, points=2, play_id=play.id))
+        db_session.add(ShotEvent(
+            game_id=other_game.id, player_name="Anna", shot_type="2pt",
+            result="made", points=2, quarter=1, play_id=play.id))
+        db_session.commit()
+        data = json.loads(admin_client.get(
+            "/coaching/play-effectiveness").data)
+        assert data["count"] == 1
+        row = data["plays"][0]
+        # 1 tagged possession + 1 fallback shot from the other game.
+        assert row["possessions"] == 2
+        assert row["points"] == 4
+        assert row["games_used"] == 2

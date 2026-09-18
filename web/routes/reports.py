@@ -909,25 +909,39 @@ def live_halftime_share():
     pdf_filename = (data.get("pdf_filename")
                     or f"halftime_{data.get('opponent', 'game')}_"
                     f"{data.get('date', '')}.pdf")
-    if group_id is None and not phone:
-        return jsonify({"sent": False, "text": text,
-                        "hint": "pass group_id or phone to send"}), 200
 
     from core.services import whatsapp_service
 
+    target_group = None
     if group_id is not None:
         try:
             group_id = int(group_id)
         except (TypeError, ValueError):
             return jsonify({"error": "group_id must be an integer"}), 400
-        group = WhatsAppGroup.query.filter_by(
+        target_group = WhatsAppGroup.query.filter_by(
             id=group_id, team_id=team_id, active=True).first()
-        if group is None:
+        if target_group is None:
             return jsonify({"error": "WhatsApp group not found"}), 404
+    elif not phone:
+        # True one-tap: fall back to the team's default staff group
+        # (first active) so the console needs no destination at all.
+        target_group = WhatsAppGroup.query.filter_by(
+            team_id=team_id, active=True).order_by(
+            WhatsAppGroup.id).first()
+        if target_group is None:
+            return jsonify({"sent": False, "text_sent": False,
+                            "text": text, "pdf_sent": None,
+                            "hint": "no staff group configured — pass "
+                                    "group_id or phone, or add one under "
+                                    "team settings"}), 200
+
+    if target_group is not None:
         ok = whatsapp_service.send_text_message(
-            group.group_wa_id, text, label=f"group:{group.group_wa_id}")
-        channel = {"kind": "whatsapp_group", "group_id": group.id}
-        dest = group.group_wa_id
+            target_group.group_wa_id, text,
+            label=f"group:{target_group.group_wa_id}")
+        channel = {"kind": "whatsapp_group",
+                   "group_id": target_group.id}
+        dest = target_group.group_wa_id
     else:
         chat_id = whatsapp_service._to_number(phone)
         if not chat_id:
@@ -937,20 +951,24 @@ def live_halftime_share():
         dest = chat_id
 
     pdf_sent = None
-    if ok and pdf_base64:
+    text_sent = bool(ok)
+    if text_sent and pdf_base64:
         # Optional attachment: console posts the rendered halftime PDF
         # (base64) alongside the live payload; forwarded as a document.
-        pdf_sent = whatsapp_service.send_document(
+        # Reported separately: the text is already delivered at this
+        # point, so a PDF failure must not read as "nothing sent"
+        # (which would invite duplicate texts on retry).
+        pdf_sent = bool(whatsapp_service.send_document(
             dest, filename=pdf_filename,
             mimetype="application/pdf",
-            media_base64=pdf_base64, caption=text[:200])
-        ok = ok and pdf_sent
+            media_base64=pdf_base64, caption=text[:200]))
 
-    status = 200 if ok else 502
-    if ok:
+    if text_sent:
         from core.usage_meter import bump as _bump_usage
-        _bump_usage("halftime_shares")
-    return jsonify({"sent": bool(ok), "text": text, "channel": channel,
+        _bump_usage("halftime_shares", team_id=team_id)
+    status = 200 if text_sent else 502
+    return jsonify({"sent": text_sent, "text_sent": text_sent,
+                    "text": text, "channel": channel,
                     "pdf_sent": pdf_sent}), status
 
 

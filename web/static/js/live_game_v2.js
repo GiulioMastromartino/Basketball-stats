@@ -860,6 +860,31 @@
     }
   }
 
+  function showShareText(text, copied) {
+    // Fallback path: no staff group configured server-side. Render the
+    // message inline so it can be copied manually, and also try the
+    // clipboard when the browser allows it. Never throws.
+    var el = getEl("v2-need-player");
+    if (!el) {
+      return;
+    }
+    try {
+      el.textContent = "";
+      var note = document.createElement("div");
+      note.textContent = copied
+        ? "Halftime update copied to clipboard:"
+        : "No staff group configured — copy manually:";
+      el.appendChild(note);
+      var pre = document.createElement("pre");
+      pre.textContent = text;
+      pre.style.whiteSpace = "pre-wrap";
+      pre.style.textAlign = "left";
+      el.appendChild(pre);
+    } catch (e) {
+      /* never break the page */
+    }
+  }
+
   function textOf(id, fallback) {
     var el = getEl(id);
     return el && el.textContent ? el.textContent.trim() : fallback;
@@ -930,7 +955,23 @@
           if (result.ok && result.data.sent) {
             setShareStatus("Halftime update sent to staff. ✓");
           } else if (result.ok && result.data.text) {
-            setShareStatus("No staff group configured — message ready to copy.");
+            var msg = result.data.text;
+            try {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(msg).then(
+                  function () {
+                    showShareText(msg, true);
+                  },
+                  function () {
+                    showShareText(msg, false);
+                  }
+                );
+              } else {
+                showShareText(msg, false);
+              }
+            } catch (e) {
+              showShareText(msg, false);
+            }
           } else {
             setShareStatus(
               "Share failed: " + (result.data.error || "server error")

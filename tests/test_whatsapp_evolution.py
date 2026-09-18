@@ -58,6 +58,23 @@ class TestSendText:
         assert session.post.call_args.kwargs["json"]["number"] == \
             "120363999@g.us"
 
+    def test_masking(self):
+        assert whatsapp_service._mask("393331234567") == "393…67"
+        assert whatsapp_service._mask("120363999@g.us") == "1203…99@g.us"
+        assert whatsapp_service._mask("") == "…"
+
+    def test_logs_mask_recipients(self, client, evo_config, mocker):
+        _, session = _mock_session(
+            mocker, exc=httpx.HTTPError("boom"))
+        mock_logger = mocker.MagicMock()
+        mocker.patch.object(whatsapp_service.current_app, "logger",
+                            mock_logger)
+        whatsapp_service.send_text_message("+393331234567", "x")
+        logged = " ".join(
+            str(a) for c in mock_logger.method_calls for a in c.args)
+        assert "393331234567" not in logged
+        assert "393…67" in logged
+
     def test_empty_destination(self, client, evo_config, mocker):
         _, session = _mock_session(mocker)
         assert whatsapp_service.send_text_message("", "x") is False
@@ -188,14 +205,15 @@ class TestHalftimePdfAttachment:
             content_type="application/json")
         assert resp.status_code == 200
         data = json.loads(resp.data)
-        assert data == {"sent": True, "text": data["text"],
+        assert data == {"sent": True, "text_sent": True,
+                        "text": data["text"],
                         "channel": {"kind": "whatsapp", "phone": "+39333"},
                         "pdf_sent": True}
         assert doc.call_args.kwargs["filename"] == "ht.pdf"
         assert doc.call_args.kwargs["mimetype"] == "application/pdf"
 
-    def test_pdf_failure_is_502(self, client, editor_user, default_team,
-                                mocker):
+    def test_pdf_failure_keeps_text_sent(self, client, editor_user,
+                                         default_team, mocker):
         mocker.patch.object(whatsapp_service, "send_text_message",
                             return_value=True)
         mocker.patch.object(whatsapp_service, "send_document",
@@ -206,5 +224,9 @@ class TestHalftimePdfAttachment:
             data=json.dumps(self._payload(phone="+39333",
                                           pdf_base64="JVBERg==")),
             content_type="application/json")
-        assert resp.status_code == 502
-        assert json.loads(resp.data)["pdf_sent"] is False
+        # Text was delivered: 200 with separate flags, not a 502 that
+        # would invite a duplicate text on retry.
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["text_sent"] is True
+        assert data["pdf_sent"] is False

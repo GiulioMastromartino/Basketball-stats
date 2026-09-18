@@ -287,7 +287,7 @@ def game_score_card(game_id):
                             game.team_score, game.opponent_score,
                             date=game.date or "", result=game.result or "")
     from core.usage_meter import bump as _bump_usage
-    _bump_usage("social_cards")
+    _bump_usage("social_cards", team_id=game.team_id)
     return send_file(BytesIO(png), mimetype="image/png",
                      as_attachment=False,
                      download_name=f"score_{game_id}.png")
@@ -345,5 +345,5 @@ def comms_preview():
     stats = PlayerStat.query.filter_by(game_id=game.id).all()
     text = render(name, postgame_context(_team_name(team_id), game, stats))
     from core.usage_meter import bump as _bump_usage
-    _bump_usage("comms_previews")
+    _bump_usage("comms_previews", team_id=team_id)
     return jsonify({"template": name, "text": text}), 200

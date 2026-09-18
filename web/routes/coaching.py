@@ -1,8 +1,9 @@
 """Coaching workflows API (Slice N2).
 
 Read-only JSON endpoints under ``/coaching`` for the season planner,
-drill suggester, and play-effectiveness v2. Auditors may view (mutations
-live elsewhere and stay GM-only).
+drill suggester, and play-effectiveness v2, plus NL queries, play
+suggestions, and development goals. Auditors may view; goal mutations
+require GM or coach authority.
 """
 
 from flask import Blueprint, jsonify, request, session
@@ -17,19 +18,69 @@ def _team_id():
     return session.get("current_team_id")
 
 
+def _parse_season_id(raw, *, allow_all=True):
+    """Validate a user-supplied season scope.
+
+    Returns ``(value, error)`` where value is an int id or ``"ALL"``.
+    Garbage can never reach a bare ``int()`` (no unhandled 500s), and
+    ids are scoped to the session team (no cross-team probing).
+    """
+    from core.models import Season
+
+    text = (raw or "").strip() if isinstance(raw, str) else raw
+    if text in (None, ""):
+        return "ALL", None
+    if isinstance(text, str) and text.upper() == "ALL":
+        if not allow_all:
+            return None, (jsonify(
+                {"error": "season_id is required here"}), 400)
+        return "ALL", None
+    try:
+        sid = int(text)
+    except (TypeError, ValueError):
+        return None, (jsonify(
+            {"error": "season_id must be an integer or ALL"}), 400)
+    if Season.query.filter_by(id=sid, team_id=_team_id()).first() is None:
+        return None, (jsonify({"error": "season not found"}), 404)
+    return sid, None
+
+
 def _season_id():
+    """Legacy accessor (validated at each call site via _parse_season_id)."""
     return request.args.get("season_id", "ALL")
+
+
+def _default_season():
+    """Active season id, falling back to ALL (never merges years silently)."""
+    from core.services.season_service import get_active_season
+
+    try:
+        active = get_active_season(_team_id())
+    except Exception:
+        active = None
+    return active.id if active else "ALL"
 
 
 @coaching_bp.route("/season-plan", methods=["GET"])
 @login_required
 @team_access_required
 def season_plan():
-    """Sept–June calendar with load flags for the session team."""
+    """Sept–June calendar with load flags for the session team.
+
+    Defaults to the active season (explicit ``?season_id=ALL`` still
+    available) so months from different years are never merged.
+    """
     from core.season_plan import build_season_plan, games_per_month
 
-    counts = games_per_month(_team_id(), _season_id())
-    plan = build_season_plan(counts, season_label=str(_season_id()))
+    if "season_id" in request.args:
+        season, err = _parse_season_id(request.args.get("season_id"))
+        if err:
+            return err
+    else:
+        season = _default_season()
+    counts = games_per_month(_team_id(), season)
+    plan = build_season_plan(counts, season_label=str(season))
+    plan["season_id"] = season
     return jsonify(plan), 200
 
 
@@ -52,9 +103,11 @@ def drill_suggestions():
     query = Game.query.filter_by(team_id=_team_id())
     if game_type and game_type != "ALL":
         query = query.filter(Game.game_type == game_type)
-    season_id = _season_id()
-    if season_id != "ALL":
-        query = query.filter(Game.season_id == int(season_id))
+    season, err = _parse_season_id(request.args.get("season_id", "ALL"))
+    if err:
+        return err
+    if season != "ALL":
+        query = query.filter(Game.season_id == season)
     games = query.order_by(Game.sort_date.desc()).limit(last_n).all()
     if not games:
         return jsonify({"weakest": None, "label": None, "drills": [],
@@ -73,10 +126,13 @@ def play_effectiveness_view():
     """PPP by play × quarter, with cold-play verdicts."""
     from core.play_effectiveness import play_effectiveness
 
+    season, err = _parse_season_id(request.args.get("season_id", "ALL"))
+    if err:
+        return err
     rows = play_effectiveness(
         _team_id(),
         game_type=request.args.get("game_type", "ALL"),
-        season_id=_season_id(),
+        season_id=season,
     )
     return jsonify({"plays": rows, "count": len(rows)}), 200
 
@@ -135,6 +191,18 @@ def _deny_auditor():
     return None
 
 
+def _require_coach_or_gm():
+    """Goal mutations need coaching authority (GM or coach, never auditor)."""
+    from flask import jsonify as _jsonify
+    from flask_login import current_user as _user
+    if getattr(_user, "is_auditor", False):
+        return _jsonify({"error": "Auditors have read-only access"}), 403
+    if not (getattr(_user, "is_gm", False)
+            or getattr(_user, "is_coach", False)):
+        return _jsonify({"error": "Coach or GM access required"}), 403
+    return None
+
+
 @coaching_bp.route("/dev-goals", methods=["GET"])
 @login_required
 @team_access_required
@@ -151,11 +219,11 @@ def list_dev_goals():
 @login_required
 @team_access_required
 def create_dev_goal():
-    """Create a development goal (GM/coach only; auditors read-only)."""
+    """Create a development goal (GM/coach only)."""
     from core.dev_goals import DEFAULT_WINDOW, METRICS, goal_progress, validate_goal
     from core.models import DevelopmentGoal, db
 
-    denied = _deny_auditor()
+    denied = _require_coach_or_gm()
     if denied:
         return denied
     data = request.get_json(silent=True) or {}
@@ -179,10 +247,10 @@ def create_dev_goal():
 @login_required
 @team_access_required
 def delete_dev_goal(goal_id):
-    """Delete a development goal (auditors read-only)."""
+    """Delete a development goal (GM/coach only)."""
     from core.models import DevelopmentGoal, db
 
-    denied = _deny_auditor()
+    denied = _require_coach_or_gm()
     if denied:
         return denied
     goal = DevelopmentGoal.query.filter_by(id=goal_id,

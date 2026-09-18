@@ -31,6 +31,10 @@ def main(argv=None) -> int:
     champs = snapshot.get("championships", [])
     if snapshot.get("error") and not champs:
         return 2
+    if args.championship is not None and not champs:
+        print(f"No championship with id {args.championship}",
+              file=sys.stderr)
+        return 2
     if any(c.get("stale") for c in champs):
         return 1
     if any(c.get("recent_errors") for c in champs):

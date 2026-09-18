@@ -124,6 +124,19 @@ class TestImportWebhook:
                                  content_type="application/json")
         assert resp.status_code == 409
 
+    def test_duplicate_detected_across_date_formats(self, admin_client):
+        admin_client.post("/api/v1/games/import",
+                          data=json.dumps(self._body()),
+                          content_type="application/json")
+        for date in ("17/02/2024", "17-02-2024"):
+            body = self._body()
+            body["game"]["date"] = date
+            body["game"]["sort_date"] = date
+            resp = admin_client.post(
+                "/api/v1/games/import", data=json.dumps(body),
+                content_type="application/json")
+            assert resp.status_code == 409, date
+
     def test_missing_fields_400(self, admin_client):
         resp = admin_client.post("/api/v1/games/import",
                                  data=json.dumps({"game": {}}),
@@ -150,3 +163,42 @@ class TestImportWebhook:
                            data=json.dumps(self._body()),
                            content_type="application/json")
         assert resp.status_code == 403
+
+
+class TestInactiveChampionships:
+    def _seed(self, tmp_path, monkeypatch):
+        import os
+        from core import external_store as store
+        monkeypatch.setenv("EXT_CACHE_PATH", str(tmp_path / "ext.db"))
+        conn = store.connect()
+        try:
+            active_id = store.upsert_championship(
+                conn, provider="fip_api", comitato="C", campionato="A",
+                display_name="Active Champ")
+            store.touch_checked(conn, active_id)
+            store.log_sync(conn, active_id, fetched=3, added=1)
+            store.upsert_championship(
+                conn, provider="fip_api", comitato="C", campionato="B",
+                display_name="Retired Champ", active=False)
+            # stale the retired one so it WOULD page if counted
+            conn.execute(
+                "UPDATE ext_championships SET last_checked='2000-01-01T00:00:00', "
+                "active=0 WHERE display_name='Retired Champ'")
+            conn.commit()
+        finally:
+            conn.close()
+        return active_id
+
+    def test_snapshot_excludes_inactive(self, tmp_path, monkeypatch):
+        from core.sync_diff import sync_health_snapshot
+        self._seed(tmp_path, monkeypatch)
+        snapshot = sync_health_snapshot()
+        names = [c["display_name"] for c in snapshot["championships"]]
+        assert names == ["Active Champ"]
+
+    def test_unknown_championship_id_exits_nonzero(
+            self, tmp_path, monkeypatch, capsys):
+        from jobs.check_sync_health import main
+        self._seed(tmp_path, monkeypatch)
+        assert main(["--championship", "999999"]) == 2
+        assert main([]) == 0
