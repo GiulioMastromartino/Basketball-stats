@@ -23,6 +23,7 @@ from core.models import (
     ShotEvent,
     ShotZone,
     SystemSetting,
+    WhatsAppGroup,
     db,
 )
 from core.services.analytics_service import AnalyticsService
@@ -871,6 +872,86 @@ def live_halftime_pdf():
         as_attachment=True,
         download_name=filename,
     )
+
+
+@reports_bp.route("/live/halftime-share", methods=["POST"])
+@login_required
+@team_access_required
+def live_halftime_share():
+    """One-tap halftime share from the v2 console (Slice N1).
+
+    Accepts the same live payload as ``/live/halftime-pdf`` plus optional
+    ``group_id`` (a WhatsAppGroup id scoped to the session team) or
+    ``phone`` (E.164-ish digits). Builds the staff WhatsApp text and sends
+    it; when no destination is given the text is returned unsent so the
+    console can show it for manual copy. WhatsApp is text-only (OpenWA has
+    no media support in this stack) — the PDF itself is fetched via the
+    existing ``halftime-pdf`` endpoint.
+    """
+    from flask_login import current_user
+
+    from core.halftime_share import build_halftime_text, validate_halftime_payload
+
+    if getattr(current_user, "is_auditor", False):
+        return jsonify({"error": "Auditors have read-only access"}), 403
+
+    data = request.get_json(silent=True) or {}
+    errors = validate_halftime_payload(data)
+    if errors:
+        return jsonify({"error": "; ".join(errors)}), 400
+
+    text = build_halftime_text(data)
+    team_id = session.get("current_team_id")
+
+    group_id = data.get("group_id")
+    phone = (data.get("phone") or "").strip() if data.get("phone") else ""
+    pdf_base64 = data.get("pdf_base64") or ""
+    pdf_filename = (data.get("pdf_filename")
+                    or f"halftime_{data.get('opponent', 'game')}_"
+                    f"{data.get('date', '')}.pdf")
+    if group_id is None and not phone:
+        return jsonify({"sent": False, "text": text,
+                        "hint": "pass group_id or phone to send"}), 200
+
+    from core.services import whatsapp_service
+
+    if group_id is not None:
+        try:
+            group_id = int(group_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "group_id must be an integer"}), 400
+        group = WhatsAppGroup.query.filter_by(
+            id=group_id, team_id=team_id, active=True).first()
+        if group is None:
+            return jsonify({"error": "WhatsApp group not found"}), 404
+        ok = whatsapp_service.send_text_message(
+            group.group_wa_id, text, label=f"group:{group.group_wa_id}")
+        channel = {"kind": "whatsapp_group", "group_id": group.id}
+        dest = group.group_wa_id
+    else:
+        chat_id = whatsapp_service._to_number(phone)
+        if not chat_id:
+            return jsonify({"error": "phone is required"}), 400
+        ok = whatsapp_service.send_text_message(chat_id, text, label=phone)
+        channel = {"kind": "whatsapp", "phone": phone}
+        dest = chat_id
+
+    pdf_sent = None
+    if ok and pdf_base64:
+        # Optional attachment: console posts the rendered halftime PDF
+        # (base64) alongside the live payload; forwarded as a document.
+        pdf_sent = whatsapp_service.send_document(
+            dest, filename=pdf_filename,
+            mimetype="application/pdf",
+            media_base64=pdf_base64, caption=text[:200])
+        ok = ok and pdf_sent
+
+    status = 200 if ok else 502
+    if ok:
+        from core.usage_meter import bump as _bump_usage
+        _bump_usage("halftime_shares")
+    return jsonify({"sent": bool(ok), "text": text, "channel": channel,
+                    "pdf_sent": pdf_sent}), status
 
 
 @reports_bp.route("/games/<int:game_id>/evolution.pdf")

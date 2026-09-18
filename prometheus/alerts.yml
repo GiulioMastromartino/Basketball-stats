@@ -1,0 +1,41 @@
+# HoopsLab alert rules (platform health / observability).
+# Wired via rule_files in prometheus.yml. Sync freshness itself is checked
+# by jobs/check_sync_health.py (cron exit code) and GET /health/sync
+# (uptime-monitor keyword on "stale"); the rules below cover the signals
+# Prometheus can see directly.
+
+groups:
+  - name: hoopslab
+    interval: 1m
+    rules:
+      - alert: HoopsLabDown
+        expr: up{job="basketball-stats"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HoopsLab web instance {{ $labels.instance }} is down"
+
+      - alert: HoopsLabHttpErrors
+        expr: |
+          sum by (instance) (
+            rate(flask_http_request_total{status=~"5.."}[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated 5xx rate on {{ $labels.instance }} (>0.05 rps)"
+
+      - alert: HoopsLabSlowPdf
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (
+              rate(flask_http_request_duration_seconds_bucket{path=~".*pdf.*"}[15m])
+            )
+          ) > 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PDF p95 latency above the 1s budget"

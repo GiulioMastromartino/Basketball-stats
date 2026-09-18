@@ -27,3 +27,31 @@ def ready():
         return jsonify(
             {"status": "not ready", "database": "disconnected", "error": str(e)}
         ), 503
+
+
+@health_bp.route("/health/sync", methods=["GET"])
+def sync():
+    """Sync-health probe for monitors (no auth — external metadata only).
+
+    Returns 200 with ``{"status": "ok"}`` when every tracked championship
+    checked in recently, else 503 with ``{"status": "stale"}`` so uptime
+    monitors and the ``HoopsLabSyncStale`` Prometheus alert can fire.
+    Per-championship detail lives behind login at
+    ``/analytics/championship/sync-health``.
+    """
+    from core.sync_diff import sync_health_snapshot
+
+    snapshot = sync_health_snapshot()
+    champs = snapshot.get("championships", [])
+    stale = [c["display_name"] or c["id"] for c in champs if c.get("stale")]
+    errors = [e for c in champs for e in (c.get("recent_errors") or [])]
+    if snapshot.get("error") and not champs:
+        return jsonify({"status": "unknown",
+                        "error": snapshot["error"]}), 503
+    from core.services.whatsapp_service import get_connection_state
+    body = {"championships": len(champs),
+            "whatsapp": get_connection_state()}
+    if stale or errors:
+        return jsonify({"status": "stale", "stale": stale,
+                        "recent_errors": errors[:3], **body}), 503
+    return jsonify({"status": "ok", **body}), 200

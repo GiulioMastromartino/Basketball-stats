@@ -550,3 +550,201 @@ def save_frame_snapshots(play_id):
         saved += 1
     db.session.commit()
     return jsonify({"play_id": play.id, "saved": saved}), 200
+
+
+@api_v1_bp.route("/games/<int:game_id>/video-export", methods=["GET"])
+@login_required
+@team_access_required
+def video_export(game_id):
+    """Timestamped event log for video sync (Slice N3, light tie-in).
+
+    ``?format=json`` (default) or ``?format=csv``. Matches clips in
+    Veo/Pixellot by quarter + game clock; no video is hosted here.
+    """
+    import csv
+    import io
+
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if game is None:
+        return jsonify({"error": "Game not found"}), 404
+
+    rows = []
+    events = (
+        GameEvent.query.filter_by(game_id=game.id)
+        .order_by(GameEvent.quarter, GameEvent.game_seconds).all()
+    )
+    for ev in events:
+        rows.append({
+            "game_id": game.id,
+            "quarter": ev.quarter,
+            "game_seconds": ev.game_seconds,
+            "timestamp": ev.timestamp,
+            "type": ev.event_type,
+            "player": ev.player_name or "",
+            "points": None,
+            "x": ev.x_loc,
+            "y": ev.y_loc,
+            "detail": (ev.detail or "")[:120],
+        })
+    shots = (
+        ShotEvent.query.filter_by(game_id=game.id)
+        .order_by(ShotEvent.quarter, ShotEvent.id).all()
+    )
+    for sh in shots:
+        rows.append({
+            "game_id": game.id,
+            "quarter": sh.quarter,
+            "game_seconds": None,
+            "timestamp": None,
+            "type": f"SHOT_{sh.shot_type or ''}_{sh.result or ''}",
+            "player": sh.player_name or "",
+            "points": sh.points,
+            "x": sh.x_loc,
+            "y": sh.y_loc,
+            "detail": sh.zone or "",
+        })
+    rows.sort(key=lambda r: (r["quarter"] or 0, r["game_seconds"] or 0,
+                             r["timestamp"] or 0))
+
+    fmt = (request.args.get("format") or "json").lower().strip()
+    if fmt == "csv":
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=[
+            "game_id", "quarter", "game_seconds", "timestamp", "type",
+            "player", "points", "x", "y", "detail"])
+        writer.writeheader()
+        writer.writerows(rows)
+        out = io.BytesIO(buf.getvalue().encode("utf-8"))
+        from flask import send_file
+        return send_file(out, mimetype="text/csv", as_attachment=True,
+                         download_name=f"game_{game_id}_events.csv")
+    if fmt != "json":
+        return jsonify({"error": "format must be 'json' or 'csv'"}), 400
+    from core.usage_meter import bump as _bump_usage
+    _bump_usage("video_exports")
+    return jsonify({"game_id": game.id, "count": len(rows), "events": rows}), 200
+
+
+@api_v1_bp.route("/games/import", methods=["POST"])
+@login_required
+@team_access_required
+def import_game_webhook():
+    """Stat-crew webhook: push a single game as JSON (P2 deeper sync).
+
+    Body: ``{"game": {...}, "player_stats": [...], ...}`` in the nested
+    IMPORT_JSON shape, or the flat LIVE shape — both handled by
+    ``create_game_from_live_data``. Duplicate (same sort_date + opponent
+    for this team) returns 409 instead of double-importing.
+    """
+    if getattr(current_user, "is_auditor", False):
+        return jsonify({"error": "Auditors have read-only access"}), 403
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "JSON object body required"}), 400
+
+    team_id = session.get("current_team_id")
+    game_data = payload.get("game") if isinstance(
+        payload.get("game"), dict) else payload
+    raw_date = (game_data.get("sort_date") or game_data.get("sortdate")
+                or game_data.get("date") or "").strip()
+    opponent = (game_data.get("opponent") or "").strip()
+    if not raw_date or not opponent:
+        return jsonify({"error": "game.sort_date/date and game.opponent "
+                                 "are required"}), 400
+    sort_date = raw_date
+    if "/" in raw_date:
+        parts = raw_date.split("/")
+        if len(parts) == 3:
+            sort_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
+    if Game.query.filter_by(sort_date=sort_date, opponent=opponent,
+                            team_id=team_id).first():
+        return jsonify({"error": "game already exists",
+                        "sort_date": sort_date,
+                        "opponent": opponent}), 409
+    try:
+        game = create_game_from_live_data(
+            payload, team_id=team_id,
+            season_id=(request.args.get("season")
+                       if (request.args.get("season") or "ALL") != "ALL"
+                       else None))
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({"error": f"import failed: {exc}"}), 400
+    from core.usage_meter import bump as _bump_usage
+    _bump_usage("api_imports")
+    return jsonify({"success": True, "game_id": game.id,
+                    "sort_date": sort_date, "opponent": opponent}), 201
+
+
+def _require_gm():
+    """JSON 403 unless the caller is a GM (auditors/coaches denied)."""
+    if getattr(current_user, "is_auditor", False):
+        return jsonify({"error": "Auditors have read-only access"}), 403
+    if not getattr(current_user, "is_gm", False):
+        return jsonify({"error": "GM access required"}), 403
+    return None
+
+
+@api_v1_bp.route("/players/<int:player_id>/export", methods=["GET"])
+@login_required
+@team_access_required
+def export_player(player_id):
+    """GDPR export: player profile + every box-score row (GM-only)."""
+    from core.models import Player
+
+    denied = _require_gm()
+    if denied:
+        return denied
+    team_id = session.get("current_team_id")
+    player = Player.query.filter_by(id=player_id, team_id=team_id).first()
+    if player is None:
+        return jsonify({"error": "Player not found"}), 404
+    stats = (PlayerStat.query.join(Game, PlayerStat.game_id == Game.id)
+             .filter(Game.team_id == team_id,
+                     PlayerStat.player_name == player.name)
+             .order_by(Game.sort_date).all())
+    return jsonify({
+        "player": {
+            "id": player.id, "name": player.name, "email": player.email,
+            "active": player.active,
+            "notification_channel": player.notification_channel,
+            "whatsapp_phone": player.whatsapp_phone,
+        },
+        "games_played": len(stats),
+        "stats": [_column_dict(s) for s in stats],
+    }), 200
+
+
+@api_v1_bp.route("/players/<int:player_id>", methods=["DELETE"])
+@login_required
+@team_access_required
+def delete_player(player_id):
+    """GDPR erasure: delete player + their box-score rows (GM-only)."""
+    from core.models import Player
+
+    denied = _require_gm()
+    if denied:
+        return denied
+    team_id = session.get("current_team_id")
+    player = Player.query.filter_by(id=player_id, team_id=team_id).first()
+    if player is None:
+        return jsonify({"error": "Player not found"}), 404
+    name = player.name
+    removed = (PlayerStat.query.join(Game, PlayerStat.game_id == Game.id)
+               .filter(Game.team_id == team_id,
+                       PlayerStat.player_name == name).all())
+    removed_count = len(removed)
+    for row in removed:
+        db.session.delete(row)
+    db.session.delete(player)
+    db.session.commit()
+    from core.models import log_admin_action
+    log_admin_action(current_user, "player.gdpr_delete",
+                     f"player={name} stats_removed={removed_count}",
+                     target_type="player", target_id=player_id)
+    return jsonify({"success": True, "player": name,
+                    "stats_removed": removed_count}), 200

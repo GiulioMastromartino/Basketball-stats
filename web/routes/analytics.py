@@ -213,6 +213,83 @@ def championship():
     )
 
 
+@analytics_bp.route("/analytics/championship/sync-health")
+@login_required
+@team_access_required
+def championship_sync_health():
+    """Per-championship sync health + diffs (P2 deeper sync).
+
+    Combines sidecar health (freshness, error budget), a standings diff
+    (bundled snapshot vs live sidecar), an internal-vs-external score
+    cross-check, and a roster cross-check (roster vs box-score names).
+    Read-only; auditors may view.
+    """
+    from core import external_store as store
+    from core.models import Player
+    from core.sync_diff import (
+        cross_check_game_scores,
+        diff_games,
+        diff_standings,
+        roster_cross_check,
+        sync_health_snapshot,
+    )
+
+    team_id = session.get("current_team_id")
+    ext_id = request.args.get("ext", type=int)
+    health = sync_health_snapshot(ext_id)
+
+    snapshot, _champs = _load_playbasket_from_store(ext_id)
+    if snapshot is None:
+        snapshot = _load_playbasket_snapshot()
+    bundled = _load_playbasket_snapshot()
+    standings_diff = diff_standings(bundled.get("standings", []),
+                                    (snapshot or {}).get("standings", []))
+    games_diff = diff_games(bundled.get("games", []),
+                            (snapshot or {}).get("games", []))
+
+    internal_games = Game.query.filter(
+        Game.team_id == team_id, Game.game_type != "Draft").all()
+    team_name = ""
+    try:
+        from core.models import Team
+        team = Team.query.get(team_id)
+        team_name = team.name if team else ""
+    except Exception:
+        team_name = ""
+    score_check = cross_check_game_scores(
+        team_name,
+        [{"date": g.date, "opponent": g.opponent,
+          "team_score": g.team_score,
+          "opponent_score": g.opponent_score} for g in internal_games],
+        (snapshot or {}).get("games", []))
+
+    roster_names = [p.name for p in Player.query.filter_by(
+        team_id=team_id, active=True).all()]
+    stat_names = [row[0] for row in db.session.query(
+        PlayerStat.player_name).join(
+        Game, PlayerStat.game_id == Game.id).filter(
+        Game.team_id == team_id).distinct().all()]
+    roster_check = roster_cross_check(roster_names, stat_names)
+
+    try:
+        conn = store.connect()
+        try:
+            new_since = store.new_since(
+                conn, ext_id, "") if ext_id else []
+        finally:
+            conn.close()
+    except Exception:
+        new_since = []
+    return jsonify({
+        "health": health,
+        "standings_diff": standings_diff,
+        "games_diff": games_diff,
+        "score_mismatches": score_check,
+        "roster_check": roster_check,
+        "ext_id": ext_id,
+    }), 200
+
+
 @analytics_bp.route("/api/analytics/team_overview")
 @login_required
 @team_access_required
