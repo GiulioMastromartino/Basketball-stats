@@ -192,13 +192,25 @@ def _deny_auditor():
 
 
 def _require_coach_or_gm():
-    """Goal mutations need coaching authority (GM or coach, never auditor)."""
+    """Goal mutations need coaching authority (GM or coach, never auditor).
+
+    The coach path is scoped to the session team: coaching Team A never
+    authorizes mutations on Team B. The GM path stays organization-level.
+    """
     from flask import jsonify as _jsonify
     from flask_login import current_user as _user
     if getattr(_user, "is_auditor", False):
         return _jsonify({"error": "Auditors have read-only access"}), 403
-    if not (getattr(_user, "is_gm", False)
-            or getattr(_user, "is_coach", False)):
+    if getattr(_user, "is_gm", False):
+        return None
+    try:
+        from core.models import TeamAssignment
+        coach = TeamAssignment.query.filter_by(
+            user_id=getattr(_user, "id", None),
+            team_id=_team_id(), is_coach=True).first()
+    except Exception:
+        coach = None
+    if coach is None:
         return _jsonify({"error": "Coach or GM access required"}), 403
     return None
 

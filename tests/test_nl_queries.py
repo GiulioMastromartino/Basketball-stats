@@ -216,3 +216,36 @@ class TestDevGoals:
         goal_id = json.loads(resp.data)["goal_id"]
         assert client.delete(
             f"/coaching/dev-goals/{goal_id}").status_code == 200
+
+    def test_coach_of_other_team_cannot_mutate(
+            self, client, db_session, default_org, default_team):
+        from core.models import Team, TeamAssignment, User, \
+            OrganizationMembership
+        team_b = Team(name="Team B", organization_id=default_org.id,
+                      slug="team-b-x")
+        db_session.add(team_b)
+        db_session.flush()
+        coach = User(username="nl_coach_x", email="nl_coach_x@t.com",
+                     organization_id=default_org.id)
+        coach.set_password("password123")
+        db_session.add(coach)
+        db_session.flush()
+        db_session.add(OrganizationMembership(
+            user_id=coach.id, organization_id=default_org.id, is_gm=False))
+        # Coach of the default team, plain member of team B.
+        db_session.add(TeamAssignment(user_id=coach.id,
+                                      team_id=default_team.id, is_coach=True))
+        db_session.add(TeamAssignment(user_id=coach.id, team_id=team_b.id,
+                                      is_coach=False))
+        db_session.commit()
+        with client.session_transaction() as sess:
+            sess["_user_id"] = str(coach.id)
+            sess["_fresh"] = True
+            sess["current_team_id"] = team_b.id
+            sess["current_team_name"] = team_b.name
+        resp = client.post(
+            "/coaching/dev-goals",
+            data=json.dumps({"player_name": "Anna", "metric": "points",
+                             "target": 10}),
+            content_type="application/json")
+        assert resp.status_code == 403

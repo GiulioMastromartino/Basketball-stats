@@ -608,6 +608,10 @@ def video_export(game_id):
                              r["timestamp"] or 0))
 
     fmt = (request.args.get("format") or "json").lower().strip()
+    if fmt not in ("json", "csv"):
+        return jsonify({"error": "format must be 'json' or 'csv'"}), 400
+    from core.usage_meter import bump as _bump_usage
+    _bump_usage("video_exports", team_id=team_id)
     if fmt == "csv":
         buf = io.StringIO()
         writer = csv.DictWriter(buf, fieldnames=[
@@ -619,10 +623,6 @@ def video_export(game_id):
         from flask import send_file
         return send_file(out, mimetype="text/csv", as_attachment=True,
                          download_name=f"game_{game_id}_events.csv")
-    if fmt != "json":
-        return jsonify({"error": "format must be 'json' or 'csv'"}), 400
-    from core.usage_meter import bump as _bump_usage
-    _bump_usage("video_exports", team_id=team_id)
     return jsonify({"game_id": game.id, "count": len(rows), "events": rows}), 200
 
 

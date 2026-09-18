@@ -115,6 +115,15 @@ class TestVideoExport:
         assert resp.status_code == 200
         assert "quarter" in resp.data.decode("utf-8").splitlines()[0]
 
+    def test_csv_export_is_metered(self, admin_client, default_team,
+                                   sample_game, sample_game_events):
+        from core.usage_meter import get_usage
+        before = get_usage(team_id=default_team.id)["video_exports"]
+        admin_client.get(
+            f"/api/v1/games/{sample_game.id}/video-export?format=csv")
+        assert get_usage(team_id=default_team.id)["video_exports"] == \
+            before + 1
+
     def test_bad_format(self, admin_client, sample_game):
         resp = admin_client.get(
             f"/api/v1/games/{sample_game.id}/video-export?format=xml")
