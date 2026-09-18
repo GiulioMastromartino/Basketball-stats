@@ -268,6 +268,7 @@ def register_blueprints(app: Flask):
     from web.routes.training import training_bp
     from web.routes.reports import reports_bp
     from web.routes.advanced_analytics_api import advanced_api_bp
+    from web.routes.coaching import coaching_bp
     from web.routes.health import health_bp
     from web.routes.live_v2_api import live_v2_bp
     from web.routes.pdf_export import pdf_export_bp
@@ -281,6 +282,7 @@ def register_blueprints(app: Flask):
     app.register_blueprint(training_bp)
     app.register_blueprint(reports_bp, url_prefix="/reports")
     app.register_blueprint(advanced_api_bp)
+    app.register_blueprint(coaching_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(live_v2_bp)
     app.register_blueprint(pdf_export_bp, url_prefix="/api/pdf")

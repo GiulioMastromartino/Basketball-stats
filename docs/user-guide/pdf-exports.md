@@ -46,6 +46,17 @@ Generate professional, publication-ready PDF reports for games, players, teams, 
 | Report | Endpoint | Content |
 |--------|----------|---------|
 | **Halftime PDF** | `POST /reports/live/halftime-pdf` | First-half box score, +/- summary |
+| **Halftime one-tap share** | `POST /reports/live/halftime-share` | Staff WhatsApp text (+ optional PDF attachment) from the `/live-v2` **HT SHARE** button |
+
+### Social PNG Cards
+
+1080×1080 graphics for WhatsApp/socials, rendered server-side (Pillow)
+alongside the PDFs:
+
+| Card | Endpoint |
+|------|----------|
+| Final-score card | `GET /share/cards/game/<game_id>` |
+| Player-of-the-game card | `GET /share/cards/player/<player_id>` |
 
 ---
 
@@ -155,4 +166,5 @@ Pressure situation analysis:
 
 - [Getting Started](../user-guide/getting-started.md) — Set up the application
 - [Live Game Tracking](live-game.md) — Generate halftime PDFs
+- [Sharing & Comms](sharing.md) — Social cards generated alongside reports
 - [Analytics & Reports](advanced-analytics.md) — Understand the metrics in your reports

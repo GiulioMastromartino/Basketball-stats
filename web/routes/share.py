@@ -7,8 +7,9 @@ unknown/expired/revoked. JSON responses only; never leaks emails or notes.
 
 import secrets
 from datetime import datetime, timedelta
+from io import BytesIO
 
-from flask import Blueprint, jsonify, request, session, url_for
+from flask import Blueprint, jsonify, request, send_file, session, url_for
 from flask_login import login_required, current_user
 from sqlalchemy.exc import IntegrityError
 
@@ -263,3 +264,86 @@ def revoke_share(link_id):
     link.revoked = True
     db.session.commit()
     return jsonify({"success": True, "id": link.id, "revoked": True}), 200
+
+
+def _team_name(team_id) -> str:
+    from core.models import Team
+    team = Team.query.get(team_id)
+    return team.name if team else "Us"
+
+
+@share_bp.route("/share/cards/game/<int:game_id>", methods=["GET"])
+@login_required
+@team_access_required
+def game_score_card(game_id):
+    """1080×1080 final-score PNG for a game (Slice N3)."""
+    from core.social_cards import render_score_card
+
+    game = Game.query.filter_by(id=game_id,
+                                team_id=session.get("current_team_id")).first()
+    if game is None:
+        return jsonify({"error": "Not found"}), 404
+    png = render_score_card(_team_name(game.team_id), game.opponent,
+                            game.team_score, game.opponent_score,
+                            date=game.date or "", result=game.result or "")
+    from core.usage_meter import bump as _bump_usage
+    _bump_usage("social_cards", team_id=game.team_id)
+    return send_file(BytesIO(png), mimetype="image/png",
+                     as_attachment=False,
+                     download_name=f"score_{game_id}.png")
+
+
+@share_bp.route("/share/cards/player/<int:player_id>", methods=["GET"])
+@login_required
+@team_access_required
+def player_game_card(player_id):
+    """1080×1080 "Player of the game" PNG (best scoring game)."""
+    from core.social_cards import render_player_card
+
+    team_id = session.get("current_team_id")
+    player = Player.query.filter_by(id=player_id, team_id=team_id).first()
+    if player is None:
+        return jsonify({"error": "Not found"}), 404
+    rows = (PlayerStat.query.join(Game, PlayerStat.game_id == Game.id)
+            .filter(Game.team_id == team_id,
+                    PlayerStat.player_name == player.name)
+            .order_by(PlayerStat.points.desc()).all())
+    best = rows[0] if rows else None
+    stats = {"points": best.points, "reb": best.reb, "ast": best.ast,
+             "stl": best.stl, "blk": best.blk} if best else {}
+    game_date = best.game.date if best and best.game else ""
+    png = render_player_card(player.name, _team_name(team_id),
+                             stats=stats, date=game_date or "")
+    return send_file(BytesIO(png), mimetype="image/png",
+                     as_attachment=False,
+                     download_name=f"player_{player_id}.png")
+
+
+@share_bp.route("/share/comms-preview", methods=["POST"])
+@login_required
+@team_access_required
+def comms_preview():
+    """Preview a post-game comms template with merge tags (Slice N3).
+
+    Body: ``{"template": "postgame_whatsapp", "game_id": 1}``.
+    """
+    from core.comms_templates import TEMPLATES, postgame_context, render
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("template") or "").strip()
+    if name not in TEMPLATES:
+        return jsonify({"error": "unknown template",
+                        "templates": sorted(TEMPLATES)}), 400
+    try:
+        game_id = int(data.get("game_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "game_id must be an integer"}), 400
+    team_id = session.get("current_team_id")
+    game = Game.query.filter_by(id=game_id, team_id=team_id).first()
+    if game is None:
+        return jsonify({"error": "Not found"}), 404
+    stats = PlayerStat.query.filter_by(game_id=game.id).all()
+    text = render(name, postgame_context(_team_name(team_id), game, stats))
+    from core.usage_meter import bump as _bump_usage
+    _bump_usage("comms_previews", team_id=team_id)
+    return jsonify({"template": name, "text": text}), 200

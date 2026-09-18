@@ -2,11 +2,13 @@
 
 Track basketball games in real-time with shot locations, player substitutions, play tagging, and automatic stat calculations.
 
+> **Current console: `/live-v2`.** The tablet-first v2 console is the game-day default (score strip, roster rails, tap-to-log half-court, action pad, 50-step undo, per-event sync with offline queue, **HT SHARE** one-tap halftime button). The legacy **Live Game** page (`/live-game`, `POST /live-game/save`) is still available and documented below for reference.
+
 ---
 
 ## Overview
 
-The Live Game Tracker is a full-screen interface optimized for mobile and tablet use during games. It provides:
+Both consoles provide:
 
 - **Shot Clock & Quarter Timer** — Keep track of game time
 - **Player Substitutions** — Manage who's on the court
@@ -18,11 +20,11 @@ The Live Game Tracker is a full-screen interface optimized for mobile and tablet
 
 ---
 
-## Starting a Live Game
+## Starting a Live Game (v2 console)
 
-### 1. Access the Live Game Page
+### 1. Access the console
 
-Click **Live Game** in the sidebar navigation. The interface opens in fullscreen mode.
+Click **Live V2** in the sidebar (`GET /live-v2`). The interface opens in fullscreen mode optimized for tablets.
 
 ### 2. Set Up Players
 
@@ -118,6 +120,21 @@ At halftime, click **Halftime PDF** to generate a printable report with:
 - Player +/- summary
 - Possession breakdown
 
+### Tablet Console v2 (`/live-v2`) — current
+
+The game-day console is a tablet-first layout: top score strip (score, period/clock, fouls,
+timeouts, possession), roster rails with foul dots, a tap-to-log
+half-court, and an action pad (ASSIST, REBOUND, BLOCK, FTs, FOUL, TECH,
+TOV, STEAL, TIME OUT, SUBS) with 50-step undo. Every entry syncs
+per-event to `POST /api/live-v2/events` (idempotent, with resync + shot-precise undo) through
+an offline-tolerant local queue, scoped per user/team/day.
+
+At halftime, tap **✉ HT SHARE** in the action pad: it posts the current
+console state to `POST /reports/live/halftime-share`, which texts the
+staff WhatsApp group (when one is configured for the team) and can carry
+the rendered halftime PDF as an attachment. With no group configured the
+message is shown for manual copy — the page never breaks on failure.
+
 ### End Game
 
 When the game ends, click **End Game** to:
@@ -132,7 +149,8 @@ The game is then available in the **Games** list with full detail.
 
 ## Auto-Save & Crash Recovery
 
-The live game state is automatically saved to your browser's localStorage every 30 seconds. If the page is accidentally closed:
+- **v2 console**: every event syncs to `POST /api/live-v2/events`; an offline-tolerant local queue holds unsynced events per user/team/day, so a dropped connection or closed tab resyncs on return (plus shot-precise undo).
+- **Legacy page** (`/live-game`): game state is saved to `localStorage` every 30 seconds. If the page is accidentally closed:
 
 1. Navigate to **Live Game** again
 2. A "Recover Game" prompt appears

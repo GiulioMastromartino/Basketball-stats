@@ -1,5 +1,12 @@
 # OpenWA Integration Plan — Basketball Stats
 
+> **DEPRECATED (2026-09-18).** The OpenWA sidecar was replaced by
+> `evoapicloud/evolution-api:v2.3.7` (Baileys provider) — see
+> `docs/archive/evolution-integration-plan.md`. This document is kept for
+> history only; `OPENWA_*` config keys and the `openwa` compose service
+> no longer exist.
+
+
 Complete end-to-end guide for integrating OpenWA (WhatsApp Gateway) into the Basketball Stats Flask application running on Ubuntu Server, with per-user channel selection between email and WhatsApp (individual or group).
 
 ---

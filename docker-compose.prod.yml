@@ -25,27 +25,32 @@ services:
     command: redis-server --save "" --appendonly no
     networks:
       - backend
-   # ── OpenWA WhatsApp Gateway ─────────────────────────────────────────────
-  openwa:
-    image: ghcr.io/rmyndharis/openwa:latest
+    # ── Evolution API WhatsApp gateway (Baileys, pinned — never :latest) ──
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
     restart: unless-stopped
-    shm_size: "256mb"
-    cap_add:
-      - SYS_ADMIN
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
-      API_KEY: ${OPENWA_API_KEY}
+      SERVER_URL: http://evolution:8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      DATABASE_PROVIDER: postgresql
+      # Shares the app Postgres server; Prisma keeps to its own schema.
+      DATABASE_CONNECTION_URI: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}?schema=evolution_api
+      # Persist Baileys auth state in Postgres so container recreation
+      # never forces a QR re-pairing.
+      DATABASE_SAVE_DATA_INSTANCE: "true"
     volumes:
-      - openwa_data:/app/.wwebjs_auth
-      - openwa_cache:/app/.wwebjs_cache
-      - openwa_appdata:/app/data
+      - evolution_instances:/evolution/instances
     networks:
       - backend
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:8080/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 90s
    # ── One-shot migrator (runs, then exits) ───────────────────────────
   migrator:
     build: .
@@ -95,7 +100,7 @@ services:
     depends_on:
       migrator:
         condition: service_completed_successfully
-      openwa:
+      evolution:
         condition: service_started
     env_file: .env.prod
     environment:
@@ -120,7 +125,7 @@ services:
     depends_on:
       migrator:
         condition: service_completed_successfully
-      openwa:
+      evolution:
         condition: service_started
     env_file: .env.prod
     environment:
@@ -145,7 +150,7 @@ services:
     depends_on:
       migrator:
         condition: service_completed_successfully
-      openwa:
+      evolution:
         condition: service_started
     env_file: .env.prod
     environment:
@@ -252,9 +257,7 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
-  openwa_data:
-  openwa_cache:
-  openwa_appdata:
+  evolution_instances:
 networks:
   backend:
     driver: bridge

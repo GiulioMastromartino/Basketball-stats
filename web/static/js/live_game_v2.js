@@ -840,9 +840,149 @@
         handleActionButton("v2-action-sub");
       });
     }
+    var share = getEl("v2-action-share");
+    if (share) {
+      share.addEventListener("click", function () {
+        shareHalftime();
+      });
+    }
     var close = getEl("v2-sub-close");
     if (close) {
       close.addEventListener("click", closeSubSheet);
+    }
+  }
+
+  // ---------- halftime one-tap share (Slice N1) ----------
+  function setShareStatus(msg) {
+    var el = getEl("v2-need-player");
+    if (el) {
+      el.textContent = msg;
+    }
+  }
+
+  function showShareText(text, copied) {
+    // Fallback path: no staff group configured server-side. Render the
+    // message inline so it can be copied manually, and also try the
+    // clipboard when the browser allows it. Never throws.
+    var el = getEl("v2-need-player");
+    if (!el) {
+      return;
+    }
+    try {
+      el.textContent = "";
+      var note = document.createElement("div");
+      note.textContent = copied
+        ? "Halftime update copied to clipboard:"
+        : "No staff group configured — copy manually:";
+      el.appendChild(note);
+      var pre = document.createElement("pre");
+      pre.textContent = text;
+      pre.style.whiteSpace = "pre-wrap";
+      pre.style.textAlign = "left";
+      el.appendChild(pre);
+    } catch (e) {
+      /* never break the page */
+    }
+  }
+
+  function textOf(id, fallback) {
+    var el = getEl(id);
+    return el && el.textContent ? el.textContent.trim() : fallback;
+  }
+
+  function collectHalftimePayload() {
+    var stats = {};
+    function ensure(name) {
+      if (!stats[name]) {
+        stats[name] = {
+          points: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0,
+          oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0,
+          minutes_seconds: 0, plus_minus: 0,
+        };
+      }
+      return stats[name];
+    }
+    // Roster names first so the payload is never empty, even scoreless.
+    state.home.concat(state.away).forEach(function (p) {
+      if (p && p.name) {
+        ensure(p.name);
+      }
+    });
+    state.log.forEach(function (e) {
+      if (!e || e.undone || !e.name) {
+        return;
+      }
+      if (e.scoreDelta) {
+        ensure(e.name).points += e.scoreDelta;
+      }
+    });
+    var boot = window.V2_BOOTSTRAP || {};
+    return {
+      opponent: textOf("v2-team-b-name", "Opponent"),
+      date: boot.nowDate || "",
+      team_score: parseInt(textOf("v2-team-a-score", "0"), 10) || 0,
+      opp_score: parseInt(textOf("v2-team-b-score", "0"), 10) || 0,
+      player_stats: stats,
+    };
+  }
+
+  function shareHalftime() {
+    // One tap: POST the current console state to /reports/live/halftime-share.
+    // The server texts the staff group when one is configured; otherwise it
+    // returns the message for manual copy. Never break the page on failure.
+    if (!window.fetch) {
+      setShareStatus("Sharing is unavailable in this browser.");
+      return;
+    }
+    setShareStatus("Sharing halftime update…");
+    try {
+      window
+        .fetch("/reports/live/halftime-share", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCsrfToken(),
+          },
+          body: JSON.stringify(collectHalftimePayload()),
+        })
+        .then(function (resp) {
+          return resp.json().then(function (data) {
+            return { ok: resp.ok, data: data || {} };
+          });
+        })
+        .then(function (result) {
+          if (result.ok && result.data.sent) {
+            setShareStatus("Halftime update sent to staff. ✓");
+          } else if (result.ok && result.data.text) {
+            var msg = result.data.text;
+            try {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(msg).then(
+                  function () {
+                    showShareText(msg, true);
+                  },
+                  function () {
+                    showShareText(msg, false);
+                  }
+                );
+              } else {
+                showShareText(msg, false);
+              }
+            } catch (e) {
+              showShareText(msg, false);
+            }
+          } else {
+            setShareStatus(
+              "Share failed: " + (result.data.error || "server error")
+            );
+          }
+        })
+        .catch(function () {
+          setShareStatus("Share failed: network error. Retry from the log.");
+        });
+    } catch (e) {
+      setShareStatus("Share failed unexpectedly.");
     }
   }
 

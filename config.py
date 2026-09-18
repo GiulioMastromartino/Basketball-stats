@@ -89,10 +89,10 @@ class Config:
         "WORKOS_REDIRECT_URI"
     )  # Must be set per environment
 
-    # OpenWA WhatsApp Gateway
-    OPENWA_API_URL    = os.getenv("OPENWA_API_URL", "")
-    OPENWA_API_KEY    = os.getenv("OPENWA_API_KEY", "")
-    OPENWA_SESSION_ID = os.getenv("OPENWA_SESSION_ID", "basketball-bot")
+    # Evolution API WhatsApp gateway (Baileys provider, self-hosted)
+    EVOLUTION_API_URL  = os.getenv("EVOLUTION_API_URL", "")
+    EVOLUTION_API_KEY  = os.getenv("EVOLUTION_API_KEY", "")
+    EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "basketball-bot")
 
     # Alpha feature flag: V2 live-game console entry point. Off unless
     # explicitly enabled; enabled by default in development.

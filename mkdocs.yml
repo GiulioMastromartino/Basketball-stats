@@ -48,8 +48,12 @@ nav:
   - User Guide:
     - 'Live Game Tracking': user-guide/live-game.md
     - 'Plays Management': user-guide/plays.md
+    - 'Training Planner': user-guide/training.md
+    - 'Coaching Toolkit': user-guide/coaching.md
     - 'Analytics & Reports': user-guide/advanced-analytics.md
     - 'PDF Exports': user-guide/pdf-exports.md
+    - 'Sharing & Comms': user-guide/sharing.md
+    - 'External Championships': user-guide/championship.md
   - Technical:
     - 'Deployment': technical/deployment.md
     - 'Architecture': technical/architecture.md

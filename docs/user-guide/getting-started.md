@@ -10,10 +10,10 @@
 
 HoopsLab turns live game tracking into instant intelligence and print-ready coaching documents. After setup you'll have:
 
-- **Live Command Center** — Real-time event logging, possession context, play tagging
-- **Automatic Intelligence** — TS%, eFG%, Net Rating, lineup impact, duo/trio combinations
-- **Print & Share** — Server-side PDFs (halftime, game, player, lineup, season, clutch)
-- **Digital Playbook** — 65+ pre-loaded plays with visual diagram builder
+- **Live Command Center** — `/live-v2` tablet console (current) plus legacy `/live-game`; real-time event logging, possession context, play tagging
+- **Automatic Intelligence** — TS%, eFG%, USG%, PPS, Net Rating, lineup impact, duo/trio combinations
+- **Print & Share** — Server-side PDFs (halftime, game, player, lineup, season, clutch) + social PNG cards + expiring share links
+- **Digital Playbook** — Offense/Defense/Special types seeded; plays are user-created with a visual diagram builder
 
 ---
 
@@ -23,7 +23,7 @@ HoopsLab turns live game tracking into instant intelligence and print-ready coac
   <div class="step-number">1</div>
   <div class="step-content">
     <h4>Python 3.11+</h4>
-    <p>Check your version: <code>python --version</code>. If you don't have it, download from <a href="https://python.org">python.org</a>.</p>
+    <p>Check your version: <code>python --version</code>. Local dev uses 3.12 (<code>.python-version</code> pins 3.12.7); the Docker image pins <code>python:3.11-slim</code>. If you don't have it, download from <a href="https://python.org">python.org</a>. You also need the WeasyPrint system libs (<code>libpango</code> — see <code>Dockerfile</code>; macOS: <code>brew install pango</code>).</p>
   </div>
 </div>
 
@@ -73,7 +73,7 @@ venv\Scripts\activate      # Windows</code></pre>
   <div class="step-content">
     <h4>Install dependencies</h4>
     <pre><code>pip install -r requirements-local.txt</code></pre>
-    <p>This installs Flask, SQLAlchemy, Pandas, WeasyPrint, and all other dependencies.</p>
+    <p>This installs Flask 3.x, SQLAlchemy 2.0, Pandas, WeasyPrint, ReportLab, and all other dependencies (see `requirements-local.txt`).</p>
   </div>
 </div>
 
@@ -141,7 +141,7 @@ You should see `(venv)` in your terminal prompt.
 pip install -r requirements-local.txt
 ```
 
-This installs ~20 packages including Flask 3.0, SQLAlchemy 2.0, Pandas, WeasyPrint, and testing tools.
+This installs Flask 3.x, SQLAlchemy 2.0, Pandas, WeasyPrint, and testing tools (see `requirements-local.txt`).
 
 For production deployments use `requirements.txt` instead (adds gunicorn, psycopg2, WorkOS SSO, Prometheus metrics).
 
@@ -153,9 +153,9 @@ Create all tables and seed initial data:
 # Option A: Quick start (creates DB + sample data + starts server)
 python quick_start.py --no-run
 
-# Option B: Manual with Flask CLI
-export FLASK_APP=manage.py
-flask shell -c "from web import create_app; app=create_app(); app.app_context().push(); from core.models import db; db.create_all()"
+# Option B: Manual init script
+python scripts/init_db.py
+python scripts/seed_db.py   # ensures PlayTypes + admin user
 ```
 
 ### 5. Import Your Data
@@ -163,10 +163,10 @@ flask shell -c "from web import create_app; app=create_app(); app.app_context().
 Place CSV files in the `Games/` directory, then:
 
 ```bash
-python -c "from cli_import import main; main()"
+python cli_import.py
 ```
 
-Or use the web UI: navigate to **Upload Game** in the sidebar.
+Or use the web UI: navigate to **Upload Game** in the sidebar (accepts CSV, PDF, or JSON).
 
 ### 6. Run the Server
 
@@ -192,15 +192,18 @@ For server deployments, NAS (TrueNAS Scale), or cleaner isolation.
 docker-compose up -d
 ```
 
-This starts three services:
+This starts four services (dev `docker-compose.yml`):
 
 | Service | Purpose |
 |---------|---------|
 | `db` | PostgreSQL 16 (persistent storage) |
-| `web` | Flask app with Gunicorn on port 8080 |
+| `web` | Flask app via `entrypoint.sh` (Gunicorn) on port 8080 |
+| `scraper` | Championship sync sidecar (`python -m jobs.championship_sync --daemon`) |
 | `cloudflared` | Optional Cloudflare Tunnel for public access |
 
 The app will be available at `http://localhost:8080`.
+
+For the production stack (`docker-compose.prod.yml`, Jenkins `scripts/deploy.sh` + `.env.prod`): `db`, `redis`, `evolution` (WhatsApp), `migrator`, `scraper`, `web-1/2/3` Gunicorn replicas behind `nginx` (:8080), plus `prometheus`/`grafana`/`loki`/`promtail`. See the Deployment guide.
 
 ### Building the Image Manually
 
@@ -224,10 +227,12 @@ docker run -d \
 1. Go to **Apps** → **Discover Apps** → **Custom App**
 2. **Application Name**: `basketball-stats`
 3. **Image**: `your-username/basketball-stats:latest`
-4. **Environment Variables**:
+4. **Environment Variables** (single-container SQLite path):
     - `DATABASE_URL`: `sqlite:////app/data/basketball_stats.db`
     - `SECRET_KEY`: (generate a random string)
-5. **Storage**: Map host paths to `/app/data`, `/app/Games`, `/app/Output`
+    - `FLASK_ENV`: `production`
+5. **Storage**: Map persistent host paths (the dev compose uses `./Games:/app/Games`, `./Output:/app/Output`, `./uploads:/app/uploads` — replace with ZFS paths, plus `/app/data` for the SQLite file above):
+    - `/mnt/pool/games` → `/app/Games`, `/mnt/pool/output` → `/app/Output`, `/mnt/pool/app-data` → `/app/data`
 6. **Networking**: Container port `8080` → Node port `9080`
 
 ---
@@ -264,7 +269,7 @@ Once you're logged in, here's what to do first:
   <div class="step-number">4</div>
   <div class="step-content">
     <h4>Try Live Game Tracking</h4>
-    <p>Click <strong>Live Game</strong> in the sidebar to start tracking a game in real-time — shot locations, quarter timer, player substitutions, play tagging, and +/- tracking.</p>
+    <p>Click <strong>Live V2</strong> in the sidebar for the current tablet console — shot locations, quarter timer, substitutions, play tagging, and +/- tracking with per-event sync. (<strong>Live Game</strong> is the legacy page.)</p>
   </div>
 </div>
 
@@ -295,7 +300,7 @@ Examples:
 | `Warriors_88-92_20-03-2024_P.csv` | Playoff |
 | `Celtics_95-90_25-03-2024_F.csv` | Friendly |
 
-**Required columns:**
+**Required CSV columns** (see `REQUIRED_CSV_COLUMNS` in `core/validators.py`; `PlusMinus` and `REB_CONCEDED` are optional):
 ```
 Name, MIN, PTS, FGM, FGA, FG%, 3PM, 3PA, 3P%,
 FTM, FTA, FT%, OREB, DREB, REB, AST, TOV, STL, BLK, PF
@@ -304,7 +309,7 @@ FTM, FTA, FT%, OREB, DREB, REB, AST, TOV, STL, BLK, PF
 **Import:**
 ```bash
 # Place your CSV files in the Games/ folder, then:
-python -c "from cli_import import main; main()"
+python cli_import.py
 ```
 
 ### PDF & JSON Import
@@ -320,13 +325,19 @@ Key environment variables you can set in `.env`:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SECRET_KEY` | auto-generated | Flask session signing key |
-| `DATABASE_URL` | `sqlite:///basketball_stats.db` | Database connection string |
+| `DATABASE_URL` | `sqlite:///basketball_stats.db` (app dir) | Database connection string (`postgresql://…` in prod) |
 | `FLASK_ENV` | `development` | `development`, `testing`, or `production` |
-| `DISABLE_AUTH` | `false` | Set to `true` for single-user setups |
+| `DISABLE_AUTH` | `false` (`1` in `run_local.py`) | Set to `1`/`true` for single-user setups (no login) |
 | `GAMES_DIR` | `./Games` | Directory for CSV import files |
 | `OUTPUT_DIR` | `./Output` | Directory for generated outputs |
-| `LOG_LEVEL` | `INFO` | Logging verbosity |
+| `UPLOAD_FOLDER` | `uploads` | Web upload staging |
+| `LOG_LEVEL` / `LOG_FORMAT` | `INFO` / `json` | Logging verbosity / format |
 | `MAIL_SERVER` | `smtp.gmail.com` | SMTP server for email reports |
+| `EVOLUTION_API_URL` / `EVOLUTION_API_KEY` / `EVOLUTION_INSTANCE` | `http://localhost:8080` / unset / `basketball-bot` | WhatsApp gateway (prod: `http://evolution:8080`); unset = WhatsApp disabled, OTP falls back to email |
+| `WORKOS_*` | unset | SSO (see `.env.example` / `.env.prod.example`) |
+| `RATELIMIT_STORAGE_URL` | `memory://` (prod: `redis://redis:6379/0`) | Rate-limit backend |
+
+See `.env.example` (dev) and `.env.prod.example` (prod) for the full list.
 
 ---
 
@@ -335,7 +346,7 @@ Key environment variables you can set in `.env`:
 | Problem | Solution |
 |---------|----------|
 | **Port 8080 already in use** | `python quick_start.py --port 8081` or `python run.py --port 8081` |
-| **Database errors** | `python quick_start.py --reset` to reset and recreate |
+| **Database errors** | `python quick_start.py --reset` to reset and recreate (deletes `basketball_stats.db`), or `python reset_empty.py` for a clean admin-only DB |
 | **Module not found** | Make sure your virtual environment is activated and `pip install -r requirements-local.txt` completed |
 | **CSV import fails** | Check filename matches pattern exactly, verify all required columns are present |
 | **PDF generation fails** | Ensure WeasyPrint is installed correctly — on macOS: `brew install pango` |
@@ -347,6 +358,10 @@ Key environment variables you can set in `.env`:
 
 - [Live Game Tracking](live-game.md) — Set up and run a live game session
 - [Plays Management](plays.md) — Build your digital playbook
+- [Training Planner](training.md) — Plan practices with segments and storyboards
+- [Coaching Toolkit](coaching.md) — Season plan, drills, NL queries, dev goals
 - [Analytics & Reports](advanced-analytics.md) — Understand advanced metrics
 - [PDF Exports](pdf-exports.md) — Generate professional reports
+- [Sharing & Comms](sharing.md) — Links, social cards, video export
+- [External Championships](championship.md) — League sync and fixture promotion
 - [Deployment Guide](../technical/deployment.md) — Production deployment options

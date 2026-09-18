@@ -6,13 +6,7 @@ The Plays module lets you manage your team's digital playbook and associate play
 
 ## Overview
 
-The system comes pre-loaded with **65+ plays** covering standard offensive, defensive, and special situations:
-
-| Category | Count | Examples |
-|----------|-------|----------|
-| **Offense** | 20+ | Pick & Roll, Spain PNR, Horns Twist, UCLA Cut, Triangle |
-| **Defense** | 20+ | Man-to-Man, 2-3 Zone, 1-3-1 Zone, Box-and-One, Presses |
-| **Special** | 25+ | BLOB, SLOB, ATO, Game Winner, Quick Clock |
+Play types (**Offense**, **Defense**, **Special**) are seeded by `scripts/seed_db.py`. Plays themselves are **user-created** — the playbook starts empty and you build it via the web form or canvas builder, then tag plays during live tracking for effectiveness analysis.
 
 ---
 
@@ -125,7 +119,9 @@ This shows which plays yield the highest points per possession against specific 
 
 ---
 
-## Pre-loaded Plays Reference
+## Example Play Ideas
+
+Starter ideas per category (create these with **Add New Play** or the builder):
 
 ### Offensive Plays
 
@@ -188,4 +184,6 @@ This shows which plays yield the highest points per possession against specific 
 
 - [Live Game Tracking](live-game.md) — Tag plays during live games
 - [Analytics & Reports](advanced-analytics.md) — Analyze play effectiveness
+- [Coaching Toolkit](coaching.md) — PPP rankings, situational suggestions, NL queries
+- [Training Planner](training.md) — Link drills to playbook entries
 - [PDF Exports](pdf-exports.md) — Generate play-focused PDF reports

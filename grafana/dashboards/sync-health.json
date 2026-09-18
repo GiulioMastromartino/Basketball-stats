@@ -1,0 +1,35 @@
+{
+  "title": "HoopsLab Sync Health",
+  "tags": ["hoopslab", "sync"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Web Up",
+      "targets": [
+        {
+          "expr": "up{job=\"basketball-stats\"}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "HTTP Error Rate (5xx)",
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(flask_http_request_total{status=~\"5..\"}[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Sync freshness (external championships)",
+      "options": {
+        "content": "Prometheus cannot see sidecar freshness directly.\n\n* `GET /health/sync` returns `{\"status\": \"ok\"}` (200) or `{\"status\": \"stale\"}` (503) — point the uptime monitor at it with a keyword check for `\"stale\"`.\n* `python -m jobs.championship_sync --once && python -m jobs.check_sync_health` runs in the daily cron; a non-zero exit fires the cron-failure alert.\n* Per-championship detail (behind login): `/analytics/championship/sync-health`.",
+        "mode": "markdown"
+      }
+    }
+  ]
+}

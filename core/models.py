@@ -672,3 +672,28 @@ class ShareLink(db.Model):
 
     def __repr__(self):
         return f"<ShareLink {self.target_type}:{self.target_id} revoked={self.revoked}>"
+
+
+class DevelopmentGoal(db.Model):
+    """Per-player development goal over a rolling window of games.
+
+    Example: Anna / ft_percent >= 75.0 over the next 5 games. Progress is
+    computed live from PlayerStat rows; nothing is cached on the row.
+    """
+
+    __tablename__ = "development_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    player_name = db.Column(db.String(100), nullable=False)
+    metric = db.Column(db.String(20), nullable=False)
+    target = db.Column(db.Float, nullable=False)
+    window = db.Column(db.Integer, nullable=False, default=5,
+                       server_default="5")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    team = db.relationship("Team", backref=db.backref("development_goals",
+                                                      lazy=True))
+
+    def __repr__(self):
+        return (f"<DevelopmentGoal {self.player_name} {self.metric} "
+                f">= {self.target} ({self.window}g)>")
