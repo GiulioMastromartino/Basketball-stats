@@ -14,12 +14,15 @@ Overview of the HoopsLab application architecture, data model, and design decisi
 │                    Flask 3.1                         │
 │  ┌─────────┐ ┌──────────┐ ┌──────────────────────┐ │
 │  │ Routes  │ │ Services │ │ Analytics Engine     │ │
-│  │ (8 BPs) │ │ (7 svcs) │ │ (Rust + Python)      │ │
+│  │(13 BPs) │ │(11 svcs) │ │ (Rust + Python)      │ │
 │  └────┬────┘ └────┬─────┘ └──────────┬───────────┘ │
 ├───────┴───────────┴───────────────────┴────────────┤
-│              SQLAlchemy 2.0 / Alembic                │
+│              SQLAlchemy 2.0 (create_all +           │
+│              auto-migrate; Alembic chain frozen)     │
 ├─────────────────────────────────────────────────────┤
 │         SQLite (dev) / PostgreSQL 16 (prod)          │
+│  + external championships sidecar (SQLite)          │
+│  + Evolution API WhatsApp gateway (Docker)          │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -28,11 +31,12 @@ Overview of the HoopsLab application architecture, data model, and design decisi
 | Layer | Technology | Responsibility |
 |-------|------------|----------------|
 | **Presentation** | Jinja2 + Bootstrap 5.3 | Server-rendered HTML, responsive UI |
-| **Application** | Flask 3.1 + 8 Blueprints | Route handling, auth, session, CSRF |
+| **Application** | Flask 3.1 + 13 Blueprints | Route handling, auth, session, CSRF |
 | **Service** | Python services | Business logic, analytics computation |
 | **Performance** | Rust (PyO3) | Shot quality, zone analysis, stat formulas |
-| **Data** | SQLAlchemy 2.0 + Alembic | ORM, migrations, connection pooling |
+| **Data** | SQLAlchemy 2.0 | ORM; tables via `create_all`, columns via auto-migrate |
 | **Storage** | SQLite / PostgreSQL | Persistent data |
+| **Messaging** | Evolution API v2.3.7 (Baileys) | WhatsApp OTP, notifications, halftime shares |
 
 ---
 
@@ -50,42 +54,73 @@ Basketball-stats/
 ├── web/                      # Flask web application
 │   ├── __init__.py           # App factory (extensions, blueprints)
 │   ├── decorators.py         # Route decorators (auth, team access)
-│   ├── routes/               # Blueprints (auth, main, analytics, etc.)
-│   ├── templates/            # Jinja2 templates (~55)
+│   ├── routes/               # Blueprints (13: auth, main, api_v1,
+│   │                         #   analytics, plays, training, reports,
+│   │                         #   advanced_api, health, live_v2, pdf_export,
+│   │                         #   share, coaching)
+│   ├── templates/            # Jinja2 templates (~61 files)
 │   └── static/               # CSS, JS, images
 │
 ├── core/                     # Backend logic
-│   ├── models.py             # SQLAlchemy ORM models (~25)
+│   ├── models.py             # SQLAlchemy ORM models (29)
 │   ├── analytics.py          # Stat calculations
 │   ├── charts.py             # Matplotlib chart generation
-│   ├── pdf_exports.py        # PDF report generation (ReportLab)
 │   ├── csv_processor.py      # CSV game data import
 │   ├── parser.py             # PDF game stats parser
-│   └── services/             # Service layer (7 services)
+│   ├── season_plan.py        # Sept–June planner + load flags
+│   ├── drill_suggester.py    # Weakest-Four-Factor drill picks
+│   ├── play_effectiveness.py # PPP by play × quarter
+│   ├── play_suggester.py     # Contextual play ranking
+│   ├── nl_queries.py         # Rule-based coaching Q&A
+│   ├── dev_goals.py          # Development-goal progress
+│   ├── social_cards.py       # 1080×1080 PNG cards (Pillow)
+│   ├── comms_templates.py    # Post-game {{merge_tag}} templates
+│   ├── sync_diff.py          # Standings/game diffs + cross-checks
+│   ├── halftime_share.py     # One-tap share text builder
+│   ├── aggregate_cache.py    # 120 s analytics aggregate cache
+│   ├── usage_meter.py        # SaaS usage counters (SystemSetting)
+│   └── services/             # Service layer (11 services)
+│
+├── jobs/                     # Cron jobs
+│   ├── championship_sync.py  # Daily external-championship sync
+│   └── check_sync_health.py  # Freshness probe (exit-code alerting)
 │
 ├── basketball_stats_rust/    # Rust PyO3 module
 │   └── src/lib.rs            # Shot quality, zone analysis
 │
-├── scripts/                  # Utility scripts
-├── migrations/               # Alembic database migrations
-└── tests/                    # Pytest test suite
+├── scripts/                  # Utility scripts (deploy.sh, init_db.py, …)
+├── migrations/               # Alembic dir (empty; see Migrations below)
+├── legacy_migrations/        # Frozen historical chain (read-only)
+└── tests/                    # Pytest test suite (860+ tests)
 ```
 
 ---
 
 ## Blueprint Routes
 
-| Blueprint | Prefix | Routes | Purpose |
-|-----------|--------|--------|---------|
-| `main_bp` | `/` | 23 | Dashboard, games, players, lineups, live game |
-| `auth_bp` | `/auth` | 9 | Login, logout, OTP, user management |
-| `analytics_bp` | `/` | 10 | Analytics dashboard + JSON endpoints |
-| `plays_bp` | `/` | 13 | Playbook CRUD |
-| `reports_bp` | `/reports` | 12 | PDF report generation |
-| `api_v1_bp` | `/api/v1` | 2 | Plays API |
-| `builder_api_bp` | `/api/v1` | 2 | Play canvas save/load |
-| `advanced_api_bp` | `/api/advanced` | 28 | JSON analytics endpoints |
-| `health_bp` | `/` | 2 | Health checks |
+| Blueprint | Prefix | Purpose |
+|-----------|--------|---------|
+| `auth_bp` | `/auth` | Login, logout, OTP, onboarding, user/player admin |
+| `main_bp` | `/` | Dashboard, games, players, lineups, live game, seasons/orgs/teams admin |
+| `api_v1_bp` | `/api/v1` | Games/plays API, import + webhook, video export, player GDPR |
+| `analytics_bp` | `/` | Analytics dashboard, championship + sync-health |
+| `plays_bp` | `/` | Playbook CRUD |
+| `training_bp` | `/` | Training sessions, segments, attendance, PDFs |
+| `reports_bp` | `/reports` | PDF reports + live halftime PDF/share |
+| `advanced_api_bp` | `/api/advanced` | JSON analytics endpoints |
+| `health_bp` | `/` | `live`, `ready`, `sync` probes |
+| `live_v2_bp` | `/api/live-v2` | Tablet console event ingestion |
+| `pdf_export_bp` | `/api/pdf` | PDF export API |
+| `share_bp` | `/` | Share links, PNG cards, comms previews |
+| `coaching_bp` | `/coaching` | Season plan, drills, effectiveness, NL queries, dev goals |
+
+## Migrations
+
+Deliberately boring: tables are created by `db.create_all()` on boot
+(`scripts/init_db.py`, tests) and missing columns are backfilled by
+`core/db_migrations.add_missing_columns()`. `migrations/versions/` is
+empty and the `legacy_migrations/` chain is frozen read-only history —
+do not add Alembic revisions unless the project moves off this scheme.
 
 ---
 
@@ -173,13 +208,33 @@ Game Data (CSV/PDF/JSON)
 |---------|----------------|
 | **Password Auth** | Flask-Bcrypt |
 | **SSO** | WorkOS (Google, Microsoft, GitHub) |
-| **OTP** | Time-based one-time passwords |
+| **OTP 2FA** | 6-digit email/WhatsApp codes, required for managers (GM) at login |
+| **Auditor role** | Read-only: may view admin pages, blocked from all mutations |
 | **CSRF** | Flask-WTF |
 | **Rate Limiting** | Flask-Limiter (200/day, 50/hour) |
 | **Session** | Signed cookies, HTTP-only, SameSite=Lax |
 | **Multi-tenant** | Organization + Team scoping |
 
 The app supports a `DISABLE_AUTH` mode for single-user/personal deployments where all routes are accessible without login.
+
+---
+
+## WhatsApp Notifications (Evolution API)
+
+Outbound WhatsApp (login OTPs, game notifications, halftime shares) is a
+thin adapter, `core/services/whatsapp_service.py`, over a self-hosted
+Evolution API v2.3.7 sidecar (Baileys provider) in compose. Dispatch stays
+in `core/services/notification_service.py` (per-user channel preference:
+email / WhatsApp / group / all). Key properties:
+
+- Same function signatures as before — routes never touch HTTP directly.
+- Sends return `201 → True`; failures log and return `False`, never raise.
+- Unconfigured/unpaired gateway degrades silently (OTP falls back to email).
+- Media supported: the halftime PDF can go as a document attachment.
+- Instance state is exposed at `GET /health/sync` (`whatsapp` field) and
+  checked by `scripts/deploy.sh`.
+
+Runbook: `docs/archive/evolution-integration-plan.md`.
 
 ---
 

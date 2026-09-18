@@ -263,7 +263,7 @@ Remove all plays (use with caution).
 ### Save Canvas
 
 ```
-POST /api/v1/plays
+POST /api/v1/plays/api/save-canvas
 ```
 
 Save play diagram from the Fabric.js canvas.
@@ -271,10 +271,22 @@ Save play diagram from the Fabric.js canvas.
 ### Load Canvas
 
 ```
-GET /api/v1/plays
+GET /api/v1/plays/api/load-canvas/<play_id>
 ```
 
-Load all plays with canvas data.
+Load a single play with canvas data, plus frame snapshots:
+
+```
+POST /api/v1/plays/api/<play_id>/frame-snapshots
+```
+
+Play listing for builder/live selectors:
+
+```
+GET /api/v1/plays
+GET /api/v1/plays/types
+GET /api/plays            (legacy live-game selector, main blueprint)
+```
 
 ### Play Types
 
@@ -407,6 +419,20 @@ GET /reports/clutch/report.pdf
 POST /reports/live/halftime-pdf
 ```
 
+### Halftime One-Tap Share
+
+```
+POST /reports/live/halftime-share
+```
+
+Same live payload as `halftime-pdf`, plus `group_id` (a `WhatsAppGroup`
+id scoped to the session team) or `phone`. Sends the staff WhatsApp
+summary via the Evolution API gateway; with neither destination it
+returns the text for manual copy (`{"sent": false, ...}`). Optional
+`pdf_base64` + `pdf_filename` forwards the rendered halftime PDF as a
+document attachment (`pdf_sent: true/false`). Auditors get `403`.
+Used by the **HT SHARE** button in the `/live-v2` console.
+
 ### Download All (ZIP Bundle)
 
 ```
@@ -433,7 +459,7 @@ Renders the full-screen live tracking interface.
 GET /api/plays
 ```
 
-Returns JSON list of plays for the play selector dropdown.
+Returns JSON list of plays for the play selector dropdown (legacy live-game page; v2 console uses `/api/v1/plays`).
 
 ### Save Live Game
 
@@ -442,6 +468,22 @@ POST /live-game/save
 ```
 
 Saves the current live game state.
+
+### Tablet Console v2
+
+```
+GET /live-v2
+```
+
+The current game-day console (score strip, roster rails, tap-to-log
+half-court, action pad, 50-step undo, substitution sheet, **HT SHARE**
+one-tap halftime button). Per-event sync (idempotent, resync + shot-precise undo):
+
+```
+POST /api/live-v2/events
+```
+
+Legacy page (`GET /live-game`, `POST /live-game/save`) is still available.
 
 ---
 
@@ -459,11 +501,17 @@ Upload game data from CSV, PDF, or JSON files. Accepts multipart form data with 
 ## Health Endpoints
 
 ```
-GET /health/live
-GET /health/ready
+GET /health/live    → {"status": "alive", ...}
+GET /health/ready   → {"status": "ready", ...} (503 when DB is down)
+GET /health/sync    → {"status": "ok"|"stale", "whatsapp": "open"|..., ...}
 ```
 
-Returns `{"status": "healthy"}` when the application is running. Used by orchestration systems for liveness and readiness probes.
+`GET /health/sync` is the monitor-friendly probe: `200` with
+`{"status": "ok"}` when every tracked championship is fresh, `503` with
+`{"status": "stale"}` otherwise. The `whatsapp` field reports the Evolution
+API instance state (`open`/`connecting`/`close`/`unknown`) and is
+informational only. Per-championship detail (login required) lives at
+`/analytics/championship/sync-health`.
 
 ---
 
@@ -474,3 +522,107 @@ GET /metrics
 ```
 
 Prometheus-formatted metrics for monitoring (requires authentication in production).
+
+---
+
+## Coaching API (`/coaching`)
+
+Read-only JSON for season planning, drill selection, play effectiveness,
+natural-language queries, and development goals. Auditors may view; goal
+mutations are GM/coach-only (`403` for auditors).
+
+```
+GET  /coaching/season-plan?season_id=ALL
+GET  /coaching/drill-suggestions?game_type=Season&last_n=5&zone=
+GET  /coaching/play-effectiveness?game_type=ALL&season_id=ALL
+POST /coaching/nl-query                  {"query": "best lineup vs zone"}
+GET  /coaching/play-suggestions?situation=vs+zone&quarter=4&limit=5
+GET  /coaching/dev-goals
+POST /coaching/dev-goals                 {"player_name","metric","target","window"}
+DELETE /coaching/dev-goals/<id>
+```
+
+Supported NL intents: lineup by context (`vs_zone`, `vs_fast`,
+`protect_lead`, `need_stops`, `need_score`), top scorer, shooting,
+turnovers, rebounding, recent form. Supported goal metrics: `points`,
+`reb`, `ast`, `stl`, `blk`, `tov` (lower-is-better), `fg_percent`,
+`tp_percent`, `ft_percent`.
+
+---
+
+## Sharing & Social Cards
+
+Expiring, revocable public links (no login to view; JSON only):
+
+```
+POST   /share                       {"target_type": "game"|"player", "target_id", "expires_in_days"}
+GET    /s/<token>
+DELETE /share/<id>
+```
+
+1080×1080 PNG cards rendered server-side with Pillow:
+
+```
+GET /share/cards/game/<game_id>      final-score card
+GET /share/cards/player/<player_id>  "Player of the game" card (best scoring game)
+```
+
+Post-game comms templates with `{{merge_tags}}`:
+
+```
+POST /share/comms-preview            {"template": "postgame_whatsapp"|"postgame_email_subject"|"postgame_email_body"|"parent_digest", "game_id"}
+```
+
+---
+
+## Video Export (Veo/Pixellot tie-in)
+
+Timestamped event log for syncing clips in external video tools. No video
+is hosted here.
+
+```
+GET /api/v1/games/<game_id>/video-export?format=json   (default)
+GET /api/v1/games/<game_id>/video-export?format=csv
+```
+
+Rows carry `quarter`, `game_seconds`, `timestamp`, `type`, `player`,
+`points`, `x`/`y`, ordered by quarter then clock.
+
+---
+
+## Stat-Crew Import Webhook
+
+Push a single game as JSON (nested `IMPORT_JSON` or flat `LIVE` shape):
+
+```
+POST /api/v1/games/import            {"game": {...}, "player_stats": [...]}
+```
+
+Returns `201` with `game_id`; `409` when `sort_date` + `opponent` already
+exist for the team; `403` for auditors. Optional `?season=<id>`.
+
+---
+
+## Championship Sync Health
+
+```
+GET /analytics/championship/sync-health?ext=<id>
+```
+
+Per-championship sidecar health (freshness vs the 26 h threshold, game/
+standings counts, last runs, recent errors) plus: standings diff (bundled
+snapshot vs live sidecar), game score-correction diff, internal-vs-external
+score cross-check, and roster cross-check (roster vs box-score names).
+See also `GET /health/sync` for the monitor-friendly probe.
+
+---
+
+## Player GDPR (GM-only)
+
+```
+GET    /api/v1/players/<id>/export    profile + every box-score row
+DELETE /api/v1/players/<id>           erase player + their stat rows (audited)
+```
+
+Both return `403` for non-GMs (including auditors) and `404` for players
+outside the session team.

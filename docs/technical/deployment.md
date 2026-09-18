@@ -32,21 +32,35 @@ cd Basketball-stats
 cp .env.example .env
 # Edit .env with your settings
 
-# 3. Start the stack
+# 3. Start the stack (dev compose: db, web, scraper, cloudflared)
 docker-compose up -d
 ```
 
-This starts:
+The dev stack runs the app via `entrypoint.sh` (Gunicorn) against PostgreSQL, plus the championship-sync sidecar and an optional Cloudflare tunnel.
+
+### Production stack (`docker-compose.prod.yml`)
+
+Production deploys via Jenkins (`Jenkinsfile`) calling
+`scripts/deploy.sh`, which builds, brings up the stack, and verifies the
+WhatsApp instance state. Deploys read `.env.prod` (see `.env.prod.example`).
+
+The prod stack (all behind the `backend` network; `nginx` serves `:8080`) starts:
 
 | Service | Purpose |
 |---------|---------|
 | `db` | PostgreSQL 16 with persistent volume |
-| `web` | Flask app via Gunicorn on port 8080 |
-| `cloudflared` | Optional Cloudflare Tunnel for public HTTPS access |
+| `redis` | Rate-limit storage + cache |
+| `migrator` | One-shot DB bootstrap, then exits |
+| `web-1/2/3` | Flask app via Gunicorn on port 8080 (nginx upstream) |
+| `nginx` | Reverse proxy / TLS termination |
+| `evolution` | WhatsApp gateway (Evolution API v2.3.7, Baileys) |
+| `scraper` | External championship sync sidecar |
+| `prometheus` / `grafana` | Metrics + dashboards (alerts in `prometheus/alerts.yml`) |
+| `loki` / `promtail` | Log aggregation |
 
 ### Environment Variables
 
-Set these in `.env` or in `docker-compose.override.yml`:
+Set these in `.env` (dev) or `.env.prod` (production):
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
@@ -54,6 +68,9 @@ Set these in `.env` or in `docker-compose.override.yml`:
 | `DATABASE_URL` | No | SQLite | `postgresql://user:pass@db/basketball_stats` |
 | `FLASK_ENV` | No | `development` | Set to `production` for production |
 | `DISABLE_AUTH` | No | `false` | `true` for single-user/personal deployments |
+| `EVOLUTION_API_URL` | For WhatsApp | — | `http://evolution:8080` in prod compose |
+| `EVOLUTION_API_KEY` | For WhatsApp | — | Global API key (random string, shared with the sidecar) |
+| `EVOLUTION_INSTANCE` | No | `basketball-bot` | WhatsApp instance name |
 | `CLOUDFLARE_TUNNEL_TOKEN` | No | — | For Cloudflare Tunnel public access |
 
 ---
@@ -76,17 +93,20 @@ The multi-stage build:
 
 ## TrueNAS Scale Deployment
 
+Single-container SQLite path (Custom App):
+
 1. Go to **Apps** → **Discover Apps** → **Custom App**
 2. **Application Name**: `basketball-stats`
 3. **Image**: `your-registry/basketball-stats:latest`
 4. **Environment Variables**:
-   - `DATABASE_URL`: `sqlite:////app/data/basketball_stats.db`
-   - `SECRET_KEY`: (generate a random string)
-   - `FLASK_ENV`: `production`
-5. **Storage**: Map persistent host paths:
-   - `/mnt/pool/app-data` → `/app/instance` (database)
-   - `/mnt/pool/games` → `/app/Games` (CSV import)
-   - `/mnt/pool/output` → `/app/Output` (generated files)
+    - `DATABASE_URL`: `sqlite:////app/data/basketball_stats.db`
+    - `SECRET_KEY`: (generate a random string)
+    - `FLASK_ENV`: `production`
+5. **Storage**: Map persistent host paths (note: `/app/instance` is created by the Dockerfile but unused — the app reads `DATABASE_URL`, `GAMES_DIR`, `OUTPUT_DIR`, `UPLOAD_FOLDER`):
+    - `/mnt/pool/app-data` → `/app/data` (SQLite file when `DATABASE_URL` points there)
+    - `/mnt/pool/games` → `/app/Games` (CSV import)
+    - `/mnt/pool/output` → `/app/Output` (generated files)
+    - `/mnt/pool/uploads` → `/app/uploads` (upload staging)
 6. **Networking**: Container port `8080` → Node port `9080`
 
 ---
@@ -171,6 +191,36 @@ server {
 
 ---
 
+## WhatsApp Gateway (Evolution API)
+
+WhatsApp delivery (OTP codes, game notifications, halftime shares) goes
+through a self-hosted `evoapicloud/evolution-api:v2.3.7` sidecar
+(Baileys provider) — free, no per-message fees. Full runbook:
+`docs/archive/evolution-integration-plan.md`.
+
+One-time setup after first deploy:
+
+```bash
+# 1. Deploy the Prisma schema into the shared Postgres
+docker compose -f docker-compose.prod.yml exec evolution npm run db:deploy
+
+# 2. Create the instance (temporarily publish the port via SSH tunnel,
+#    never publicly) and scan the QR with the CLUB number
+curl -X POST http://localhost:8081/instance/create \
+  -H "apikey: $EVOLUTION_API_KEY" -H "Content-Type: application/json" \
+  -d '{"instanceName":"basketball-bot","qrcode":true,"integration":"WHATSAPP-BAILEYS"}'
+
+# 3. Verify, then remove the temporary port mapping and redeploy
+curl -H "apikey: $EVOLUTION_API_KEY" \
+  http://localhost:8081/instance/connectionState/basketball-bot
+# → {"instance":{"instanceName":"basketball-bot","state":"open"}}
+```
+
+Without a configured/paired instance the app runs normally — WhatsApp
+sends log a warning and return `false` (OTP falls back to email when no
+phone is on file). `scripts/deploy.sh` checks the instance state on
+every deploy.
+
 ## Monitoring
 
 Built-in Prometheus metrics at `/metrics`:
@@ -183,7 +233,19 @@ Built-in Prometheus metrics at `/metrics`:
 
 Health check endpoints:
 - `GET /health/live` — Liveness probe
-- `GET /health/ready` — Readiness probe
+- `GET /health/ready` — Readiness probe (DB connectivity)
+- `GET /health/sync` — Sync + WhatsApp probe (`200 ok` / `503 stale`;
+  includes Evolution instance state)
+
+Alert rules live in `prometheus/alerts.yml` (instance down, 5xx rate,
+PDF p95 latency); the sync dashboard is
+`grafana/dashboards/sync-health.json`. Championship freshness can also be
+checked from cron and wired to failure alerting:
+
+```bash
+python -m jobs.championship_sync --once
+python -m jobs.check_sync_health   # exit 1 when stale/erroring, 2 when sidecar unreadable
+```
 
 ---
 

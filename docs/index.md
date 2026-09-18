@@ -49,7 +49,7 @@
   <div class="feature-card">
     <div class="icon">📋</div>
     <h3>Digital Playbook</h3>
-    <p>65+ pre-loaded plays with a visual diagram builder. Track play effectiveness with points-per-possession analysis.</p>
+    <p>Team playbook with a visual diagram builder. Track play effectiveness with points-per-possession analysis.</p>
   </div>
 </div>
 
@@ -110,10 +110,24 @@ pip install -r requirements-local.txt</code></pre>
 - Rotation analysis with substitution patterns
 
 ### 📋 Playbook Management
-- 65+ pre-loaded offensive, defensive, and special plays
+- Offense/Defense/Special play types seeded; user-created plays with canvas diagrams
 - Visual diagram builder with Fabric.js canvas
 - Effectiveness tracking (PPP, FG% by play)
 - Animation sequences for player movement
+- [Full guide →](user-guide/plays.md)
+
+### 🏋️ Training & Coaching
+- Training planner with timed segments, playbook-linked drills, attendance, and storyboard PDFs
+- Season calendar with load flags, drill suggester, play suggester, plain-language queries, dev goals
+- [Training Planner →](user-guide/training.md) · [Coaching Toolkit →](user-guide/coaching.md)
+
+### 📣 Sharing & Comms
+- Expiring public links, 1080×1080 social cards, post-game message templates, Veo/Pixellot timestamp export
+- [Full guide →](user-guide/sharing.md)
+
+### 🏆 External Championships
+- League standings snapshot + daily sidecar sync, health checks, fixture promotion
+- [Full guide →](user-guide/championship.md)
 
 ### 📄 PDF Reports
 - Game Summary with shot charts
@@ -130,15 +144,15 @@ pip install -r requirements-local.txt</code></pre>
 
 | Component | Technology |
 |-----------|------------|
-| **Backend** | Python 3.11+, Flask 3.1, SQLAlchemy 2.0 |
-| **Database** | SQLite (dev), PostgreSQL 16 (production) |
+| **Backend** | Python 3.11+ (3.12 local, 3.11-slim Docker), Flask 3.x, SQLAlchemy 2.0 |
+| **Database** | SQLite (dev, `basketball_stats.db`), PostgreSQL 16 (production) + external sidecar |
 | **Frontend** | Bootstrap 5.3, Jinja2, Fabric.js |
 | **Charts** | Matplotlib, Chart.js |
-| **PDF** | WeasyPrint, ReportLab |
-| **Performance** | Rust via PyO3 (shot quality, zone analysis) |
-| **Auth** | Flask-Login, WorkOS SSO |
-| **Container** | Docker, docker-compose |
-| **Mobile** | iOS native app (Swift/SwiftUI) |
+| **PDF** | WeasyPrint, ReportLab (needs `libpango` system lib) |
+| **Performance** | Rust via PyO3 (shot quality, zone analysis; maturin wheel in Docker) |
+| **Auth** | Flask-Login + Bcrypt, WorkOS SSO, OTP 2FA (managers), read-only auditor role |
+| **Container** | Docker, docker-compose (dev: db/web/scraper/cloudflared; prod: + redis/evolution/web-1/2/3/nginx/observability) |
+| **Mobile** | iPadOS SwiftUI foundation in `Native/` (XcodeGen; companion, not shipped with web app) |
 
 ---
 
