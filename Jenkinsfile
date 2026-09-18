@@ -4,6 +4,11 @@ pipeline {
     environment {
         COMPOSE_FILE = 'docker-compose.prod.yml'
         APP_DIR = "${WORKSPACE}"
+        // docker-compose v1 defaults to the dead "classic" builder, which
+        // hangs (futex, no children, no CPU) on the Rust/cargo compile step.
+        // Force it to shell out to `docker build` with BuildKit instead.
+        DOCKER_BUILDKIT = '1'
+        COMPOSE_DOCKER_CLI_BUILD = '1'
     }
 
     stages {
