@@ -171,11 +171,49 @@
   }
 
   function buildRosters() {
-    if (state.home.length || state.away.length) {
-      return; // restored from localStorage
-    }
     var boot = window.V2_BOOTSTRAP || {};
     var names = Array.isArray(boot.homePlayers) ? boot.homePlayers : [];
+    if (state.home.length || state.away.length) {
+      // Restored from localStorage: merge any bootstrap names added to the
+      // roster since the snapshot (same-day roster edits keep the same
+      // sessionId, so without a merge new players stay invisible).
+      var seen = {};
+      state.home.forEach(function (p) {
+        if (p && p.name) {
+          seen[cleanName(p.name).toLowerCase()] = true;
+        }
+      });
+      // When only the away roster was restored, the first merged home
+      // players start on court (mirrors fresh init); otherwise newcomers
+      // stay on the bench so live on-court state is preserved.
+      var homeWasEmpty = state.home.length === 0;
+      var added = 0;
+      var nextId = state.home.length;
+      names.forEach(function (raw) {
+        var nm = typeof raw === "string" ? raw : raw.name || "";
+        var key = cleanName(nm).toLowerCase();
+        if (!key || seen[key]) {
+          return;
+        }
+        seen[key] = true;
+        state.home.push({
+          id: "h" + nextId,
+          name: cleanName(nm),
+          num: parseNumber(nm, nextId + 1),
+          team: "HOME",
+          fouls: 0,
+          onCourt: homeWasEmpty && added < 5,
+        });
+        nextId += 1;
+        added += 1;
+      });
+      if (!state.away.length) {
+        state.away = [0, 1, 2, 3, 4].map(function (i) {
+          return { id: "a" + i, name: "Opp " + (i + 1), num: i + 1, team: "AWAY", fouls: 0, onCourt: true };
+        });
+      }
+      return;
+    }
     state.home = names.map(function (raw, i) {
       var nm = typeof raw === "string" ? raw : raw.name || "Player " + (i + 1);
       return {
