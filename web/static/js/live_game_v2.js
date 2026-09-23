@@ -183,6 +183,11 @@
           seen[cleanName(p.name).toLowerCase()] = true;
         }
       });
+      // When only the away roster was restored, the first merged home
+      // players start on court (mirrors fresh init); otherwise newcomers
+      // stay on the bench so live on-court state is preserved.
+      var homeWasEmpty = state.home.length === 0;
+      var added = 0;
       var nextId = state.home.length;
       names.forEach(function (raw) {
         var nm = typeof raw === "string" ? raw : raw.name || "";
@@ -192,14 +197,15 @@
         }
         seen[key] = true;
         state.home.push({
-          id: "h" + nextId + "_" + key.replace(/[^a-z0-9]+/g, "-"),
+          id: "h" + nextId,
           name: cleanName(nm),
           num: parseNumber(nm, nextId + 1),
           team: "HOME",
           fouls: 0,
-          onCourt: false,
+          onCourt: homeWasEmpty && added < 5,
         });
         nextId += 1;
+        added += 1;
       });
       if (!state.away.length) {
         state.away = [0, 1, 2, 3, 4].map(function (i) {

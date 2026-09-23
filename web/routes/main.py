@@ -371,8 +371,8 @@ def _get_live_roster_players(team_id):
     players with no saved games never appeared. Return the union, sorted
     case-insensitively, so both sources stay selectable.
     """
-    names = set()
-    if team_id:
+    by_key = {}
+    if team_id is not None:
         try:
             roster = (
                 Player.query.filter_by(team_id=team_id, active=True)
@@ -381,9 +381,11 @@ def _get_live_roster_players(team_id):
             )
             for p in roster:
                 if p.name and str(p.name).strip():
-                    names.add(str(p.name).strip())
+                    cleaned = str(p.name).strip()
+                    by_key.setdefault(cleaned.casefold(), cleaned)
         except Exception:
-            pass
+            db.session.rollback()
+            current_app.logger.exception("Failed to load live roster players")
         try:
             historic = (
                 db.session.query(PlayerStat.player_name)
@@ -394,10 +396,12 @@ def _get_live_roster_players(team_id):
             )
             for r in historic:
                 if r[0] and str(r[0]).strip():
-                    names.add(str(r[0]).strip())
+                    cleaned = str(r[0]).strip()
+                    by_key.setdefault(cleaned.casefold(), cleaned)
         except Exception:
-            pass
-    return sorted(names, key=lambda s: s.lower())
+            db.session.rollback()
+            current_app.logger.exception("Failed to load live roster players")
+    return sorted(by_key.values(), key=lambda s: s.lower())
 
 
 @main_bp.route("/live-game")
