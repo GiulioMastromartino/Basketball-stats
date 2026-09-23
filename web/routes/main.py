@@ -400,7 +400,7 @@ def _get_live_roster_players(team_id):
                     by_key.setdefault(cleaned.casefold(), cleaned)
         except Exception:
             db.session.rollback()
-            current_app.logger.exception("Failed to load live roster players")
+            current_app.logger.exception("Failed to load historic scorers")
     return sorted(by_key.values(), key=lambda s: s.lower())
 
 
