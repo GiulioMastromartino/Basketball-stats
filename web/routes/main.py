@@ -363,21 +363,50 @@ def glossary():
     return render_template("glossary.html")
 
 
+def _get_live_roster_players(team_id):
+    """Union of active roster (Player) + historic scorers (PlayerStat).
+
+    The roster page reads from ``Player`` while live-game selection
+    historically read only ``PlayerStat`` history, so newly added roster
+    players with no saved games never appeared. Return the union, sorted
+    case-insensitively, so both sources stay selectable.
+    """
+    names = set()
+    if team_id:
+        try:
+            roster = (
+                Player.query.filter_by(team_id=team_id, active=True)
+                .order_by(Player.name)
+                .all()
+            )
+            for p in roster:
+                if p.name and str(p.name).strip():
+                    names.add(str(p.name).strip())
+        except Exception:
+            pass
+        try:
+            historic = (
+                db.session.query(PlayerStat.player_name)
+                .join(Game)
+                .filter(Game.team_id == team_id)
+                .distinct()
+                .all()
+            )
+            for r in historic:
+                if r[0] and str(r[0]).strip():
+                    names.add(str(r[0]).strip())
+        except Exception:
+            pass
+    return sorted(names, key=lambda s: s.lower())
+
+
 @main_bp.route("/live-game")
 @login_required
 @team_access_required
 def live_game():
     """Interface for live game stat tracking"""
     team_id = session.get("current_team_id")
-    existing_players = [
-        r[0]
-        for r in db.session.query(PlayerStat.player_name)
-        .join(Game)
-        .filter(Game.team_id == team_id)
-        .distinct()
-        .order_by(PlayerStat.player_name)
-        .all()
-    ]
+    existing_players = _get_live_roster_players(team_id)
 
     plays_query = Play.query.filter_by(team_id=team_id, is_active=True).order_by(Play.play_type, Play.name).all()
     plays_list = [
@@ -405,15 +434,7 @@ def live_game():
 def live_game_v2():
     """Live Game v2 console shell (slice A1): score strip + stub rails."""
     team_id = session.get("current_team_id")
-    existing_players = [
-        r[0]
-        for r in db.session.query(PlayerStat.player_name)
-        .join(Game)
-        .filter(Game.team_id == team_id)
-        .distinct()
-        .order_by(PlayerStat.player_name)
-        .all()
-    ]
+    existing_players = _get_live_roster_players(team_id)
 
     plays_query = Play.query.filter_by(team_id=team_id, is_active=True).order_by(Play.play_type, Play.name).all()
     plays_list = [
