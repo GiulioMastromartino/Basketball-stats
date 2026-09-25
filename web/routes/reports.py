@@ -1,6 +1,7 @@
 import ast
 import json
 import os
+import time
 import zipfile
 from collections import defaultdict
 from io import BytesIO
@@ -103,6 +104,7 @@ from core.services.report_service import (
     _get_starting_lineup_from_segments,
     _build_time_progression,
     _generate_player_report_data,
+    build_bulk_preload,
 )
 
 reports_bp = Blueprint("reports", __name__)
@@ -327,16 +329,65 @@ def player_report_pdf(player_name):
     return _render_pdf(html, f"{player_name.replace(' ', '_')}_report_{game_type}.pdf")
 
 
+def _render_chunk(pending, zipf, logger, get_mem, total, max_workers=2):
+    """Render prebuilt (filename, html, start, idx) PDFs on a small pool.
+
+    WeasyPrint is C-bound (Pango/Cairo) and releases the GIL, so 2 workers
+    ~halve render time. HTML is prebuilt in the request thread (matplotlib
+    pyplot state is not thread-safe); workers only run write_pdf, which
+    needs no Flask/DB state. Failures fall back to inline rendering.
+    Zip order stays deterministic. Returns success count.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from weasyprint import HTML as _HTML
+
+    def _render(html):
+        return _HTML(string=html).write_pdf()
+
+    count = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        jobs = [
+            (filename, html, start, idx, pool.submit(_render, html))
+            for filename, html, start, idx in pending
+        ]
+        for filename, html, start, idx, fut in jobs:
+            try:
+                pdf_data = fut.result()
+            except Exception as exc:
+                logger.warning(f"Parallel render failed for {filename} ({exc}); retrying inline")
+                try:
+                    pdf_data = _render(html)
+                except Exception as exc2:
+                    logger.error(f"Failed report for {filename}: {exc2}")
+                    continue
+            if pdf_data:
+                zipf.writestr(filename, pdf_data)
+                count += 1
+            duration = time.time() - start
+            logger.info(f"[{idx + 1}/{total}] {filename}: {duration:.2f}s | Mem: {get_mem():.1f}MB")
+    return count
+
+
 @reports_bp.route("/download-all", strict_slashes=False)
 @login_required
 @team_access_required
 def download_all_reports():
-    """Generate ZIP with all player reports sequentially to stay under 500MB RAM"""
+    """Generate ZIP with all player reports.
+
+    Shared game-wide queries are preloaded once; per-player HTML is built
+    sequentially (matplotlib/pyplot state is not thread-safe) while
+    WeasyPrint rendering runs on a small worker pool (C-bound, GIL-free).
+    Chunked to bound peak memory.
+    """
     import time
     import gc
     import psutil
     import os
     import tempfile
+
+    BULK_PDF_WORKERS = 2
+    BULK_CHUNK_SIZE = 8
 
     current_app.logger.info("Starting memory-optimized bulk player report download...")
     game_type = _get_game_type()
@@ -357,6 +408,9 @@ def download_all_reports():
     player_names = [p[0] for p in players]
 
     team_avg = AnalyticsService.calculate_team_averages(game_ids, db.session)
+    # One-shot shared queries for the whole bulk run (was: re-issued per player).
+    preload = build_bulk_preload(game_ids, db.session)
+    pending = []
     zip_path = None
 
     process = psutil.Process(os.getpid())
@@ -366,7 +420,7 @@ def download_all_reports():
 
     results = []
     current_app.logger.info(
-        f"Processing {len(player_names)} players sequentially. Initial Mem: {get_mem():.1f}MB"
+        f"Processing {len(player_names)} players (bulk preload + parallel render). Initial Mem: {get_mem():.1f}MB"
     )
 
     try:
@@ -398,33 +452,35 @@ def download_all_reports():
                         game_ids,
                         game_type,
                         team_avg_override=team_avg,
+                        preload=preload,
                     )
                     html = render_template("player_report_pdf.html", **context)
 
-                    pdf_doc = HTML(string=html)
-                    pdf_data = pdf_doc.write_pdf()
-
-                    if pdf_data:
-                        filename = (
-                            f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
-                        )
-                        zipf.writestr(filename, pdf_data)
-                        success_count += 1
-
-                    duration = time.time() - player_start_time
-                    current_app.logger.info(
-                        f"[{i + 1}/{len(player_names)}] {player_name}: {duration:.2f}s | Mem: {get_mem():.1f}MB"
-                    )
+                    filename = f"{player_name.replace(' ', '_')}_report_{game_type}.pdf"
+                    pending.append((filename, html, player_start_time, i))
 
                     # Force cleanup after each report
                     del context
-                    del html
-                    del pdf_doc
-                    del pdf_data
+
+                    if len(pending) >= BULK_CHUNK_SIZE:
+                        success_count += _render_chunk(
+                            pending, zipf, current_app.logger, get_mem, len(player_names),
+                            max_workers=BULK_PDF_WORKERS,
+                        )
+                        pending = []
+                        gc.collect()
 
                 except Exception as e:
                     current_app.logger.error(f"Failed report for {player_name}: {e}")
                     continue
+
+            if pending:
+                success_count += _render_chunk(
+                    pending, zipf, current_app.logger, get_mem, len(player_names),
+                    max_workers=BULK_PDF_WORKERS,
+                )
+                pending = []
+                gc.collect()
 
             if success_count == 0:
                 if zip_path and os.path.exists(zip_path):

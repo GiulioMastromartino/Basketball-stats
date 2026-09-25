@@ -170,6 +170,36 @@ class TestBuildLineupSegments:
         assert segment is not None
 
     @pytest.mark.integration
+    def test_skips_sub_events_without_player_name(self, db_session, sample_game):
+        """A SUB_IN/SUB_OUT with null player_name must not poison the lineup.
+
+        Regression: appending None led to TypeError in sorted()/lineup-hash
+        and rolled back the whole game save.
+        """
+        starting_five = ["P1", "P2", "P3", "P4", "P5"]
+
+        events = [
+            create_game_event(sample_game.id, "SHOT_2PT", 0, "P1", shot_attempt="made"),
+            create_game_event(sample_game.id, "SUB_OUT", 50, "P1"),
+            create_game_event(sample_game.id, "SUB_IN", 51, None),
+            create_game_event(sample_game.id, "SUB_IN", 52, ""),
+            create_game_event(sample_game.id, "SHOT_2PT", 60, "P2", shot_attempt="made"),
+        ]
+        for e in events:
+            db_session.add(e)
+        db_session.commit()
+
+        segment_ids = build_lineup_segments(
+            sample_game.id, events, starting_lineup=starting_five
+        )
+
+        assert len(segment_ids) >= 1
+        for sid in segment_ids:
+            segment = LineupSegment.query.get(sid)
+            assert segment is not None
+            assert all(p for p in segment.players)
+
+    @pytest.mark.integration
     def test_rollback_on_error(self, db_session, sample_game):
         """Existing segments preserved if error occurs during processing."""
         starting_five = ["P1", "P2", "P3", "P4", "P5"]

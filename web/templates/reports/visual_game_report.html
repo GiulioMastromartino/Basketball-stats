@@ -273,7 +273,7 @@
                         stroke-width="2"
                         points="
                             {% for point in score_worm.progression %}
-                            {{ (loop.index0 / score_worm.progression|length * 480) + 10 }},{{ 75 - (point.margin * 2)|min(60)|max(-60) }}
+                            {{ (loop.index0 / score_worm.progression|length * 480) + 10 }},{{ 75 - ([[point.margin * 2, 60] | min, -60] | max) }}
                             {% if not loop.last %},{% endif %}
                             {% endfor %}
                         "
@@ -309,28 +309,28 @@
                     <div class="value">{{ four_factors.efg_pct|default('--') }}%</div>
                     <div class="label">eFG%</div>
                     <div class="bar">
-                        <div class="bar-fill" style="width: {{ (four_factors.efg_pct|default(0))|min(100) }}%"></div>
+                        <div class="bar-fill" style="width: {{ ([four_factors.efg_pct|default(0), 100] | min) }}%"></div>
                     </div>
                 </div>
                 <div class="factor-box">
                     <div class="value">{{ four_factors.tov_pct|default('--') }}%</div>
                     <div class="label">TOV%</div>
                     <div class="bar">
-                        <div class="bar-fill" style="width: {{ (four_factors.tov_pct|default(0))|min(100) }}%"></div>
+                        <div class="bar-fill" style="width: {{ ([four_factors.tov_pct|default(0), 100] | min) }}%"></div>
                     </div>
                 </div>
                 <div class="factor-box">
                     <div class="value">{{ four_factors.orb_pct|default('--') }}%</div>
                     <div class="label">ORB%</div>
                     <div class="bar">
-                        <div class="bar-fill" style="width: {{ (four_factors.orb_pct|default(0))|min(100) }}%"></div>
+                        <div class="bar-fill" style="width: {{ ([four_factors.orb_pct|default(0), 100] | min) }}%"></div>
                     </div>
                 </div>
                 <div class="factor-box">
                     <div class="value">{{ four_factors.ft_rate|default('--') }}%</div>
                     <div class="label">FT Rate</div>
                     <div class="bar">
-                        <div class="bar-fill" style="width: {{ (four_factors.ft_rate|default(0))|min(100) }}%"></div>
+                        <div class="bar-fill" style="width: {{ ([four_factors.ft_rate|default(0), 100] | min) }}%"></div>
                     </div>
                 </div>
             </div>
@@ -398,7 +398,7 @@
         <div class="section">
             <div class="section-title">Team Shot Chart</div>
             <div class="shot-chart">
-                {{ shot_chart|safe }}
+                <img src="data:image/png;base64,{{ shot_chart }}" alt="Team Shot Chart">
             </div>
         </div>
         {% endif %}

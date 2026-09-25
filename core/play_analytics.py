@@ -336,38 +336,62 @@ def _summary_finalize(name, payload, estimated=False, entity_id=None):
     return row
 
 
-def _consume_matching_shot(remaining_shots, event):
+def _consume_matching_shot(remaining_index, event):
+    """O(1) indexed version of shot matching.
+
+    remaining_index maps (play_id, player, quarter, shot_type) -> deque of
+    shots in ShotEvent.id order, plus (..., result) exact keys. Preserves the
+    exact-then-broad consumption semantics of the legacy list scans.
+    """
     player_name = event.player_name or ""
     expected_type = "3pt" if event.event_type == "SHOT_3PT" else "2pt"
     expected_result = event.shot_attempt if event.shot_attempt in ("made", "missed") else None
+    base = (event.play_id, player_name, event.quarter, expected_type)
 
-    exact = [
-        shot
-        for shot in remaining_shots
-        if shot.play_id == event.play_id
-        and (shot.player_name or "") == player_name
-        and shot.quarter == event.quarter
-        and shot.shot_type == expected_type
-        and (expected_result is None or shot.result == expected_result)
-    ]
-    if exact:
-        chosen = exact[0]
-        remaining_shots.remove(chosen)
-        return chosen
+    if expected_result is not None:
+        bucket = remaining_index.get(base + (expected_result,))
+        if bucket:
+            chosen = bucket.popleft()
+            if not bucket:
+                del remaining_index[base + (expected_result,)]
+            broad = remaining_index.get(base)
+            if broad:
+                try:
+                    broad.remove(chosen)
+                except ValueError:
+                    pass
+                if not broad:
+                    del remaining_index[base]
+            return chosen
+        return None
 
-    broad = [
-        shot
-        for shot in remaining_shots
-        if shot.play_id == event.play_id
-        and (shot.player_name or "") == player_name
-        and shot.quarter == event.quarter
-        and shot.shot_type == expected_type
-    ]
-    if expected_result is None and broad:
-        chosen = broad[0]
-        remaining_shots.remove(chosen)
+    bucket = remaining_index.get(base)
+    if bucket:
+        chosen = bucket.popleft()
+        if not bucket:
+            del remaining_index[base]
+        exact = remaining_index.get(base + (chosen.result,))
+        if exact:
+            try:
+                exact.remove(chosen)
+            except ValueError:
+                pass
+            if not exact:
+                del remaining_index[base + (chosen.result,)]
         return chosen
     return None
+
+
+def _index_remaining_shots(remaining_shots):
+    """Group shots by (play, player, quarter, type) preserving id order."""
+    from collections import deque
+
+    index = {}
+    for shot in remaining_shots:
+        base = (shot.play_id, shot.player_name or "", shot.quarter, shot.shot_type)
+        index.setdefault(base, deque()).append(shot)
+        index.setdefault(base + (shot.result,), deque()).append(shot)
+    return index
 
 
 def _summary_ft_has_outcome(event):
@@ -479,6 +503,7 @@ def _collect_summary_play_analysis(game_id, play_type="Offense"):
             .order_by(ShotEvent.id.asc())
             .all()
         )
+        remaining_index = _index_remaining_shots(remaining_shots)
 
         for event in relevant_events:
             possession_number = event.possession_number
@@ -487,7 +512,7 @@ def _collect_summary_play_analysis(game_id, play_type="Offense"):
             player_bucket = player_rows.setdefault((event.play_id, player_name), _summary_bucket())
 
             if event.event_type in ("SHOT_2PT", "SHOT_3PT"):
-                matched_shot = _consume_matching_shot(remaining_shots, event)
+                matched_shot = _consume_matching_shot(remaining_index, event)
                 if not matched_shot:
                     continue
                 for bucket in (play_bucket, player_bucket):
@@ -580,6 +605,15 @@ def _collect_summary_play_analysis(game_id, play_type="Offense"):
         "player_plays": player_plays,
         "estimated_possessions": not use_possession_mode,
     }
+
+
+def get_summary_play_analysis(game_id, play_type="Offense"):
+    """Single-pass summary analysis (plays, play_players, player_plays).
+
+    Prefer this over the individual getters when more than one slice is
+    needed — it runs _collect_summary_play_analysis once instead of N times.
+    """
+    return _collect_summary_play_analysis(game_id, play_type=play_type)
 
 
 def get_summary_play_stats(game_id, play_type="Offense"):

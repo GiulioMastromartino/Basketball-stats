@@ -72,7 +72,12 @@ def _smooth(x, y, resolution=300):
 
 # ── Shot charts ──────────────────────────────────────────────────────────────
 
-def generate_shot_chart(player_name, game_ids, db_session=None):
+def generate_shot_chart(player_name, game_ids, db_session=None, shots=None):
+    if shots is not None:
+        coordinated = [s for s in shots if s.x_loc is not None and s.y_loc is not None]
+        if not coordinated:
+            return ""
+        return _create_court_plot(coordinated)
     session = db_session or db.session
     query = session.query(ShotEvent).filter(ShotEvent.player_name == player_name)
     if game_ids is not None:
@@ -86,6 +91,34 @@ def generate_shot_chart(player_name, game_ids, db_session=None):
     if not shots:
         return ""
     return _create_court_plot(shots)
+
+
+def generate_shot_charts_for_game(game_id, player_names, db_session=None):
+    """Shot charts for a whole game with ONE query.
+
+    Returns {"team": b64, "players": {name: b64}}. Players without
+    coordinated shots map to "". Replaces N per-player generate_shot_chart
+    calls (N queries) in game PDF builders.
+    """
+    session = db_session or db.session
+    shots = (
+        session.query(ShotEvent)
+               .filter(ShotEvent.game_id == game_id)
+               .filter(ShotEvent.x_loc.isnot(None))
+               .filter(ShotEvent.y_loc.isnot(None))
+               .limit(MAX_SHOTS_PER_CHART)
+               .all()
+    )
+    if not shots:
+        return {"team": "", "players": {name: "" for name in player_names}}
+    by_player = {}
+    for s in shots:
+        by_player.setdefault(s.player_name, []).append(s)
+    players = {
+        name: (_create_court_plot(by_player[name]) if name in by_player else "")
+        for name in player_names
+    }
+    return {"team": _create_court_plot(shots, is_team=True), "players": players}
 
 
 def generate_team_shot_chart(game_ids, db_session=None):

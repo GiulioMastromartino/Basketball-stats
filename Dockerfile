@@ -15,6 +15,13 @@ COPY basketball_stats_rust ./basketball_stats_rust
 # Install maturin to build the python wheel
 RUN pip install maturin
 
+# Target the prod CPU (Intel Haswell i5-4278U: AVX2 + FMA + BMI) so LLVM
+# auto-vectorizes the numeric kernels with 256-bit SIMD. Safe because this
+# image only ever runs on prod (see docs/PROD_MACHINE.md); do NOT copy this
+# into a portable wheel — pre-Haswell x86_64 would SIGILL. Local ARM64
+# maturin builds are unaffected (this ENV is scoped to the builder stage).
+ENV RUSTFLAGS="-C target-cpu=haswell"
+
 # Build the Rust library into a Python wheel
 RUN cd basketball_stats_rust && \
     maturin build --release --out ../dist
