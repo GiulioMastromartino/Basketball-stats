@@ -11,7 +11,7 @@ import time
 import uuid
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, g, request, session
+from flask import Flask, g, request, session, url_for
 from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -182,11 +182,40 @@ def create_app(config_name: str = None) -> Flask:
             ctx["current_season_id"] = "ALL"
         return ctx
 
+    # Versioned static URLs (?v=<mtime>) so browsers fetch fresh CSS/JS
+    # after each deploy instead of serving stale cache until hard refresh.
+    _static_versions: dict = {}
+
+    def _static_url(filename: str) -> str:
+        version = _static_versions.get(filename)
+        if version is None:
+            try:
+                mtime = os.path.getmtime(os.path.join(app.static_folder, filename))
+                version = str(int(mtime))
+            except OSError:
+                version = ""
+            _static_versions[filename] = version
+        if version:
+            return url_for("static", filename=filename, v=version)
+        return url_for("static", filename=filename)
+
+    app.jinja_env.globals["static_url"] = _static_url
+
     @app.after_request
     def _log_response(response):
         duration_ms = round((time.time() - g.get("start_time", time.time())) * 1000, 2)
         response.headers["X-Request-ID"] = g.get("request_id", "")
         response.headers["X-Request-Duration-Ms"] = str(duration_ms)
+        # Never let browsers heuristic-cache HTML pages or API JSON:
+        # stale pages/CSS references and stale dashboard "state" otherwise
+        # linger until the user hard-refreshes.
+        content_type = response.content_type or ""
+        if content_type.startswith("text/html") or (
+            content_type.startswith("application/json")
+            and request.path.startswith("/api/")
+        ):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
 
         request_logger = get_logger("access")
         request_logger.info(

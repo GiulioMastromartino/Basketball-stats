@@ -787,16 +787,16 @@
     // Shared halfcourt asset (single source of truth, also used by reports).
     window.COURT_SVG_INNER = {{ court_svg_inner|default('')|tojson }};
 </script>
-<script src="{{ url_for('static', filename='js/playbuilder/tools/tool_base.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/tools/select_tool.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/tools/player_tool.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/tools/arrow_tool.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/tools/text_tool.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/tools/shape_tool.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/tools/image_tool.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/state/history.js') }}"></script><script src="{{ url_for('static', filename='js/playbuilder/state/sequence.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/services/layers.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/court_backdrop.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/frame_snapshots.js') }}"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/app.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/tools/tool_base.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/tools/select_tool.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/tools/player_tool.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/tools/arrow_tool.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/tools/text_tool.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/tools/shape_tool.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/tools/image_tool.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/state/history.js') }}"></script><script src="{{ static_url('js/playbuilder/state/sequence.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/services/layers.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/court_backdrop.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/frame_snapshots.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/app.js') }}"></script>
 {% endblock %}

@@ -377,7 +377,7 @@
 
 {% block scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-<script src="{{ url_for('static', filename='js/playbuilder/frame_snapshots.js') }}"></script>
+<script src="{{ static_url('js/playbuilder/frame_snapshots.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var picker = document.getElementById('templatePicker');
