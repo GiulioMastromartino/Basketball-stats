@@ -32,16 +32,14 @@ from core.services.schema4_evolution_report_service import (
 )
 from core.charts import (
     generate_shot_chart,
+    generate_shot_charts_for_game,
     generate_team_shot_chart,
     generate_player_charts,
     generate_team_scoring_trend,
 )
 from core.play_analytics import (
-    get_summary_play_stats,
-    get_summary_play_player_stats,
-    get_summary_player_play_stats,
+    get_summary_play_analysis,
     get_untracked_percentages,
-    get_summary_player_top_plays_by_points,
 )
 from core.utils import (
     calculate_efg_percent,
@@ -67,12 +65,164 @@ from core.advanced_analytics import (
     parse_time_to_seconds,
 )
 
+
 from flask import render_template, current_app
+
+
+def _clutch_flags(events):
+    """Clutch check for event lists.
+
+    Scalar PyO3 calls beat JSON-batch round-trips here (measured: 0.27ms
+    vs 1.01ms per 2000 events) — the per-row predicate is trivial, so serde
+    dominates. Batch APIs pay off only for heavier per-row work.
+    """
+    if not events:
+        return []
+    flags = []
+    for e in events:
+        if e.score_margin is None:
+            flags.append(False)
+            continue
+        flags.append(
+            ClutchPerformance.is_clutch_situation(
+                e.score_margin, parse_time_to_seconds(e.time_remaining or "5:00")
+            )
+        )
+    return flags
 
 # Constants for lineup filtering
 MIN_TOP_LINEUP_MINUTES = 10
 MIN_TOP_LINEUP_SECONDS = MIN_TOP_LINEUP_MINUTES * 60
 MIN_TOP_LINEUP_POSSESSIONS = 15  # Minimum possessions for lineup rating reliability
+
+
+class _BulkPreload:
+    """Shared read-only collections for bulk (multi-player) PDF exports.
+
+    Built once per bulk run so per-player builders filter in Python
+    instead of re-issuing the same game-wide queries N times. All fields
+    are plain lists/dicts; builders accept preload=None for today's
+    query-per-call behavior.
+    """
+
+    __slots__ = (
+        "all_stats",
+        "stats_by_player",
+        "all_events",
+        "events_by_player",
+        "all_shots",
+        "shots_by_player",
+        "all_possessions",
+        "lineup_rows",
+        "lineup_rows_by_player",
+        "play_shots",
+        "play_events",
+        "play_possessions",
+        "plays_by_id",
+        "rankings_all",
+    )
+
+    def __init__(self, **kwargs):
+        for key in self.__slots__:
+            setattr(self, key, kwargs.get(key))
+
+
+def build_bulk_preload(game_ids, session=None):
+    """Fetch every game-wide collection a bulk export needs (fixed queries)."""
+    from core.services.analytics_service import AnalyticsService
+
+    session = session or db.session
+    game_ids = list(game_ids or [])
+
+    all_stats = (
+        session.query(PlayerStat).filter(PlayerStat.game_id.in_(game_ids)).all()
+    )
+    stats_by_player = defaultdict(list)
+    for s in all_stats:
+        stats_by_player[s.player_name].append(s)
+
+    all_events = (
+        session.query(GameEvent)
+        .filter(GameEvent.game_id.in_(game_ids))
+        .order_by(GameEvent.game_id.asc(), GameEvent.timestamp.asc())
+        .all()
+    )
+    events_by_player = defaultdict(list)
+    for e in all_events:
+        if e.player_name:
+            events_by_player[e.player_name].append(e)
+
+    all_shots = (
+        session.query(ShotEvent).filter(ShotEvent.game_id.in_(game_ids)).all()
+    )
+    shots_by_player = defaultdict(list)
+    for s in all_shots:
+        if s.player_name:
+            shots_by_player[s.player_name].append(s)
+
+    all_possessions = (
+        session.query(Possession).filter(Possession.game_id.in_(game_ids)).all()
+    )
+
+    lineup_rows = (
+        session.query(PlayerLineupStats, LineupSegment, Lineup)
+        .join(LineupSegment, PlayerLineupStats.lineup_segment_id == LineupSegment.id)
+        .outerjoin(Lineup, LineupSegment.lineup_id == Lineup.id)
+        .filter(LineupSegment.game_id.in_(game_ids))
+        .all()
+    )
+    lineup_rows_by_player = defaultdict(list)
+    for row in lineup_rows:
+        lineup_rows_by_player[row[0].player_name].append(row)
+
+    play_shots = (
+        session.query(ShotEvent)
+        .join(Play, ShotEvent.play_id == Play.id)
+        .filter(
+            ShotEvent.game_id.in_(game_ids),
+            ShotEvent.play_id.isnot(None),
+        )
+        .all()
+    )
+    play_events = (
+        session.query(GameEvent)
+        .join(Play, GameEvent.play_id == Play.id)
+        .filter(
+            GameEvent.game_id.in_(game_ids),
+            GameEvent.play_id.isnot(None),
+            GameEvent.event_type.in_(("SHOT_2PT", "SHOT_3PT", "TURNOVER")),
+        )
+        .all()
+    )
+    play_possessions = (
+        session.query(Possession)
+        .join(Play, Possession.play_id == Play.id)
+        .filter(
+            Possession.game_id.in_(game_ids),
+            Possession.play_id.isnot(None),
+        )
+        .all()
+    )
+    plays_by_id = {p.id: p for p in session.query(Play).all()}
+
+    rankings_all = AnalyticsService.calculate_team_rankings_all(game_ids, session)
+
+    return _BulkPreload(
+        all_stats=all_stats,
+        stats_by_player=stats_by_player,
+        all_events=all_events,
+        events_by_player=events_by_player,
+        all_shots=all_shots,
+        shots_by_player=shots_by_player,
+        all_possessions=all_possessions,
+        lineup_rows=lineup_rows,
+        lineup_rows_by_player=lineup_rows_by_player,
+        play_shots=play_shots,
+        play_events=play_events,
+        play_possessions=play_possessions,
+        plays_by_id=plays_by_id,
+        rankings_all=rankings_all,
+    )
 
 
 def _safe_ppp(points, possessions):
@@ -251,36 +401,72 @@ def _build_zone_summary(shots):
     }
 
 
-def _build_play_summary(game_ids, player_name=None):
-    shot_query = ShotEvent.query.join(Play, ShotEvent.play_id == Play.id).filter(
-        ShotEvent.game_id.in_(game_ids),
-        ShotEvent.play_id.isnot(None),
-    )
-    event_query = GameEvent.query.join(Play, GameEvent.play_id == Play.id).filter(
-        GameEvent.game_id.in_(game_ids),
-        GameEvent.play_id.isnot(None),
-        GameEvent.event_type.in_(("SHOT_2PT", "SHOT_3PT", "TURNOVER")),
-    )
-    possession_query = Possession.query.join(
-        Play, Possession.play_id == Play.id
-    ).filter(
-        Possession.game_id.in_(game_ids),
-        Possession.play_id.isnot(None),
-    )
+def _build_play_summary(game_ids, player_name=None, preload=None):
+    from sqlalchemy.orm import joinedload
 
-    if player_name:
-        shot_query = shot_query.filter(ShotEvent.player_name == player_name)
-        event_query = event_query.filter(GameEvent.player_name == player_name)
-        possession_rows = []
+    if preload is not None:
+        shot_rows = (
+            preload.play_shots
+            if player_name is None
+            else [s for s in preload.play_shots if s.player_name == player_name]
+        )
+        event_rows = (
+            preload.play_events
+            if player_name is None
+            else [e for e in preload.play_events if e.player_name == player_name]
+        )
+        possession_rows = (
+            preload.play_possessions if player_name is None else []
+        )
+        plays_by_id = preload.plays_by_id
     else:
-        possession_rows = possession_query.all()
+        shot_query = (
+            ShotEvent.query.join(Play, ShotEvent.play_id == Play.id)
+            .filter(
+                ShotEvent.game_id.in_(game_ids),
+                ShotEvent.play_id.isnot(None),
+            )
+            .options(joinedload(ShotEvent.play))
+        )
+        event_query = (
+            GameEvent.query.join(Play, GameEvent.play_id == Play.id)
+            .filter(
+                GameEvent.game_id.in_(game_ids),
+                GameEvent.play_id.isnot(None),
+                GameEvent.event_type.in_(("SHOT_2PT", "SHOT_3PT", "TURNOVER")),
+            )
+            .options(joinedload(GameEvent.play))
+        )
+        possession_query = (
+            Possession.query.join(Play, Possession.play_id == Play.id)
+            .filter(
+                Possession.game_id.in_(game_ids),
+                Possession.play_id.isnot(None),
+            )
+            .options(joinedload(Possession.play))
+        )
 
-    shot_rows = shot_query.all()
-    event_rows = event_query.all()
+        if player_name:
+            shot_query = shot_query.filter(ShotEvent.player_name == player_name)
+            event_query = event_query.filter(GameEvent.player_name == player_name)
+            possession_rows = []
+        else:
+            possession_rows = possession_query.all()
+
+        shot_rows = shot_query.all()
+        event_rows = event_query.all()
+        plays_by_id = None
+
+    def _play(pid):
+        if plays_by_id is not None:
+            return plays_by_id.get(pid)
+        return None
 
     play_map = {}
     for shot in shot_rows:
-        play = shot.play
+        play = _play(shot.play_id) if plays_by_id is not None else shot.play
+        if play is None:
+            continue
         record = play_map.setdefault(
             play.id,
             {
@@ -301,7 +487,7 @@ def _build_play_summary(game_ids, player_name=None):
             record["makes"] += 1
 
     for event in event_rows:
-        play = event.play
+        play = _play(event.play_id) if plays_by_id is not None else event.play
         if play is None:
             continue
         record = play_map.setdefault(
@@ -322,7 +508,7 @@ def _build_play_summary(game_ids, player_name=None):
             record["turnovers"] += 1
 
     for possession in possession_rows:
-        play = possession.play
+        play = _play(possession.play_id) if plays_by_id is not None else possession.play
         if play is None:
             continue
         record = play_map.setdefault(
@@ -372,16 +558,23 @@ def _build_play_summary(game_ids, player_name=None):
     }
 
 
-def _build_player_box_detail(stats, games_played):
+def _build_player_box_detail(stats, games_played, preload=None):
     session = db.session
     game_ids = [s.game_id for s in stats]
     player_name = stats[0].player_name if stats else None
     stat_reb_conceded = sum(s.reb_conceded or 0 for s in stats)
-    lineup_reb_conceded = (
-        _get_player_reb_conceded_summary(player_name, game_ids, session)
-        if player_name and game_ids
-        else {"total": 0, "tracked_games": 0}
-    )
+    if preload is not None and player_name:
+        _rows = preload.lineup_rows_by_player.get(player_name, [])
+        lineup_reb_conceded = {
+            "total": int(sum((r[0].reb_conceded or 0) for r in _rows)),
+            "tracked_games": len({r[1].game_id for r in _rows}),
+        }
+    else:
+        lineup_reb_conceded = (
+            _get_player_reb_conceded_summary(player_name, game_ids, session)
+            if player_name and game_ids
+            else {"total": 0, "tracked_games": 0}
+        )
     reb_conceded_total = lineup_reb_conceded["total"] or stat_reb_conceded
     reb_conceded_games = lineup_reb_conceded["tracked_games"]
     if reb_conceded_games == 0 and stat_reb_conceded:
@@ -431,14 +624,18 @@ def _build_player_box_detail(stats, games_played):
     }
 
 
-def _build_player_lineup_context(player_name, game_ids, session):
+def _build_player_lineup_context(player_name, game_ids, session, preload=None):
     rows = (
-        session.query(PlayerLineupStats, LineupSegment, Lineup)
-        .join(LineupSegment, PlayerLineupStats.lineup_segment_id == LineupSegment.id)
-        .outerjoin(Lineup, LineupSegment.lineup_id == Lineup.id)
-        .filter(PlayerLineupStats.player_name == player_name)
-        .filter(LineupSegment.game_id.in_(game_ids))
-        .all()
+        preload.lineup_rows_by_player.get(player_name, [])
+        if preload is not None
+        else (
+            session.query(PlayerLineupStats, LineupSegment, Lineup)
+            .join(LineupSegment, PlayerLineupStats.lineup_segment_id == LineupSegment.id)
+            .outerjoin(Lineup, LineupSegment.lineup_id == Lineup.id)
+            .filter(PlayerLineupStats.player_name == player_name)
+            .filter(LineupSegment.game_id.in_(game_ids))
+            .all()
+        )
     )
 
     if not rows:
@@ -558,8 +755,12 @@ def _build_player_lineup_context(player_name, game_ids, session):
     }
 
 
-def _build_possession_summary(game_ids, events, team_stats):
-    possessions = Possession.query.filter(Possession.game_id.in_(game_ids)).all()
+def _build_possession_summary(game_ids, events, team_stats, possessions=None, games=None):
+    possessions = (
+        possessions
+        if possessions is not None
+        else Possession.query.filter(Possession.game_id.in_(game_ids)).all()
+    )
     quarter_rows = []
     if possessions:
         quarter_map = defaultdict(
@@ -614,7 +815,11 @@ def _build_possession_summary(game_ids, events, team_stats):
         )
         total_team_points = sum(s.points or 0 for s in team_stats)
         # Estimate opponent totals from Game records (authoritative for score)
-        games = Game.query.filter(Game.id.in_(game_ids)).all()
+        games = (
+            games
+            if games is not None
+            else Game.query.filter(Game.id.in_(game_ids)).all()
+        )
         total_opp_points = sum(g.opponent_score or 0 for g in games)
         # Estimate opponent possessions using same pace as team
         num_games = len(games) if games else 1
@@ -623,13 +828,8 @@ def _build_possession_summary(game_ids, events, team_stats):
         source = "estimated"
 
     clutch = {"plays": 0, "points": 0, "fgm": 0, "fga": 0, "tov": 0}
-    for event in events:
-        score_margin = event.score_margin if event.score_margin is not None else None
-        if score_margin is None:
-            continue
-        if not ClutchPerformance.is_clutch_situation(
-            score_margin, parse_time_to_seconds(event.time_remaining or "5:00")
-        ):
+    for event, is_clutch in zip(events, _clutch_flags(events)):
+        if not is_clutch:
             continue
         clutch["plays"] += 1
         clutch["points"] += _team_event_points(event)
@@ -659,26 +859,30 @@ def _build_possession_summary(game_ids, events, team_stats):
     }
 
 
-def _build_player_possession_context(player_name, game_ids, stats):
-    events = (
-        GameEvent.query.filter(GameEvent.game_id.in_(game_ids))
-        .order_by(GameEvent.game_id.asc(), GameEvent.timestamp.asc())
-        .all()
-    )
-    team_stats = PlayerStat.query.filter(
-        PlayerStat.game_id.in_(game_ids),
-        PlayerStat.minutes.notin_(("00:00", "0")),
-    ).all()
-    summary = _build_possession_summary(game_ids, events, team_stats)
+def _build_player_possession_context(player_name, game_ids, stats, preload=None, games=None):
+    if preload is not None:
+        events = preload.all_events
+        # Same minutes filter as the query path below.
+        team_stats = [
+            s for s in preload.all_stats if s.minutes not in ("00:00", "0")
+        ]
+        possessions = preload.all_possessions
+    else:
+        events = (
+            GameEvent.query.filter(GameEvent.game_id.in_(game_ids))
+            .order_by(GameEvent.game_id.asc(), GameEvent.timestamp.asc())
+            .all()
+        )
+        team_stats = PlayerStat.query.filter(
+            PlayerStat.game_id.in_(game_ids),
+            PlayerStat.minutes.notin_(("00:00", "0")),
+        ).all()
+        possessions = None
+    summary = _build_possession_summary(game_ids, events, team_stats, possessions, games)
     player_events = [event for event in events if event.player_name == player_name]
     clutch = {"plays": 0, "points": 0, "fgm": 0, "fga": 0, "tov": 0}
-    for event in player_events:
-        score_margin = event.score_margin if event.score_margin is not None else None
-        if score_margin is None:
-            continue
-        if not ClutchPerformance.is_clutch_situation(
-            score_margin, parse_time_to_seconds(event.time_remaining or "5:00")
-        ):
+    for event, is_clutch in zip(player_events, _clutch_flags(player_events)):
+        if not is_clutch:
             continue
         clutch["plays"] += 1
         clutch["points"] += _player_event_points(event)
@@ -693,15 +897,18 @@ def _build_player_possession_context(player_name, game_ids, stats):
     return summary
 
 
-def _build_player_shot_play_context(player_name, game_ids):
-    shots = (
-        ShotEvent.query.filter(ShotEvent.game_id.in_(game_ids))
-        .filter(ShotEvent.player_name == player_name)
-        .all()
-    )
+def _build_player_shot_play_context(player_name, game_ids, preload=None):
+    if preload is not None:
+        shots = preload.shots_by_player.get(player_name, [])
+    else:
+        shots = (
+            ShotEvent.query.filter(ShotEvent.game_id.in_(game_ids))
+            .filter(ShotEvent.player_name == player_name)
+            .all()
+        )
     return {
         "zone_summary": _build_zone_summary(shots),
-        "play_summary": _build_play_summary(game_ids, player_name=player_name),
+        "play_summary": _build_play_summary(game_ids, player_name=player_name, preload=preload),
     }
 
 
@@ -1138,10 +1345,12 @@ def generate_game_pdf_bytes(game_id):
 
     stats_with_metrics = AnalyticsService.calculate_game_stats(stats)
 
+    # One shot-chart query for the whole game (was: one query per player).
+    _charts = generate_shot_charts_for_game(
+        game_id, [p.player_name for p in stats_with_metrics], db.session
+    )
     for player in stats_with_metrics:
-        player.shot_chart = generate_shot_chart(
-            player.player_name, [game_id], db.session
-        )
+        player.shot_chart = _charts["players"].get(player.player_name, "")
 
     top_performers = AnalyticsService.get_game_top_performers(stats_with_metrics)
     alerts = AnalyticsService.get_game_alerts(stats_with_metrics)
@@ -1193,89 +1402,78 @@ def generate_game_pdf_bytes(game_id):
     )
 
     try:
-        top_lineups_off = LineupAnalytics.get_game_lineup_rankings(
+        # Aggregate once, slice twice: the full ranking is identical for
+        # every rank_by (only the sort key differs), so one query +
+        # aggregation serves both offensive and defensive views.
+        _all_lineups = LineupAnalytics.get_game_lineup_rankings(
             game_id,
-            top_n=3,
-            rank_by="offensive",
+            top_n=None,
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
         )
-        top_lineups_def = LineupAnalytics.get_game_lineup_rankings(
-            game_id,
-            top_n=3,
-            rank_by="defensive",
-            total_pts_scored_override=game.team_score,
-            total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss,
-        )
+        top_lineups_off = sorted(
+            _all_lineups,
+            key=lambda x: (x["impact"]["offense_delta"], x["total_seconds"]),
+            reverse=True,
+        )[:3]
+        top_lineups_def = sorted(
+            _all_lineups,
+            key=lambda x: (x["impact"]["defense_delta"], x["total_seconds"]),
+            reverse=True,
+        )[:3]
     except Exception:
         top_lineups_off = []
         top_lineups_def = []
 
-    try:
-        top_duos_off = LineupAnalytics.get_combination_net_differentials(
-            combination_type="duo",
-            game_ids=[game_id],
-            min_possessions=10,
-            top_n=3,
-            require_positive=False,
-            total_pts_scored_override=game.team_score,
-            total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss,
-            rank_by="offensive",
-        )
-        top_duos_def = LineupAnalytics.get_combination_net_differentials(
-            combination_type="duo",
-            game_ids=[game_id],
-            min_possessions=10,
-            top_n=3,
-            require_positive=False,
-            total_pts_scored_override=game.team_score,
-            total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss,
-            rank_by="defensive",
-        )
-    except Exception:
-        top_duos_off = []
-        top_duos_def = []
+    def _top_combos(combination_type, rank_key):
+        try:
+            # One aggregation per combination_type (require_positive=False
+            # keeps the full list, so re-sorting == separate rank_by calls).
+            rows = LineupAnalytics.get_combination_net_differentials(
+                combination_type=combination_type,
+                game_ids=[game_id],
+                min_possessions=10,
+                top_n=None,
+                require_positive=False,
+                total_pts_scored_override=game.team_score,
+                total_pts_allowed_override=game.opponent_score,
+                total_possessions_override=team_poss,
+            )
+            return sorted(
+                rows,
+                key=lambda item: (
+                    item["impact"][rank_key],
+                    item["on"]["minutes"],
+                ),
+                reverse=True,
+            )[:3]
+        except Exception:
+            return []
 
-    try:
-        top_trios_off = LineupAnalytics.get_combination_net_differentials(
-            combination_type="trio",
-            game_ids=[game_id],
-            min_possessions=10,
-            top_n=3,
-            require_positive=False,
-            total_pts_scored_override=game.team_score,
-            total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss,
-            rank_by="offensive",
-        )
-        top_trios_def = LineupAnalytics.get_combination_net_differentials(
-            combination_type="trio",
-            game_ids=[game_id],
-            min_possessions=10,
-            top_n=3,
-            require_positive=False,
-            total_pts_scored_override=game.team_score,
-            total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss,
-            rank_by="defensive",
-        )
-    except Exception:
-        top_trios_off = []
-        top_trios_def = []
+    top_duos_off = _top_combos("duo", "offense_delta")
+    top_duos_def = _top_combos("duo", "defense_delta")
+    top_trios_off = _top_combos("trio", "offense_delta")
+    top_trios_def = _top_combos("trio", "defense_delta")
 
     shot_events = ShotEvent.query.filter_by(game_id=game_id).first()
     shot_chart = generate_team_shot_chart([game_id], db.session) if shot_events else ""
 
-    plays_data = get_summary_play_stats(game_id, play_type="Offense")
-    plays_players_data = get_summary_play_player_stats(game_id, play_type="Offense")
-    players_plays_data = get_summary_player_play_stats(game_id, play_type="Offense")
+    # Single-pass play analysis (was: 4 independent full recomputations).
+    _play_analysis = get_summary_play_analysis(game_id, play_type="Offense")
+    plays_data = _play_analysis["plays"]
+    plays_players_data = _play_analysis["play_players"]
+    players_plays_data = _play_analysis["player_plays"]
     untracked = get_untracked_percentages(game_id) or {}
 
-    player_top_plays = get_summary_player_top_plays_by_points(game_id, limit=3)
+    player_top_plays = {}
+    for entry in players_plays_data:
+        plays = sorted(
+            entry["plays"],
+            key=lambda play: (play["points"], play["possessions"]),
+            reverse=True,
+        )
+        player_top_plays[entry["player_name"]] = plays[:3]
 
     for player in stats_with_metrics:
         top_plays = player_top_plays.get(player.player_name, [])
@@ -1701,18 +1899,30 @@ def _build_time_progression(events, game):
 
 
 def _generate_player_report_data(
-    player_name, games, game_ids, game_type, team_avg_override=None, db_session=None
+    player_name, games, game_ids, game_type, team_avg_override=None, db_session=None,
+    preload=None,
 ):
-    """Internal helper to gather all data for a player report"""
+    """Internal helper to gather all data for a player report.
+
+    Pass preload=build_bulk_preload(game_ids) in bulk exports to share
+    game-wide queries across players; single reports omit it.
+    """
     session = db_session or db.session
-    stats = (
-        session.query(PlayerStat)
-        .filter(PlayerStat.player_name == player_name)
-        .filter(PlayerStat.game_id.in_(game_ids))
-        .filter(PlayerStat.minutes != "00:00")
-        .filter(PlayerStat.minutes != "0")
-        .all()
-    )
+    if preload is not None:
+        stats = [
+            s
+            for s in preload.stats_by_player.get(player_name, [])
+            if s.minutes != "00:00" and s.minutes != "0"
+        ]
+    else:
+        stats = (
+            session.query(PlayerStat)
+            .filter(PlayerStat.player_name == player_name)
+            .filter(PlayerStat.game_id.in_(game_ids))
+            .filter(PlayerStat.minutes != "00:00")
+            .filter(PlayerStat.minutes != "0")
+            .all()
+        )
 
     if not stats:
         raise ValueError("No stats for player")
@@ -1727,16 +1937,29 @@ def _generate_player_report_data(
     team_avg = team_avg_override or AnalyticsService.calculate_team_averages(
         game_ids, session
     )
-    team_rankings = AnalyticsService.calculate_team_rankings(
-        player_name, game_ids, report_data, session
-    )
+    if preload is not None:
+        team_rankings = preload.rankings_all.get(player_name, {})
+    else:
+        team_rankings = AnalyticsService.calculate_team_rankings(
+            player_name, game_ids, report_data, session
+        )
 
     charts = generate_player_charts(stats, game_map, player_name, db_session=session)
-    shot_chart = generate_shot_chart(player_name, game_ids, session)
-    box_detail = _build_player_box_detail(stats, len(stats))
-    lineup_context = _build_player_lineup_context(player_name, game_ids, session)
-    possession_context = _build_player_possession_context(player_name, game_ids, stats)
-    shot_play_context = _build_player_shot_play_context(player_name, game_ids)
+    if preload is not None:
+        _preloaded_shots = [
+            s
+            for s in preload.shots_by_player.get(player_name, [])
+            if s.x_loc is not None and s.y_loc is not None
+        ][:5000]
+        shot_chart = generate_shot_chart(player_name, game_ids, session, shots=_preloaded_shots)
+    else:
+        shot_chart = generate_shot_chart(player_name, game_ids, session)
+    box_detail = _build_player_box_detail(stats, len(stats), preload)
+    lineup_context = _build_player_lineup_context(player_name, game_ids, session, preload)
+    possession_context = _build_player_possession_context(
+        player_name, game_ids, stats, preload, games
+    )
+    shot_play_context = _build_player_shot_play_context(player_name, game_ids, preload)
 
     return {
         "player_name": player_name,

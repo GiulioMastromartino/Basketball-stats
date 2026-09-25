@@ -179,8 +179,13 @@ class AnalyticsService:
         }
 
     @staticmethod
-    def calculate_team_rankings(player_name, game_ids, report_data, db_session=None):
-        """Calculate player's rank and percentile within the team"""
+    def calculate_team_rankings_all(game_ids, db_session=None):
+        """Rank every player once (shared by bulk exports).
+
+        Returns {player_name: rankings}. Single         callers should use
+        calculate_team_rankings(); bulk callers (download-all) call this
+        once instead of N per-player full scans.
+        """
         session = db_session or db.session
 
         # 1. Get aggregated stats
@@ -208,8 +213,7 @@ class AnalyticsService:
         if not all_players_stats:
             return {}
 
-        # 2. Get raw stats for ORTG calculation (N+1 Optimization)
-        # Fetch all required fields to calculate possessions for ALL players in ONE query
+        # 2. Raw stats for ORTG (one query for ALL players)
         raw_stats = (
             session.query(
                 PlayerStat.player_name,
@@ -235,7 +239,7 @@ class AnalyticsService:
 
         # 3. Build Metrics List
         players_data = []
-        current_player_values = {}
+        metrics_by_name = {}
 
         for p in all_players_stats:
             ts_pct = calculate_ts_percent(p.total_pts, p.total_fga, p.total_fta)
@@ -256,38 +260,44 @@ class AnalyticsService:
                 "ortg": round(ortg, 1),
             }
             players_data.append(metrics)
+            metrics_by_name[p.player_name] = metrics
 
-            if p.player_name == player_name:
-                current_player_values = metrics
-
-        # 4. Calculate Rankings
-        rankings = {}
+        # 4. Calculate Rankings for every player
         num_players = len(players_data)
+        out = {}
+        for player_name, current_player_values in metrics_by_name.items():
+            rankings = {}
+            for metric in ["ppg", "rpg", "apg", "ts_pct", "efg_pct", "ast_tov", "ortg"]:
+                sorted_players = sorted(players_data, key=lambda x: x[metric], reverse=True)
 
-        for metric in ["ppg", "rpg", "apg", "ts_pct", "efg_pct", "ast_tov", "ortg"]:
-            sorted_players = sorted(players_data, key=lambda x: x[metric], reverse=True)
+                rank = next(
+                    (
+                        i
+                        for i, p in enumerate(sorted_players, 1)
+                        if p["name"] == player_name
+                    ),
+                    None,
+                )
+                percentile = ((num_players - rank + 1) / num_players * 100) if rank else 0
 
-            rank = next(
-                (
-                    i
-                    for i, p in enumerate(sorted_players, 1)
-                    if p["name"] == player_name
-                ),
-                None,
-            )
-            percentile = ((num_players - rank + 1) / num_players * 100) if rank else 0
+                rankings[metric] = {
+                    "rank": rank,
+                    "total": num_players,
+                    "percentile": round(percentile, 0),
+                    "is_leader": (rank == 1) if rank else False,
+                    "leader_name": sorted_players[0]["name"] if sorted_players else "",
+                    "distribution": sorted([p[metric] for p in players_data]),
+                    "player_value": current_player_values.get(metric, 0),
+                }
+            out[player_name] = rankings
+        return out
 
-            rankings[metric] = {
-                "rank": rank,
-                "total": num_players,
-                "percentile": round(percentile, 0),
-                "is_leader": (rank == 1) if rank else False,
-                "leader_name": sorted_players[0]["name"] if sorted_players else "",
-                "distribution": sorted([p[metric] for p in players_data]),
-                "player_value": current_player_values.get(metric, 0),
-            }
-
-        return rankings
+    def calculate_team_rankings(player_name, game_ids, report_data, db_session=None):
+        """Calculate player's rank and percentile within the team"""
+        rankings_all = AnalyticsService.calculate_team_rankings_all(
+            game_ids, db_session
+        )
+        return rankings_all.get(player_name, {})
 
     @staticmethod
     def calculate_player_metrics(stats, game_map, games_played):

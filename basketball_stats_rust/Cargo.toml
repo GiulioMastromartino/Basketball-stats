@@ -12,13 +12,13 @@ pyo3 = { version = "0.22", features = ["extension-module"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rayon = "1.10"
-log = "0.4"
 itertools = "0.13"
-rand = "0.8"
-chrono = "0.4"
 rustc-hash = "2.0"
+md5 = "0.7"
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
+# NOTE: local macOS (Xcode 26 + rust 1.96) hits "mis-aligned LINKEDIT" on
+# release .so; use debug `maturin build` locally, release on CI/Linux.

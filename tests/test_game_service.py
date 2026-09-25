@@ -388,6 +388,46 @@ class TestCreateGameFromLiveData:
         assert shots[0].play_id is None
 
     @pytest.mark.integration
+    def test_bulk_save_survives_nameless_sub(self, db_session):
+        """End-to-end: a SUB_IN with null player must not fail the save.
+
+        Regression: None entered the lineup, TypeError in the lineup hash
+        rolled back the entire create_game_from_live_data transaction.
+        """
+        payload = self._schema4_payload()
+        payload["game_events"].extend(
+            [
+                {
+                    "type": "SUB_OUT",
+                    "player": "Alice",
+                    "quarter": 1,
+                    "clockSeconds": 60,
+                    "timestamp": 1060,
+                },
+                {
+                    "type": "SUB_IN",
+                    "player": None,
+                    "quarter": 1,
+                    "clockSeconds": 61,
+                    "timestamp": 1061,
+                },
+            ]
+        )
+
+        game = create_game_from_live_data(payload)
+
+        assert game is not None
+        assert game.id is not None
+        events = GameEvent.query.filter_by(game_id=game.id).all()
+        assert len(events) == len(payload["game_events"])
+        # Lineup processing must survive the nameless SUB: segments exist
+        # (previously the TypeError aborted processing and was swallowed,
+        # leaving the game with zero lineup segments).
+        segments = LineupSegment.query.filter_by(game_id=game.id).all()
+        assert len(segments) >= 1
+        assert all(all(p for p in s.players) for s in segments)
+
+    @pytest.mark.integration
     def test_nested_import_format(self, db_session):
         """Test game creation with nested import format."""
         payload = {

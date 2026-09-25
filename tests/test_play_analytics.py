@@ -5,6 +5,7 @@ from core.play_analytics import (
     get_play_player_stats,
     get_play_stats,
     get_player_play_stats,
+    get_summary_play_analysis,
     get_summary_play_player_stats,
     get_summary_play_stats,
     get_summary_player_play_stats,
@@ -335,3 +336,15 @@ def test_summary_play_stats_fall_back_when_possession_numbers_are_missing(db_ses
     assert plays[0]["possessions"] == 1
     assert plays[0]["points"] == 2
     assert plays[0]["estimated_possessions"] is True
+
+
+@pytest.mark.integration
+def test_summary_play_analysis_matches_individual_getters(db_session):
+    """Combined single-pass getter must equal the individual getters."""
+    game, _horns, _delay = _seed_game_with_player(db_session)
+
+    combined = get_summary_play_analysis(game.id)
+
+    assert combined["plays"] == get_summary_play_stats(game.id)
+    assert combined["play_players"] == get_summary_play_player_stats(game.id)
+    assert combined["player_plays"] == get_summary_player_play_stats(game.id)
