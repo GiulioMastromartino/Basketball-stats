@@ -189,10 +189,21 @@ def export_session_pdf(session_id):
     # is not written to the server at any point. Bounded by
     # GOOGLE_DRIVE_TOTAL_TIMEOUT so the request stays well inside gunicorn's
     # 120s worker timeout.
-    drive_service.enqueue_or_upload(
-        int(current_user.id), "trainings", ts.team, _drive_doc_name(ts), pdf,
-        target_type="training_session", target_id=ts.id,
-    )
+    #
+    # Auto-upload only fires for real navigations. This GET performs a
+    # state-changing write, so without a gate it would be triggerable by a
+    # link-preview bot, a scanner, or a cross-site <img> tag riding the
+    # victim's cookies. Modern browsers send Sec-Fetch-Mode: navigate for
+    # address-bar loads, link clicks, and location.href changes (which is
+    # how the Export button fetches this URL), but no-cors/cors/same-origin
+    # for embeds and scripted fetches. Absent headers (old browsers, curl)
+    # are allowed through; the threat model needs a modern browser anyway.
+    fetch_mode = request.headers.get("Sec-Fetch-Mode")
+    if fetch_mode is None or fetch_mode == "navigate":
+        drive_service.enqueue_or_upload(
+            int(current_user.id), "trainings", ts.team, _drive_doc_name(ts), pdf,
+            target_type="training_session", target_id=ts.id,
+        )
     return response
 
 

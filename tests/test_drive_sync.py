@@ -71,6 +71,11 @@ class _FakeFiles:
             raise HttpError(
                 mock.Mock(status=404, reason="notFound"), b"not found"
             )
+        # 'root' in parents means "direct child of My Drive root", which is
+        # how the service constrains the level-1 lookup so a Shared Drive
+        # folder of the same name can never be adopted as the tree root.
+        if parent == "root":
+            parent = None
         matches = [
             {"id": fid} for fid, meta in self.svc.folder_records.items()
             if meta["name"] == name and meta["parents"] == parent
@@ -112,14 +117,23 @@ class _FakeFiles:
         }
         return _Exec({"id": fid})
 
-    def update(self, fileId=None, media_body=None, **kwargs):
+    def update(self, fileId=None, body=None, media_body=None, **kwargs):
         self.svc.update_calls.append(fileId)
+        self.svc.update_bodies.append(body)
         # An update to a file that no longer exists (or whose folder was
         # deleted) 404s, just like the real API.
-        if fileId in self.svc.update_404 or fileId not in self.svc.file_records:
+        if fileId in self.svc.update_404 or fileId not in (
+            set(self.svc.file_records) | set(self.svc.folder_records)
+        ):
             raise HttpError(
                 mock.Mock(status=404, reason="notFound"), b"not found"
             )
+        # Renames (folder or file) take effect, like the real API.
+        if body and body.get("name"):
+            if fileId in self.svc.folder_records:
+                self.svc.folder_records[fileId]["name"] = body["name"]
+            elif fileId in self.svc.file_records:
+                self.svc.file_records[fileId]["name"] = body["name"]
         if media_body is not None:
             self.svc.media_bodies.append(media_body)
         return _Exec({"id": fileId})
@@ -134,6 +148,7 @@ class FakeDriveService:
         self.list_calls = []
         self.create_calls = []
         self.update_calls = []
+        self.update_bodies = []
         self.media_bodies = []
         self.update_404 = set()
         self.list_404 = False
@@ -1441,3 +1456,266 @@ class TestBoundedAuthTransports(DriveTestCase):
         with self._patch_flow(self._fake_creds()):
             conn = drive_service.connect(self.user.id, "auth-code")
         self.assertEqual(conn.google_email, "coach@example.com")
+
+
+# ---------------------------------------------------------------------------
+# Kilo round: config parsing, key validation, disconnect hygiene
+# ---------------------------------------------------------------------------
+
+class TestDriveConfigParsing(unittest.TestCase):
+    def test_env_int_defaults(self):
+        from config import _env_int
+
+        self.assertEqual(_env_int("DEFINITELY_NOT_SET_XYZ", 45), 45)
+
+    def test_env_int_blank_and_garbage_fall_back(self):
+        import os
+        from config import _env_int
+
+        os.environ["TDS_TEST_INT"] = ""
+        try:
+            self.assertEqual(_env_int("TDS_TEST_INT", 45), 45)
+            os.environ["TDS_TEST_INT"] = "not-a-number"
+            self.assertEqual(_env_int("TDS_TEST_INT", 45), 45)
+            os.environ["TDS_TEST_INT"] = "30"
+            self.assertEqual(_env_int("TDS_TEST_INT", 30), 30)
+        finally:
+            del os.environ["TDS_TEST_INT"]
+
+    def test_blank_timeout_does_not_crash_app_factory(self):
+        import os
+
+        os.environ["GOOGLE_DRIVE_TOTAL_TIMEOUT"] = ""
+        try:
+            from web import create_app
+
+            app = create_app("testing")
+            self.assertEqual(app.config["GOOGLE_DRIVE_TOTAL_TIMEOUT"], 45)
+        finally:
+            del os.environ["GOOGLE_DRIVE_TOTAL_TIMEOUT"]
+
+
+class TestDriveKeyValidation(DriveTestCase):
+    def test_placeholder_key_disables_the_feature(self):
+        self.app.config["GOOGLE_DRIVE_TOKEN_KEY"] = "CHANGE_ME"
+        self.assertFalse(drive_service.is_enabled())
+
+    def test_garbage_key_disables_the_feature(self):
+        self.app.config["GOOGLE_DRIVE_TOKEN_KEY"] = "not-a-key"
+        self.assertFalse(drive_service.is_enabled())
+
+    def test_valid_key_enables_the_feature(self):
+        self.assertTrue(drive_service.is_enabled())
+
+    def test_disconnect_purges_sync_state(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        self.assertIsNotNone(drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id))
+        self.client.post("/integrations/google/disconnect")
+        self.assertIsNone(drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id))
+        self.assertIsNone(drive_service.get_connection(self.user.id))
+
+    def test_relink_to_another_account_starts_clean(self):
+        # After disconnect + re-link, no stale file id from the old account
+        # may be handed to the new credentials (which would 403 on update).
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        self.client.post("/integrations/google/disconnect")
+        self.make_connection(auto_upload=True)
+        db.session.add(GoogleDriveDocPref(
+            user_id=self.user.id, doc_type="trainings", enabled=True))
+        db.session.commit()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        # A fresh create, not an update against the old account's file.
+        self.assertEqual(self.drive.update_calls, [])
+        self.assertEqual(len(self.drive.created_file_names()), 2)
+
+    def test_user_deletion_purges_drive_records(self):
+        from core.models import GoogleDriveConnection
+
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        drive_service.purge_user(self.user.id)
+        self.assertIsNone(drive_service.get_connection(self.user.id))
+        self.assertIsNone(drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id))
+        self.assertEqual(
+            GoogleDriveConnection.query.filter_by(
+                user_id=self.user.id).count(), 0)
+
+
+# ---------------------------------------------------------------------------
+# Kilo round: retry, rename propagation, root scoping, team rename
+# ---------------------------------------------------------------------------
+
+class TestRetryBudgetEdgeCases(DriveTestCase):
+    def test_backoff_without_budget_sleeps_normally(self):
+        # connect() never starts a budget; retries there must still back off
+        # instead of hot-looping with sleep(0).
+        sleeps = []
+        real_sleep = drive_service.time.sleep
+        drive_service.time.sleep = sleeps.append
+        try:
+            calls = []
+
+            def flaky():
+                calls.append(1)
+                if len(calls) < 3:
+                    raise drive_service.DriveSyncError("x") from None
+                return "ok"
+
+            # DriveSyncError is not retryable; use a retryable stand-in.
+            from googleapiclient.errors import HttpError
+
+            attempts = []
+
+            def rate_limited():
+                attempts.append(1)
+                if len(attempts) < 3:
+                    raise HttpError(mock.Mock(status=429, reason="x"), b"r")
+                return "ok"
+
+            self.assertEqual(drive_service._with_retry(rate_limited), "ok")
+        finally:
+            drive_service.time.sleep = real_sleep
+        self.assertEqual(sleeps, [0.5, 1.0])
+
+    def test_expired_deadline_raises_timeout_not_value_error(self):
+        drive_service._start_budget(seconds=-1)
+        self.addCleanup(drive_service._clear_budget)
+
+        def slow():
+            return "ok"
+
+        # Must raise DriveTimeout from the pre-call check, never reach a
+        # negative sleep.
+        with self.assertRaises(drive_service.DriveTimeout):
+            drive_service._with_retry(slow)
+
+
+class TestRenamePropagation(DriveTestCase):
+    def test_update_sends_the_current_filename(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session(title="Old Name")
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        ts.title = "New Name"
+        db.session.commit()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        self.assertEqual(len(self.drive.update_calls), 1)
+        # The Drive file is renamed in place, not just overwritten.
+        self.assertIn("New Name", self.drive.update_bodies[-1]["name"])
+        file_id = self.drive.update_calls[0]
+        self.assertIn("New Name", self.drive.file_records[file_id]["name"])
+
+    def test_root_lookup_is_scoped_to_my_drive(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        root_queries = [q for q in self.drive.list_calls if "HoopsLab" in q]
+        self.assertTrue(root_queries)
+        for q in root_queries:
+            self.assertIn("'root' in parents", q)
+
+    def test_team_rename_renames_the_drive_folder(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        before = list(self.drive.created_folder_names())
+
+        self.team.name = "Renamed Squad"
+        db.session.commit()
+        updates_before = list(self.drive.update_calls)
+        self.client.get(f"/trainings/{ts.id}/pdf")
+
+        # No new team branch forked; the second sync reused the tree.
+        self.assertEqual(
+            self.drive.created_folder_names(), before)
+        # And the level-2 folder was actually renamed, not just re-cached:
+        # exactly one extra update call, targeting the team folder (the
+        # second folder created, after the root).
+        team_folder_id = [
+            fid for fid, meta in self.drive.folder_records.items()
+            if meta["name"] == "Renamed Squad"
+        ]
+        self.assertEqual(len(team_folder_id), 1)
+        new_updates = [u for u in self.drive.update_calls
+                       if u not in updates_before]
+        self.assertIn(team_folder_id[0], new_updates)
+        state = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id)
+        self.assertEqual(state.team_name, "Renamed Squad")
+
+    def test_team_rename_without_prior_sync_creates_fresh_branch(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        self.team.name = "Brand New Name"
+        db.session.commit()
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        self.assertIn("Brand New Name", self.drive.created_folder_names())
+
+
+# ---------------------------------------------------------------------------
+# Kilo round: fetch-mode gate, error flash, settings branch
+# ---------------------------------------------------------------------------
+
+class TestFetchModeGate(DriveTestCase):
+    def _export(self, headers=None):
+        ts = self.make_session()
+        return self.client.get(f"/trainings/{ts.id}/pdf",
+                               headers=headers or {})
+
+    def test_navigation_triggers_auto_upload(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        self._export(headers={"Sec-Fetch-Mode": "navigate"})
+        self.assertEqual(len(self.drive.created_file_names()), 1)
+
+    def test_missing_fetch_mode_triggers_auto_upload(self):
+        # Old browsers and curl send no Sec-Fetch headers; allow them.
+        self.enable_prefs(auto_upload=True, trainings=True)
+        self._export()
+        self.assertEqual(len(self.drive.created_file_names()), 1)
+
+    def test_embed_does_not_trigger_auto_upload(self):
+        # Cross-site <img> and scripted fetches ride the victim's cookies;
+        # they must never cause a state-changing write.
+        self.enable_prefs(auto_upload=True, trainings=True)
+        for mode in ("no-cors", "cors", "same-origin", "no-store"):
+            resp = self._export(headers={"Sec-Fetch-Mode": mode})
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.data, b"%PDF-1.4 fake")
+        self.assertEqual(self.drive.created_file_names(), [])
+
+    def test_download_always_served_regardless_of_mode(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        for mode in ("navigate", "no-cors", None):
+            headers = {"Sec-Fetch-Mode": mode} if mode else {}
+            resp = self._export(headers=headers)
+            self.assertTrue(resp.data.startswith(b"%PDF"))
+
+
+class TestOAuthErrorFlash(DriveTestCase):
+    def _callback(self, query):
+        state = drive_service.build_state(self.user.id)
+        return self.client.get(
+            f"/integrations/google/callback?{query}&state={state}",
+            follow_redirects=True)
+
+    def test_known_error_code_mapped(self):
+        resp = self._callback("error=access_denied")
+        self.assertIn(b"Access was denied", resp.data)
+        self.assertNotIn(b"access_denied.", resp.data)
+
+    def test_unknown_error_code_generic(self):
+        resp = self._callback("error=evil_custom_code")
+        self.assertIn(b"authorization request failed", resp.data)
+        self.assertNotIn(b"evil_custom_code", resp.data)
+
+    def test_huge_error_value_truncated(self):
+        resp = self._callback("error=" + "x" * 5000)
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(b"x" * 100, resp.data)

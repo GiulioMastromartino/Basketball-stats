@@ -80,6 +80,17 @@ def google_start():
     return redirect(drive_service.build_auth_url(state))
 
 
+# OAuth error codes Google actually sends. Anything else is mapped to a
+# generic message: the raw value is attacker-controlled, unbounded in
+# length (flash messages live in the ~4KB session cookie), and echoed
+# into our own alert styling.
+_KNOWN_OAUTH_ERRORS = {
+    "access_denied": "Access was denied in the Google consent screen.",
+    "server_error": "Google returned a server error. Please try again.",
+    "temporarily_unavailable": "Google is temporarily unavailable. Please try again.",
+}
+
+
 @integrations_bp.route("/google/callback")
 @login_required
 def google_callback():
@@ -87,9 +98,11 @@ def google_callback():
 
     if request.args.get("error"):
         # User declined, or the consent screen refused the request.
+        code = request.args.get("error", "")[:64]
         flash(
             "Google Drive was not connected: "
-            f"{request.args.get('error')}.", "warning",
+            f"{_KNOWN_OAUTH_ERRORS.get(code, 'The authorization request failed.')}",
+            "warning",
         )
         return redirect(url_for(SETTINGS_ENDPOINT))
 

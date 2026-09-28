@@ -32,7 +32,14 @@
                     <code>GOOGLE_DRIVE_*</code> environment variables.
                 </div>
 
-            {% elif not drive_connection %}
+            {% elif not drive_connection or not drive_connection.is_active %}
+                {% if drive_connection %}
+                <div class="alert alert-warning" role="alert">
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                    Your previous Drive link is no longer usable.
+                    Connect again to resume syncing.
+                </div>
+                {% endif %}
                 <p class="text-muted">
                     Link your Google account to start. You will be sent to Google
                     to approve access, then returned here. HoopsLab can only see

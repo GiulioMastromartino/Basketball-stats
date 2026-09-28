@@ -6,6 +6,17 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent
 
 
+def _env_int(name: str, default: int) -> int:
+    """Read an int env var without ever raising at import time.
+
+    Returns ``default`` when the var is absent, blank, or not a number.
+    """
+    try:
+        return int(os.getenv(name, "") or default)
+    except (TypeError, ValueError):
+        return default
+
+
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
     WTF_CSRF_ENABLED = True
@@ -112,17 +123,16 @@ class Config:
     # Level-1 folder created in each user's Drive; teams nest beneath it.
     GOOGLE_DRIVE_ROOT_FOLDER = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER", "HoopsLab")
     # Hard ceilings so a hung Drive call cannot pin a gunicorn worker.
-    GOOGLE_DRIVE_CONNECT_TIMEOUT = int(
-        os.getenv("GOOGLE_DRIVE_CONNECT_TIMEOUT", "10")
-    )
-    GOOGLE_DRIVE_IO_TIMEOUT = int(os.getenv("GOOGLE_DRIVE_IO_TIMEOUT", "20"))
+    # Parsed defensively: docker-compose passes `VAR=` through as an empty
+    # string (not "unset"), and int("") at import time would take down every
+    # route including /health. Blank or garbage falls back to the default.
+    GOOGLE_DRIVE_CONNECT_TIMEOUT = _env_int("GOOGLE_DRIVE_CONNECT_TIMEOUT", 10)
+    GOOGLE_DRIVE_IO_TIMEOUT = _env_int("GOOGLE_DRIVE_IO_TIMEOUT", 20)
     # Total wall-clock budget for one whole sync (resolve folders + upload),
     # across every call and retry. Gunicorn kills a worker at 120s
     # (gunicorn_config.py), so this must stay comfortably below that; the
     # default 45s leaves ample room for the rest of the request.
-    GOOGLE_DRIVE_TOTAL_TIMEOUT = int(
-        os.getenv("GOOGLE_DRIVE_TOTAL_TIMEOUT", "45")
-    )
+    GOOGLE_DRIVE_TOTAL_TIMEOUT = _env_int("GOOGLE_DRIVE_TOTAL_TIMEOUT", 45)
 
     # Evolution API WhatsApp gateway (Baileys provider, self-hosted)
     EVOLUTION_API_URL  = os.getenv("EVOLUTION_API_URL", "")

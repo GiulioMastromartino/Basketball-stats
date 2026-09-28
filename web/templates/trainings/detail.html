@@ -496,8 +496,19 @@ document.addEventListener('DOMContentLoaded', function () {
     var driveBtn = document.getElementById('saveDriveBtn');
     var driveForm = document.getElementById('saveDriveForm');
     if (driveBtn && driveForm) {
+        var driveSubmitted = false;
         driveForm.addEventListener('submit', function (e) {
+            // .btn.disabled only sets pointer-events, which blocks the mouse
+            // but not the keyboard: with focus on the button, Enter fires a
+            // second submit while snapshots are still pending, producing a
+            // duplicate PDF (and a sync-state unique-constraint race).
+            if (driveSubmitted) {
+                e.preventDefault();
+                return;
+            }
+            driveSubmitted = true;
             e.preventDefault();
+            driveBtn.disabled = true;
             setBusy(driveBtn, true, 'Saving…');
             withSnapshots(collectPlayIds()).then(function () {
                 driveForm.submit();

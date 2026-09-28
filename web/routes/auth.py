@@ -400,6 +400,8 @@ def delete_user(user_id):
     if denied:
         return denied
     username = user.username
+    from core.services import drive_service
+    drive_service.purge_user(user_id)
     db.session.delete(user)
     db.session.commit()
     log_admin_action(current_user, "user.delete", f"deleted user {username}",

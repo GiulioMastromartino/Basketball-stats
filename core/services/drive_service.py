@@ -121,16 +121,34 @@ def _check_deadline():
 def is_enabled() -> bool:
     """True when Drive sync is fully configured.
 
-    All three secrets are required. A missing token key in particular must not
+    All secrets are required, and the token key must actually be a Fernet
+    key — not just truthy. `.env.prod.example` ships `CHANGE_ME` as a
+    placeholder, and a deploy that copies it verbatim must report the
+    feature as *off* (routes 404, UI hidden), not pass the gate and then
+    500 on the first encrypt/decrypt. A missing or malformed key must never
     degrade to plaintext token storage.
     """
     cfg = current_app.config
     return bool(
         cfg.get("GOOGLE_DRIVE_CLIENT_ID")
         and cfg.get("GOOGLE_DRIVE_CLIENT_SECRET")
-        and cfg.get("GOOGLE_DRIVE_TOKEN_KEY")
+        and _valid_fernet_key(cfg.get("GOOGLE_DRIVE_TOKEN_KEY"))
         and cfg.get("GOOGLE_DRIVE_REDIRECT_URI")
     )
+
+
+def _valid_fernet_key(value) -> bool:
+    """True when ``value`` decodes as a 32-byte urlsafe Fernet key."""
+    if not value or not isinstance(value, str):
+        return False
+    import base64
+    import binascii
+
+    try:
+        raw = base64.urlsafe_b64decode(value.encode("utf-8"))
+    except (binascii.Error, ValueError):
+        return False
+    return len(raw) == 32
 
 
 def _require_enabled() -> None:
@@ -422,12 +440,37 @@ def connect(user_id: int, code: str):
 
 
 def disconnect(user_id: int) -> None:
-    """Remove the connection. Files already in the user's Drive are left alone."""
+    """Remove the connection and all of the user's Drive state.
+
+    Files already in the user's Drive are left alone, but every local record
+    — connection, per-type prefs, and per-artefact sync states — is purged.
+    Otherwise a re-link to a *different* Google account would try to update
+    files the new credentials cannot see, failing every export until the
+    stale rows were deleted by hand.
+    """
+    GoogleDriveDocPref.query.filter_by(user_id=user_id).delete()
+    GoogleDriveSyncState.query.filter_by(user_id=user_id).delete()
     conn = get_connection(user_id)
     if conn is None:
+        db.session.commit()
         return
-    GoogleDriveDocPref.query.filter_by(user_id=user_id).delete()
     db.session.delete(conn)
+    db.session.commit()
+
+
+def purge_user(user_id: int) -> None:
+    """Delete every Drive record for a user whose account is being removed.
+
+    The repo runs SQLite without `PRAGMA foreign_keys=ON` and the FKs carry
+    no `ondelete="CASCADE"`, so deleting the `users` row would otherwise
+    orphan an encrypted OAuth refresh token — and a recycled `user_id`
+    could later inherit the grant.
+    """
+    GoogleDriveDocPref.query.filter_by(user_id=user_id).delete()
+    GoogleDriveSyncState.query.filter_by(user_id=user_id).delete()
+    conn = get_connection(user_id)
+    if conn is not None:
+        db.session.delete(conn)
     db.session.commit()
 
 
@@ -607,7 +650,11 @@ def _with_retry(fn, attempts: int = DEFAULT_RETRIES):
 
     Bails out once the sync's total deadline has passed, so the number of
     sequential Drive operations in one export can never add up past the
-    worker's request budget.
+    worker's request budget. The sleep is clamped at zero from below: an
+    expired deadline mid-call must surface the real error, not a
+    `ValueError` from `time.sleep` of a negative number — and with no
+    budget running at all (e.g. the link-time root-folder probe) the plain
+    exponential backoff still applies instead of a hot loop.
     """
     last = None
     for i in range(attempts):
@@ -618,7 +665,11 @@ def _with_retry(fn, attempts: int = DEFAULT_RETRIES):
             last = exc
             if i == attempts - 1 or not _is_retryable(exc):
                 raise
-            time.sleep(min(2 ** i * 0.5, _remaining_budget() or 0))
+            backoff = 2 ** i * 0.5
+            remaining = _remaining_budget()
+            if remaining is not None:
+                backoff = min(backoff, max(0.0, remaining))
+            time.sleep(backoff)
     raise last
 
 
@@ -669,12 +720,17 @@ def _find_or_create_folder(service, name: str, parent_id):
     """Find a child folder by name, creating it when absent.
 
     Each level is resolved strictly one at a time because the Drive ``q=``
-    expression is scoped to a single parent.
+    expression is scoped to a single parent. The root level is additionally
+    constrained to `'root' in parents`: without it, a Shared Drive (or a
+    collaborator-shared folder) also named e.g. `HoopsLab` could be adopted
+    as the tree root, and team folders would land in a corporate tree the
+    user never intended — where writes can 403.
     """
     if parent_id is None:
         query = (
             f"name = '{_escape_query(name)}' and "
-            f"mimeType = '{FOLDER_MIME}' and trashed = false"
+            f"mimeType = '{FOLDER_MIME}' and 'root' in parents and "
+            f"trashed = false"
         )
     else:
         query = (
@@ -822,6 +878,11 @@ def upload_pdf(user_id: int, folder_id: str, filename: str, data: bytes,
             updated = _with_retry(
                 lambda: service.files().update(
                     fileId=remote_file_id,
+                    # Rename in place too: without a body the file keeps
+                    # whatever name it had at creation, so renaming a
+                    # session and re-exporting would leave a stale name
+                    # in the user's Drive with no way to correct it.
+                    body={"name": filename},
                     media_body=_media_body(data, filename),
                     fields="id", supportsAllDrives=True,
                 ).execute()
@@ -938,6 +999,48 @@ def _safe_record_error(user_id: int, message: str) -> None:
             pass
 
 
+def _rename_team_folder(user_id: int, old_name: str, new_name: str) -> None:
+    """Rename a level-2 team folder after a team rename. Best-effort.
+
+    Finds the folder called ``old_name`` directly under the root and renames
+    it, so the next resolution lands in the same branch with the new name.
+    Swallows every failure: the caller falls back to normal find-or-create,
+    which degrades to a fresh branch rather than failing the sync.
+    """
+    try:
+        conn = get_connection(user_id)
+        if conn is None or not conn.root_folder_id:
+            return
+        service = _get_service(user_id)
+        found = _with_retry(
+            lambda: service.files().list(
+                q=(f"name = '{_escape_query(old_name)}' and "
+                   f"'{_escape_query(conn.root_folder_id)}' in parents and "
+                   f"mimeType = '{FOLDER_MIME}' and trashed = false"),
+                spaces="drive",
+                fields="files(id, name)", pageSize=10, supportsAllDrives=True,
+            ).execute()
+        )
+        files = found.get("files") or []
+        if not files:
+            return
+        _with_retry(
+            lambda: service.files().update(
+                fileId=files[0]["id"],
+                body={"name": sanitize_folder_segment(new_name)},
+                fields="id", supportsAllDrives=True,
+            ).execute()
+        )
+        current_app.logger.info(
+            "Renamed Drive team folder %r -> %r for user %s",
+            old_name, new_name, user_id,
+        )
+    except Exception as exc:
+        current_app.logger.warning(
+            "Drive team folder rename failed user=%s: %s", user_id, exc
+        )
+
+
 def _sync_once(user_id: int, doc_type: str, team_id, team_name: str,
                filename: str, data: bytes,
                target_type: str, target_id):
@@ -957,6 +1060,16 @@ def _sync_once(user_id: int, doc_type: str, team_id, team_name: str,
         if trackable else None
     )
     remote_file_id = state.drive_file_id if state else None
+
+    if state is not None and state.team_name and state.team_name != team_name:
+        # The team was renamed since the last sync (basketball age groups
+        # rename every season: U16 -> U17). Rename the level-2 folder in
+        # place so history stays in one branch instead of forking a new,
+        # empty one and orphaning the old files. Best-effort: if the folder
+        # is gone, normal resolution below creates the new branch.
+        _rename_team_folder(user_id, state.team_name, team_name)
+        state.team_name = (team_name or "")[:100] or None
+        db.session.commit()
 
     for attempt in ("first", "after_re_resolve"):
         try:
