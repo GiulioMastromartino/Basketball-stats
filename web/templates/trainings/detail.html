@@ -486,6 +486,9 @@ document.addEventListener('DOMContentLoaded', function () {
             setBusy(exportBtn, true, 'Preparing…');
             withSnapshots(collectPlayIds()).then(function () {
                 window.location.href = url;
+                // Attachment downloads keep this page alive, so restore the
+                // button — otherwise it sits on "Preparing…" until reload.
+                setBusy(exportBtn, false);
             });
         });
     }

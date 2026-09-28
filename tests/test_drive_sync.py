@@ -292,6 +292,33 @@ class DriveTestCase(unittest.TestCase):
 
         g.pop("_login_user", None)
 
+    def _fake_creds(self, refresh_token="rt-123", token="at-456"):
+        creds = mock.MagicMock()
+        creds.refresh_token = refresh_token
+        creds.token = token
+        creds.expiry = None
+        return creds
+
+    def _patch_flow(self, creds, fetch_side_effect=None):
+        """Fake both halves of connect(): the token exchange and the client.
+
+        A MagicMock credentials object cannot drive a real googleapiclient
+        build (it fails universe-domain validation), so _build_service is
+        stubbed alongside the flow.
+        """
+        flow = mock.MagicMock()
+        flow.credentials = creds
+        if fetch_side_effect is not None:
+            flow.fetch_token.side_effect = fetch_side_effect
+        stack = contextlib.ExitStack()
+        stack.enter_context(
+            mock.patch.object(drive_service, "_build_flow", return_value=flow))
+        stack.enter_context(
+            mock.patch.object(drive_service, "_build_service",
+                              return_value=self.drive))
+        self.addCleanup(stack.close)
+        return flow
+
     def demote_to_coach(self):
         """Strip GM rights, leaving a plain coach on the team.
 
@@ -977,33 +1004,6 @@ class TestTokenExchange(DriveTestCase):
     real code path with only the HTTP exchange faked.
     """
 
-    def _fake_creds(self, refresh_token="rt-123", token="at-456"):
-        creds = mock.MagicMock()
-        creds.refresh_token = refresh_token
-        creds.token = token
-        creds.expiry = None
-        return creds
-
-    def _patch_flow(self, creds, fetch_side_effect=None):
-        """Fake both halves of connect(): the token exchange and the client.
-
-        A MagicMock credentials object cannot drive a real googleapiclient
-        build (it fails universe-domain validation), so _build_service is
-        stubbed alongside the flow.
-        """
-        flow = mock.MagicMock()
-        flow.credentials = creds
-        if fetch_side_effect is not None:
-            flow.fetch_token.side_effect = fetch_side_effect
-        stack = contextlib.ExitStack()
-        stack.enter_context(
-            mock.patch.object(drive_service, "_build_flow", return_value=flow))
-        stack.enter_context(
-            mock.patch.object(drive_service, "_build_service",
-                              return_value=self.drive))
-        self.addCleanup(stack.close)
-        return flow
-
     def test_successful_exchange_stores_encrypted_connection(self):
         with self._patch_flow(self._fake_creds()):
             conn = drive_service.connect(self.user.id, "auth-code")
@@ -1018,7 +1018,11 @@ class TestTokenExchange(DriveTestCase):
     def test_exchange_uses_the_flow_not_credentials_fetch_token(self):
         flow = self._patch_flow(self._fake_creds())
         drive_service.connect(self.user.id, "auth-code")
-        flow.fetch_token.assert_called_once_with(code="auth-code")
+        flow.fetch_token.assert_called_once()
+        _, kwargs = flow.fetch_token.call_args
+        self.assertEqual(kwargs["code"], "auth-code")
+        # Bounded: a hung token endpoint must fail the link, not the worker.
+        self.assertLessEqual(kwargs["timeout"], 120)
 
     def test_credentials_class_really_lacks_fetch_token(self):
         # Guards the original bug directly, so a future refactor back to
@@ -1281,10 +1285,13 @@ class TestTimeBudget(DriveTestCase):
         def other_thread():
             drive_service._start_budget(seconds=-1)
             try:
-                seen["other"] = "expired"
                 drive_service._check_deadline()
             except drive_service.DriveTimeout:
                 seen["other"] = "expired"
+            else:
+                # A missing timeout must be detectable, not silently recorded
+                # as success.
+                seen["other"] = "no-timeout"
             finally:
                 drive_service._clear_budget()
 
@@ -1314,3 +1321,123 @@ class TestUnicodeFilenames(DriveTestCase):
         self.assertEqual(_drive_doc_name(ts),
                          f"Training_{ts.session_date}_Fernàndez.pdf")
         self.assertNotEqual(_drive_doc_name(ts), download_name + ".pdf")
+
+
+# ---------------------------------------------------------------------------
+# Failure-path session hygiene (regression: recording an error must not raise)
+# ---------------------------------------------------------------------------
+
+class TestErrorRecordingNeverRaises(DriveTestCase):
+    def _poison_with_bad_sql(self):
+        """Fail the current transaction without leaving ORM state behind."""
+        from sqlalchemy import text
+
+        with self.assertRaises(Exception):
+            db.session.execute(text("SELECT * FROM no_such_table_xyz"))
+            db.session.commit()
+
+    def test_record_error_recovers_a_failed_transaction(self):
+        # A failed commit poisons the session; the recorder must roll back
+        # and still persist the message.
+        self.make_connection()
+        self._poison_with_bad_sql()
+        drive_service._record_error(self.user.id, "boom" * 500)
+        conn = drive_service.get_connection(self.user.id)
+        self.assertIn("boom", conn.last_error)
+        # Truncated to the column budget, not the full repeated string.
+        self.assertLessEqual(len(conn.last_error), 1000)
+
+    def test_record_error_never_raises_even_when_unrecordable(self):
+        # A pending duplicate can never be flushed; the recorder must swallow
+        # that too rather than become a second failure.
+        self.make_connection()
+        db.session.add(GoogleDriveConnection(user_id=self.user.id,
+                                             refresh_token_enc="x"))
+        drive_service._record_error(self.user.id, "boom")
+        db.session.rollback()
+
+    def test_record_error_with_no_connection_is_a_noop(self):
+        drive_service._record_error(self.user.id, "nothing to record")
+
+    def test_sync_still_returns_none_when_recording_would_fail(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        self.get_service.side_effect = RuntimeError("drive is down")
+        ts = self.make_session()
+        with mock.patch.object(
+            drive_service, "_record_error",
+            side_effect=RuntimeError("db is down"),
+        ):
+            resp = self.client.get(f"/trainings/{ts.id}/pdf")
+        # Even a broken error recorder must not break the download.
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, b"%PDF-1.4 fake")
+
+    def test_mark_needs_reauth_recovers_a_failed_transaction(self):
+        self.make_connection()
+        self._poison_with_bad_sql()
+        drive_service.mark_needs_reauth(self.user.id, "bad grant")
+        conn = drive_service.get_connection(self.user.id)
+        self.assertEqual(conn.status,
+                         GoogleDriveConnection.STATUS_NEEDS_REAUTH)
+
+
+# ---------------------------------------------------------------------------
+# Bounded auth transports
+# ---------------------------------------------------------------------------
+
+class TestBoundedAuthTransports(DriveTestCase):
+    def test_refresh_transport_carries_a_timeout(self):
+        transport = drive_service._bounded_transport()
+        self.assertIsNotNone(transport)
+
+    def test_refresh_transport_timeout_respects_remaining_budget(self):
+        import requests
+
+        drive_service._start_budget(seconds=7)
+        self.addCleanup(drive_service._clear_budget)
+        with mock.patch.object(requests.Session, "request") as orig:
+            transport = drive_service._bounded_transport()
+            transport.session.request("POST", "https://example.invalid",
+                                      timeout=999)
+        # The explicit caller timeout wins; the transport only fills a gap.
+        _, kwargs = orig.call_args
+        self.assertEqual(kwargs["timeout"], 999)
+
+    def test_refresh_transport_defaults_within_budget(self):
+        import requests
+
+        drive_service._start_budget(seconds=7)
+        self.addCleanup(drive_service._clear_budget)
+        with mock.patch.object(requests.Session, "request") as orig:
+            transport = drive_service._bounded_transport()
+            transport.session.request("POST", "https://example.invalid")
+        # Default is capped by the remaining budget, not the raw config.
+        _, kwargs = orig.call_args
+        self.assertLessEqual(kwargs["timeout"], 7)
+
+    def test_exchange_timeout_comes_from_config(self):
+        flow = self._patch_flow(self._fake_creds())
+        drive_service.connect(self.user.id, "auth-code")
+        _, kwargs = flow.fetch_token.call_args
+        cfg_timeout = max(
+            int(self.app.config["GOOGLE_DRIVE_CONNECT_TIMEOUT"]),
+            int(self.app.config["GOOGLE_DRIVE_IO_TIMEOUT"]),
+        )
+        self.assertEqual(kwargs["timeout"], cfg_timeout)
+
+    def test_about_email_is_best_effort(self):
+        # FakeDriveService has no about(): linking must still succeed, with
+        # no email recorded, rather than fail the whole connect.
+        with self._patch_flow(self._fake_creds()):
+            conn = drive_service.connect(self.user.id, "auth-code")
+        self.assertIsNotNone(conn.root_folder_id)
+        self.assertIsNone(conn.google_email)
+
+    def test_about_email_recorded_when_available(self):
+        about = mock.MagicMock()
+        about.get.return_value.execute.return_value = {
+            "user": {"emailAddress": "coach@example.com"}}
+        self.drive.about = mock.MagicMock(return_value=about)
+        with self._patch_flow(self._fake_creds()):
+            conn = drive_service.connect(self.user.id, "auth-code")
+        self.assertEqual(conn.google_email, "coach@example.com")

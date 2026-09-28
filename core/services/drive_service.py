@@ -352,9 +352,17 @@ def connect(user_id: int, code: str):
     """
     _require_enabled()
 
+    # The code exchange runs in the OAuth callback request, outside any sync
+    # budget, so it gets a fixed ceiling: a hung token endpoint must fail the
+    # link attempt, not the worker.
+    cfg = current_app.config
+    exchange_timeout = max(
+        int(cfg.get("GOOGLE_DRIVE_CONNECT_TIMEOUT", 10)),
+        int(cfg.get("GOOGLE_DRIVE_IO_TIMEOUT", 20)),
+    )
     try:
         flow = _build_flow()
-        flow.fetch_token(code=code)
+        flow.fetch_token(code=code, timeout=exchange_timeout)
     except Exception as exc:
         current_app.logger.warning("Google Drive token exchange failed: %s", exc)
         raise DriveSyncError("Google rejected the authorization code.") from exc
@@ -369,15 +377,6 @@ def connect(user_id: int, code: str):
         )
 
     google_email = None
-    try:
-        from googleapiclient.discovery import build
-
-        probe = build("oauth2", "v2", credentials=creds, cache_discovery=False)
-        info = probe.userinfo().get().execute()
-        google_email = info.get("email")
-    except Exception:
-        # Display-only nicety; never block linking on it.
-        google_email = None
 
     expires_at = None
     if creds.expiry:
@@ -405,6 +404,14 @@ def connect(user_id: int, code: str):
         conn.root_folder_id = _find_or_create_folder(
             service, _root_folder_name(), parent_id=None
         )
+        # Display-only nicety, resolved on the same bounded client rather
+        # than a second discovery build. Never blocks linking on failure.
+        try:
+            about = service.about().get(fields="user").execute()
+            google_email = (about.get("user") or {}).get("emailAddress")
+            conn.google_email = google_email
+        except Exception:
+            pass
     except Exception as exc:
         db.session.rollback()
         current_app.logger.warning("Google Drive root folder creation failed: %s", exc)
@@ -425,6 +432,12 @@ def disconnect(user_id: int) -> None:
 
 
 def mark_needs_reauth(user_id: int, reason: str) -> None:
+    # Roll back first: this runs on failure paths where the session may
+    # already be poisoned by a failed commit or autoflush.
+    try:
+        db.session.rollback()
+    except Exception:
+        pass
     conn = get_connection(user_id)
     if conn is None:
         return
@@ -436,11 +449,25 @@ def mark_needs_reauth(user_id: int, reason: str) -> None:
 
 
 def _record_error(user_id: int, message: str) -> None:
-    conn = get_connection(user_id)
-    if conn is None:
-        return
-    conn.last_error = message[:1000]
-    db.session.commit()
+    """Persist the last sync failure for the settings UI. Never raises.
+
+    Called from inside exception handlers, where the session may already be
+    broken (a failed commit or an autoflush error poisons it). A rollback
+    first, and a guard around our own write, so recording the failure can
+    never become a second failure that escapes the sync flow.
+    """
+    try:
+        db.session.rollback()
+        conn = get_connection(user_id)
+        if conn is None:
+            return
+        conn.last_error = message[:1000]
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -465,6 +492,37 @@ def _credentials_from_row(conn):
     )
 
 
+def _bounded_transport():
+    """A google-auth transport whose socket calls cannot outlive the budget.
+
+    ``google.auth.transport.requests.Request`` takes no timeout of its own,
+    so without this both the token refresh and the code exchange would block
+    indefinitely on a hung socket — outside every budget in this module.
+    The timeout is capped at the remaining budget when one is running, so a
+    refresh late in a sync fails fast instead of eating the upload's time.
+    """
+    import requests
+    from google.auth.transport.requests import Request
+
+    cfg = current_app.config
+    timeout = max(
+        int(cfg.get("GOOGLE_DRIVE_CONNECT_TIMEOUT", 10)),
+        int(cfg.get("GOOGLE_DRIVE_IO_TIMEOUT", 20)),
+    )
+    remaining = _remaining_budget()
+    if remaining is not None:
+        timeout = max(1, min(timeout, int(remaining) or 1))
+    session = requests.Session()
+    orig_request = session.request
+
+    def request_with_timeout(method, url, **kwargs):
+        kwargs.setdefault("timeout", timeout)
+        return orig_request(method, url, **kwargs)
+
+    session.request = request_with_timeout
+    return Request(session)
+
+
 def _refresh_credentials(user_id: int):
     """Return fresh credentials, refreshing proactively and on demand.
 
@@ -472,7 +530,6 @@ def _refresh_credentials(user_id: int):
     caller can mark the connection for re-linking.
     """
     from google.auth.exceptions import RefreshError
-    from google.auth.transport.requests import Request
 
     conn = get_connection(user_id)
     if conn is None or not conn.is_active:
@@ -491,7 +548,8 @@ def _refresh_credentials(user_id: int):
     )
     if creds.expired or stale or not creds.token:
         try:
-            creds.refresh(Request())
+            # Bounded transport: Request() alone has no socket timeout.
+            creds.refresh(_bounded_transport())
         except RefreshError as exc:
             mark_needs_reauth(user_id, f"Google rejected the saved grant: {exc}")
             raise DriveSyncError(
@@ -852,16 +910,32 @@ def enqueue_or_upload(user_id: int, doc_type: str, team, filename: str,
             # Already recorded by _refresh_credentials / mark_needs_reauth.
             current_app.logger.warning("Drive sync needs re-auth: %s", exc)
         else:
-            _record_error(user_id, str(exc))
+            _safe_record_error(user_id, str(exc))
         return None
     except Exception as exc:
         # Includes rate limits, quota errors, network faults. Swallowed on
         # purpose: see module docstring.
         current_app.logger.warning("Drive sync failed user=%s: %s", user_id, exc)
-        _record_error(user_id, str(exc))
+        _safe_record_error(user_id, str(exc))
         return None
     finally:
         _clear_budget()
+
+
+def _safe_record_error(user_id: int, message: str) -> None:
+    """Best-effort wrapper: recording a failure must never raise.
+
+    `_record_error` is already non-raising by construction, but this is the
+    last line of defence for the download-never-breaks contract — a failure
+    here would turn into a 500 on the user's export.
+    """
+    try:
+        _record_error(user_id, message)
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
 
 def _sync_once(user_id: int, doc_type: str, team_id, team_name: str,
