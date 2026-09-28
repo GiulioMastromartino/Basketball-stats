@@ -378,6 +378,14 @@ class TrainingSession(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Google Drive sync bookkeeping. drive_file_id makes a re-export an
+    # in-place update instead of piling up duplicate copies in the user's
+    # Drive. drive_team_name snapshots the folder path at sync time so a later
+    # team rename cannot fork the tree and orphan the file.
+    drive_file_id = db.Column(db.String(255), nullable=True)
+    drive_synced_at = db.Column(db.DateTime, nullable=True)
+    drive_team_name = db.Column(db.String(100), nullable=True)
+
     team = db.relationship("Team", backref=db.backref("training_sessions", lazy=True))
     segments = db.relationship(
         "TrainingSegment", backref="session", cascade="all, delete-orphan",
@@ -697,3 +705,90 @@ class DevelopmentGoal(db.Model):
     def __repr__(self):
         return (f"<DevelopmentGoal {self.player_name} {self.metric} "
                 f">= {self.target} ({self.window}g)>")
+
+
+class GoogleDriveConnection(db.Model):
+    """A user's linked Google account, for exporting PDFs to their own Drive.
+
+    Tokens are stored encrypted (Fernet, keyed on GOOGLE_DRIVE_TOKEN_KEY) —
+    a refresh token is a long-lived credential and the app must never persist
+    it in the clear. Decryption/refresh lives in core/services/drive_service.py;
+    this model only holds the ciphertext.
+
+    Only the drive.file scope is requested, so the app can see and write files
+    it created itself and nothing else in the user's Drive.
+    """
+
+    __tablename__ = "google_drive_connections"
+
+    STATUS_ACTIVE = "active"
+    STATUS_NEEDS_REAUTH = "needs_reauth"
+    STATUS_REVOKED = "revoked"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, unique=True)
+    refresh_token_enc = db.Column(db.Text, nullable=False)
+    access_token_enc = db.Column(db.Text, nullable=True)
+    token_uri = db.Column(db.String(255), nullable=True)
+    scopes = db.Column(db.String(500), nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    # Level-1 folder in the user's Drive; team/leaf folders nest beneath it.
+    root_folder_id = db.Column(db.String(255), nullable=True)
+    # Cached Drive folder ids for the nested path, keyed "<doc_type>:<team_id>".
+    # Avoids a files().list() round trip on every single upload.
+    folder_cache = db.Column(db.Text, nullable=True)
+    google_email = db.Column(db.String(120), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default=STATUS_ACTIVE,
+                       server_default=STATUS_ACTIVE)
+    # Master switch. Individual document types are governed by
+    # GoogleDriveDocPref; this is the user's "sync anything at all" opt-in.
+    auto_upload = db.Column(db.Boolean, nullable=False, default=False,
+                            server_default=text("false"))
+    last_error = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+                           nullable=False)
+
+    user = db.relationship("User", backref=db.backref("drive_connection", uselist=False,
+                                                     lazy=True))
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", name="uq_drive_connection_user"),
+    )
+
+    @property
+    def is_active(self) -> bool:
+        return self.status == self.STATUS_ACTIVE
+
+    def __repr__(self):
+        return (f"<GoogleDriveConnection user={self.user_id} "
+                f"status={self.status}>")
+
+
+class GoogleDriveDocPref(db.Model):
+    """Per-user opt-in for one document type from the DOC_SYNC_TYPES registry.
+
+    Kept separate from the connection's auto_upload master switch so a user can
+    archive training PDFs but not season reports. Adding a synced artefact type
+    later is a registry entry plus a call site, not a schema change.
+    """
+
+    __tablename__ = "google_drive_doc_prefs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    doc_type = db.Column(db.String(50), nullable=False)
+    enabled = db.Column(db.Boolean, nullable=False, default=False,
+                        server_default=text("false"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+                           nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "doc_type", name="uq_drive_doc_pref"),
+    )
+
+    def __repr__(self):
+        return (f"<GoogleDriveDocPref user={self.user_id} "
+                f"{self.doc_type} enabled={self.enabled}>")
+

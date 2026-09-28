@@ -89,6 +89,34 @@ class Config:
         "WORKOS_REDIRECT_URI"
     )  # Must be set per environment
 
+    # Google Drive per-user export sync.
+    #
+    # One OAuth client serves every user: each user consents for their own
+    # Drive, we store only their token. No billing account is required and
+    # standard Drive API use is free (quota is counted in units, not euros).
+    #
+    # The consent screen MUST be published to "Production" (not "Testing"):
+    # while in Testing, Google expires every refresh token after 7 days.
+    GOOGLE_DRIVE_CLIENT_ID = os.getenv("GOOGLE_DRIVE_CLIENT_ID")
+    GOOGLE_DRIVE_CLIENT_SECRET = os.getenv("GOOGLE_DRIVE_CLIENT_SECRET")
+    # Fernet key for encrypting tokens at rest. Generate with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Deliberately separate from SECRET_KEY so rotating one does not require
+    # re-encrypting every stored token. Absent => feature disabled entirely;
+    # we never silently fall back to storing tokens in plaintext.
+    GOOGLE_DRIVE_TOKEN_KEY = os.getenv("GOOGLE_DRIVE_TOKEN_KEY")
+    # Must exactly match a redirect URI registered on the OAuth client.
+    # Derived from config, never from the request, so proxy headers cannot
+    # make it drift (TLS terminates at the Tailscale Funnel in production).
+    GOOGLE_DRIVE_REDIRECT_URI = os.getenv("GOOGLE_DRIVE_REDIRECT_URI")
+    # Level-1 folder created in each user's Drive; teams nest beneath it.
+    GOOGLE_DRIVE_ROOT_FOLDER = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER", "HoopsLab")
+    # Hard ceilings so a hung Drive call cannot pin a gunicorn worker.
+    GOOGLE_DRIVE_CONNECT_TIMEOUT = int(
+        os.getenv("GOOGLE_DRIVE_CONNECT_TIMEOUT", "30")
+    )
+    GOOGLE_DRIVE_IO_TIMEOUT = int(os.getenv("GOOGLE_DRIVE_IO_TIMEOUT", "120"))
+
     # Evolution API WhatsApp gateway (Baileys provider, self-hosted)
     EVOLUTION_API_URL  = os.getenv("EVOLUTION_API_URL", "")
     EVOLUTION_API_KEY  = os.getenv("EVOLUTION_API_KEY", "")
@@ -113,6 +141,12 @@ class DevelopmentConfig(Config):
     # Development defaults for WorkOS
     WORKOS_REDIRECT_URI = os.getenv(
         "WORKOS_REDIRECT_URI", "http://localhost:8080/auth/callback"
+    )
+    # Development default for Google Drive. Must be registered verbatim on the
+    # OAuth client, otherwise Google rejects the consent redirect.
+    GOOGLE_DRIVE_REDIRECT_URI = os.getenv(
+        "GOOGLE_DRIVE_REDIRECT_URI",
+        "http://localhost:8080/integrations/google/callback",
     )
 
 

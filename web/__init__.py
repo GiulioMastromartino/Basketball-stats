@@ -302,6 +302,7 @@ def register_blueprints(app: Flask):
     from web.routes.live_v2_api import live_v2_bp
     from web.routes.pdf_export import pdf_export_bp
     from web.routes.share import share_bp
+    from web.routes.integrations import integrations_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(main_bp)
@@ -316,6 +317,7 @@ def register_blueprints(app: Flask):
     app.register_blueprint(live_v2_bp)
     app.register_blueprint(pdf_export_bp, url_prefix="/api/pdf")
     app.register_blueprint(share_bp)
+    app.register_blueprint(integrations_bp, url_prefix="/integrations")
 
 
 def register_commands(app: Flask):

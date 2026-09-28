@@ -22,6 +22,7 @@ from core.models import (
     TrainingSegmentTemplate,
 )
 from web.decorators import admin_required, team_access_required
+from core.services import drive_service
 
 training_bp = Blueprint("training", __name__)
 
@@ -101,18 +102,29 @@ def view_session(session_id):
     template_categories = sorted({t.category for t in templates if t.category})
     template_category_by_title = {t.title: (t.category or "") for t in templates}
     total_min = sum(s.duration_min or 0 for s in ts.segments)
+    # Show "Save to Drive" only when the user actually has a working link.
+    drive_ready = (
+        drive_service.is_enabled()
+        and drive_service.is_connected(int(current_user.id))
+    )
     return render_template(
         "trainings/detail.html", ts=ts, plays=plays, total_min=total_min,
         statuses=ATTENDANCE_STATUSES, templates=templates,
         template_categories=template_categories,
         template_category_by_title=template_category_by_title,
+        drive_ready=drive_ready,
     )
 
 
-@training_bp.route("/trainings/<int:session_id>/pdf")
-@login_required
-@team_access_required
-def export_session_pdf(session_id):
+def _build_session_pdf(session_id):
+    """Render a training session to PDF bytes.
+
+    Shared by the download route and the Drive route so the two can never
+    drift — the storyboard backfill in detail.html matters for both, and a
+    duplicated aggregation block would be a silent bug source.
+
+    Returns ``(training_session, filename, pdf_bytes)`` or aborts 404.
+    """
     ts = TrainingSession.query.filter_by(id=session_id, team_id=_team_id()).first()
     if not ts:
         abort(404)
@@ -147,12 +159,62 @@ def export_session_pdf(session_id):
     )
     pdf = HTML(string=html).write_pdf()
     filename = secure_filename(f"Training_{ts.session_date}_{ts.title}") or f"Training_{ts.id}"
+    return ts, f"{filename}.pdf", pdf
+
+
+def _drive_doc_name(ts, filename):
+    """Filename for the Drive copy, preserving unicode team titles.
+
+    secure_filename() (used for the HTTP header above) is ASCII-only and would
+    mangle titles like "Pick & Roll — Fernàndez" into something unreadable;
+    Drive handles UTF-8 fine, so sanitise separately.
+    """
+    return drive_service.sanitize_filename(filename)
+
+
+@training_bp.route("/trainings/<int:session_id>/pdf")
+@login_required
+@team_access_required
+def export_session_pdf(session_id):
+    ts, filename, pdf = _build_session_pdf(session_id)
     response = send_file(
         BytesIO(pdf), mimetype="application/pdf", as_attachment=True,
-        download_name=f"{filename}.pdf",
+        download_name=filename,
     )
     response.headers["Cache-Control"] = "private, no-store"
+    # Best-effort Drive copy. Never raises: a Drive outage must not turn a
+    # working download into a 500. Bytes are handed straight over — the PDF
+    # is not written to the server at any point.
+    drive_service.enqueue_or_upload(
+        int(current_user.id), "trainings", ts.team, _drive_doc_name(ts, filename),
+        pdf, record=ts,
+    )
     return response
+
+
+@training_bp.route("/trainings/<int:session_id>/pdf/drive", methods=["POST"])
+@login_required
+@team_access_required
+def export_session_pdf_to_drive(session_id):
+    """Explicit one-shot "Save to Drive", independent of the auto-upload toggle."""
+    if not drive_service.is_enabled():
+        abort(404)
+    ts, filename, pdf = _build_session_pdf(session_id)
+    if not drive_service.is_connected(int(current_user.id)):
+        flash("Connect Google Drive in Settings first.", "warning")
+        return redirect(url_for("training.view_session", session_id=ts.id))
+    file_id = drive_service.enqueue_or_upload(
+        int(current_user.id), "trainings", ts.team, _drive_doc_name(ts, filename),
+        pdf, record=ts, force=True,
+    )
+    if file_id:
+        flash("Training PDF saved to your Google Drive.", "success")
+    else:
+        flash(
+            "Could not save to Google Drive. Check your connection in Settings.",
+            "danger",
+        )
+    return redirect(url_for("training.view_session", session_id=ts.id))
 
 
 SESSION_FILE_VERSION = 1

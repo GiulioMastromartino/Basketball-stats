@@ -33,7 +33,7 @@ from core.models import (
     Player, PlayerStat, User, Game, Play, PlayType, Lineup,
     SystemSetting,
 )
-from init_db import add_missing_columns, add_notification_columns
+from init_db import add_missing_columns, add_notification_columns, add_drive_sync_columns
 from sqlalchemy import text
 
 
@@ -71,6 +71,16 @@ def run(app=None):
             print("[migrate] Notification columns added successfully.")
         except Exception as e:
             print(f"[migrate] Warning: add_notification_columns failed: {e}")
+
+        # ── 1d. Add Google Drive sync columns to training_sessions ───────
+        # The new Drive tables come from db.create_all(); only the columns on
+        # the pre-existing training_sessions table need an ALTER.
+        print("[migrate] Adding Google Drive sync columns...")
+        try:
+            add_drive_sync_columns(app)
+            print("[migrate] Drive sync columns added successfully.")
+        except Exception as e:
+            print(f"[migrate] Warning: add_drive_sync_columns failed: {e}")
 
         # ── 2. Seed players from player_stats (idempotent) ─────────────────
         try:

@@ -17,6 +17,14 @@
         <a href="{{ url_for('training.export_session_pdf', session_id=ts.id) }}" id="exportPdfBtn" class="btn btn-outline-primary">
             <i class="fas fa-file-pdf" aria-hidden="true"></i> Export PDF
         </a>
+        {% if drive_ready %}
+        <form action="{{ url_for('training.export_session_pdf_to_drive', session_id=ts.id) }}" method="POST" class="d-inline" id="saveDriveForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-success" id="saveDriveBtn" title="Copy this PDF to your Google Drive">
+                <i class="fab fa-google" aria-hidden="true"></i> Save to Drive
+            </button>
+        </form>
+        {% endif %}
         <a href="{{ url_for('training.export_session_file', session_id=ts.id) }}" class="btn btn-outline-secondary" title="Download session file">
             <i class="fas fa-download" aria-hidden="true"></i> Export
         </a>
@@ -423,35 +431,66 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Export PDF: generate any missing phase snapshots first so legacy
-    // drills (saved before snapshots existed) storyboard correctly.
+    // Export PDF / Save to Drive: generate any missing phase snapshots first
+    // so legacy drills (saved before snapshots existed) storyboard correctly.
     // Snapshots persist server-side, so this only runs once per play.
+    // Both actions must share this path, otherwise the Drive copy would
+    // silently ship without storyboard thumbnails the download has.
+    function collectPlayIds() {
+        var playIds = [];
+        document.querySelectorAll('.segment-row').forEach(function (row) {
+            var pid = row.dataset.playId;
+            if (pid && playIds.indexOf(pid) === -1) playIds.push(pid);
+        });
+        return playIds;
+    }
+
+    function withSnapshots(playIds) {
+        if (playIds.length === 0 || typeof window.renderPhaseSnapshots !== 'function') {
+            return Promise.resolve();
+        }
+        var chain = Promise.resolve();
+        playIds.forEach(function (pid) {
+            chain = chain.then(function () { return backfillPlaySnapshots(pid); });
+        });
+        // Never block the user's action on a backfill failure.
+        return chain.catch(function (err) {
+            console.warn('Snapshot backfill failed, continuing anyway:', err);
+        });
+    }
+
+    function setBusy(btn, busy, label) {
+        if (!btn) return;
+        if (busy) {
+            btn.dataset.originalHtml = btn.innerHTML;
+            btn.classList.add('disabled');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> ' + label;
+        } else {
+            btn.classList.remove('disabled');
+            if (btn.dataset.originalHtml) btn.innerHTML = btn.dataset.originalHtml;
+        }
+    }
+
     var exportBtn = document.getElementById('exportPdfBtn');
     if (exportBtn) {
         exportBtn.addEventListener('click', function (e) {
             e.preventDefault();
             var url = exportBtn.getAttribute('href');
-            var playIds = [];
-            document.querySelectorAll('.segment-row').forEach(function (row) {
-                var pid = row.dataset.playId;
-                if (pid && playIds.indexOf(pid) === -1) playIds.push(pid);
+            setBusy(exportBtn, true, 'Preparing…');
+            withSnapshots(collectPlayIds()).then(function () {
+                window.location.href = url;
             });
-            if (playIds.length === 0 || typeof window.renderPhaseSnapshots !== 'function') {
-                window.location.href = url;
-                return;
-            }
-            var original = exportBtn.innerHTML;
-            exportBtn.classList.add('disabled');
-            exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Preparing…';
-            var chain = Promise.resolve();
-            playIds.forEach(function (pid) {
-                chain = chain.then(function () { return backfillPlaySnapshots(pid); });
-            });
-            chain.then(function () {
-                window.location.href = url;
-            }).catch(function (err) {
-                console.warn('Snapshot backfill failed, exporting anyway:', err);
-                window.location.href = url;
+        });
+    }
+
+    var driveBtn = document.getElementById('saveDriveBtn');
+    var driveForm = document.getElementById('saveDriveForm');
+    if (driveBtn && driveForm) {
+        driveForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            setBusy(driveBtn, true, 'Saving…');
+            withSnapshots(collectPlayIds()).then(function () {
+                driveForm.submit();
             });
         });
     }
