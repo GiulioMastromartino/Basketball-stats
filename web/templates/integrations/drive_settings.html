@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-hero">
+    <div>
+        <h1 class="page-hero__title"><i class="fas fa-basketball-ball" aria-hidden="true"></i> Google Drive</h1>
+        <p class="page-hero__lead">
+            Copy the PDFs you export straight into your own Google Drive.
+            Nothing is stored on the server.
+        </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('main.index') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i> Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white fw-bold border-bottom">
+                <span><i class="fas fa-cloud" aria-hidden="true"></i> Export sync</span>
+            </div>
+            <div class="card-body">
+
+            {% if not drive_enabled %}
+                <div class="alert alert-secondary mb-0" role="alert">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    Google Drive sync is not configured on this server.
+                    An administrator needs to set the
+                    <code>GOOGLE_DRIVE_*</code> environment variables.
+                </div>
+
+            {% elif not drive_connection or not drive_connection.is_active %}
+                {% if drive_connection %}
+                <div class="alert alert-warning" role="alert">
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                    Your previous Drive link is no longer usable.
+                    Connect again to resume syncing.
+                </div>
+                {% endif %}
+                <p class="text-muted">
+                    Link your Google account to start. You will be sent to Google
+                    to approve access, then returned here. HoopsLab can only see
+                    the files it creates for you &mdash; nothing else in your Drive.
+                </p>
+                <a href="{{ url_for('integrations.google_start') }}" class="btn btn-success">
+                    <i class="fab fa-google" aria-hidden="true"></i> Connect Google Drive
+                </a>
+
+            {% else %}
+                {% if drive_connection.status == 'needs_reauth' %}
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                        <strong>Reconnect required.</strong>
+                        Google no longer accepts the saved grant. Disconnect and
+                        connect again to resume syncing.
+                    </div>
+                {% endif %}
+                {% if drive_connection.last_error %}
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fas fa-times-circle" aria-hidden="true"></i>
+                        Last error: {{ drive_connection.last_error }}
+                    </div>
+                {% endif %}
+
+                <p class="text-muted">
+                    {% if drive_connection.google_email %}
+                        Connected as <strong>{{ drive_connection.google_email }}</strong>.
+                    {% else %}
+                        Connected.
+                    {% endif %}
+                    Files are filed under
+                    <code>{{ drive_root_folder }}/&lt;Team&gt;/&lt;type&gt;/</code>
+                    in your Drive.
+                </p>
+
+                <form method="POST" action="{{ url_for('integrations.google_update_prefs') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox"
+                               id="drive_auto_upload" name="auto_upload"
+                               {% if drive_auto_upload %}checked{% endif %}>
+                        <label class="form-check-label" for="drive_auto_upload">
+                            Copy my exports to Drive automatically
+                            <div class="text-muted small">
+                                When off, you can still save any single export using
+                                its &ldquo;Save to Drive&rdquo; button.
+                            </div>
+                        </label>
+                    </div>
+
+                    <h6 class="mb-3">What to sync</h6>
+                    {% for t in drive_types %}
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox"
+                               id="drive_type_{{ t.key }}" name="doc_type_{{ t.key }}"
+                               {% if t.enabled %}checked{% endif %}
+                               {% if not t.available %}disabled{% endif %}>
+                        <label class="form-check-label" for="drive_type_{{ t.key }}">
+                            {{ t.label }}
+                            <div class="text-muted small">
+                                {% if t.available %}{{ t.description }}{% else %}Coming soon.{% endif %}
+                            </div>
+                        </label>
+                    </div>
+                    {% endfor %}
+
+                    <button type="submit" class="btn btn-primary">Save preferences</button>
+                </form>
+
+                <hr class="my-4">
+                <form method="POST" action="{{ url_for('integrations.google_disconnect') }}"
+                      onsubmit="return confirm('Disconnect Google Drive? Files already in your Drive are kept.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        Disconnect Google Drive
+                    </button>
+                </form>
+            {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

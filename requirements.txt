@@ -30,3 +30,11 @@ reportlab>=4.0.0
 workos==5.45.0
 httpx==0.28.1
 scipy>=1.11.0
+# Google Drive per-user export sync (OAuth 2.0, drive.file scope).
+# Pinned exactly: these pull a large transitive tree (protobuf, opentelemetry,
+# grpcio) and an unpinned range eventually breaks the reproducible build.
+google-api-python-client==2.200.0
+google-auth==2.58.1
+google-auth-oauthlib==1.4.1
+# Fernet encryption for Drive OAuth tokens at rest (see config.py).
+cryptography==50.0.1
