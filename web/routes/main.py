@@ -79,7 +79,6 @@ from core.utils import (
 from core.services.notification_service import notify_game, notify_player_performance
 from core.services import create_game_from_live_data
 from core.services.analytics_service import AnalyticsService
-from core.services import drive_service, drive_sync_types
 from web.decorators import gm_required, team_access_required, admin_view_required, require_own_org
 
 main_bp = Blueprint("main", __name__)
@@ -2300,22 +2299,6 @@ def admin_panel(section="users"):
     settings_data = db.session.query(SystemSetting).all()
     settings = {s.key: s.value for s in settings_data}
 
-    # Google Drive integration block (per-user). Rendered only when the
-    # feature is configured, so an unconfigured server shows nothing rather
-    # than a connect button that cannot work.
-    drive_enabled = drive_service.is_enabled()
-    drive_connection = None
-    drive_auto_upload = False
-    drive_types = []
-    if drive_enabled and getattr(current_user, "is_authenticated", False):
-        drive_connection = drive_service.get_connection(int(current_user.id))
-        drive_auto_upload = bool(drive_connection and drive_connection.auto_upload)
-        prefs = drive_service.get_doc_prefs(int(current_user.id))
-        drive_types = [
-            {**spec, "enabled": prefs.get(spec["key"], False)}
-            for spec in drive_sync_types.list_types(include_unavailable=True)
-        ]
-
     return render_template(
         "auth/admin.html",
         users=users,
@@ -2332,11 +2315,6 @@ def admin_panel(section="users"):
         is_auditor=bool(getattr(current_user, "is_auditor", False)),
         settings=settings,
         section=section,
-        drive_enabled=drive_enabled,
-        drive_connection=drive_connection,
-        drive_auto_upload=drive_auto_upload,
-        drive_types=drive_types,
-        drive_root_folder=current_app.config.get("GOOGLE_DRIVE_ROOT_FOLDER", "HoopsLab"),
     )
 
 

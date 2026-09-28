@@ -378,14 +378,6 @@ class TrainingSession(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Google Drive sync bookkeeping. drive_file_id makes a re-export an
-    # in-place update instead of piling up duplicate copies in the user's
-    # Drive. drive_team_name snapshots the folder path at sync time so a later
-    # team rename cannot fork the tree and orphan the file.
-    drive_file_id = db.Column(db.String(255), nullable=True)
-    drive_synced_at = db.Column(db.DateTime, nullable=True)
-    drive_team_name = db.Column(db.String(100), nullable=True)
-
     team = db.relationship("Team", backref=db.backref("training_sessions", lazy=True))
     segments = db.relationship(
         "TrainingSegment", backref="session", cascade="all, delete-orphan",
@@ -791,4 +783,44 @@ class GoogleDriveDocPref(db.Model):
     def __repr__(self):
         return (f"<GoogleDriveDocPref user={self.user_id} "
                 f"{self.doc_type} enabled={self.enabled}>")
+
+
+class GoogleDriveSyncState(db.Model):
+    """Per-user record of the last successful Drive sync of one artefact.
+
+    Deliberately keyed by user as well as artefact. Two coaches on the same
+    team export the same session, but each has their *own* Drive — the file id
+    that matters for "update in place" is the one in the exporting user's
+    Drive, not a shared one. Storing this on the artefact itself makes the two
+    users fight over the same row and ping-pong 404s.
+
+    ``team_name`` snapshots the folder path at sync time so a later team
+    rename cannot fork the tree and orphan the file.
+    """
+
+    __tablename__ = "google_drive_sync_states"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    doc_type = db.Column(db.String(50), nullable=False)
+    # Logical artefact identity, e.g. "training_session".
+    target_type = db.Column(db.String(50), nullable=False)
+    target_id = db.Column(db.Integer, nullable=False)
+    drive_file_id = db.Column(db.String(255), nullable=True)
+    synced_at = db.Column(db.DateTime, nullable=True)
+    team_name = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+                           nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "user_id", "doc_type", "target_type", "target_id",
+            name="uq_drive_sync_state",
+        ),
+    )
+
+    def __repr__(self):
+        return (f"<GoogleDriveSyncState user={self.user_id} "
+                f"{self.doc_type} {self.target_type}:{self.target_id}>")
 

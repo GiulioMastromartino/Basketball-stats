@@ -162,14 +162,16 @@ def _build_session_pdf(session_id):
     return ts, f"{filename}.pdf", pdf
 
 
-def _drive_doc_name(ts, filename):
-    """Filename for the Drive copy, preserving unicode team titles.
+def _drive_doc_name(ts):
+    """Filename for the Drive copy, preserving unicode session titles.
 
-    secure_filename() (used for the HTTP header above) is ASCII-only and would
-    mangle titles like "Pick & Roll — Fernàndez" into something unreadable;
-    Drive handles UTF-8 fine, so sanitise separately.
+    Built from the raw title, not from the value secure_filename() produced
+    for the HTTP header: secure_filename is ASCII-only and would already have
+    mangled "Fernàndez" to "Fernandez" before we ever saw it. Drive handles
+    UTF-8 fine, so sanitise the original separately.
     """
-    return drive_service.sanitize_filename(filename)
+    raw = f"Training_{ts.session_date}_{ts.title}".strip()
+    return drive_service.sanitize_filename(raw, fallback=f"Training_{ts.id}.pdf")
 
 
 @training_bp.route("/trainings/<int:session_id>/pdf")
@@ -184,10 +186,12 @@ def export_session_pdf(session_id):
     response.headers["Cache-Control"] = "private, no-store"
     # Best-effort Drive copy. Never raises: a Drive outage must not turn a
     # working download into a 500. Bytes are handed straight over — the PDF
-    # is not written to the server at any point.
+    # is not written to the server at any point. Bounded by
+    # GOOGLE_DRIVE_TOTAL_TIMEOUT so the request stays well inside gunicorn's
+    # 120s worker timeout.
     drive_service.enqueue_or_upload(
-        int(current_user.id), "trainings", ts.team, _drive_doc_name(ts, filename),
-        pdf, record=ts,
+        int(current_user.id), "trainings", ts.team, _drive_doc_name(ts), pdf,
+        target_type="training_session", target_id=ts.id,
     )
     return response
 
@@ -204,8 +208,8 @@ def export_session_pdf_to_drive(session_id):
         flash("Connect Google Drive in Settings first.", "warning")
         return redirect(url_for("training.view_session", session_id=ts.id))
     file_id = drive_service.enqueue_or_upload(
-        int(current_user.id), "trainings", ts.team, _drive_doc_name(ts, filename),
-        pdf, record=ts, force=True,
+        int(current_user.id), "trainings", ts.team, _drive_doc_name(ts), pdf,
+        target_type="training_session", target_id=ts.id, force=True,
     )
     if file_id:
         flash("Training PDF saved to your Google Drive.", "success")

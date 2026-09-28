@@ -239,57 +239,6 @@ def add_notification_columns(app):
                 print("  ✓ Added whatsapp_phone to players")
 
 
-def add_drive_sync_columns(app):
-    """Add the Google Drive sync columns to training_sessions.
-
-    The two new tables (google_drive_connections, google_drive_doc_prefs) are
-    created by db.create_all() from the models. Only the columns added to the
-    *existing* training_sessions table need an explicit ALTER.
-
-    drive_file_id makes a re-export an in-place update instead of leaving a
-    duplicate copy in the user's Drive. drive_team_name snapshots the folder
-    path at sync time so a later team rename cannot fork the tree.
-
-    Safe to re-run — uses inspect() before each ALTER.
-    """
-    with app.app_context():
-        print("[Schema Check] Adding Google Drive sync columns...")
-        inspector = inspect(db.engine)
-
-        if not inspector.has_table("training_sessions"):
-            print("  ! training_sessions missing, skipping (create_all will make it)")
-            return
-
-        added = False
-        with db.engine.connect() as conn:
-            cols = {c["name"] for c in inspector.get_columns("training_sessions")}
-            if "drive_file_id" not in cols:
-                conn.execute(text(
-                    "ALTER TABLE training_sessions "
-                    "ADD COLUMN drive_file_id VARCHAR(255) DEFAULT NULL"
-                ))
-                added = True
-                print("  ✓ Added drive_file_id to training_sessions")
-            if "drive_synced_at" not in cols:
-                conn.execute(text(
-                    "ALTER TABLE training_sessions "
-                    "ADD COLUMN drive_synced_at TIMESTAMP DEFAULT NULL"
-                ))
-                added = True
-                print("  ✓ Added drive_synced_at to training_sessions")
-            if "drive_team_name" not in cols:
-                conn.execute(text(
-                    "ALTER TABLE training_sessions "
-                    "ADD COLUMN drive_team_name VARCHAR(100) DEFAULT NULL"
-                ))
-                added = True
-                print("  ✓ Added drive_team_name to training_sessions")
-            if added:
-                conn.commit()
-        if not added:
-            print("  ✓ Google Drive sync columns already present")
-
-
 def backfill_lineups(app):
     """Backfill lineup data - create lineups and link segments."""
     with app.app_context():

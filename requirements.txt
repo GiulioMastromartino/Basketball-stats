@@ -37,4 +37,4 @@ google-api-python-client==2.200.0
 google-auth==2.58.1
 google-auth-oauthlib==1.4.1
 # Fernet encryption for Drive OAuth tokens at rest (see config.py).
-cryptography==46.0.5
+cryptography==50.0.1

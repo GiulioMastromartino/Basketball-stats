@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import threading
 import time
 import unicodedata
 from datetime import datetime, timedelta
@@ -32,7 +33,9 @@ from datetime import datetime, timedelta
 from flask import current_app
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
-from core.models import db, GoogleDriveConnection, GoogleDriveDocPref
+from core.models import (
+    db, GoogleDriveConnection, GoogleDriveDocPref, GoogleDriveSyncState,
+)
 from core.services import drive_sync_types
 
 # drive.file only. Adding a broader scope here would change the app's Google
@@ -59,6 +62,56 @@ class DriveSyncError(Exception):
     Auto-upload callers must use :func:`enqueue_or_upload`, which swallows
     failures; explicit "Save to Drive" actions may surface this.
     """
+
+
+class DriveTimeout(DriveSyncError):
+    """The sync's total time budget was exhausted."""
+
+
+# ---------------------------------------------------------------------------
+# Total time budget
+# ---------------------------------------------------------------------------
+#
+# Gunicorn kills a worker that has not responded within 120s (gunicorn_config.py
+# timeout = 120). A single export can make several sequential Drive calls, each
+# of which may be retried, so per-request timeouts alone are not enough to
+# bound the total.
+#
+# The deadline is thread-local: gunicorn runs with threads = 2, so two exports
+# can be in flight in the same process and must not share a budget.
+
+_budget = threading.local()
+
+
+def _total_timeout() -> int:
+    return int(current_app.config.get("GOOGLE_DRIVE_TOTAL_TIMEOUT", 45))
+
+
+def _start_budget(seconds=None):
+    """Begin a total time budget. Returns the monotonic deadline."""
+    limit = _total_timeout() if seconds is None else seconds
+    _budget.deadline = time.monotonic() + limit
+    return _budget.deadline
+
+
+def _clear_budget():
+    _budget.deadline = None
+
+
+def _remaining_budget():
+    deadline = getattr(_budget, "deadline", None)
+    if deadline is None:
+        return None
+    return deadline - time.monotonic()
+
+
+def _check_deadline():
+    deadline = getattr(_budget, "deadline", None)
+    if deadline is not None and time.monotonic() >= deadline:
+        raise DriveTimeout(
+            "Google Drive took too long to respond. The file may not have been "
+            "saved; try again."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -266,6 +319,31 @@ def build_auth_url(state: str) -> str:
     return f"{AUTH_ENDPOINT}?{urlencode(params)}"
 
 
+def _build_flow():
+    """Construct the OAuth authorization-code flow.
+
+    ``google.oauth2.credentials.Credentials`` has no ``fetch_token`` method —
+    the code-for-token exchange belongs to ``google_auth_oauthlib.flow.Flow``,
+    which owns the client_config plumbing. Credentials objects are what come
+    *out* of the exchange, not the thing that performs it.
+    """
+    from google_auth_oauthlib.flow import Flow
+
+    cfg = current_app.config
+    client_config = {
+        "web": {
+            "client_id": cfg["GOOGLE_DRIVE_CLIENT_ID"],
+            "client_secret": cfg["GOOGLE_DRIVE_CLIENT_SECRET"],
+            "auth_uri": AUTH_ENDPOINT,
+            "token_uri": TOKEN_ENDPOINT,
+            "redirect_uris": [redirect_uri()],
+        }
+    }
+    return Flow.from_client_config(
+        client_config, scopes=SCOPES, redirect_uri=redirect_uri()
+    )
+
+
 def connect(user_id: int, code: str):
     """Exchange an authorization code and store the connection.
 
@@ -273,26 +351,16 @@ def connect(user_id: int, code: str):
     time, rather than silently on someone's first export.
     """
     _require_enabled()
-    from google.oauth2.credentials import Credentials
 
-    cfg = current_app.config
-    creds = Credentials(
-        token=None,
-        refresh_token=None,
-        token_uri=TOKEN_ENDPOINT,
-        client_id=cfg["GOOGLE_DRIVE_CLIENT_ID"],
-        client_secret=cfg["GOOGLE_DRIVE_CLIENT_SECRET"],
-    )
     try:
-        creds.fetch_token(
-            code=code, redirect_uri=redirect_uri(),
-            client_secret=cfg["GOOGLE_DRIVE_CLIENT_SECRET"],
-        )
+        flow = _build_flow()
+        flow.fetch_token(code=code)
     except Exception as exc:
         current_app.logger.warning("Google Drive token exchange failed: %s", exc)
         raise DriveSyncError("Google rejected the authorization code.") from exc
 
-    if not creds.refresh_token:
+    creds = flow.credentials
+    if not creds or not creds.refresh_token:
         # Should not happen with prompt=consent, but a user who previously
         # revoked the grant can produce exactly this.
         raise DriveSyncError(
@@ -449,6 +517,11 @@ def _build_service(creds):
         int(cfg.get("GOOGLE_DRIVE_CONNECT_TIMEOUT", 30)),
         int(cfg.get("GOOGLE_DRIVE_IO_TIMEOUT", 120)),
     )
+    # Never let a single call outlive the operation's remaining budget, or the
+    # gunicorn worker's 120s request timeout.
+    remaining = _remaining_budget()
+    if remaining is not None:
+        timeout = max(1, min(timeout, int(remaining) or 1))
     # The timeout goes on the underlying httplib2 handle, not on AuthorizedHttp
     # (which takes no timeout kwarg in google-auth-httplib2 0.4.x). A hung
     # Drive call must not pin a gunicorn worker indefinitely.
@@ -472,16 +545,22 @@ def _is_retryable(exc) -> bool:
 
 
 def _with_retry(fn, attempts: int = DEFAULT_RETRIES):
-    """Call ``fn`` with exponential backoff on rate-limit/transient errors."""
+    """Call ``fn`` with exponential backoff on rate-limit/transient errors.
+
+    Bails out once the sync's total deadline has passed, so the number of
+    sequential Drive operations in one export can never add up past the
+    worker's request budget.
+    """
     last = None
     for i in range(attempts):
+        _check_deadline()
         try:
             return fn()
         except Exception as exc:
             last = exc
             if i == attempts - 1 or not _is_retryable(exc):
                 raise
-            time.sleep(2 ** i * 0.5)
+            time.sleep(min(2 ** i * 0.5, _remaining_budget() or 0))
     raise last
 
 
@@ -581,12 +660,45 @@ def _load_folder_cache(conn) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _forget_folder_cache(user_id: int, doc_type: str, team_id) -> None:
+    """Drop cached folder ids so the next attempt re-resolves the path.
+
+    Needed when the user deletes or moves a folder in their Drive: the cached
+    id still looks valid to us, but every subsequent upload would 404 until
+    the connection was re-linked.
+    """
+    conn = get_connection(user_id)
+    if conn is None:
+        return
+    conn.folder_cache = None
+    conn.root_folder_id = None
+    db.session.commit()
+
+
+def _resolve_folder_uncached(user_id: int, doc_type: str, team_name: str, spec) -> str:
+    conn = get_connection(user_id)
+    service = _get_service(user_id)
+    root_id = conn.root_folder_id
+    if not root_id:
+        root_id = _find_or_create_folder(service, _root_folder_name(), parent_id=None)
+        conn.root_folder_id = root_id
+    team_drive = _find_or_create_folder(
+        service, sanitize_folder_segment(team_name), parent_id=root_id
+    )
+    return _find_or_create_folder(service, spec["folder"], parent_id=team_drive)
+
+
 def resolve_folder_path(user_id: int, doc_type: str, team_id, team_name: str) -> str:
     """Find-or-create ``<root>/<team>/<leaf>`` and return the leaf folder id.
 
     Results are cached per (doc_type, team_id) on the connection row so a
     repeated upload does not pay for two ``files().list()`` round trips.
+
+    If a cached folder turns out to be gone (the user deleted it in Drive),
+    the cache is dropped and the whole path is resolved once more.
     """
+    from googleapiclient.errors import HttpError
+
     spec = drive_sync_types.get_spec(doc_type)
     if not spec:
         raise DriveSyncError(f"Unknown document type: {doc_type!r}")
@@ -601,20 +713,22 @@ def resolve_folder_path(user_id: int, doc_type: str, team_id, team_name: str) ->
     if cache.get(cache_key) and conn.root_folder_id:
         return cache[cache_key]
 
-    service = _get_service(user_id)
-    root_id = conn.root_folder_id
-    if not root_id:
-        root_id = _find_or_create_folder(service, _root_folder_name(), parent_id=None)
-        conn.root_folder_id = root_id
+    try:
+        leaf_id = _resolve_folder_uncached(user_id, doc_type, team_name, spec)
+    except HttpError as exc:
+        if getattr(getattr(exc, "resp", None), "status", None) not in (404, 400):
+            raise
+        # A stale id is in play somewhere in the chain (typically root_folder_id
+        # from a previous session). Forget everything and rebuild it.
+        current_app.logger.info(
+            "Drive folder path for %s/%s was stale; re-resolving.", doc_type, team_id
+        )
+        _forget_folder_cache(user_id, doc_type, team_id)
+        leaf_id = _resolve_folder_uncached(user_id, doc_type, team_name, spec)
 
-    team_id_drive = _find_or_create_folder(
-        service, sanitize_folder_segment(team_name), parent_id=root_id
-    )
-    leaf_id = _find_or_create_folder(
-        service, spec["folder"], parent_id=team_id_drive
-    )
-
+    cache = _load_folder_cache(get_connection(user_id))
     cache[cache_key] = leaf_id
+    conn = get_connection(user_id)
     conn.folder_cache = json.dumps(cache)
     db.session.commit()
     return leaf_id
@@ -673,17 +787,32 @@ def upload_pdf(user_id: int, folder_id: str, filename: str, data: bytes,
     return created["id"]
 
 
-def _apply_sync_record(record, file_id: str, team_name: str) -> None:
-    if record is None:
-        return
-    record.drive_file_id = file_id
-    record.drive_synced_at = datetime.utcnow()
-    record.drive_team_name = (team_name or "")[:100] or None
+def get_sync_state(user_id: int, doc_type: str, target_type: str, target_id):
+    return GoogleDriveSyncState.query.filter_by(
+        user_id=user_id, doc_type=doc_type,
+        target_type=target_type, target_id=target_id,
+    ).first()
+
+
+def _record_sync_state(user_id: int, doc_type: str, target_type: str,
+                       target_id, file_id: str, team_name: str) -> None:
+    """Persist the last successful sync for this (user, artefact) pair."""
+    state = get_sync_state(user_id, doc_type, target_type, target_id)
+    if state is None:
+        state = GoogleDriveSyncState(
+            user_id=user_id, doc_type=doc_type,
+            target_type=target_type, target_id=target_id,
+        )
+        db.session.add(state)
+    state.drive_file_id = file_id
+    state.synced_at = datetime.utcnow()
+    state.team_name = (team_name or "")[:100] or None
     db.session.commit()
 
 
 def enqueue_or_upload(user_id: int, doc_type: str, team, filename: str,
-                      data: bytes, record=None, force: bool = False):
+                      data: bytes, target_type: str = None, target_id=None,
+                      force: bool = False):
     """Best-effort sync used by the auto-upload hook.
 
     Never raises: a Drive problem must not turn a working PDF download into a
@@ -691,6 +820,10 @@ def enqueue_or_upload(user_id: int, doc_type: str, team, filename: str,
 
     ``force=True`` backs the explicit "Save to Drive" button, which works even
     when auto-upload is off, but still never raises.
+
+    ``target_type``/``target_id`` identify the logical artefact so the resulting
+    file id is remembered per (user, artefact) — two coaches on one team each
+    track their own copy in their own Drive.
     """
     if not is_enabled():
         return None
@@ -707,21 +840,13 @@ def enqueue_or_upload(user_id: int, doc_type: str, team, filename: str,
 
     team_id = getattr(team, "id", None)
     team_name = getattr(team, "name", "") or ""
-    remote_file_id = getattr(record, "drive_file_id", None) if record else None
 
+    _start_budget()
     try:
-        folder_id = resolve_folder_path(user_id, doc_type, team_id, team_name)
-        file_id = upload_pdf(
-            user_id, folder_id, filename, data, remote_file_id=remote_file_id
+        return _sync_once(
+            user_id, doc_type, team_id, team_name, filename, data,
+            target_type, target_id,
         )
-        _apply_sync_record(record, file_id, team_name)
-        conn.last_error = None
-        db.session.commit()
-        current_app.logger.info(
-            "Drive sync ok user=%s type=%s team=%s file=%s",
-            user_id, doc_type, team_id, file_id,
-        )
-        return file_id
     except DriveSyncError as exc:
         if "re-link" in str(exc).lower() or "rejected" in str(exc).lower():
             # Already recorded by _refresh_credentials / mark_needs_reauth.
@@ -735,3 +860,59 @@ def enqueue_or_upload(user_id: int, doc_type: str, team, filename: str,
         current_app.logger.warning("Drive sync failed user=%s: %s", user_id, exc)
         _record_error(user_id, str(exc))
         return None
+    finally:
+        _clear_budget()
+
+
+def _sync_once(user_id: int, doc_type: str, team_id, team_name: str,
+               filename: str, data: bytes,
+               target_type: str, target_id):
+    """One attempt at resolve + upload, with a single retry for stale folders.
+
+    When the user deletes a folder in their Drive, our cached folder ids go
+    stale. A create into a deleted parent fails with 404/400 — not with a
+    useful message — so the response is to forget the whole cached path and
+    rebuild it once, then give up loudly if that still fails.
+    """
+    from googleapiclient.errors import HttpError
+
+    conn = get_connection(user_id)
+    trackable = bool(target_type) and target_id is not None
+    state = (
+        get_sync_state(user_id, doc_type, target_type, target_id)
+        if trackable else None
+    )
+    remote_file_id = state.drive_file_id if state else None
+
+    for attempt in ("first", "after_re_resolve"):
+        try:
+            folder_id = resolve_folder_path(
+                user_id, doc_type, team_id, team_name)
+            file_id = upload_pdf(
+                user_id, folder_id, filename, data,
+                remote_file_id=remote_file_id,
+            )
+        except HttpError as exc:
+            status = getattr(getattr(exc, "resp", None), "status", None)
+            if status in (400, 404) and attempt == "first":
+                current_app.logger.info(
+                    "Drive upload for %s/%s hit a deleted folder; "
+                    "re-resolving the path.", doc_type, target_id,
+                )
+                _forget_folder_cache(user_id, doc_type, team_id)
+                remote_file_id = None
+                continue
+            raise
+        else:
+            if trackable:
+                _record_sync_state(
+                    user_id, doc_type, target_type, target_id, file_id,
+                    team_name,
+                )
+            conn.last_error = None
+            db.session.commit()
+            current_app.logger.info(
+                "Drive sync ok user=%s type=%s team=%s file=%s",
+                user_id, doc_type, team_id, file_id,
+            )
+            return file_id

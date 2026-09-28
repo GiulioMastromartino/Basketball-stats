@@ -113,9 +113,16 @@ class Config:
     GOOGLE_DRIVE_ROOT_FOLDER = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER", "HoopsLab")
     # Hard ceilings so a hung Drive call cannot pin a gunicorn worker.
     GOOGLE_DRIVE_CONNECT_TIMEOUT = int(
-        os.getenv("GOOGLE_DRIVE_CONNECT_TIMEOUT", "30")
+        os.getenv("GOOGLE_DRIVE_CONNECT_TIMEOUT", "10")
     )
-    GOOGLE_DRIVE_IO_TIMEOUT = int(os.getenv("GOOGLE_DRIVE_IO_TIMEOUT", "120"))
+    GOOGLE_DRIVE_IO_TIMEOUT = int(os.getenv("GOOGLE_DRIVE_IO_TIMEOUT", "20"))
+    # Total wall-clock budget for one whole sync (resolve folders + upload),
+    # across every call and retry. Gunicorn kills a worker at 120s
+    # (gunicorn_config.py), so this must stay comfortably below that; the
+    # default 45s leaves ample room for the rest of the request.
+    GOOGLE_DRIVE_TOTAL_TIMEOUT = int(
+        os.getenv("GOOGLE_DRIVE_TOTAL_TIMEOUT", "45")
+    )
 
     # Evolution API WhatsApp gateway (Baileys provider, self-hosted)
     EVOLUTION_API_URL  = os.getenv("EVOLUTION_API_URL", "")

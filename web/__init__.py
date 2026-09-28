@@ -161,6 +161,14 @@ def create_app(config_name: str = None) -> Flask:
             "current_team_id": session.get("current_team_id"),
             "current_team_name": session.get("current_team_name"),
             "v2_console_alpha": bool(app.config.get("V2_CONSOLE_ALPHA", False)),
+            # Boolean only. Templates must never read Drive secrets straight
+            # off `config`, which exposes every key in the app config.
+            "drive_sync_enabled": bool(
+                app.config.get("GOOGLE_DRIVE_CLIENT_ID")
+                and app.config.get("GOOGLE_DRIVE_CLIENT_SECRET")
+                and app.config.get("GOOGLE_DRIVE_TOKEN_KEY")
+                and app.config.get("GOOGLE_DRIVE_REDIRECT_URI")
+            ),
         }
         try:
             if current_user.is_authenticated:

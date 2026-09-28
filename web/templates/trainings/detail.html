@@ -451,7 +451,14 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         var chain = Promise.resolve();
         playIds.forEach(function (pid) {
-            chain = chain.then(function () { return backfillPlaySnapshots(pid); });
+            // Catch per play, not once at the end: a single failure must not
+            // skip the backfill for every remaining drill, or later
+            // storyboards ship without thumbnails.
+            chain = chain.then(function () {
+                return backfillPlaySnapshots(pid).catch(function (err) {
+                    console.warn('Snapshot backfill failed for play ' + pid + ':', err);
+                });
+            });
         });
         // Never block the user's action on a backfill failure.
         return chain.catch(function (err) {

@@ -7,6 +7,7 @@ create/update, and fault injection so the behaviour that actually matters
 (idempotent re-export, failure isolation, folder caching) is exercised.
 """
 
+import contextlib
 import json
 import unittest
 from datetime import datetime, timedelta
@@ -63,6 +64,13 @@ class _FakeFiles:
     def list(self, q=None, **kwargs):
         name, parent = _parse_q(q)
         self.svc.list_calls.append(q)
+        if self.svc.list_404:
+            # Models a cached folder id that no longer exists. Only the first
+            # call fails, so the service's re-resolve attempt can succeed.
+            self.svc.list_404 = False
+            raise HttpError(
+                mock.Mock(status=404, reason="notFound"), b"not found"
+            )
         matches = [
             {"id": fid} for fid, meta in self.svc.folder_records.items()
             if meta["name"] == name and meta["parents"] == parent
@@ -71,30 +79,49 @@ class _FakeFiles:
 
     def create(self, body=None, media_body=None, **kwargs):
         self.svc.create_calls.append(body)
-        # Folder creates carry no media; only count real file uploads.
+        if body.get("mimeType") == FOLDER_MIME:
+            parent = (body.get("parents") or [None])[0]
+            # A folder whose parent was deleted cannot be created either.
+            if parent is not None and parent not in self.svc.folder_records:
+                raise HttpError(
+                    mock.Mock(status=404, reason="notFound"), b"not found"
+                )
+            # Folder creates carry no media; only count real file uploads.
+            fid = f"id{self.svc.next_id}"
+            self.svc.next_id += 1
+            self.svc.folder_records[fid] = {
+                "name": body["name"],
+                "parents": parent,
+            }
+            return _Exec({"id": fid})
+
+        parent = (body.get("parents") or [None])[0]
+        # Models the real failure when our cached folder ids are stale: the
+        # create lands in a folder that no longer exists.
+        if parent is not None and parent not in self.svc.folder_records:
+            raise HttpError(
+                mock.Mock(status=404, reason="notFound"), b"not found"
+            )
         if media_body is not None:
             self.svc.media_bodies.append(media_body)
         fid = f"id{self.svc.next_id}"
         self.svc.next_id += 1
-        if body.get("mimeType") == FOLDER_MIME:
-            self.svc.folder_records[fid] = {
-                "name": body["name"],
-                "parents": (body.get("parents") or [None])[0],
-            }
-        else:
-            self.svc.file_records[fid] = {
-                "name": body.get("name"),
-                "parents": (body.get("parents") or [None])[0],
-            }
+        self.svc.file_records[fid] = {
+            "name": body.get("name"),
+            "parents": parent,
+        }
         return _Exec({"id": fid})
 
     def update(self, fileId=None, media_body=None, **kwargs):
         self.svc.update_calls.append(fileId)
-        if fileId in self.svc.update_404:
+        # An update to a file that no longer exists (or whose folder was
+        # deleted) 404s, just like the real API.
+        if fileId in self.svc.update_404 or fileId not in self.svc.file_records:
             raise HttpError(
                 mock.Mock(status=404, reason="notFound"), b"not found"
             )
-        self.svc.media_bodies.append(media_body)
+        if media_body is not None:
+            self.svc.media_bodies.append(media_body)
         return _Exec({"id": fileId})
 
 
@@ -109,10 +136,21 @@ class FakeDriveService:
         self.update_calls = []
         self.media_bodies = []
         self.update_404 = set()
+        self.list_404 = False
         self.next_id = 1
 
     def files(self):
         return _FakeFiles(self)
+
+    def reset_folders(self):
+        """Forget the folder tree, as if the user deleted it in Drive.
+
+        Deleting a folder destroys its contents, so file ids go stale too.
+        """
+        self.folder_records = {}
+        self.file_records = {}
+        self.list_404 = True
+
 
     # -- helpers for assertions -------------------------------------------
     def created_folder_names(self):
@@ -239,6 +277,36 @@ class DriveTestCase(unittest.TestCase):
         db.session.commit()
         return ts
 
+    def _login_as(self, user):
+        """Switch the test client to act as ``user``."""
+        with self.client.session_transaction() as sess:
+            sess["_user_id"] = str(user.id)
+            sess["_fresh"] = True
+            sess["current_team_id"] = self.team.id
+            sess["current_team_name"] = self.team.name
+        # Flask-Login caches the loaded user on flask.g, which lives on the
+        # app context this test holds open for its whole lifetime. Without
+        # this, the next request would keep seeing the previous user even
+        # though the session now says otherwise.
+        from flask import g
+
+        g.pop("_login_user", None)
+
+    def demote_to_coach(self):
+        """Strip GM rights, leaving a plain coach on the team.
+
+        Drive linking is a per-user action, so the UI must not be gated behind
+        admin_view_required (GM or auditor).
+        """
+        from core.models import OrganizationMembership
+
+        OrganizationMembership.query.filter_by(
+            user_id=self.user.id, is_gm=True
+        ).update({"is_gm": False})
+        db.session.commit()
+        db.session.refresh(self.user)
+        return self.user
+
 
 # ---------------------------------------------------------------------------
 # Config gating
@@ -262,8 +330,9 @@ class TestFeatureFlag(DriveTestCase):
         resp = self.client.get(f"/trainings/{ts.id}")
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn(b'id="saveDriveForm"', resp.data)
-        admin = self.client.get("/admin/settings")
-        self.assertIn(b"not configured on this server", admin.data)
+        settings = self.client.get("/integrations/google")
+        self.assertEqual(settings.status_code, 200)
+        self.assertIn(b"not configured on this server", settings.data)
 
     def test_missing_token_key_never_falls_back_to_plaintext(self):
         # Token key absent => feature off, even with client id/secret present.
@@ -510,16 +579,38 @@ class TestDisconnectAndPrefs(DriveTestCase):
         self.assertEqual(GoogleDriveDocPref.query.count(), 0)
 
     def test_settings_shows_connect_when_disconnected(self):
-        resp = self.client.get("/admin/settings")
+        resp = self.client.get("/integrations/google")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"Connect Google Drive", resp.data)
 
     def test_settings_shows_disconnect_when_connected(self):
         self.make_connection()
-        resp = self.client.get("/admin/settings")
+        resp = self.client.get("/integrations/google")
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b"Disconnect", resp.data)
-        self.assertNotIn(b"Connect Google Drive", resp.data)
+        self.assertIn(b"Disconnect Google Drive", resp.data)
+        self.assertNotIn(b">Connect Google Drive", resp.data)
+
+    def test_settings_reachable_by_a_plain_coach(self):
+        # The whole point is per-user linking, so a non-GM coach must be able
+        # to reach the page. admin_panel is behind admin_view_required.
+        self.demote_to_coach()
+        self.assertFalse(self.user.is_gm)
+        denied = self.client.get("/admin/settings")
+        self.assertEqual(denied.status_code, 302)  # blocked from admin panel
+        allowed = self.client.get("/integrations/google")
+        self.assertEqual(allowed.status_code, 200)
+        self.assertIn(b"Connect Google Drive", allowed.data)
+
+    def test_coach_can_complete_the_link_flow(self):
+        self.demote_to_coach()
+        state = drive_service.build_state(self.user.id)
+        with mock.patch.object(drive_service, "connect") as connect:
+            resp = self.client.get(
+                f"/integrations/google/callback?code=abc&state={state}")
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(connect.called)
+        # Must not bounce the coach to a page they cannot see.
+        self.assertIn("/integrations/google", resp.headers["Location"])
 
 
 # ---------------------------------------------------------------------------
@@ -564,7 +655,8 @@ class TestAutoUploadGating(DriveTestCase):
         # Highest-severity contract: a Drive outage must not corrupt or
         # replace the PDF the user asked to download.
         self.assertEqual(resp.data, b"%PDF-1.4 fake")
-        self.assertIsNone(ts.drive_file_id)
+        self.assertIsNone(drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id))
 
     def test_drive_failure_records_last_error(self):
         self.enable_prefs(auto_upload=True, trainings=True)
@@ -580,8 +672,10 @@ class TestAutoUploadGating(DriveTestCase):
         resp = self.client.get(f"/trainings/{ts.id}/pdf")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(self.drive.created_file_names()), 1)
-        self.assertIsNotNone(ts.drive_file_id)
-        self.assertIsNotNone(ts.drive_synced_at)
+        state = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id)
+        self.assertIsNotNone(state.drive_file_id)
+        self.assertIsNotNone(state.synced_at)
 
 
 # ---------------------------------------------------------------------------
@@ -655,20 +749,24 @@ class TestReExportIsIdempotent(DriveTestCase):
         self.enable_prefs(auto_upload=True, trainings=True)
         ts = self.make_session()
         self.client.get(f"/trainings/{ts.id}/pdf")
-        first_id = ts.drive_file_id
+        state = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id)
+        first_id = state.drive_file_id
         self.assertEqual(len(self.drive.create_calls), 4)  # 3 folders + 1 file
 
         self.client.get(f"/trainings/{ts.id}/pdf")
         # No new file created; the existing one was updated.
         self.assertEqual(len(self.drive.created_file_names()), 1)
         self.assertEqual(self.drive.update_calls, [first_id])
-        self.assertEqual(ts.drive_file_id, first_id)
+        self.assertEqual(state.drive_file_id, first_id)
 
     def test_team_name_snapshot_recorded(self):
         self.enable_prefs(auto_upload=True, trainings=True)
         ts = self.make_session()
         self.client.get(f"/trainings/{ts.id}/pdf")
-        self.assertEqual(ts.drive_team_name, "Test Team")
+        state = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id)
+        self.assertEqual(state.team_name, "Test Team")
 
     def test_deleted_drive_file_is_recreated(self):
         # If the user deleted the file, a 404 must fall back to create rather
@@ -676,7 +774,9 @@ class TestReExportIsIdempotent(DriveTestCase):
         self.enable_prefs(auto_upload=True, trainings=True)
         ts = self.make_session()
         self.client.get(f"/trainings/{ts.id}/pdf")
-        self.drive.update_404.add(ts.drive_file_id)
+        state = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id)
+        self.drive.update_404.add(state.drive_file_id)
         self.client.get(f"/trainings/{ts.id}/pdf")
         self.assertEqual(len(self.drive.created_file_names()), 2)
 
@@ -705,7 +805,8 @@ class TestExplicitSaveToDrive(DriveTestCase):
                                 follow_redirects=True)
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(self.drive.created_file_names()), 1)
-        self.assertIsNotNone(ts.drive_file_id)
+        self.assertIsNotNone(drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id))
 
     def test_prompts_to_connect_when_not_linked(self):
         ts = self.make_session()
@@ -862,3 +963,354 @@ class TestCredentialLifecycle(DriveTestCase):
             drive_service.SCOPES,
             ["https://www.googleapis.com/auth/drive.file"],
         )
+
+
+# ---------------------------------------------------------------------------
+# Token exchange (regression: Credentials has no fetch_token)
+# ---------------------------------------------------------------------------
+
+class TestTokenExchange(DriveTestCase):
+    """The link flow must actually work.
+
+    An earlier revision called ``Credentials.fetch_token``, which does not
+    exist — every link attempt raised AttributeError. These tests drive the
+    real code path with only the HTTP exchange faked.
+    """
+
+    def _fake_creds(self, refresh_token="rt-123", token="at-456"):
+        creds = mock.MagicMock()
+        creds.refresh_token = refresh_token
+        creds.token = token
+        creds.expiry = None
+        return creds
+
+    def _patch_flow(self, creds, fetch_side_effect=None):
+        """Fake both halves of connect(): the token exchange and the client.
+
+        A MagicMock credentials object cannot drive a real googleapiclient
+        build (it fails universe-domain validation), so _build_service is
+        stubbed alongside the flow.
+        """
+        flow = mock.MagicMock()
+        flow.credentials = creds
+        if fetch_side_effect is not None:
+            flow.fetch_token.side_effect = fetch_side_effect
+        stack = contextlib.ExitStack()
+        stack.enter_context(
+            mock.patch.object(drive_service, "_build_flow", return_value=flow))
+        stack.enter_context(
+            mock.patch.object(drive_service, "_build_service",
+                              return_value=self.drive))
+        self.addCleanup(stack.close)
+        return flow
+
+    def test_successful_exchange_stores_encrypted_connection(self):
+        with self._patch_flow(self._fake_creds()):
+            conn = drive_service.connect(self.user.id, "auth-code")
+        self.assertIsNotNone(conn)
+        row = drive_service.get_connection(self.user.id)
+        self.assertEqual(row.status, GoogleDriveConnection.STATUS_ACTIVE)
+        self.assertEqual(drive_service.decrypt_token(row.refresh_token_enc), "rt-123")
+        # Token must never be readable straight out of the column.
+        self.assertNotIn("rt-123", row.refresh_token_enc)
+        self.assertEqual(row.scopes, " ".join(drive_service.SCOPES))
+
+    def test_exchange_uses_the_flow_not_credentials_fetch_token(self):
+        flow = self._patch_flow(self._fake_creds())
+        drive_service.connect(self.user.id, "auth-code")
+        flow.fetch_token.assert_called_once_with(code="auth-code")
+
+    def test_credentials_class_really_lacks_fetch_token(self):
+        # Guards the original bug directly, so a future refactor back to
+        # Credentials.fetch_token fails here rather than in production.
+        from google.oauth2.credentials import Credentials
+
+        self.assertFalse(hasattr(Credentials, "fetch_token"))
+
+    def test_rejected_code_raises_drive_sync_error(self):
+        with self._patch_flow(self._fake_creds(),
+                             fetch_side_effect=ValueError("bad code")):
+            with self.assertRaises(drive_service.DriveSyncError):
+                drive_service.connect(self.user.id, "bad")
+        self.assertIsNone(drive_service.get_connection(self.user.id))
+
+    def test_missing_refresh_token_reports_clearly(self):
+        # Happens when a user revoked the grant and re-consents oddly.
+        with self._patch_flow(self._fake_creds(refresh_token=None)):
+            with self.assertRaises(drive_service.DriveSyncError) as ctx:
+                drive_service.connect(self.user.id, "auth-code")
+        self.assertIn("refresh token", str(ctx.exception).lower())
+        self.assertIsNone(drive_service.get_connection(self.user.id))
+
+    def test_flow_built_with_configured_client_and_redirect(self):
+        flow = drive_service._build_flow()
+        # from_client_config flattens the "web" section away.
+        self.assertEqual(flow.client_config["client_id"],
+                         self.app.config["GOOGLE_DRIVE_CLIENT_ID"])
+        self.assertEqual(flow.client_config["client_secret"],
+                         self.app.config["GOOGLE_DRIVE_CLIENT_SECRET"])
+        self.assertEqual(flow.client_config["token_uri"],
+                         drive_service.TOKEN_ENDPOINT)
+        self.assertEqual(
+            flow.client_config["redirect_uris"], [drive_service.redirect_uri()]
+        )
+        self.assertEqual(flow.redirect_uri, drive_service.redirect_uri())
+
+    def test_relink_clears_folder_cache(self):
+        conn = self.make_connection()
+        conn.root_folder_id = "old-root"
+        conn.folder_cache = json.dumps({"trainings:1": "old-leaf"})
+        db.session.commit()
+        with self._patch_flow(self._fake_creds()):
+            drive_service.connect(self.user.id, "auth-code")
+        conn = drive_service.get_connection(self.user.id)
+        # Stale ids must not survive a re-link: the tree is resolved afresh.
+        self.assertNotEqual(conn.root_folder_id, "old-root")
+        cached = json.loads(conn.folder_cache or "{}")
+        self.assertNotIn("old-leaf", cached.values())
+
+
+# ---------------------------------------------------------------------------
+# Per-user sync state (regression: two coaches must not fight over one row)
+# ---------------------------------------------------------------------------
+
+class TestPerUserSyncState(DriveTestCase):
+    def _second_user(self):
+        other = User(username="coach2", email="coach2@example.com",
+                     organization_id=self.user.organization_id)
+        other.set_password("password")
+        db.session.add(other)
+        db.session.flush()  # populate other.id for the assignment
+        db.session.add(TeamAssignment(user_id=other.id, team_id=self.team.id))
+        db.session.commit()
+        return other
+
+    def test_state_is_not_stored_on_the_shared_artefact(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        self.assertFalse(hasattr(ts, "drive_file_id"))
+        state = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id)
+        self.assertIsNotNone(state)
+
+    def test_two_coaches_get_independent_file_ids(self):
+        other = self._second_user()
+        for user_id in (self.user.id, other.id):
+            db.session.add(GoogleDriveConnection(
+                user_id=user_id,
+                refresh_token_enc=drive_service.encrypt_token("rt"),
+                token_uri=drive_service.TOKEN_ENDPOINT,
+                status=GoogleDriveConnection.STATUS_ACTIVE,
+                auto_upload=True,
+            ))
+            db.session.add(GoogleDriveDocPref(
+                user_id=user_id, doc_type="trainings", enabled=True))
+        db.session.commit()
+
+        ts = self.make_session()
+        # Each coach exports the same session, in their own session.
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        self._login_as(other)
+        self.client.get(f"/trainings/{ts.id}/pdf")
+
+        a = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id)
+        b = drive_service.get_sync_state(
+            other.id, "trainings", "training_session", ts.id)
+        self.assertIsNotNone(a, "first coach has no sync state")
+        self.assertIsNotNone(b, "second coach has no sync state")
+        # Distinct rows, distinct file ids: each tracks the copy in
+        # their own Drive. Two files exist in total.
+        self.assertNotEqual(a.id, b.id)
+        self.assertNotEqual(a.drive_file_id, b.drive_file_id)
+        self.assertEqual(len(self.drive.created_file_names()), 2)
+
+    def test_one_users_state_never_leaks_into_anothers_upload(self):
+        other = self._second_user()
+        db.session.add(GoogleDriveConnection(
+            user_id=other.id,
+            refresh_token_enc=drive_service.encrypt_token("rt"),
+            token_uri=drive_service.TOKEN_ENDPOINT,
+            status=GoogleDriveConnection.STATUS_ACTIVE,
+            auto_upload=True,
+        ))
+        db.session.add(GoogleDriveDocPref(
+            user_id=other.id, doc_type="trainings", enabled=True))
+        db.session.commit()
+
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        mine = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id).drive_file_id
+
+        updates_before = len(self.drive.update_calls)
+        # Coach 2 exports *as themselves*: must create their own copy,
+        # never update mine.
+        self._login_as(other)
+        self.client.post(f"/trainings/{ts.id}/pdf/drive")
+        self.assertEqual(len(self.drive.update_calls), updates_before)
+        theirs = drive_service.get_sync_state(
+            other.id, "trainings", "training_session", ts.id).drive_file_id
+        self.assertIsNotNone(theirs)
+        self.assertNotEqual(theirs, mine)
+
+
+# ---------------------------------------------------------------------------
+# Stale folder cache (regression: user deletes a folder in Drive)
+# ---------------------------------------------------------------------------
+
+class TestStaleFolderCache(DriveTestCase):
+    def test_deleted_folder_cache_is_invalidated_and_rebuilt(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        conn = drive_service.get_connection(self.user.id)
+        stale_root = conn.root_folder_id
+        self.assertIsNotNone(conn.folder_cache)
+        first_folders = list(self.drive.created_folder_names())
+
+        # The user deletes the whole tree in Drive. The DB cache still points
+        # at the old ids, so the next upload hits a deleted parent (404), and
+        # the service must forget the path and rebuild it.
+        self.drive.reset_folders()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+
+        conn = drive_service.get_connection(self.user.id)
+        self.assertNotEqual(conn.root_folder_id, stale_root)
+        # The path was rebuilt from scratch.
+        self.assertEqual(
+            self.drive.created_folder_names()[len(first_folders):],
+            ["HoopsLab", "Test Team", "Trainings"],
+        )
+        state = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id)
+        self.assertIsNotNone(state.drive_file_id)
+
+    def test_upload_succeeds_after_folder_deletion(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        before = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id).drive_file_id
+        # reset_folders wipes the fake tree, as deleting a folder in Drive
+        # destroys its contents too.
+        self.drive.reset_folders()
+        resp = self.client.get(f"/trainings/{ts.id}/pdf")
+        self.assertEqual(resp.status_code, 200)
+        # A brand-new file in a rebuilt tree, not the deleted one and not a
+        # silent failure. One failed create into the deleted folder is
+        # expected on the way there — that is what triggers the rebuild.
+        after = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id).drive_file_id
+        self.assertIsNotNone(after)
+        self.assertNotEqual(after, before)
+        self.assertEqual(len(self.drive.file_records), 1)
+
+
+# ---------------------------------------------------------------------------
+# Total time budget (regression: gunicorn kills workers at 120s)
+# ---------------------------------------------------------------------------
+
+class TestTimeBudget(DriveTestCase):
+    def test_default_budget_is_well_under_the_worker_timeout(self):
+        # gunicorn_config.py: timeout = 120
+        self.assertLess(drive_service._total_timeout(), 120)
+
+    def test_deadline_aborts_before_any_drive_call(self):
+        drive_service._start_budget(seconds=-1)
+        self.addCleanup(drive_service._clear_budget)
+        with self.assertRaises(drive_service.DriveTimeout):
+            drive_service._check_deadline()
+
+    def test_retry_helper_respects_the_deadline(self):
+        drive_service._start_budget(seconds=-1)
+        self.addCleanup(drive_service._clear_budget)
+        called = []
+
+        def op():
+            called.append(1)
+            raise drive_service.DriveTimeout("budget gone")
+
+        with self.assertRaises(drive_service.DriveTimeout):
+            drive_service._with_retry(op, attempts=3)
+        self.assertEqual(called, [])  # never even attempted
+
+    def test_budget_is_cleared_after_a_sync(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        # A leaked deadline would poison the next unrelated request.
+        self.assertIsNone(drive_service._remaining_budget())
+
+    def test_timeout_does_not_break_the_download(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        self.app.config["GOOGLE_DRIVE_TOTAL_TIMEOUT"] = "0"
+        ts = self.make_session()
+        resp = self.client.get(f"/trainings/{ts.id}/pdf")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, b"%PDF-1.4 fake")
+
+    def test_httplib2_timeout_is_capped_by_remaining_budget(self):
+        self.app.config["GOOGLE_DRIVE_IO_TIMEOUT"] = "600"
+        self.app.config["GOOGLE_DRIVE_CONNECT_TIMEOUT"] = "600"
+        drive_service._start_budget(seconds=5)
+        self.addCleanup(drive_service._clear_budget)
+        creds = mock.MagicMock()
+        with mock.patch("httplib2.Http") as http_cls, \
+                mock.patch("google_auth_httplib2.AuthorizedHttp"), \
+                mock.patch("googleapiclient.discovery.build"):
+            drive_service._build_service(creds)
+        self.assertLessEqual(http_cls.call_args.kwargs["timeout"], 5)
+
+
+# ---------------------------------------------------------------------------
+# Unicode filenames (regression: secure_filename mangled the Drive name)
+# ---------------------------------------------------------------------------
+
+
+    def test_budgets_are_isolated_between_threads(self):
+        # gunicorn runs with threads = 2: two concurrent exports must not
+        # share (or clear) each other's deadline.
+        import threading
+
+        drive_service._start_budget(seconds=60)
+        seen = {}
+
+        def other_thread():
+            drive_service._start_budget(seconds=-1)
+            try:
+                seen["other"] = "expired"
+                drive_service._check_deadline()
+            except drive_service.DriveTimeout:
+                seen["other"] = "expired"
+            finally:
+                drive_service._clear_budget()
+
+        t = threading.Thread(target=other_thread)
+        t.start()
+        t.join()
+        self.assertEqual(seen["other"], "expired")
+        # The other thread's expiry and cleanup must not touch ours.
+        drive_service._check_deadline()  # must not raise
+        drive_service._clear_budget()
+
+class TestUnicodeFilenames(DriveTestCase):
+    def test_drive_name_keeps_non_ascii_title(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session(title="Pick & Roll — Fernàndez")
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        name = self.drive.created_file_names()[0]
+        self.assertIn("Fernàndez", name)
+
+    def test_drive_name_built_from_raw_title_not_the_http_header_name(self):
+        ts = self.make_session(title="Fernàndez")
+        # The HTTP download name is ASCII-only by design...
+        from web.routes.training import _drive_doc_name
+        download_name = drive_service.sanitize_filename(
+            f"Training_{ts.session_date}_{ts.title}")
+        # ...but the Drive name must not be derived from it.
+        self.assertEqual(_drive_doc_name(ts),
+                         f"Training_{ts.session_date}_Fernàndez.pdf")
+        self.assertNotEqual(_drive_doc_name(ts), download_name + ".pdf")
