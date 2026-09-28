@@ -400,8 +400,18 @@ def delete_user(user_id):
     if denied:
         return denied
     username = user.username
+    # Auxiliary cleanup must never block the primary action: if the Drive
+    # purge fails, log it and delete the account anyway. Single commit after
+    # both deletes so a later failure cannot leave the Drive rows gone while
+    # the user row survives.
     from core.services import drive_service
-    drive_service.purge_user(user_id)
+
+    try:
+        drive_service.purge_user_rows(user_id)
+    except Exception as exc:
+        logger.warning(
+            "Drive purge failed for deleted user %s: %s", user_id, exc,
+        )
     db.session.delete(user)
     db.session.commit()
     log_admin_action(current_user, "user.delete", f"deleted user {username}",

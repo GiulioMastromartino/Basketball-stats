@@ -190,16 +190,21 @@ def export_session_pdf(session_id):
     # GOOGLE_DRIVE_TOTAL_TIMEOUT so the request stays well inside gunicorn's
     # 120s worker timeout.
     #
-    # Auto-upload only fires for real navigations. This GET performs a
+    # Auto-upload only fires for first-party navigations. This GET performs a
     # state-changing write, so without a gate it would be triggerable by a
     # link-preview bot, a scanner, or a cross-site <img> tag riding the
-    # victim's cookies. Modern browsers send Sec-Fetch-Mode: navigate for
-    # address-bar loads, link clicks, and location.href changes (which is
-    # how the Export button fetches this URL), but no-cors/cors/same-origin
-    # for embeds and scripted fetches. Absent headers (old browsers, curl)
-    # are allowed through; the threat model needs a modern browser anyway.
+    # victim's cookies. Modern browsers send both headers on every request:
+    # mode=navigate covers address-bar loads, link clicks, and the Export
+    # button's location.href change, while site=same-origin/none (or absent,
+    # for old browsers and curl) excludes the case the mode check alone
+    # misses — a cross-site top-level <a target=_blank>, which Lax cookies
+    # still accompany. Either header claiming anything else means this is
+    # an embed or a scripted fetch, and only the download is served.
     fetch_mode = request.headers.get("Sec-Fetch-Mode")
-    if fetch_mode is None or fetch_mode == "navigate":
+    fetch_site = request.headers.get("Sec-Fetch-Site")
+    if (fetch_mode is None or fetch_mode == "navigate") and (
+        fetch_site is None or fetch_site in ("same-origin", "same-site", "none")
+    ):
         drive_service.enqueue_or_upload(
             int(current_user.id), "trainings", ts.team, _drive_doc_name(ts), pdf,
             target_type="training_session", target_id=ts.id,

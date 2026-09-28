@@ -1557,21 +1557,12 @@ class TestRetryBudgetEdgeCases(DriveTestCase):
     def test_backoff_without_budget_sleeps_normally(self):
         # connect() never starts a budget; retries there must still back off
         # instead of hot-looping with sleep(0).
+        from googleapiclient.errors import HttpError
+
         sleeps = []
         real_sleep = drive_service.time.sleep
         drive_service.time.sleep = sleeps.append
         try:
-            calls = []
-
-            def flaky():
-                calls.append(1)
-                if len(calls) < 3:
-                    raise drive_service.DriveSyncError("x") from None
-                return "ok"
-
-            # DriveSyncError is not retryable; use a retryable stand-in.
-            from googleapiclient.errors import HttpError
-
             attempts = []
 
             def rate_limited():
@@ -1719,3 +1710,134 @@ class TestOAuthErrorFlash(DriveTestCase):
         resp = self._callback("error=" + "x" * 5000)
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn(b"x" * 100, resp.data)
+
+
+# ---------------------------------------------------------------------------
+# Kilo round 2: rename resilience, email preservation, site gate, purge safety
+# ---------------------------------------------------------------------------
+
+class TestRenameResilience(DriveTestCase):
+    def test_failed_rename_keeps_old_snapshot_for_retry(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        state = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id)
+        self.assertEqual(state.team_name, "Test Team")
+
+        self.team.name = "Renamed Squad"
+        db.session.commit()
+        # Transient failure inside the rename: snapshot must NOT advance, so
+        # the next sync retries instead of silently accepting the fork.
+        with mock.patch.object(
+            drive_service, "_rename_team_folder", return_value=False
+        ):
+            self.client.get(f"/trainings/{ts.id}/pdf")
+        state = drive_service.get_sync_state(
+            self.user.id, "trainings", "training_session", ts.id)
+        self.assertEqual(state.team_name, "Test Team")
+
+    def test_rename_skipped_when_target_name_already_exists(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        ts = self.make_session()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        # A sibling folder already carries the future name (e.g. created by
+        # another coach's sync before the rename propagated here).
+        conn = drive_service.get_connection(self.user.id)
+        self.drive.folder_records["other-branch"] = {
+            "name": "Renamed Squad", "parents": conn.root_folder_id}
+        self.team.name = "Renamed Squad"
+        db.session.commit()
+        self.client.get(f"/trainings/{ts.id}/pdf")
+        # No duplicate created; the pre-existing folder is adopted.
+        renamed = [f for f, m in self.drive.folder_records.items()
+                   if m["name"] == "Renamed Squad"]
+        self.assertEqual(len(renamed), 1)
+        self.assertEqual(renamed[0], "other-branch")
+
+    def test_rename_reports_failure_without_raising(self):
+        self.assertFalse(
+            drive_service._rename_team_folder(999999, "Old", "New"))
+
+
+class TestEmailPreservation(DriveTestCase):
+    def test_failed_probe_keeps_previous_email(self):
+        conn = self.make_connection()
+        conn.google_email = "coach@example.com"
+        db.session.commit()
+        # FakeDriveService has no about(): the probe misses, but the stored
+        # address must survive the re-link.
+        with self._patch_flow(self._fake_creds()):
+            updated = drive_service.connect(self.user.id, "auth-code")
+        self.assertEqual(updated.google_email, "coach@example.com")
+
+
+class TestFetchSiteGate(DriveTestCase):
+    def _export(self, headers):
+        ts = self.make_session()
+        return self.client.get(f"/trainings/{ts.id}/pdf", headers=headers)
+
+    def test_cross_site_navigation_does_not_upload(self):
+        # The Lax-cookie + target=_blank vector: top-level navigation from
+        # an attacker origin. Mode is navigate, so the mode gate alone
+        # would have allowed it.
+        self.enable_prefs(auto_upload=True, trainings=True)
+        resp = self._export(headers={
+            "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "cross-site"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, b"%PDF-1.4 fake")
+        self.assertEqual(self.drive.created_file_names(), [])
+
+    def test_same_origin_navigation_uploads(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        self._export(headers={
+            "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "same-origin"})
+        self.assertEqual(len(self.drive.created_file_names()), 1)
+
+    def test_address_bar_navigation_uploads(self):
+        self.enable_prefs(auto_upload=True, trainings=True)
+        self._export(headers={
+            "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "none"})
+        self.assertEqual(len(self.drive.created_file_names()), 1)
+
+
+class TestPurgeSafety(DriveTestCase):
+    def test_purge_failure_does_not_block_account_deletion(self):
+        from core.models import User
+
+        gm = self.user
+        victim = User(username="victim", email="victim@example.com",
+                      organization_id=gm.organization_id)
+        victim.set_password("password")
+        db.session.add(victim)
+        db.session.commit()
+        victim_id = victim.id
+        with mock.patch.object(
+            drive_service, "purge_user_rows",
+            side_effect=RuntimeError("db locked"),
+        ):
+            resp = self.client.post(f"/auth/users/{victim_id}/delete",
+                                    follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(User.query.get(victim_id))
+
+    def test_purge_and_delete_share_one_commit(self):
+        from core.models import User
+
+        gm = self.user
+        victim = User(username="victim2", email="victim2@example.com",
+                      organization_id=gm.organization_id)
+        victim.set_password("password")
+        db.session.add(victim)
+        db.session.flush()
+        db.session.add(GoogleDriveConnection(
+            user_id=victim.id,
+            refresh_token_enc=drive_service.encrypt_token("rt"),
+            status=GoogleDriveConnection.STATUS_ACTIVE))
+        db.session.commit()
+        victim_id = victim.id
+        resp = self.client.post(f"/auth/users/{victim_id}/delete",
+                                follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(User.query.get(victim_id))
+        self.assertIsNone(drive_service.get_connection(victim_id))
