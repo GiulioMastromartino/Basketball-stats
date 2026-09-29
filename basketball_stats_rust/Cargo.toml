@@ -18,7 +18,12 @@ md5 = "0.7"
 
 [profile.release]
 opt-level = 3
-lto = true
-codegen-units = 1
+# Fat LTO with codegen-units=1 made every CI build a multi-minute
+# single-core link for no measurable runtime gain: these kernels are
+# bound by PyO3 extraction and memory traffic, not by cross-crate
+# inlining. Thin LTO keeps most of the benefit and links incrementally.
+lto = "thin"
+codegen-units = 16
+strip = true
 # NOTE: local macOS (Xcode 26 + rust 1.96) hits "mis-aligned LINKEDIT" on
 # release .so; use debug `maturin build` locally, release on CI/Linux.

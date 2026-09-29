@@ -33,7 +33,14 @@ pipeline {
 
         stage('Build Docker Images') {
             steps {
-                sh 'docker-compose -f $COMPOSE_FILE build'
+                // Build ONE service. migrator/scraper/web-2/web-3 all resolve
+                // to the same shared image tag (see x-app-image in the compose
+                // file), so building web-1 satisfies all five. This stage used
+                // to run `build` with no target, which rebuilt the same image
+                // five times — and deploy.sh then built it a sixth time.
+                sh '''
+                    time docker-compose -f $COMPOSE_FILE build web-1
+                '''
             }
         }
 
@@ -75,7 +82,9 @@ print('All dependencies verified')
                         echo '[WARN] /app/.env.prod not mounted; deploy may fail'
                     fi
                     chmod +x scripts/deploy.sh
-                    ./scripts/deploy.sh
+                    # The image is already built by the 'Build Docker Images'
+                    # stage; SKIP_BUILD stops deploy.sh rebuilding it.
+                    SKIP_BUILD=1 ./scripts/deploy.sh
                 '''
             }
         }

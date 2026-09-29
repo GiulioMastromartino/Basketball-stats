@@ -37,8 +37,14 @@ fi
 
 # ── 3. Build & deploy ───────────────────────────────────────────────────
 echo ""
-echo "[STEP] Building images..."
-docker-compose -f "$COMPOSE_FILE" build
+# Jenkins builds the image once in its own stage and passes SKIP_BUILD=1.
+# Without this guard deploy.sh rebuilds the same image a second time.
+if [ "${SKIP_BUILD:-0}" = "1" ]; then
+    echo "[STEP] Skipping build (SKIP_BUILD=1) — using image from pipeline"
+else
+    echo "[STEP] Building images..."
+    docker-compose -f "$COMPOSE_FILE" build web-1
+fi
 
 echo ""
 echo "[STEP] Deploying services..."

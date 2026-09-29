@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 # STAGE 1: Rust Builder
 FROM python:3.11-slim AS rust-builder
 
@@ -12,8 +13,11 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 WORKDIR /build
 COPY basketball_stats_rust ./basketball_stats_rust
 
-# Install maturin to build the python wheel
-RUN pip install maturin
+# Install maturin to build the python wheel. The cargo registry cache is
+# mounted so this download survives source-only changes.
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    pip install maturin
 
 # Target the prod CPU (Intel Haswell i5-4278U: AVX2 + FMA + BMI) so LLVM
 # auto-vectorizes the numeric kernels with 256-bit SIMD. Safe because this
@@ -22,8 +26,14 @@ RUN pip install maturin
 # maturin builds are unaffected (this ENV is scoped to the builder stage).
 ENV RUSTFLAGS="-C target-cpu=haswell"
 
-# Build the Rust library into a Python wheel
-RUN cd basketball_stats_rust && \
+# Build the Rust library into a Python wheel. The target/ cache mount is
+# what makes rebuilds incremental: without it every build recompiles
+# pyo3/syn/serde from scratch. The wheel is written outside the mount so
+# it is still captured in the layer.
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    --mount=type=cache,target=/build/basketball_stats_rust/target \
+    cd basketball_stats_rust && \
     maturin build --release --out ../dist
 
 # STAGE 2: Final Image
@@ -46,9 +56,11 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy requirements first
+# Copy requirements first. The pip cache mount keeps wheels locally so a
+# requirements change no longer re-downloads the whole set.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 
 # Copy and install the Rust wheel from the builder stage
 COPY --from=rust-builder /build/dist/*.whl /tmp/
