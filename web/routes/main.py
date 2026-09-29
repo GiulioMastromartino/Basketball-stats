@@ -356,6 +356,16 @@ def index():
     )
 
 
+@main_bp.route("/privacy")
+def privacy():
+    """Public privacy policy (unlisted: no nav link, no login required).
+
+    Exists so the Google OAuth consent screen has a privacy policy URL.
+    Must stay public — do not add @login_required.
+    """
+    return render_template("privacy.html")
+
+
 @main_bp.route("/glossary")
 @login_required
 def glossary():

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>HoopsLab — Privacy Policy</title>
+    <style>
+        body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.6;
+               color: #1a1a1a; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
+        h1 { font-size: 1.6rem; } h2 { font-size: 1.15rem; margin-top: 1.75rem; }
+        .meta { color: #666; font-size: .9rem; }
+    </style>
+</head>
+<body>
+    <h1>HoopsLab — Privacy Policy</h1>
+    <p class="meta">Effective: 29 September 2026 · App: HoopsLab (basketball statistics and training management)</p>
+
+    <h2>1. What this app does</h2>
+    <p>HoopsLab lets coaches manage teams, training sessions, games, and play diagrams,
+    and optionally copy exported PDFs into the coach's own Google Drive.</p>
+
+    <h2>2. Google data we access, and why</h2>
+    <p>Only if you click “Connect Google Drive”, we request a single OAuth scope:</p>
+    <ul>
+        <li><code>https://www.googleapis.com/auth/drive.file</code> — create and manage
+        only the files HoopsLab itself creates in your Drive. We cannot see, open, or
+        modify any other file in your Drive.</li>
+    </ul>
+    <p>We use it solely to create a <code>HoopsLab/&lt;Team&gt;/&lt;type&gt;/</code> folder
+    in your Drive and upload PDF exports you request (training session PDFs today;
+    other export types only after you enable them).</p>
+    <p>We do not read your email, contacts, calendar, or any other Google data.</p>
+
+    <h2>3. What we store</h2>
+    <ul>
+        <li>OAuth access and refresh tokens, encrypted at rest (Fernet) — never in
+        plaintext, never in logs.</li>
+        <li>Your Google account email (to show “Connected as …”), sync preferences,
+        and the Drive file IDs of your own uploaded copies (to update instead of
+        duplicating them).</li>
+    </ul>
+    <p>Exported PDF bytes are passed through memory at upload time and are never
+    persisted on our servers.</p>
+
+    <h2>4. What we never do</h2>
+    <ul>
+        <li>No sale, rental, or sharing of your data with third parties.</li>
+        <li>No advertising use of your data.</li>
+        <li>No access to files in your Drive that HoopsLab did not create.</li>
+        <li>No background scanning of your Drive.</li>
+    </ul>
+
+    <h2>5. Deletion and disconnect</h2>
+    <p>You can disconnect at any time via HoopsLab → Google Drive → Disconnect.
+    This immediately deletes our copy of your tokens, preferences, and sync state.
+    Files already uploaded remain in your Drive under your control — delete them
+    there if you wish. Deleting your HoopsLab account deletes the same records.</p>
+
+    <h2>6. Data retention</h2>
+    <p>Tokens and sync state are kept only while your Drive stays connected, to
+    perform the uploads you asked for. On disconnect or account deletion they are
+    removed as described above.</p>
+
+    <h2>7. Security</h2>
+    <p>Tokens are encrypted at rest, transported over HTTPS, and refreshed
+    server-side. Drive failures never expose token material to other users.</p>
+
+    <h2>8. Contact</h2>
+    <p>For privacy questions or deletion requests, contact the HoopsLab
+    administrator at the support address published on the Google OAuth consent
+    screen for this app.</p>
+</body>
+</html>
