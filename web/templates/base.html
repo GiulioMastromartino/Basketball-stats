@@ -147,9 +147,97 @@
                 <a href="{{ url_for('main.upload_game') }}" class="app-sidebar__cta">
                     <i class="fas fa-cloud-arrow-up" aria-hidden="true"></i> Upload data
                 </a>
+                {% if account_switching_enabled | default(false) %}
+                <div class="acct">
+                    <button
+                        type="button"
+                        class="acct__trigger"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-expanded="false"
+                    >
+                        <span class="acct__avatar" aria-hidden="true">{{ current_user.username[:1]|upper }}</span>
+                        <span class="acct__id">
+                            <span class="acct__name">{{ current_user.username }}</span>
+                            <span class="acct__sub">{{ current_team_name or 'No team' }}</span>
+                        </span>
+                        <i class="fas fa-chevron-up acct__caret" aria-hidden="true"></i>
+                    </button>
+
+                    <div class="acct__menu dropdown-menu dropdown-menu-end">
+                        <p class="acct__heading">
+                            {% if switchable_accounts | length > 1 %}
+                                {{ switchable_accounts | length }} accounts on this device
+                            {% else %}
+                                Account
+                            {% endif %}
+                        </p>
+
+                        {% for acct in switchable_accounts %}
+                        <div class="acct__row {% if acct.is_current %}is-current{% endif %}">
+                            {% if acct.is_current %}
+                            <span class="acct__entry">
+                                <span class="acct__avatar acct__avatar--sm" aria-hidden="true">{{ acct.user.username[:1]|upper }}</span>
+                                <span class="acct__id">
+                                    <span class="acct__name">{{ acct.user.username }}</span>
+                                    <span class="acct__sub">
+                                        {% if acct.user.is_manager %}General Manager{% else %}Member{% endif %}
+                                    </span>
+                                </span>
+                                <i class="fas fa-check acct__tick" aria-hidden="true"></i>
+                            </span>
+                            {% else %}
+                            <form method="POST" action="{{ url_for('auth.switch_account') }}" class="acct__form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <input type="hidden" name="token_id" value="{{ acct.token_id }}"/>
+                                <button type="submit" class="acct__entry">
+                                    <span class="acct__avatar acct__avatar--sm" aria-hidden="true">{{ acct.user.username[:1]|upper }}</span>
+                                    <span class="acct__id">
+                                        <span class="acct__name">{{ acct.user.username }}</span>
+                                        <span class="acct__sub">
+                                            {% if acct.user.is_manager %}General Manager{% else %}Member{% endif %}
+                                        </span>
+                                    </span>
+                                    <i class="fas fa-arrow-right-arrow-left acct__swap" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+
+                        {% if switchable_accounts | length == 0 %}
+                        <p class="acct__empty">No other accounts remembered on this device yet.</p>
+                        {% endif %}
+
+                        <div class="acct__sep"></div>
+
+                        <a class="acct__action" href="{{ url_for('auth.login', switch=1, return_to=request.path) }}">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            <span>Add another account</span>
+                        </a>
+
+                        <a class="acct__action" href="{{ url_for('auth.logout') }}">
+                            <i class="fas fa-arrow-right-from-bracket" aria-hidden="true"></i>
+                            <span>Sign out{% if switchable_accounts | length > 1 %} of {{ current_user.username }}{% endif %}</span>
+                        </a>
+
+                        {% if switchable_accounts | length > 1 %}
+                        <form method="POST" action="{{ url_for('auth.forget_all_accounts_route') }}"
+                              onsubmit="return confirm('Sign out of all {{ switchable_accounts | length }} accounts remembered on this device?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="acct__action acct__action--danger">
+                                <i class="fas fa-power-off" aria-hidden="true"></i>
+                                <span>Sign out of all accounts</span>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
                 <a href="{{ url_for('auth.logout') }}" class="app-sidebar__logout">
                     <i class="fas fa-arrow-right-from-bracket" aria-hidden="true"></i> Sign out
                 </a>
+                {% endif %}
             </div>
         </aside>
         {% endif %}

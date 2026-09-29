@@ -190,6 +190,26 @@ def create_app(config_name: str = None) -> Flask:
             ctx["current_season_id"] = "ALL"
         return ctx
 
+    @app.context_processor
+    def _inject_account_switcher():
+        """Expose the remembered logins to the sidebar account menu.
+
+        Costs zero queries when this browser has no accounts cookie, so the
+        common single-account case is unaffected.
+        """
+        from web.accounts import switchable_accounts
+
+        enabled = bool(app.config.get("ACCOUNT_SWITCHING_ENABLED", True)) and not disable_auth
+        ctx = {"account_switching_enabled": enabled, "switchable_accounts": []}
+        if enabled and current_user.is_authenticated:
+            try:
+                ctx["switchable_accounts"] = switchable_accounts()
+            except Exception:
+                # A malformed cookie or a transient DB blip must never stop a
+                # page rendering; the menu simply falls back to "just me".
+                ctx["switchable_accounts"] = []
+        return ctx
+
     # Versioned static URLs (?v=<mtime>) so browsers fetch fresh CSS/JS
     # after each deploy instead of serving stale cache until hard refresh.
     _static_versions: dict = {}
@@ -208,6 +228,13 @@ def create_app(config_name: str = None) -> Flask:
         return url_for("static", filename=filename)
 
     app.jinja_env.globals["static_url"] = _static_url
+
+    @app.after_request
+    def _flush_accounts_cookie(response):
+        # Must run before the no-store header block below so the Set-Cookie
+        # it may add rides along on the same response.
+        from web.accounts import flush_account_cookie
+        return flush_account_cookie(response)
 
     @app.after_request
     def _log_response(response):
@@ -330,6 +357,21 @@ def register_blueprints(app: Flask):
 
 def register_commands(app: Flask):
     """Register CLI commands"""
+    import click
+    from flask.cli import with_appcontext
+
     from core.commands import seed_command
 
     app.cli.add_command(seed_command)
+
+    @app.cli.command("purge-account-tokens")
+    @with_appcontext
+    def purge_account_tokens_command():
+        """Delete revoked and long-unused remembered-login tokens.
+
+        Revoking a token already kills access, so these rows are pure
+        accumulation. Worth running occasionally on long-lived deployments.
+        """
+        from web.accounts import purge_expired_tokens
+
+        click.echo(f"Removed {purge_expired_tokens()} expired account token(s).")

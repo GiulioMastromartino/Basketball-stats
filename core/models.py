@@ -101,8 +101,17 @@ class User(UserMixin, db.Model):
     # Read-only auditor: view everything, change nothing (GM plan idea 5).
     is_auditor = db.Column(db.Boolean, default=False, server_default=text("false"))
 
-    memberships = db.relationship("OrganizationMembership", backref="user", lazy=True)
-    team_assignments = db.relationship("TeamAssignment", backref="user", lazy=True)
+    # delete-orphan on both: a deleted user's memberships and assignments
+    # must go with them. Without it SQLAlchemy tries to NULL the non-nullable
+    # user_id, so the admin "delete user" action raises IntegrityError.
+    memberships = db.relationship(
+        "OrganizationMembership", backref="user", lazy=True,
+        cascade="all, delete-orphan",
+    )
+    team_assignments = db.relationship(
+        "TeamAssignment", backref="user", lazy=True,
+        cascade="all, delete-orphan",
+    )
 
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
@@ -159,6 +168,39 @@ class User(UserMixin, db.Model):
             return True
         return TeamAssignment.query.filter_by(
             user_id=self.id, team_id=team_id, is_team_gm=True).first() is not None
+
+
+class AccountToken(db.Model):
+    """A remembered sign-in, letting one browser hold several live logins.
+
+    The browser keeps only an opaque random token in a long-lived cookie; the
+    database stores just its SHA-256. A leaked database therefore yields no
+    usable credentials, and revoking a row instantly kills the browser's
+    copy because the cookie alone no longer resolves to a live token.
+    """
+
+    __tablename__ = "account_tokens"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    # Coarse device hint ("Chrome · macOS") so people can tell their
+    # remembered logins apart. Informational only, never used for decisions.
+    device_hint = db.Column(db.String(120), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_used_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+
+    # delete-orphan is load-bearing: deleting a User must take their tokens
+    # with it. Without it SQLAlchemy tries to NULL the non-nullable user_id
+    # and the DELETE fails, taking the admin's "delete user" action with it.
+    user = db.relationship(
+        "User",
+        backref=db.backref("account_tokens", lazy=True, cascade="all, delete-orphan"),
+    )
+
+    @property
+    def is_revoked(self) -> bool:
+        return self.revoked_at is not None
 
 
 class AdminAudit(db.Model):

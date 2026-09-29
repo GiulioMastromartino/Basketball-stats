@@ -1,6 +1,9 @@
 import unittest
 from web import create_app, db
-from core.models import User, Organization, Team, OrganizationMembership, TeamAssignment
+from core.models import (
+    AccountToken, User, Organization, Team,
+    OrganizationMembership, TeamAssignment,
+)
 import os
 
 class TestAuth(unittest.TestCase):
@@ -50,11 +53,36 @@ class TestAuth(unittest.TestCase):
         }, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'Welcome back', response.data)
-        
-        # Test Logout
+
+        # Test Logout. Default scope is this account only; the login above
+        # left the account remembered on the device, so the message reflects
+        # that other remembered accounts would survive.
         response = self.client.get('/auth/logout', follow_redirects=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'You have been logged out', response.data)
+        self.assertIn(b'Other accounts on this device are still remembered',
+                      response.data)
+
+        # The protected dashboard must bounce to login again.
+        self.assertEqual(self.client.get('/').status_code, 302)
+
+    def test_logout_scope_all_revokes_remembered_login(self):
+        self.client.post('/auth/login', data={
+            'username': self.username,
+            'password': self.password
+        }, follow_redirects=True)
+
+        response = self.client.get('/auth/logout?scope=all', follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'signed out of all accounts', response.data)
+
+        # The remembered-login row must be revoked, not merely dropped
+        # client-side, or a copied cookie would still work.
+        live = AccountToken.query.filter_by(
+            user_id=self._user_id(), revoked_at=None).count()
+        self.assertEqual(live, 0)
+
+    def _user_id(self):
+        return User.query.filter_by(username=self.username).first().id
 
     def test_login_invalid_credentials(self):
         response = self.client.post('/auth/login', data={

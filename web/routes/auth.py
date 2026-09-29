@@ -33,11 +33,73 @@ from core.services.workos_service import (
     get_logout_url,
 )
 from core.logger import get_logger
+from web.accounts import (
+    forget_all_accounts,
+    forget_record,
+    purge_user_tokens,
+    remembered_record,
+    remembered_record_id_for,
+    remember_account,
+)
 from web.decorators import admin_required, gm_required, require_own_org
 
 logger = get_logger("auth")
 
 auth_bp = Blueprint("auth", __name__)
+
+# Every piece of per-user state the session carries. These are all scoped to
+# ONE identity, so any change of identity must drop them wholesale --
+# otherwise account B would inherit account A's team, org and season.
+USER_CONTEXT_KEYS = (
+    "current_team_id",
+    "current_team_name",
+    "current_org_id",
+    "current_season_id",
+    "otp_user_id",
+)
+
+
+def _clear_user_context() -> None:
+    for key in USER_CONTEXT_KEYS:
+        session.pop(key, None)
+
+
+def _apply_default_team_context(user) -> None:
+    """Seed team context for a freshly authenticated user, if they have one."""
+    if not user.organization_id:
+        return
+    teams = user.assigned_teams
+    if teams:
+        session["current_team_id"] = teams[0].id
+        session["current_team_name"] = teams[0].name
+
+
+def _establish_identity(user, remember: bool = True) -> None:
+    """Move the session onto ``user``, discarding the previous identity's state.
+
+    Every identity change in the app funnels through here: password login,
+    WorkOS callback, OTP completion, and account switching. Centralising it
+    matters because ``login_user`` on its own leaves ``current_team_id``
+    pointing at the *previous* user's team, and plenty of queries read that
+    key directly rather than through a decorator that would revalidate it.
+    """
+    logout_user()
+    _clear_user_context()
+    login_user(user, remember=remember)
+    _apply_default_team_context(user)
+    remember_account(user)
+
+
+def _switching_enabled() -> bool:
+    return bool(current_app.config.get("ACCOUNT_SWITCHING_ENABLED", True))
+
+
+def _safe_return_path() -> str | None:
+    """A relative path to come back to after adding an account, or None."""
+    raw = (request.values.get("return_to") or "").strip()
+    if raw.startswith("/") and not raw.startswith("//") and "\\" not in raw:
+        return raw
+    return None
 
 
 class EmptyForm(FlaskForm):
@@ -48,8 +110,16 @@ class EmptyForm(FlaskForm):
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    """Redirect to WorkOS AuthKit for authentication"""
-    if current_user.is_authenticated:
+    """Sign in, or add another account to this browser.
+
+    ``?switch=1`` keeps the form available to an already-authenticated user,
+    which is what the account menu's "Add account" entry links to. Without it
+    an authenticated visitor is bounced to the dashboard as before.
+    """
+    adding_account = (
+        _switching_enabled() and (request.values.get("switch") == "1")
+    )
+    if current_user.is_authenticated and not adding_account:
         return redirect(url_for("main.index"))
 
     redirect_uri = current_app.config.get(
@@ -70,6 +140,17 @@ def login():
     else:
         workos_error = "WorkOS not configured"
 
+    def render(**overrides):
+        ctx = {
+            "auth_url": auth_url,
+            "workos_configured": workos_configured,
+            "workos_error": workos_error,
+            "adding_account": adding_account,
+            "return_to": _safe_return_path() or "",
+        }
+        ctx.update(overrides)
+        return render_template("auth/login.html", **ctx)
+
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
@@ -77,6 +158,9 @@ def login():
             user = User.query.filter_by(username=username).first()
             if user and user.password_hash and user.check_password(password):
                 if user.is_manager:
+                    # OTP is required when an identity is first established,
+                    # and is not repeated when merely switching back to an
+                    # account already remembered by this browser.
                     otp_code = f"{secrets.randbelow(1000000):06d}"
                     user.otp_code = otp_code
                     user.otp_expiry = datetime.utcnow() + timedelta(minutes=5)
@@ -89,17 +173,21 @@ def login():
                     flash("Verification code sent. Please check your email.", "info")
                     return redirect(url_for("auth.verify_otp"))
 
-                login_user(user, remember=True)
+                _establish_identity(user)
 
                 if not user.organization_id:
                     flash("Welcome! Please set up your organization to get started.", "info")
                     return redirect(url_for("auth.onboarding"))
 
+                if adding_account:
+                    flash(f"Added {user.username} to this device.", "success")
+                    return redirect(_safe_return_path() or url_for("main.index"))
+
                 flash(f"Welcome back, {user.username}!", "success")
                 return redirect(url_for("main.index"))
 
             flash("Invalid username or password", "danger")
-            return render_template("auth/login.html", auth_url=auth_url, workos_configured=workos_configured, workos_error=workos_error)
+            return render()
 
         email = request.form.get("email")
         if email:
@@ -111,7 +199,7 @@ def login():
                 current_app.logger.warning(f"Magic link unavailable: {e}")
                 flash("Magic link service unavailable. Try again later.", "danger")
 
-    return render_template("auth/login.html", auth_url=auth_url, workos_configured=workos_configured, workos_error=workos_error)
+    return render()
 
 
 @auth_bp.route("/callback")
@@ -155,7 +243,7 @@ def callback():
 
             db.session.commit()
 
-        login_user(user, remember=True)
+        _establish_identity(user)
 
         # If user has no organization, redirect to onboarding
         if not user.organization_id:
@@ -165,13 +253,6 @@ def callback():
             )
             flash("Welcome! Please set up your organization to get started.", "info")
             return redirect(url_for("auth.onboarding"))
-
-        # Ensure session has current team
-        if not session.get("current_team_id"):
-            teams = user.assigned_teams
-            if teams:
-                session["current_team_id"] = teams[0].id
-                session["current_team_name"] = teams[0].name
 
         flash(f"Welcome, {user.username}!", "success")
         return redirect(url_for("main.index"))
@@ -235,11 +316,122 @@ def onboarding():
 @auth_bp.route("/logout")
 @login_required
 def logout():
-    """Log out the user and redirect to WorkOS logout"""
+    """Sign out.
+
+    Default scope is this account only, so other logins remembered on this
+    device survive and can be switched back to. ``?scope=all`` revokes every
+    remembered login for the browser (the "sign out of all accounts" escape
+    hatch, and the one to reach for on a shared or lost device).
+    """
+    user_id = current_user.id
+    scope = (request.args.get("scope") or "this").lower()
+
+    if scope == "all":
+        count = forget_all_accounts()
+        message = (
+            f"You have been signed out of all accounts ({count} removed)."
+            if count
+            else "You have been signed out of all accounts."
+        )
+    else:
+        record_id = remembered_record_id_for(user_id)
+        record = remembered_record(record_id) if record_id else None
+        if record is not None:
+            forget_record(record)
+            message = "Signed out. Other accounts on this device are still remembered."
+        else:
+            message = "You have been logged out."
+
     logout_user()
-    session.pop("current_team_id", None)
-    session.pop("current_team_name", None)
-    flash("You have been logged out.", "info")
+    _clear_user_context()
+    flash(message, "info")
+    return redirect(url_for("main.landing"))
+
+
+# ---------------------------------------------------------------------------
+# Multi-account switching
+#
+# The forms post ``token_id`` (an ``account_tokens`` row id), never the token
+# itself: the raw value lives only in an HttpOnly cookie, so a leaked page or
+# a stray form field cannot expose it. ``remembered_record`` is the single
+# gate -- a row id is worthless unless this browser's cookie also carries the
+# matching token.
+# ---------------------------------------------------------------------------
+
+
+@auth_bp.route("/accounts/switch", methods=["POST"])
+@login_required
+def switch_account():
+    """Make a remembered account the active one, without re-authenticating.
+
+    Re-authenticating is deliberately skipped: a live token for this browser
+    is proof enough that the login -- including its OTP step, if the account
+    is a GM -- already happened when the token was minted.
+    """
+    if not _switching_enabled():
+        abort(404)
+
+    record = remembered_record(request.form.get("token_id"))
+    if record is None:
+        flash("That account is not available on this device.", "danger")
+        return redirect(url_for("main.index"))
+
+    user = record.user
+    if user.id == current_user.id:
+        return redirect(_safe_return_path() or url_for("main.index"))
+
+    _establish_identity(user)
+
+    flash(f"Now signed in as {user.username}.", "success")
+    return redirect(_safe_return_path() or url_for("main.index"))
+
+
+@auth_bp.route("/accounts/remove", methods=["POST"])
+@login_required
+def remove_account():
+    """Forget one remembered account, revoking its token for good.
+
+    Removing the account you are currently signed into signs you out of it,
+    matching how removing the active account from a browser's account list
+    behaves elsewhere.
+    """
+    if not _switching_enabled():
+        abort(404)
+
+    record = remembered_record(request.form.get("token_id"))
+    if record is None:
+        flash("That account is not remembered on this device.", "warning")
+        return redirect(url_for("main.index"))
+
+    target = record.user
+    is_current = target.id == current_user.id
+    forget_record(record)
+
+    if is_current:
+        logout_user()
+        _clear_user_context()
+        flash(f"Removed {target.username} from this device and signed out.", "info")
+        return redirect(url_for("main.landing"))
+
+    flash(f"Removed {target.username} from this device.", "success")
+    return redirect(_safe_return_path() or url_for("main.index"))
+
+
+@auth_bp.route("/accounts/forget-all", methods=["POST"])
+@login_required
+def forget_all_accounts_route():
+    """Revoke every remembered login for this browser and sign out."""
+    if not _switching_enabled():
+        abort(404)
+
+    count = forget_all_accounts()
+    logout_user()
+    _clear_user_context()
+    flash(
+        f"Signed out of all accounts ({count} removed)." if count
+        else "Signed out of all accounts.",
+        "info",
+    )
     return redirect(url_for("main.landing"))
 
 
@@ -275,7 +467,7 @@ def verify_otp():
         user.otp_expiry = None
         db.session.commit()
         session.pop("otp_user_id", None)
-        login_user(user, remember=True)
+        _establish_identity(user)
         flash(f"Welcome back, {user.username}!", "success")
         return redirect(url_for("main.index"))
 
@@ -412,6 +604,22 @@ def delete_user(user_id):
         logger.warning(
             "Drive purge failed for deleted user %s: %s", user_id, exc,
         )
+    # Remembered logins must go with the account; a surviving token row
+    # would keep the deleted user switchable.
+    try:
+        purge_user_tokens(user_id)
+    except Exception as exc:
+        logger.warning(
+            "Account token purge failed for deleted user %s: %s", user_id, exc,
+        )
+    # Memberships and team assignments have non-nullable user_id, so they
+    # have to be removed explicitly rather than left for the ORM to null out.
+    OrganizationMembership.query.filter_by(user_id=user_id).delete(
+        synchronize_session=False
+    )
+    TeamAssignment.query.filter_by(user_id=user_id).delete(
+        synchronize_session=False
+    )
     db.session.delete(user)
     db.session.commit()
     log_admin_action(current_user, "user.delete", f"deleted user {username}",
