@@ -88,6 +88,21 @@ def send_game_notification(recipients, game, pdf_attachment=None):
         current_app.logger.error(f"Game notification failed: {e}")
 
 
+def _single_line(value):
+    """Flatten a value to one clean line for use in plain-text email.
+
+    Strips CR/LF and other control characters so untrusted text (a username,
+    an org name) cannot inject extra headers or break the body layout.
+    Returns an empty string for None.
+    """
+    if not value:
+        return ""
+    return "".join(
+        ch for ch in str(value)
+        if ch.isprintable() or ch == " "
+    ).strip()
+
+
 def _invite_html(username, login_url, org_name=None):
     """Branded HTML alternative for the invite, matching the app shell.
 
@@ -152,13 +167,18 @@ def send_invite_email(to_email, username, login_url, org_name=None):
     if not to_email or not login_url:
         return False
 
-    org_line = f" You've been added to {org_name}." if org_name else ""
+    # Plain text must not carry CR/LF: an org or username containing them
+    # would let a caller inject extra headers or break the body layout. HTML
+    # escaping is wrong here (it would show a literal "&amp;" to the reader),
+    # so control characters are stripped instead.
+    safe_user_txt = _single_line(username)
+    org_line = f" You've been added to {_single_line(org_name)}." if org_name else ""
     subject = "You're invited — sign in to HoopsLab"
-    body = f"""Hi {username},{org_line}
+    body = f"""Hi {safe_user_txt},{org_line}
 
 Your account is ready. Sign in directly with WorkOS (no password needed):
 
-{login_url}
+{_single_line(login_url)}
 
 If the link above doesn't work, open the app and choose Single Sign-On.
 

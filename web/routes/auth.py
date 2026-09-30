@@ -25,11 +25,13 @@ from core.models import (
     db, bcrypt, Player, WhatsAppGroup, log_admin_action,
 )
 from core.services.notification_service import notify_otp
+from core.services.email_service import send_invite_email
 from core.services.workos_service import (
     get_auth_url,
     get_magic_link_url,
     authenticate_callback,
     create_workos_user,
+    send_workos_invitation,
     get_logout_url,
 )
 from core.logger import get_logger
@@ -92,6 +94,18 @@ def _establish_identity(user, remember: bool = True) -> None:
 
 def _switching_enabled() -> bool:
     return bool(current_app.config.get("ACCOUNT_SWITCHING_ENABLED", True))
+
+
+def _workos_configured() -> bool:
+    """True when the WorkOS IdP is usable for this deployment.
+
+    Shared by the sign-in page and the invite flow so the two cannot drift
+    on what "WorkOS is available" means.
+    """
+    return bool(
+        current_app.config.get("WORKOS_API_KEY")
+        and current_app.config.get("WORKOS_CLIENT_ID")
+    )
 
 
 # Intent marker so the "add another account" flow survives round trips that
@@ -185,10 +199,7 @@ def login():
     redirect_uri = current_app.config.get(
         "WORKOS_REDIRECT_URI", "http://localhost:5000/auth/callback"
     )
-    workos_configured = bool(
-        current_app.config.get("WORKOS_API_KEY")
-        and current_app.config.get("WORKOS_CLIENT_ID")
-    )
+    workos_configured = _workos_configured()
     auth_url = "#"
     workos_error = None
     if workos_configured:
@@ -819,9 +830,9 @@ def invite_user():
     """Invite flow (GM plan idea 3): create user + assignments in one POST.
 
     The invitee gets an email with a direct WorkOS login link:
-    1. Preferred: WorkOS itself sends the invitation (``send_invitation=True``
-       inside ``create_workos_user``) — that mail lands directly on WorkOS
-       sign-in, no password needed.
+    1. Preferred: WorkOS emails the invitation itself (via
+       ``send_workos_invitation``), landing the invitee directly on WorkOS
+       sign-in with no password.
     2. Fallback: when WorkOS isn't configured (or its API fails), we send a
        local email via Flask-Mail containing the direct WorkOS login URL
        (magic link when available, else the SSO entry point).
@@ -831,8 +842,6 @@ def invite_user():
     Invited users are SSO-only (``password_hash=None``, like ``create_user``)
     so there is no throwaway password to leak or lose.
     """
-    from core.services.email_service import send_invite_email
-
     org_id = current_user.organization_id
     if not org_id:
         flash("You must belong to an organization to invite users.", "danger")
@@ -855,19 +864,19 @@ def invite_user():
     teams = Team.query.filter(
         Team.id.in_(team_ids), Team.organization_id == org_id).all() if team_ids else []
 
-    workos_configured = bool(
-        current_app.config.get("WORKOS_API_KEY")
-        and current_app.config.get("WORKOS_CLIENT_ID")
-    )
+    workos_configured = _workos_configured()
 
-    # Preferred path: let WorkOS send its own invitation email, which lands
-    # the invitee directly on WorkOS sign-in.
+    # Preferred path: provision the WorkOS user, then ask WorkOS to email the
+    # invitation. Creating a user does NOT invite them, so the two calls are
+    # separate, and ``workos_invite_sent`` is only set once the invitation
+    # itself succeeded. ``workos_id`` is the USER id, never the invitation's.
     workos_id = None
     workos_invite_sent = False
     if workos_configured:
         try:
             workos_user = create_workos_user(email=email)
             workos_id = getattr(workos_user, "id", None)
+            send_workos_invitation(email=email)
             workos_invite_sent = True
         except Exception as exc:
             current_app.logger.warning(f"WorkOS invite failed for {email}: {exc}")
@@ -914,6 +923,9 @@ def invite_user():
             login_url = url_for("auth.login", _external=True)
 
     org = Organization.query.get(org_id)
+    # ``org`` can only be None if the org was deleted between the check at
+    # the top of this view and here; the invite is already committed, so the
+    # email just goes out without the org line.
     email_ok = False
     try:
         email_ok = bool(send_invite_email(
@@ -926,8 +938,12 @@ def invite_user():
         flash(f"Invited {username} — sign-in link emailed to {email}.",
               "success")
     else:
+        logger.warning(
+            "Invite email undeliverable for %s; GM must share the link manually",
+            email,
+        )
         flash(f"Invited {username} — but the invite email could not be sent. "
-              f"Share this WorkOS sign-in link manually: {login_url}",
+              f"Copy this sign-in link and send it to them yourself: {login_url}",
               "warning")
     return redirect(url_for("main.admin_panel", section="users"))
 
