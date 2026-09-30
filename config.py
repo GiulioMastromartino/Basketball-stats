@@ -139,6 +139,18 @@ class Config:
     EVOLUTION_API_KEY  = os.getenv("EVOLUTION_API_KEY", "")
     EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "basketball-bot")
 
+    # Multi-account switching. Lets one browser keep several live logins and
+    # move between them without re-authenticating. Set
+    # ACCOUNT_SWITCHING_ENABLED=0 to hide the menu entirely; the routes then
+    # 404 and the cookie is never written.
+    ACCOUNT_SWITCHING_ENABLED = os.getenv("ACCOUNT_SWITCHING_ENABLED", "1").lower() in (
+        "1", "true", "yes", "on",
+    )
+    # Lifetime of the remembered-accounts cookie. Deliberately independent of
+    # PERMANENT_SESSION_LIFETIME: the active login still expires in an hour,
+    # only the *list* of remembered logins lingers.
+    ACCOUNT_SWITCH_COOKIE_MAX_AGE = _env_int("ACCOUNT_SWITCH_COOKIE_MAX_AGE", 2592000)
+
     # Alpha feature flag: V2 live-game console entry point. Off unless
     # explicitly enabled; enabled by default in development.
     V2_CONSOLE_ALPHA = os.getenv("V2_CONSOLE_ALPHA", "").lower() in (

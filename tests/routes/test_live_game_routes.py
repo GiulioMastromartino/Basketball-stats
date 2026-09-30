@@ -198,8 +198,10 @@ class TestAuthRoutes:
 
     @pytest.mark.integration
     def test_logout(self, auth_client):
-        """Test logout."""
-        response = auth_client.get("/auth/logout", follow_redirects=True)
+        """Test logout (POST-only; GET must not sign anyone out)."""
+        assert auth_client.get("/auth/logout").status_code == 405
+
+        response = auth_client.post("/auth/logout", follow_redirects=True)
 
         assert response.status_code == 200
 

@@ -313,6 +313,218 @@ body.app-sidebar-open .app-sidebar-backdrop {
   color: #fff8eb;
 }
 
+/* ------------------------------------------------------------------ *
+ * Account switcher (sidebar footer)
+ *
+ * The sidebar is dark, but Bootstrap renders dropdown menus on the light
+ * surface token, so these colours are pinned explicitly rather than left
+ * to inherit.
+ * ------------------------------------------------------------------ */
+
+.acct {
+  position: relative;
+}
+
+.acct__trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid rgba(255, 248, 235, 0.14);
+  border-radius: var(--hs-radius-sm);
+  background: rgba(255, 248, 235, 0.05);
+  color: #fff8eb;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--hs-transition), border-color var(--hs-transition);
+}
+
+.acct__trigger:hover,
+.acct__trigger[aria-expanded="true"] {
+  background: rgba(255, 248, 235, 0.11);
+  border-color: rgba(255, 248, 235, 0.28);
+}
+
+.acct__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--hs-accent) 0%, #e04300 100%);
+  color: #fff8eb;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.acct__avatar--sm {
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.75rem;
+}
+
+.acct__id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+  line-height: 1.25;
+}
+
+.acct__name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acct__sub {
+  font-size: 0.7rem;
+  color: rgba(255, 248, 235, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acct__caret {
+  flex: 0 0 auto;
+  font-size: 0.65rem;
+  color: rgba(255, 248, 235, 0.45);
+}
+
+.acct__menu {
+  width: min(19rem, calc(100vw - 2rem));
+  padding: 0.5rem;
+  border: 1px solid var(--hs-line, rgba(26, 23, 20, 0.12));
+  border-radius: var(--hs-radius);
+  background: var(--hs-surface);
+  box-shadow: 0 18px 40px rgba(11, 14, 18, 0.28);
+}
+
+.acct__heading {
+  margin: 0 0 0.35rem;
+  padding: 0 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hs-ink-muted);
+}
+
+.acct__empty {
+  margin: 0;
+  padding: 0.35rem 0.4rem 0.5rem;
+  font-size: 0.78rem;
+  color: var(--hs-ink-muted);
+}
+
+.acct__row {
+  margin: 0;
+}
+
+.acct__form {
+  margin: 0;
+}
+
+.acct__entry {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.4rem;
+  border: 0;
+  border-radius: var(--hs-radius-sm);
+  background: transparent;
+  color: var(--hs-ink);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--hs-transition);
+}
+
+.acct__entry:hover {
+  background: rgba(26, 23, 20, 0.06);
+  color: var(--hs-ink);
+}
+
+.acct__row.is-current .acct__entry {
+  background: rgba(46, 196, 182, 0.14);
+  cursor: default;
+}
+
+.acct__tick {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--hs-cool);
+}
+
+.acct__swap {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--hs-ink-muted);
+  opacity: 0;
+  transition: opacity var(--hs-transition);
+}
+
+.acct__form:hover .acct__swap,
+.acct__form:focus-within .acct__swap {
+  opacity: 1;
+}
+
+.acct__sep {
+  height: 1px;
+  margin: 0.4rem 0;
+  background: rgba(26, 23, 20, 0.12);
+}
+
+.acct__action {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.4rem;
+  border: 0;
+  border-radius: var(--hs-radius-sm);
+  background: transparent;
+  color: var(--hs-ink);
+  font-family: inherit;
+  font-size: 0.82rem;
+  line-height: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--hs-transition);
+}
+
+/* Buttons do not inherit the surrounding font by default; without this the
+   sign-out buttons render in the system font next to Outfit links. */
+button.acct__action,
+button.app-sidebar__logout {
+  font-family: inherit;
+  appearance: none;
+}
+
+.acct__action:hover {
+  background: rgba(26, 23, 20, 0.06);
+  color: var(--hs-ink);
+}
+
+.acct__action--danger {
+  color: var(--hs-loss);
+}
+
+.acct__action--danger:hover {
+  background: rgba(201, 76, 92, 0.12);
+  color: var(--hs-loss);
+}
+
 .app-main {
   flex: 1;
   margin-left: var(--hs-sidebar-w);

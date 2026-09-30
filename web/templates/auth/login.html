@@ -8,14 +8,30 @@
                 <h2 class="mb-0 auth-login-brand">Hooper Lab</h2>
             </div>
             <div class="card-body p-4">
-                <h4 class="card-title text-center mb-4">Sign In</h4>
+                <h4 class="card-title text-center mb-4">
+                    {% if adding_account %}Add another account{% else %}Sign In{% endif %}
+                </h4>
+                {% if adding_account %}
+                <p class="text-center text-muted small mb-4">
+                    You are currently signed in as <strong>{{ current_user.username }}</strong>.
+                    Signing in below will switch to that account and remember it on this device.
+                </p>
+                {% endif %}
                 
                 <!-- WorkOS AuthKit Sign In Button -->
                 <div class="d-grid gap-3 mb-4">
                     {% if workos_configured %}
+                    {% if adding_account %}
+                    {# The IdP round trip cannot carry ?switch=1, so this route #}
+                    {# stashes the add-account intent in the session first. #}
+                    <a href="{{ url_for('auth.login_sso', switch=1, return_to=return_to) }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-sign-in-alt me-2"></i>Add account with WorkOS
+                    </a>
+                    {% else %}
                     <a href="{{ auth_url }}" class="btn btn-primary btn-lg">
                         <i class="fas fa-sign-in-alt me-2"></i>Sign in with WorkOS
                     </a>
+                    {% endif %}
                     {% else %}
                     <button class="btn btn-secondary btn-lg" disabled title="WorkOS SSO not configured">
                         <i class="fas fa-sign-in-alt me-2"></i>Sign in with WorkOS
@@ -31,8 +47,10 @@
 
                 <!-- Local Username/Password Option -->
                 <h6 class="text-center text-muted mb-3">Or sign in with username</h6>
-                <form method="POST" class="mb-4">
+                <form method="POST" {% if adding_account %}action="{{ url_for('auth.login', switch=1) }}"{% endif %} class="mb-4">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    {% if adding_account %}<input type="hidden" name="switch" value="1"/>{% endif %}
+                    {% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}"/>{% endif %}
                     <div class="mb-3">
                         <label for="username" class="form-label">Username</label>
                         <input type="text" class="form-control" id="username" name="username" 
@@ -54,8 +72,10 @@
                 
                 <!-- Magic Link Option -->
                 <h6 class="text-center text-muted mb-3">Or sign in with Magic Link</h6>
-                <form method="POST">
+                <form method="POST" {% if adding_account %}action="{{ url_for('auth.login', switch=1) }}"{% endif %}>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    {% if adding_account %}<input type="hidden" name="switch" value="1"/>{% endif %}
+                    {% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}"/>{% endif %}
                     
                     <div class="mb-3">
                         <label for="email" class="form-label">Email Address</label>
@@ -71,7 +91,13 @@
                 </form>
             </div>
             <div class="card-footer text-center py-3">
+                {% if adding_account %}
+                <a href="{{ return_to or url_for('main.index') }}" class="small">
+                    <i class="fas fa-xmark me-1"></i>Cancel
+                </a>
+                {% else %}
                 <small>Restricted Access - Authorized Personnel Only</small>
+                {% endif %}
             </div>
         </div>
     </div>
