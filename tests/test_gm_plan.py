@@ -51,6 +51,34 @@ class TestMatrixAndActivity:
 
 
 class TestInviteFlow:
+    @pytest.fixture(autouse=True)
+    def _workos_on(self, app):
+        """Invites require WorkOS: invitees are created without a password.
+
+        Without this the route refuses every invite (correctly), so the
+        happy-path tests below could never reach the creation code.
+        """
+        app.config["WORKOS_API_KEY"] = "test-key"
+        app.config["WORKOS_CLIENT_ID"] = "test-client"
+        app.config["MAIL_DEFAULT_SENDER"] = "noreply@test.it"
+        yield
+        app.config["WORKOS_API_KEY"] = None
+        app.config["WORKOS_CLIENT_ID"] = None
+
+    @pytest.fixture(autouse=True)
+    def _no_real_calls(self, mocker):
+        """Never hit the network from an invite test."""
+        workos_user = mocker.MagicMock()
+        workos_user.id = "workos_test_1"
+        mocker.patch("web.routes.auth.create_workos_user",
+                     return_value=workos_user)
+        self.send_invitation = mocker.patch(
+            "web.routes.auth.send_workos_invitation")
+        self.invite_email = mocker.patch(
+            "web.routes.auth.send_invite_email", return_value=True)
+        mocker.patch("web.routes.auth.get_magic_link_url",
+                     return_value="https://idp.example/magic")
+
     def test_invite_creates_user_with_teams(
             self, admin_client, db_session, default_org, default_team):
         resp = admin_client.post(
@@ -68,6 +96,60 @@ class TestInviteFlow:
         assert ta is not None and ta.is_coach is True
         audit = AdminAudit.query.filter_by(action="user.invite").first()
         assert audit is not None
+
+    def test_invited_user_is_passwordless_and_bound_to_workos(
+            self, admin_client, db_session, default_org):
+        """No throwaway password, and the WorkOS USER id is stored.
+
+        Guards the earlier bug where the WorkOS user was created with an
+        unsupported send_invitation kwarg, so the id was never stored.
+        """
+        admin_client.post(
+            "/auth/users/invite",
+            data={"username": "paolo", "email": "paolo@club.it"},
+            follow_redirects=True)
+        user = User.query.filter_by(username="paolo").first()
+        assert user.password_hash is None
+        assert user.workos_id == "workos_test_1"
+        self.send_invitation.assert_called_once_with(email="paolo@club.it")
+
+    def test_invite_refused_when_workos_unavailable(
+            self, app, admin_client, db_session, default_org, default_team):
+        """A passwordless account with no delivery route must never be made.
+
+        Local sign-in needs a password and this app has no reset/activation
+        flow, so committing one would lock the invitee out permanently.
+        """
+        app.config["WORKOS_API_KEY"] = None
+        app.config["WORKOS_CLIENT_ID"] = None
+
+        resp = admin_client.post(
+            "/auth/users/invite",
+            data={"username": "ghost", "email": "ghost@club.it"},
+            follow_redirects=True)
+
+        assert User.query.filter_by(username="ghost").first() is None
+        self.invite_email.assert_not_called()
+        assert b"WorkOS" in resp.data
+
+    def test_fallback_email_never_points_at_the_password_form(
+            self, admin_client, db_session, default_org, mocker):
+        """When the invitation call fails, the emailed link must be a real
+        sign-in route — /auth/login alone cannot authenticate a user with no
+        password."""
+        self.send_invitation.side_effect = RuntimeError("WorkOS down")
+        mocker.patch("web.routes.auth.get_magic_link_url",
+                     side_effect=RuntimeError("no magic link"))
+
+        admin_client.post(
+            "/auth/users/invite",
+            data={"username": "luca", "email": "luca@club.it"},
+            follow_redirects=True)
+
+        self.invite_email.assert_called_once()
+        login_url = self.invite_email.call_args[0][2]
+        assert not login_url.endswith("/auth/login")
+        assert login_url.endswith("/auth/login/sso")
 
     def test_invite_rejects_duplicates(
             self, admin_client, db_session, default_org, default_team):

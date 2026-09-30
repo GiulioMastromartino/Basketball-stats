@@ -829,18 +829,21 @@ def manage_membership(user_id):
 def invite_user():
     """Invite flow (GM plan idea 3): create user + assignments in one POST.
 
-    The invitee gets an email with a direct WorkOS login link:
-    1. Preferred: WorkOS emails the invitation itself (via
-       ``send_workos_invitation``), landing the invitee directly on WorkOS
-       sign-in with no password.
-    2. Fallback: when WorkOS isn't configured (or its API fails), we send a
-       local email via Flask-Mail containing the direct WorkOS login URL
-       (magic link when available, else the SSO entry point).
+    Invited users are SSO-only (``password_hash=None``, like ``create_user``):
+    no throwaway password is generated, because one that nobody receives is
+    worse than none.
 
-    Email is best-effort: the local account is committed first, so a mail
-    failure never blocks the invite — the GM just gets a warning flash.
-    Invited users are SSO-only (``password_hash=None``, like ``create_user``)
-    so there is no throwaway password to leak or lose.
+    Delivery, in order of preference:
+    1. WorkOS emails the invitation itself (``send_workos_invitation``),
+       landing the invitee directly on WorkOS sign-in.
+    2. We email a direct WorkOS login link (magic link, else the SSO entry
+       point) when the invitation call failed but WorkOS is reachable.
+
+    This route REQUIRES WorkOS. Without it the account would be created with
+    no password and no route to obtain one — local sign-in checks
+    ``user.password_hash`` and this app has no password-reset or activation
+    flow — so the invitee could never authenticate. Rather than mint a dead
+    account, the invite is refused up front.
     """
     org_id = current_user.organization_id
     if not org_id:
@@ -854,6 +857,18 @@ def invite_user():
     if User.query.filter((User.username == username) | (User.email == email)).first():
         flash("A user with this username or email already exists.", "warning")
         return redirect(url_for("main.admin_panel", section="users"))
+
+    # Refuse before creating anything: an account we cannot deliver a login
+    # for is a locked-out user, and there is no self-service recovery.
+    if not _workos_configured():
+        flash(
+            "Inviting needs WorkOS single sign-on configured, because invitees "
+            "sign in without a password. Set WORKOS_API_KEY and "
+            "WORKOS_CLIENT_ID, then try again — no account was created.",
+            "danger",
+        )
+        return redirect(url_for("main.admin_panel", section="users"))
+
     is_gm = request.form.get("is_gm") == "on"
     is_coach = request.form.get("is_coach") == "on"
     raw_team_ids = request.form.getlist("team_ids")
@@ -863,8 +878,6 @@ def invite_user():
         team_ids = []
     teams = Team.query.filter(
         Team.id.in_(team_ids), Team.organization_id == org_id).all() if team_ids else []
-
-    workos_configured = _workos_configured()
 
     # Preferred path: provision the WorkOS user, then ask WorkOS to email the
     # invitation. Creating a user does NOT invite them, so the two calls are
@@ -880,14 +893,13 @@ def invite_user():
     # ``workos_id`` and otherwise by email, binding the two on first sign-in.
     workos_id = None
     workos_invite_sent = False
-    if workos_configured:
-        try:
-            workos_user = create_workos_user(email=email)
-            workos_id = getattr(workos_user, "id", None)
-            send_workos_invitation(email=email)
-            workos_invite_sent = True
-        except Exception as exc:
-            current_app.logger.warning(f"WorkOS invite failed for {email}: {exc}")
+    try:
+        workos_user = create_workos_user(email=email)
+        workos_id = getattr(workos_user, "id", None)
+        send_workos_invitation(email=email)
+        workos_invite_sent = True
+    except Exception as exc:
+        current_app.logger.warning(f"WorkOS invite failed for {email}: {exc}")
 
     new_user = User(username=username, email=email, organization_id=org_id,
                     workos_id=workos_id, password_hash=None)
@@ -910,25 +922,21 @@ def invite_user():
               "success")
         return redirect(url_for("main.admin_panel", section="users"))
 
-    # Fallback: email the direct WorkOS login link ourselves. A per-address
-    # magic link is the most direct ("click to sign in"); when WorkOS is
-    # absent/unreachable, fall back to the app's SSO entry point, else the
-    # plain login page.
+    # Fallback: WorkOS is configured (we returned early otherwise) but the
+    # invitation call failed, so email the invitee a login link ourselves. A
+    # per-address magic link is the most direct ("click to sign in"); failing
+    # that, the SSO entry point — both are genuine WorkOS sign-in routes, so
+    # unlike the password form this link can actually authenticate them.
     redirect_uri = current_app.config.get(
         "WORKOS_REDIRECT_URI", "http://localhost:5000/auth/callback"
     )
     login_url = None
-    if workos_configured:
-        try:
-            login_url = get_magic_link_url(email, redirect_uri)
-        except Exception as exc:
-            current_app.logger.warning(
-                f"Magic-link URL failed for {email}: {exc}")
+    try:
+        login_url = get_magic_link_url(email, redirect_uri)
+    except Exception as exc:
+        current_app.logger.warning(f"Magic-link URL failed for {email}: {exc}")
     if not login_url:
-        try:
-            login_url = url_for("auth.login_sso", _external=True)
-        except Exception:
-            login_url = url_for("auth.login", _external=True)
+        login_url = url_for("auth.login_sso", _external=True)
 
     org = Organization.query.get(org_id)
     # ``org`` can only be None if the org was deleted between the check at
