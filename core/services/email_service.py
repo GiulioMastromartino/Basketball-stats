@@ -1,6 +1,7 @@
 from flask_mail import Message
 from flask import current_app
 from core import mail
+import html
 import smtplib
 import sys
 
@@ -85,6 +86,96 @@ def send_game_notification(recipients, game, pdf_attachment=None):
         )
     except Exception as e:
         current_app.logger.error(f"Game notification failed: {e}")
+
+
+def _invite_html(username, login_url, org_name=None):
+    """Branded HTML alternative for the invite, matching the app shell.
+
+    Dark header (#0b0e12) with the HoopsLab wordmark, cream body (#f3efe6),
+    orange CTA (#ff4d00, the --hs-accent) and teal accent (#2ec4b6,
+    --hs-cool). Table layout + inline styles only, so it renders in
+    Gmail/Outlook/Apple Mail without external CSS or fonts.
+    """
+    safe_user = html.escape(username or "there")
+    safe_url = html.escape(login_url or "", quote=True)
+    safe_org = html.escape(org_name) if org_name else None
+    org_row = (
+        f"""<p style="margin:0 0 12px;font-size:14px;color:#4f4a43;">
+          You've been added to <strong>{safe_org}</strong>.</p>"""
+        if safe_org else ""
+    )
+    return f"""<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#12161d;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+  Your HoopsLab account is ready — sign in with WorkOS, no password needed.
+</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#12161d;padding:32px 16px;">
+<tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;border-radius:14px;overflow:hidden;">
+<tr><td style="background:#0b0e12;padding:28px 32px;text-align:center;border-bottom:3px solid #ff4d00;">
+<p style="margin:0;font-family:Arial,sans-serif;font-size:26px;font-weight:bold;letter-spacing:1px;color:#ffffff;">&#127936; Hoops<span style="color:#2ec4b6;">Lab</span></p>
+<p style="margin:8px 0 0;font-family:Arial,sans-serif;font-size:12px;letter-spacing:2px;color:#8b93a1;">STATS THAT FEEL LIKE FILM SESSION</p>
+</td></tr>
+<tr><td style="background:#f3efe6;padding:32px;font-family:Arial,sans-serif;color:#1a1714;">
+<h1 style="margin:0 0 8px;font-size:22px;">Hi {safe_user}, you're invited.</h1>
+{org_row}
+<p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#4f4a43;">
+Your account is ready. Sign in directly with WorkOS — no password needed.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;"><tr><td align="center" style="border-radius:10px;background:#ff4d00;">
+<a href="{safe_url}" style="display:inline-block;padding:14px 36px;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;">Sign in with WorkOS</a>
+</td></tr></table>
+<p style="margin:0 0 8px;font-size:12px;color:#4f4a43;">Button not working? Paste this link into your browser:</p>
+<p style="margin:0 0 20px;font-size:12px;word-break:break-all;"><a href="{safe_url}" style="color:#2ec4b6;">{safe_url}</a></p>
+<p style="margin:0;font-size:12px;color:#4f4a43;">Tip: on the sign-in page choose <strong>Single Sign-On</strong>.</p>
+</td></tr>
+<tr><td style="background:#0b0e12;padding:16px 32px;text-align:center;">
+<p style="margin:0;font-family:Arial,sans-serif;font-size:11px;letter-spacing:1px;color:#8b93a1;">HOOPSLAB &middot; BASKETBALL STATS</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>"""
+
+
+def send_invite_email(to_email, username, login_url, org_name=None):
+    """Invite a new member with a direct WorkOS login link.
+
+    Best-effort: returns True on success, False when mail is unconfigured
+    or sending fails. Never raises — the invite itself must not fail
+    because email did.
+    """
+    sender = current_app.config.get("MAIL_DEFAULT_SENDER")
+    if not sender:
+        current_app.logger.warning(
+            f"Invite email to {to_email} skipped: MAIL_DEFAULT_SENDER not set"
+        )
+        return False
+    if not to_email or not login_url:
+        return False
+
+    org_line = f" You've been added to {org_name}." if org_name else ""
+    subject = "You're invited — sign in to HoopsLab"
+    body = f"""Hi {username},{org_line}
+
+Your account is ready. Sign in directly with WorkOS (no password needed):
+
+{login_url}
+
+If the link above doesn't work, open the app and choose Single Sign-On.
+
+— HoopsLab
+"""
+
+    msg = Message(subject, sender=sender, recipients=[to_email])
+    msg.body = body
+    msg.html = _invite_html(username, login_url, org_name)
+
+    try:
+        mail.send(msg)
+        current_app.logger.info(f"Invite email sent to {to_email}")
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Failed to send invite email to {to_email}: {e}")
+        return False
 
 
 def send_player_performance_email(

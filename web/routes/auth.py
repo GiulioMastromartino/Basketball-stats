@@ -816,7 +816,23 @@ def manage_membership(user_id):
 @login_required
 @gm_required
 def invite_user():
-    """Invite flow (GM plan idea 3): create user + assignments in one POST."""
+    """Invite flow (GM plan idea 3): create user + assignments in one POST.
+
+    The invitee gets an email with a direct WorkOS login link:
+    1. Preferred: WorkOS itself sends the invitation (``send_invitation=True``
+       inside ``create_workos_user``) — that mail lands directly on WorkOS
+       sign-in, no password needed.
+    2. Fallback: when WorkOS isn't configured (or its API fails), we send a
+       local email via Flask-Mail containing the direct WorkOS login URL
+       (magic link when available, else the SSO entry point).
+
+    Email is best-effort: the local account is committed first, so a mail
+    failure never blocks the invite — the GM just gets a warning flash.
+    Invited users are SSO-only (``password_hash=None``, like ``create_user``)
+    so there is no throwaway password to leak or lose.
+    """
+    from core.services.email_service import send_invite_email
+
     org_id = current_user.organization_id
     if not org_id:
         flash("You must belong to an organization to invite users.", "danger")
@@ -839,8 +855,25 @@ def invite_user():
     teams = Team.query.filter(
         Team.id.in_(team_ids), Team.organization_id == org_id).all() if team_ids else []
 
-    new_user = User(username=username, email=email, organization_id=org_id)
-    new_user.set_password(secrets.token_urlsafe(12))
+    workos_configured = bool(
+        current_app.config.get("WORKOS_API_KEY")
+        and current_app.config.get("WORKOS_CLIENT_ID")
+    )
+
+    # Preferred path: let WorkOS send its own invitation email, which lands
+    # the invitee directly on WorkOS sign-in.
+    workos_id = None
+    workos_invite_sent = False
+    if workos_configured:
+        try:
+            workos_user = create_workos_user(email=email)
+            workos_id = getattr(workos_user, "id", None)
+            workos_invite_sent = True
+        except Exception as exc:
+            current_app.logger.warning(f"WorkOS invite failed for {email}: {exc}")
+
+    new_user = User(username=username, email=email, organization_id=org_id,
+                    workos_id=workos_id, password_hash=None)
     db.session.add(new_user)
     db.session.flush()
     db.session.add(OrganizationMembership(
@@ -854,7 +887,48 @@ def invite_user():
         f"invited {username} ({email}) to {len(teams)} team(s)"
         + (", GM" if is_gm else ""),
         target_type="user", target_id=new_user.id)
-    flash(f"Invited {username} — assigned to {len(teams)} team(s).", "success")
+
+    if workos_invite_sent:
+        flash(f"Invited {username} — WorkOS sign-in invitation sent to {email}.",
+              "success")
+        return redirect(url_for("main.admin_panel", section="users"))
+
+    # Fallback: email the direct WorkOS login link ourselves. A per-address
+    # magic link is the most direct ("click to sign in"); when WorkOS is
+    # absent/unreachable, fall back to the app's SSO entry point, else the
+    # plain login page.
+    redirect_uri = current_app.config.get(
+        "WORKOS_REDIRECT_URI", "http://localhost:5000/auth/callback"
+    )
+    login_url = None
+    if workos_configured:
+        try:
+            login_url = get_magic_link_url(email, redirect_uri)
+        except Exception as exc:
+            current_app.logger.warning(
+                f"Magic-link URL failed for {email}: {exc}")
+    if not login_url:
+        try:
+            login_url = url_for("auth.login_sso", _external=True)
+        except Exception:
+            login_url = url_for("auth.login", _external=True)
+
+    org = Organization.query.get(org_id)
+    email_ok = False
+    try:
+        email_ok = bool(send_invite_email(
+            email, username, login_url,
+            org_name=getattr(org, "name", None)))
+    except Exception as exc:
+        current_app.logger.warning(f"Invite email failed for {email}: {exc}")
+
+    if email_ok:
+        flash(f"Invited {username} — sign-in link emailed to {email}.",
+              "success")
+    else:
+        flash(f"Invited {username} — but the invite email could not be sent. "
+              f"Share this WorkOS sign-in link manually: {login_url}",
+              "warning")
     return redirect(url_for("main.admin_panel", section="users"))
 
 
