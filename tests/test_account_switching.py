@@ -409,7 +409,7 @@ class TestTokenScoping:
             r.id for r in AccountToken.query.all()
             if r.user_id == alice.id and r.revoked_at is None
         )
-        client.post("/auth/logout?scope=all")
+        client.post("/auth/accounts/forget-all")
 
         _login(client, bob)
         # Re-mint for alice, then revoke server-side only.
@@ -526,7 +526,7 @@ class TestRemoval:
         _login(client, alice)
         _login(client, bob)
 
-        client.get("/auth/logout")
+        client.post("/auth/logout")
         assert len(_cookie_tokens(client)) == 1
         assert AccountToken.query.filter_by(
             user_id=alice.id, revoked_at=None).count() == 1
@@ -536,7 +536,7 @@ class TestRemoval:
         _login(client, alice)
         _login(client, bob)
 
-        client.get("/auth/logout?scope=all")
+        client.post("/auth/accounts/forget-all")
         assert _cookie_tokens(client) == []
         assert AccountToken.query.filter_by(revoked_at=None).count() == 0
 
@@ -672,3 +672,240 @@ def test_malformed_cookie_is_ignored(client, two_users):
     client.set_cookie(ACCOUNTS_COOKIE, "}{not json", domain="localhost")
     resp = client.get("/")
     assert resp.status_code in (200, 302)
+
+
+# =============================================================================
+# Review follow-ups: logout method, return-path hardening, intent carry,
+# prune-before-cap, config robustness, deterministic eviction
+# =============================================================================
+
+
+class TestLogoutMethod:
+    def test_get_logout_does_not_sign_out(self, client, two_users):
+        _login(client, two_users[0])
+        assert client.get("/auth/logout").status_code == 405
+        # Still signed in: a cross-site top-level GET cannot log anyone out.
+        assert _acting_user(client) == str(two_users[0].id)
+
+    def test_menu_signs_out_via_post_form(self, client, two_users):
+        _login(client, two_users[0])
+        html = client.get("/").get_data(as_text=True)
+        assert 'action="/auth/logout"' in html
+        assert "csrf_token" in html
+
+
+class TestReturnPath:
+    # ``///evil`` and ``/%2F%2Fevil`` are deliberately NOT in this list:
+    # urlparse normalises the former to a same-origin path and never decodes
+    # the latter, so both stay on our host. Blocking them would be theatre.
+    @pytest.mark.parametrize("evil", [
+        "//evil.example/",
+        "/\\evil.example/",
+        "javascript:alert(1)",
+        "https://evil.example/",
+        "http://evil.example/",
+        "/\\n/evil.example/",
+        "",
+    ])
+    def test_malicious_return_paths_are_dropped(self, client, two_users, evil):
+        alice, bob = two_users
+        _login(client, alice)
+        _login(client, bob)
+        token_id = next(
+            r.id for r in AccountToken.query.all()
+            if r.user_id == alice.id and r.revoked_at is None
+        )
+        resp = _switch(client, token_id, return_to=evil)
+        assert "evil.example" not in resp.headers["Location"]
+        assert "javascript" not in resp.headers["Location"]
+        assert _acting_user(client) == str(alice.id)
+
+    def test_plain_path_with_query_survives(self, client, two_users):
+        alice, _ = two_users
+        _login(client, alice)
+        _login(client, two_users[1])
+        token_id = next(
+            r.id for r in AccountToken.query.all()
+            if r.user_id == alice.id and r.revoked_at is None
+        )
+        resp = _switch(client, token_id, return_to="/players?team=1")
+        assert resp.headers["Location"].endswith("/players?team=1")
+
+
+class TestOtpAddAccount:
+    def test_gm_adding_second_account_keeps_intent_through_otp(
+        self, client, db_session, default_org, default_team, mocker
+    ):
+        """A GM adding an account must land on the "Added" flow, not the
+        generic welcome, and must honour the requested return path."""
+        mocker.patch("web.routes.auth.notify_otp", return_value=True)
+        alice = _make_user(db_session, default_org, default_team, "alice")
+        gm = _make_user(db_session, default_org, default_team, "boss",
+                        is_gm=True, password="bosspw")
+        _login(client, alice)
+
+        resp = client.post("/auth/login?switch=1", data={
+            "username": "boss", "password": "bosspw", "switch": "1",
+            "return_to": "/players",
+        })
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/auth/verify-otp")
+        # Still alice until the code is entered; the GM's token must not be
+        # minted yet, so the cookie still holds exactly alice's login.
+        assert _acting_user(client) == str(alice.id)
+        assert len(_cookie_tokens(client)) == 1
+        assert AccountToken.query.filter_by(
+            user_id=gm.id, revoked_at=None).count() == 0
+
+        code = User.query.filter_by(username="boss").first().otp_code
+        assert code
+        resp = client.post("/auth/verify-otp", data={"otp_code": code},
+                           follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"Added boss to this device." in resp.data
+        assert _acting_user(client) == str(gm.id)
+        assert AccountToken.query.filter_by(
+            user_id=gm.id, revoked_at=None).count() == 1
+
+
+class TestSsoAddAccount:
+    def _arm(self, client):
+        with client.session_transaction() as sess:
+            sess["_account_add"] = True
+            sess["_account_add_return"] = "/players"
+            sess["_account_add_at"] = datetime.utcnow().isoformat()
+
+    def test_login_sso_arms_intent_then_redirects(
+        self, client, two_users, mocker
+    ):
+        mock_url = mocker.patch(
+            "web.routes.auth.get_auth_url", return_value="https://idp.example/auth")
+        _login(client, two_users[0])
+
+        resp = client.get("/auth/login/sso?switch=1&return_to=/players")
+        assert resp.status_code == 302
+        assert resp.headers["Location"] == "https://idp.example/auth"
+        mock_url.assert_called_once()
+        with client.session_transaction() as sess:
+            assert sess.get("_account_add") is True
+            assert sess.get("_account_add_return") == "/players"
+
+    def test_login_sso_without_switch_sets_no_intent(
+        self, client, two_users, mocker
+    ):
+        mocker.patch("web.routes.auth.get_auth_url",
+                     return_value="https://idp.example/auth")
+        _login(client, two_users[0])
+
+        client.get("/auth/login/sso")
+        with client.session_transaction() as sess:
+            assert sess.get("_account_add") is not True
+
+    def test_callback_consumes_intent(self, client, db_session, default_org,
+                                      default_team, mocker):
+        alice = _make_user(db_session, default_org, default_team, "alice")
+        sso = _make_user(db_session, default_org, default_team, "ssogal")
+        _login(client, alice)
+        self._arm(client)
+
+        result = mocker.MagicMock()
+        result.user.id = "workos-123"
+        result.user.email = sso.email
+        mocker.patch("web.routes.auth.authenticate_callback",
+                     return_value=result)
+
+        resp = client.get("/auth/callback?code=abc123")
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/players")
+        assert _acting_user(client) == str(sso.id)
+        assert AccountToken.query.filter_by(
+            user_id=sso.id, revoked_at=None).count() == 1
+
+        # Follow through to the landing page for the "Added" flash.
+        page = client.get("/players", follow_redirects=True)
+        assert b"Added ssogal to this device." in page.data
+
+    def test_callback_ignores_stale_intent(self, client, db_session,
+                                           default_org, default_team, mocker):
+        alice = _make_user(db_session, default_org, default_team, "alice")
+        sso = _make_user(db_session, default_org, default_team, "ssogal")
+        _login(client, alice)
+        with client.session_transaction() as sess:
+            sess["_account_add"] = True
+            sess["_account_add_return"] = "/players"
+            sess["_account_add_at"] = (
+                datetime.utcnow() - timedelta(hours=2)).isoformat()
+
+        result = mocker.MagicMock()
+        result.user.id = "workos-123"
+        result.user.email = sso.email
+        mocker.patch("web.routes.auth.authenticate_callback",
+                     return_value=result)
+
+        resp = client.get("/auth/callback?code=abc123")
+        assert resp.headers["Location"].endswith("/")
+        page = client.get("/", follow_redirects=True)
+        assert b"Added ssogal" not in page.data
+
+
+class TestPruneBeforeCap:
+    def test_stale_cookie_entries_do_not_evict_live_login(
+        self, client, two_users
+    ):
+        """A cookie full of dead tokens must not cost the one live login its
+        place when a new account is added."""
+        alice, bob = two_users
+        _login(client, alice)
+        real = _cookie_tokens(client)[0]
+
+        padding = [f"dead-token-{i}" for i in range(MAX_REMEMBERED_ACCOUNTS - 1)]
+        _set_cookie_tokens(client, [real] + padding)
+        assert len(_cookie_tokens(client)) == MAX_REMEMBERED_ACCOUNTS
+
+        _login(client, bob)
+
+        tokens = _cookie_tokens(client)
+        assert len(tokens) == 2
+        assert AccountToken.query.filter_by(
+            user_id=alice.id, revoked_at=None).count() == 1
+        assert AccountToken.query.filter_by(
+            user_id=bob.id, revoked_at=None).count() == 1
+
+
+class TestConfigRobustness:
+    def test_malformed_cookie_max_age_never_500s(self, app, client, two_users):
+        app.config["ACCOUNT_SWITCH_COOKIE_MAX_AGE"] = "not-a-number"
+        try:
+            resp = client.post("/auth/login?switch=1", data={
+                "username": two_users[0].username, "password": "pw12345",
+                "switch": "1",
+            })
+            assert resp.status_code == 302
+            assert _cookie_tokens(client) != []
+        finally:
+            app.config["ACCOUNT_SWITCH_COOKIE_MAX_AGE"] = 2592000
+
+
+class TestEvictionOrder:
+    def test_eviction_picks_oldest_row_id_on_timestamp_ties(
+        self, client, db_session, default_org, default_team
+    ):
+        users = [
+            _make_user(db_session, default_org, default_team, f"evict{i}")
+            for i in range(MAX_REMEMBERED_ACCOUNTS)
+        ]
+        for user in users:
+            _login(client, user)
+
+        frozen = datetime(2026, 1, 1)
+        for row in AccountToken.query.all():
+            row.last_used_at = frozen
+        db.session.commit()
+        expected_victim = min(r.id for r in AccountToken.query.all())
+
+        newcomer = _make_user(db_session, default_org, default_team, "newcomer")
+        _login(client, newcomer)
+
+        assert AccountToken.query.get(expected_victim).revoked_at is not None
+        assert AccountToken.query.filter_by(revoked_at=None).count() == (
+            MAX_REMEMBERED_ACCOUNTS)

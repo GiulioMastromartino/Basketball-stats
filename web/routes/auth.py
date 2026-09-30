@@ -94,12 +94,72 @@ def _switching_enabled() -> bool:
     return bool(current_app.config.get("ACCOUNT_SWITCHING_ENABLED", True))
 
 
+# Intent marker so the "add another account" flow survives round trips that
+# cannot carry query strings: the OTP form posts to /verify-otp (not
+# /login?switch=1), and the WorkOS IdP round trip returns to a fixed
+# redirect URI. Stored in the session because only this browser may act on
+# it, consumed exactly once, and ignored when stale.
+_ACCOUNT_ADD_KEY = "_account_add"
+_ACCOUNT_ADD_RETURN_KEY = "_account_add_return"
+_ACCOUNT_ADD_AT_KEY = "_account_add_at"
+_ACCOUNT_ADD_TTL = timedelta(minutes=30)
+
+
+def _stash_account_add_intent(return_to: str | None) -> None:
+    session[_ACCOUNT_ADD_KEY] = True
+    session[_ACCOUNT_ADD_RETURN_KEY] = return_to
+    session[_ACCOUNT_ADD_AT_KEY] = datetime.utcnow().isoformat()
+
+
+def _pop_account_add_intent() -> tuple[bool, str | None]:
+    """Consume a stashed add-account intent; (was_adding, return_path)."""
+    if not session.pop(_ACCOUNT_ADD_KEY, False):
+        session.pop(_ACCOUNT_ADD_RETURN_KEY, None)
+        session.pop(_ACCOUNT_ADD_AT_KEY, None)
+        return False, None
+    try:
+        armed_at = datetime.fromisoformat(
+            session.pop(_ACCOUNT_ADD_AT_KEY, "") or "")
+    except ValueError:
+        armed_at = None
+    return_to = session.pop(_ACCOUNT_ADD_RETURN_KEY, None)
+    if armed_at is None or datetime.utcnow() - armed_at > _ACCOUNT_ADD_TTL:
+        return False, None
+    if return_to and _is_safe_return_path(return_to):
+        return True, return_to
+    return True, None
+
+
+def _is_safe_return_path(raw: str | None) -> bool:
+    """Same-origin check shared by the request-value and session-stashed paths."""
+    from urllib.parse import urlparse
+
+    if not raw or not isinstance(raw, str):
+        return False
+    raw = raw.strip()
+    if not raw or "\\" in raw:
+        return False
+    parsed = urlparse(raw)
+    if parsed.scheme or parsed.netloc:
+        return False
+    # Note: urlparse normalises a leading run of slashes (``///evil`` becomes
+    # path ``/evil``) and never percent-decodes, so ``/%2F%2Fevil`` stays a
+    # same-origin path. Both are therefore safe to allow.
+    if not parsed.path.startswith("/"):
+        return False
+    return True
+
+
 def _safe_return_path() -> str | None:
-    """A relative path to come back to after adding an account, or None."""
+    """A relative path to come back to after adding an account, or None.
+
+    Parsed with ``urllib.parse`` rather than prefix checks alone, so encoded
+    tricks (``/%2F%2Fevil``, ``/\\evil``) and scheme-relative smuggling
+    (``//evil``, ``/\\evil``) cannot slip through as a same-origin path.
+    Only a plain path with no scheme, host, or backslash survives.
+    """
     raw = (request.values.get("return_to") or "").strip()
-    if raw.startswith("/") and not raw.startswith("//") and "\\" not in raw:
-        return raw
-    return None
+    return raw if _is_safe_return_path(raw) else None
 
 
 class EmptyForm(FlaskForm):
@@ -160,12 +220,17 @@ def login():
                 if user.is_manager:
                     # OTP is required when an identity is first established,
                     # and is not repeated when merely switching back to an
-                    # account already remembered by this browser.
+                    # account already remembered by this browser. The
+                    # add-account intent cannot travel as a query string
+                    # (the OTP form posts to /verify-otp), so stash it in
+                    # the session for verify_otp to consume.
                     otp_code = f"{secrets.randbelow(1000000):06d}"
                     user.otp_code = otp_code
                     user.otp_expiry = datetime.utcnow() + timedelta(minutes=5)
                     db.session.commit()
                     session["otp_user_id"] = user.id
+                    if adding_account:
+                        _stash_account_add_intent(_safe_return_path())
                     notify_otp(
                         user.email, otp_code,
                         whatsapp_phone=getattr(user, "whatsapp_phone", None)
@@ -200,6 +265,34 @@ def login():
                 flash("Magic link service unavailable. Try again later.", "danger")
 
     return render()
+
+
+@auth_bp.route("/login/sso")
+def login_sso():
+    """Start WorkOS SSO, optionally in "add another account" mode.
+
+    The IdP round trip returns to a fixed redirect URI that cannot carry
+    ``?switch=1``, so the intent is stashed in the session for the callback
+    to consume. Arming the flag is harmless on its own: it only changes the
+    flash message and landing page after a *successful* authentication.
+    """
+    redirect_uri = current_app.config.get(
+        "WORKOS_REDIRECT_URI", "http://localhost:5000/auth/callback"
+    )
+    try:
+        auth_url = get_auth_url(redirect_uri)
+    except Exception as e:
+        current_app.logger.warning(f"WorkOS auth URL unavailable: {e}")
+        flash("Single sign-on is unavailable. Try again later.", "danger")
+        return redirect(url_for("auth.login"))
+
+    if (
+        _switching_enabled()
+        and current_user.is_authenticated
+        and request.args.get("switch") == "1"
+    ):
+        _stash_account_add_intent(_safe_return_path())
+    return redirect(auth_url)
 
 
 @auth_bp.route("/callback")
@@ -253,6 +346,14 @@ def callback():
             )
             flash("Welcome! Please set up your organization to get started.", "info")
             return redirect(url_for("auth.onboarding"))
+
+        # The add-account intent only survives via the session (the IdP round
+        # trip cannot carry query strings); an absent or stale flag means an
+        # ordinary sign-in.
+        was_adding, return_to = _pop_account_add_intent()
+        if was_adding:
+            flash(f"Added {user.username} to this device.", "success")
+            return redirect(return_to or url_for("main.index"))
 
         flash(f"Welcome, {user.username}!", "success")
         return redirect(url_for("main.index"))
@@ -313,34 +414,25 @@ def onboarding():
     return render_template("auth/onboarding.html")
 
 
-@auth_bp.route("/logout")
+@auth_bp.route("/logout", methods=["POST"])
 @login_required
 def logout():
-    """Sign out.
+    """Sign out of the current account only.
 
-    Default scope is this account only, so other logins remembered on this
-    device survive and can be switched back to. ``?scope=all`` revokes every
-    remembered login for the browser (the "sign out of all accounts" escape
-    hatch, and the one to reach for on a shared or lost device).
+    POST-only with CSRF: a GET logout is triggerable by any cross-site
+    top-level link (``SameSite=Lax`` still sends cookies there), which turns
+    "click this link" into a forced sign-out. Other logins remembered on
+    this device survive; use ``POST /auth/accounts/forget-all`` for a full
+    device wipe.
     """
     user_id = current_user.id
-    scope = (request.args.get("scope") or "this").lower()
-
-    if scope == "all":
-        count = forget_all_accounts()
-        message = (
-            f"You have been signed out of all accounts ({count} removed)."
-            if count
-            else "You have been signed out of all accounts."
-        )
+    record_id = remembered_record_id_for(user_id)
+    record = remembered_record(record_id) if record_id else None
+    if record is not None:
+        forget_record(record)
+        message = "Signed out. Other accounts on this device are still remembered."
     else:
-        record_id = remembered_record_id_for(user_id)
-        record = remembered_record(record_id) if record_id else None
-        if record is not None:
-            forget_record(record)
-            message = "Signed out. Other accounts on this device are still remembered."
-        else:
-            message = "You have been logged out."
+        message = "You have been logged out."
 
     logout_user()
     _clear_user_context()
@@ -467,7 +559,17 @@ def verify_otp():
         user.otp_expiry = None
         db.session.commit()
         session.pop("otp_user_id", None)
+        was_adding, return_to = _pop_account_add_intent()
         _establish_identity(user)
+
+        if not user.organization_id:
+            flash("Welcome! Please set up your organization to get started.", "info")
+            return redirect(url_for("auth.onboarding"))
+
+        if was_adding:
+            flash(f"Added {user.username} to this device.", "success")
+            return redirect(return_to or url_for("main.index"))
+
         flash(f"Welcome back, {user.username}!", "success")
         return redirect(url_for("main.index"))
 
@@ -614,6 +716,10 @@ def delete_user(user_id):
         )
     # Memberships and team assignments have non-nullable user_id, so they
     # have to be removed explicitly rather than left for the ORM to null out.
+    # This is deliberately belt-and-braces alongside the delete-orphan
+    # cascades on the model: the bulk delete avoids loading every child row
+    # into the session, and the cascade still covers any path that deletes
+    # a User object directly.
     OrganizationMembership.query.filter_by(user_id=user_id).delete(
         synchronize_session=False
     )

@@ -56,11 +56,23 @@ class TestAuth(unittest.TestCase):
 
         # Test Logout. Default scope is this account only; the login above
         # left the account remembered on the device, so the message reflects
-        # that other remembered accounts would survive.
-        response = self.client.get('/auth/logout', follow_redirects=True)
+        # that other remembered accounts would survive. Logout is POST-only
+        # (CSRF): a GET logout is triggerable by any cross-site link.
+        response = self.client.post('/auth/logout', follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'Other accounts on this device are still remembered',
                       response.data)
+
+        # GET must not sign anyone out.
+        self.client.post('/auth/login', data={
+            'username': self.username,
+            'password': self.password
+        }, follow_redirects=True)
+        self.assertEqual(self.client.get('/auth/logout').status_code, 405)
+        self.assertEqual(self.client.get('/').status_code, 200)
+
+        # The protected dashboard must bounce to login again after a POST.
+        self.client.post('/auth/logout', follow_redirects=True)
 
         # The protected dashboard must bounce to login again.
         self.assertEqual(self.client.get('/').status_code, 302)
@@ -71,9 +83,16 @@ class TestAuth(unittest.TestCase):
             'password': self.password
         }, follow_redirects=True)
 
-        response = self.client.get('/auth/logout?scope=all', follow_redirects=True)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b'signed out of all accounts', response.data)
+        # A full device wipe lives on the CSRF-protected forget-all route;
+        # plain logout only ever forgets the current account.
+        response = self.client.post('/auth/accounts/forget-all')
+        self.assertEqual(response.status_code, 302)
+        with self.client.session_transaction() as sess:
+            flashes = [m for _, m in sess.get('_flashes', [])]
+        self.assertTrue(
+            any('signed out of all accounts' in m.lower() for m in flashes),
+            f"unexpected flashes: {flashes}",
+        )
 
         # The remembered-login row must be revoked, not merely dropped
         # client-side, or a copied cookie would still work.

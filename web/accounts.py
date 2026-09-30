@@ -40,6 +40,25 @@ ACCOUNTS_COOKIE = "hs_accounts"
 # Cap the list so a shared machine cannot accumulate unbounded tokens.
 MAX_REMEMBERED_ACCOUNTS = 8
 
+# Fallback when the configured cookie lifetime is missing or malformed. Kept
+# as a constant (rather than raising) because this runs in an
+# ``after_request`` hook, where an exception would 500 every response.
+DEFAULT_COOKIE_MAX_AGE = 2592000  # 30 days
+
+
+def _cookie_max_age() -> int:
+    """Configured ``hs_accounts`` lifetime, defensively parsed.
+
+    ``config`` already normalises the env var with ``_env_int``, but the app
+    config value can still be overridden with a stray string at runtime
+    (tests, shells). Never let that 500 the response.
+    """
+    try:
+        return int(current_app.config.get(
+            "ACCOUNT_SWITCH_COOKIE_MAX_AGE", DEFAULT_COOKIE_MAX_AGE))
+    except (TypeError, ValueError):
+        return DEFAULT_COOKIE_MAX_AGE
+
 # How stale ``last_used_at`` may get before we bother writing it again, so
 # browsing does not turn into a DB write per request.
 _LAST_USED_REFRESH = timedelta(hours=1)
@@ -80,6 +99,9 @@ def _read_cookie() -> list[str]:
 def _write_cookie(tokens: list[str]) -> None:
     """Stage a cookie write for the end of the request."""
     g._hs_account_tokens = tokens
+    # Any listing computed earlier this request is now stale; drop it so a
+    # later read in the same request re-resolves against the new cookie.
+    g.pop("_hs_remembered_accounts", None)
 
 
 def flush_account_cookie(response):
@@ -92,11 +114,10 @@ def flush_account_cookie(response):
     if _accounting_disabled():
         return response
     if tokens:
-        max_age = int(current_app.config.get("ACCOUNT_SWITCH_COOKIE_MAX_AGE", 2592000))
         response.set_cookie(
             ACCOUNTS_COOKIE,
             json.dumps(tokens),
-            max_age=max_age,
+            max_age=_cookie_max_age(),
             httponly=True,
             secure=bool(current_app.config.get("SESSION_COOKIE_SECURE")),
             samesite="Lax",
@@ -168,16 +189,23 @@ def remember_account(user: User) -> str | None:
         _touch(existing)
         return next(t for t in tokens if hash_token(t) == existing.token_hash)
 
-    raw = mint_account_token(user)
+    # Drop entries that no longer resolve (revoked, deleted or deactivated
+    # user) BEFORE the cap check: otherwise a cookie full of stale tokens
+    # would evict the one live login and force its owner to re-authenticate
+    # for no reason. Login-only path, so per-token resolution is fine.
+    tokens = [t for t in tokens if resolve_token(t) is not None]
+    hashes = {hash_token(t) for t in tokens}
+
     if len(tokens) >= MAX_REMEMBERED_ACCOUNTS:
         # Drop the oldest remembered login to make room rather than growing
-        # the cookie without bound.
+        # the cookie without bound. ``id`` breaks ties when several rows
+        # share a timestamp, so eviction is deterministic.
         oldest = (
             AccountToken.query.filter(
-                AccountToken.token_hash.in_([hash_token(t) for t in tokens]),
+                AccountToken.token_hash.in_(list(hashes)),
                 AccountToken.revoked_at.is_(None),
             )
-            .order_by(AccountToken.last_used_at.asc())
+            .order_by(AccountToken.last_used_at.asc(), AccountToken.id.asc())
             .first()
         )
         if oldest:
@@ -185,6 +213,7 @@ def remember_account(user: User) -> str | None:
             db.session.commit()
             tokens = [t for t in tokens if hash_token(t) != oldest.token_hash]
 
+    raw = mint_account_token(user)
     tokens.append(raw)
     _write_cookie(tokens)
     return raw
@@ -289,19 +318,50 @@ def list_remembered_accounts() -> list[dict]:
 
     Stale entries (revoked, deleted user, deactivated) are pruned from the
     cookie as a side effect so a revoked token cannot linger client-side.
+
+    Resolved in two batched queries (token rows, then users) no matter how
+    many tokens the cookie holds, and cached on ``g`` so the context
+    processor, the menu, and the logout path share one resolution per
+    request instead of re-querying.
     """
+    cached = g.get("_hs_remembered_accounts", None)
+    if cached is not None:
+        return cached
+
     tokens = _cookie_tokens()
     if not tokens:
+        g._hs_remembered_accounts = []
         return []
+
+    token_hashes = [hash_token(t) for t in tokens]
+    records = (
+        AccountToken.query.filter(
+            AccountToken.token_hash.in_(token_hashes),
+            AccountToken.revoked_at.is_(None),
+        ).all()
+    )
+    by_hash = {r.token_hash: r for r in records}
+    users = (
+        {
+            u.id: u
+            for u in User.query.filter(
+                User.id.in_([r.user_id for r in records])
+            ).all()
+        }
+        if records
+        else {}
+    )
 
     accounts: list[dict] = []
     live_tokens: list[str] = []
     seen: set[int] = set()
-    for raw in tokens:
-        found = resolve_token(raw)
-        if found is None:
+    for raw, token_hash in zip(tokens, token_hashes):
+        record = by_hash.get(token_hash)
+        if record is None:
             continue
-        record, user = found
+        user = users.get(record.user_id)
+        if user is None or not user.is_active:
+            continue
         live_tokens.append(raw)
         # One entry per account even if the cookie somehow holds two tokens
         # for the same user.
@@ -337,6 +397,7 @@ def list_remembered_accounts() -> list[dict]:
         except Exception:
             db.session.rollback()
 
+    g._hs_remembered_accounts = accounts
     return accounts
 
 
@@ -359,29 +420,31 @@ def purge_user_tokens(user_id: int) -> int:
     Called from the admin delete-user action. ``AccountToken.user`` already
     cascades, so this is belt-and-braces for callers that delete the token
     rows explicitly (and makes the intent legible at the call site).
+    Token rows have no children, so a bulk delete is safe here.
     """
-    rows = AccountToken.query.filter_by(user_id=user_id).all()
-    for row in rows:
-        db.session.delete(row)
-    if rows:
+    deleted = (
+        AccountToken.query.filter_by(user_id=user_id)
+        .delete(synchronize_session=False)
+    )
+    if deleted:
         db.session.commit()
-    return len(rows)
+    return deleted
 
 
 def purge_expired_tokens() -> int:
     """Housekeeping: delete token rows revoked or unused for too long."""
     cutoff = datetime.utcnow() - timedelta(days=90)
-    rows = AccountToken.query.filter(
-        db.or_(
-            AccountToken.revoked_at.isnot(None),
-            AccountToken.last_used_at < cutoff,
-        )
-    ).all()
-    for row in rows:
-        db.session.delete(row)
-    if rows:
+    deleted = (
+        AccountToken.query.filter(
+            db.or_(
+                AccountToken.revoked_at.isnot(None),
+                AccountToken.last_used_at < cutoff,
+            )
+        ).delete(synchronize_session=False)
+    )
+    if deleted:
         db.session.commit()
-    return len(rows)
+    return deleted
 
 
 def remembered_record_id_for(user_id: int) -> int | None:
