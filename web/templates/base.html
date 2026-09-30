@@ -190,6 +190,9 @@
                             <form method="POST" action="{{ url_for('auth.switch_account') }}" class="acct__form">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <input type="hidden" name="token_id" value="{{ acct.token_id }}"/>
+                                {# Stay on the current page across the switch #}
+                                {# rather than bouncing to the dashboard. #}
+                                <input type="hidden" name="return_to" value="{{ request.path }}"/>
                                 <button type="submit" class="acct__entry">
                                     <span class="acct__avatar acct__avatar--sm" aria-hidden="true">{{ acct.user.username[:1]|upper }}</span>
                                     <span class="acct__id">

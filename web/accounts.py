@@ -173,36 +173,38 @@ def remember_account(user: User) -> str | None:
     """
     if _accounting_disabled():
         return None
-    tokens = _cookie_tokens()
-    hashes = {hash_token(t) for t in tokens}
+    # One hash pass shared by every step below: lookup, prune, eviction.
+    pairs = [(t, hash_token(t)) for t in _cookie_tokens()]
+    by_hash = {h: t for t, h in pairs}
 
     existing = (
         AccountToken.query.filter(
             AccountToken.user_id == user.id,
             AccountToken.revoked_at.is_(None),
-            AccountToken.token_hash.in_(hashes),
+            AccountToken.token_hash.in_(list(by_hash)),
         ).first()
-        if hashes
+        if by_hash
         else None
     )
     if existing:
         _touch(existing)
-        return next(t for t in tokens if hash_token(t) == existing.token_hash)
+        return by_hash[existing.token_hash]
 
     # Drop entries that no longer resolve (revoked, deleted or deactivated
     # user) BEFORE the cap check: otherwise a cookie full of stale tokens
     # would evict the one live login and force its owner to re-authenticate
-    # for no reason. Login-only path, so per-token resolution is fine.
-    tokens = [t for t in tokens if resolve_token(t) is not None]
-    hashes = {hash_token(t) for t in tokens}
+    # for no reason. Reuses the batched listing rather than resolving each
+    # token with its own queries.
+    live_hashes = {a["record"].token_hash for a in list_remembered_accounts()}
+    pairs = [(t, h) for t, h in pairs if h in live_hashes]
 
-    if len(tokens) >= MAX_REMEMBERED_ACCOUNTS:
+    if len(pairs) >= MAX_REMEMBERED_ACCOUNTS:
         # Drop the oldest remembered login to make room rather than growing
         # the cookie without bound. ``id`` breaks ties when several rows
         # share a timestamp, so eviction is deterministic.
         oldest = (
             AccountToken.query.filter(
-                AccountToken.token_hash.in_(list(hashes)),
+                AccountToken.token_hash.in_([h for _, h in pairs]),
                 AccountToken.revoked_at.is_(None),
             )
             .order_by(AccountToken.last_used_at.asc(), AccountToken.id.asc())
@@ -211,9 +213,10 @@ def remember_account(user: User) -> str | None:
         if oldest:
             oldest.revoked_at = datetime.utcnow()
             db.session.commit()
-            tokens = [t for t in tokens if hash_token(t) != oldest.token_hash]
+            pairs = [(t, h) for t, h in pairs if h != oldest.token_hash]
 
     raw = mint_account_token(user)
+    tokens = [t for t, _ in pairs]
     tokens.append(raw)
     _write_cookie(tokens)
     return raw
@@ -313,7 +316,7 @@ def forget_record(record: AccountToken) -> None:
         _write_cookie([t for t in _cookie_tokens() if t != raw])
 
 
-def list_remembered_accounts() -> list[dict]:
+def list_remembered_accounts(touch: bool = True) -> list[dict]:
     """Every live login this browser holds, in cookie order.
 
     Stale entries (revoked, deleted user, deactivated) are pruned from the
@@ -323,6 +326,12 @@ def list_remembered_accounts() -> list[dict]:
     many tokens the cookie holds, and cached on ``g`` so the context
     processor, the menu, and the logout path share one resolution per
     request instead of re-querying.
+
+    ``touch`` refreshes ``last_used_at`` (throttled). Pass False from
+    read-only paths such as template rendering: a commit inside a context
+    processor would couple page rendering to write transactions, so the
+    active account's timestamp is refreshed by a ``before_request`` hook
+    instead.
     """
     cached = g.get("_hs_remembered_accounts", None)
     if cached is not None:
@@ -381,14 +390,19 @@ def list_remembered_accounts() -> list[dict]:
     if len(live_tokens) != len(tokens):
         _write_cookie(live_tokens)
 
-    # Refresh activity timestamps, but keep this off the hot path.
+    # Refresh activity timestamps, but keep this off the hot path. Skipped
+    # for read-only callers (template rendering); see touch_active_account_for.
     now = datetime.utcnow()
-    stale = [
-        a["record"]
-        for a in accounts
-        if not a["record"].last_used_at
-        or now - a["record"].last_used_at >= _LAST_USED_REFRESH
-    ]
+    stale = (
+        [
+            a["record"]
+            for a in accounts
+            if not a["record"].last_used_at
+            or now - a["record"].last_used_at >= _LAST_USED_REFRESH
+        ]
+        if touch
+        else []
+    )
     if stale:
         for record in stale:
             record.last_used_at = now
@@ -401,11 +415,28 @@ def list_remembered_accounts() -> list[dict]:
     return accounts
 
 
-def switchable_accounts() -> list[dict]:
-    """Template-facing view of the account menu, active account first."""
+def touch_active_account_for(user_id: int) -> None:
+    """Refresh the active login's ``last_used_at`` (throttled, one row).
+
+    Called from a ``before_request`` hook so template rendering stays
+    read-only. Without this, an account used daily but never re-logged-in
+    would look abandoned to the 90-day purge.
+    """
+    for account in list_remembered_accounts(touch=False):
+        if account["user"].id == user_id:
+            _touch(account["record"])
+            break
+
+
+def switchable_accounts(touch: bool = False) -> list[dict]:
+    """Template-facing view of the account menu, active account first.
+
+    Defaults to read-only: rendering must never write. The ``before_request``
+    hook keeps the active account's timestamp fresh separately.
+    """
     from flask_login import current_user
 
-    accounts = list_remembered_accounts()
+    accounts = list_remembered_accounts(touch=touch)
     current_id = getattr(current_user, "id", None)
     for account in accounts:
         account["is_current"] = account["user"].id == current_id

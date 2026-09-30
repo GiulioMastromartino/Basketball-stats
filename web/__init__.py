@@ -190,6 +190,25 @@ def create_app(config_name: str = None) -> Flask:
             ctx["current_season_id"] = "ALL"
         return ctx
 
+    @app.before_request
+    def _touch_active_remembered_account():
+        # Keep the active login's activity timestamp fresh (throttled to one
+        # write per hour per account) without coupling template rendering to
+        # write transactions. The cookie-presence check keeps this at zero
+        # queries for browsers with no remembered accounts.
+        from web.accounts import ACCOUNTS_COOKIE, touch_active_account_for
+
+        if disable_auth or not app.config.get("ACCOUNT_SWITCHING_ENABLED", True):
+            return
+        if not current_user.is_authenticated:
+            return
+        if ACCOUNTS_COOKIE not in request.cookies:
+            return
+        try:
+            touch_active_account_for(current_user.id)
+        except Exception:
+            pass
+
     @app.context_processor
     def _inject_account_switcher():
         """Expose the remembered logins to the sidebar account menu.

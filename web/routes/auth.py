@@ -257,6 +257,10 @@ def login():
         email = request.form.get("email")
         if email:
             try:
+                # The magic-link round trip returns to the fixed callback URI
+                # like SSO, so stash the add-account intent for it too.
+                if adding_account:
+                    _stash_account_add_intent(_safe_return_path())
                 magic_url = get_magic_link_url(email, redirect_uri)
                 flash(f"Magic link sent to {email}. Check your inbox!", "info")
                 return redirect(magic_url)
@@ -284,6 +288,18 @@ def login_sso():
     except Exception as e:
         current_app.logger.warning(f"WorkOS auth URL unavailable: {e}")
         flash("Single sign-on is unavailable. Try again later.", "danger")
+        # Don't strand an add-account attempt on the plain sign-in page:
+        # send it back with its context intact.
+        if (
+            _switching_enabled()
+            and current_user.is_authenticated
+            and request.args.get("switch") == "1"
+        ):
+            return_to = _safe_return_path()
+            if return_to:
+                return redirect(url_for(
+                    "auth.login", switch=1, return_to=return_to))
+            return redirect(url_for("auth.login", switch=1))
         return redirect(url_for("auth.login"))
 
     if (
@@ -338,19 +354,25 @@ def callback():
 
         _establish_identity(user)
 
+        # Consume before any redirect so a stale flag can never leak into a
+        # later login. When onboarding intervenes the intent is re-stashed
+        # below so it survives that detour too.
+        was_adding, return_to = _pop_account_add_intent()
+
         # If user has no organization, redirect to onboarding
         if not user.organization_id:
             current_app.logger.info(
                 "New WorkOS user has no org_id, redirecting to onboarding",
                 extra={"extra_fields": {"user_id": user.id, "email": user.email}},
             )
+            if was_adding:
+                _stash_account_add_intent(return_to)
             flash("Welcome! Please set up your organization to get started.", "info")
             return redirect(url_for("auth.onboarding"))
 
         # The add-account intent only survives via the session (the IdP round
         # trip cannot carry query strings); an absent or stale flag means an
         # ordinary sign-in.
-        was_adding, return_to = _pop_account_add_intent()
         if was_adding:
             flash(f"Added {user.username} to this device.", "success")
             return redirect(return_to or url_for("main.index"))
@@ -408,8 +430,11 @@ def onboarding():
         session["current_team_id"] = team.id
         session["current_team_name"] = team.name
 
+        # An add-account flow that detoured through onboarding lands where
+        # the user originally was, rather than always on the dashboard.
+        _, return_to = _pop_account_add_intent()
         flash(f"Welcome to {org_name}! You are now a GM and coach.", "success")
-        return redirect(url_for("main.index"))
+        return redirect(return_to or url_for("main.index"))
 
     return render_template("auth/onboarding.html")
 
@@ -563,6 +588,8 @@ def verify_otp():
         _establish_identity(user)
 
         if not user.organization_id:
+            if was_adding:
+                _stash_account_add_intent(return_to)
             flash("Welcome! Please set up your organization to get started.", "info")
             return redirect(url_for("auth.onboarding"))
 

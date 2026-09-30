@@ -909,3 +909,137 @@ class TestEvictionOrder:
         assert AccountToken.query.get(expected_victim).revoked_at is not None
         assert AccountToken.query.filter_by(revoked_at=None).count() == (
             MAX_REMEMBERED_ACCOUNTS)
+
+
+# =============================================================================
+# Review round 2: magic-link/SSO intent, onboarding pass-through, stay-on-page
+# switch, touch relocation
+# =============================================================================
+
+
+class TestMagicLinkAddAccount:
+    def test_magic_link_request_stashes_intent(self, client, two_users, mocker):
+        mocker.patch("web.routes.auth.get_magic_link_url",
+                     return_value="https://idp.example/magic")
+        _login(client, two_users[0])
+
+        resp = client.post("/auth/login?switch=1", data={
+            "email": "someone@example.com", "switch": "1",
+            "return_to": "/players",
+        })
+        assert resp.status_code == 302
+        assert resp.headers["Location"] == "https://idp.example/magic"
+        with client.session_transaction() as sess:
+            assert sess.get("_account_add") is True
+            assert sess.get("_account_add_return") == "/players"
+
+
+class TestLoginSsoFailure:
+    def test_failed_sso_keeps_add_account_context(
+        self, client, two_users, mocker
+    ):
+        def _boom(redirect_uri):
+            raise RuntimeError("IdP down")
+
+        mocker.patch("web.routes.auth.get_auth_url", side_effect=_boom)
+        _login(client, two_users[0])
+
+        resp = client.get("/auth/login/sso?switch=1&return_to=/players")
+        assert resp.status_code == 302
+        location = resp.headers["Location"]
+        assert "/auth/login" in location
+        assert "switch=1" in location
+        assert "return_to" in location
+
+
+class TestOnboardingPassthrough:
+    def test_sso_add_for_orgless_user_lands_on_return_path(
+        self, client, db_session, default_org, default_team, mocker
+    ):
+        alice = _make_user(db_session, default_org, default_team, "alice")
+        _login(client, alice)
+        with client.session_transaction() as sess:
+            sess["_account_add"] = True
+            sess["_account_add_return"] = "/players"
+            sess["_account_add_at"] = datetime.utcnow().isoformat()
+
+        result = mocker.MagicMock()
+        result.user.id = "workos-fresh"
+        result.user.email = "fresh@example.com"
+        mocker.patch("web.routes.auth.authenticate_callback",
+                     return_value=result)
+
+        resp = client.get("/auth/callback?code=xyz")
+        assert resp.headers["Location"].endswith("/auth/onboarding")
+
+        newcomer = User.query.filter_by(email="fresh@example.com").first()
+        assert newcomer is not None
+        assert _acting_user(client) == str(newcomer.id)
+
+        resp = client.post("/auth/onboarding", data={
+            "organization_name": "Fresh Org", "team_name": "Fresh Team",
+        })
+        assert resp.headers["Location"].endswith("/players")
+        with client.session_transaction() as sess:
+            assert sess.get("current_team_name") == "Fresh Team"
+
+
+class TestStayOnPageSwitch:
+    def test_switch_form_points_back_at_current_page(self, client, two_users):
+        _login(client, two_users[0])
+        _login(client, two_users[1])
+
+        html = client.get("/players").get_data(as_text=True)
+        assert 'name="return_to" value="/players"' in html
+
+    def test_switch_without_return_path_falls_back_to_index(
+        self, client, two_users
+    ):
+        alice, _ = two_users
+        _login(client, alice)
+        _login(client, two_users[1])
+        token_id = next(
+            r.id for r in AccountToken.query.all()
+            if r.user_id == alice.id and r.revoked_at is None
+        )
+        resp = client.post("/auth/accounts/switch",
+                           data={"token_id": token_id})
+        assert resp.headers["Location"].endswith("/")
+
+
+class TestTouchRelocation:
+    def test_page_view_refreshes_active_account_timestamp(
+        self, client, two_users
+    ):
+        _login(client, two_users[0])
+        record = AccountToken.query.filter_by(
+            user_id=two_users[0].id, revoked_at=None).first()
+        record.last_used_at = datetime.utcnow() - timedelta(hours=5)
+        db.session.commit()
+
+        client.get("/")
+        db.session.refresh(record)
+        assert datetime.utcnow() - record.last_used_at < timedelta(hours=1)
+
+    def test_template_rendering_only_touches_the_active_account(
+        self, client, two_users
+    ):
+        """The menu lists every remembered account, but a page view must
+        refresh exactly one timestamp: the active login's. Anything more
+        means the template path is writing again."""
+        alice, bob = two_users
+        _login(client, alice)
+        _login(client, bob)  # bob is active
+        stale = datetime.utcnow() - timedelta(hours=5)
+        for row in AccountToken.query.filter_by(revoked_at=None).all():
+            row.last_used_at = stale
+        db.session.commit()
+
+        client.get("/")
+
+        seen = {
+            r.user_id: r.last_used_at
+            for r in AccountToken.query.filter_by(revoked_at=None).all()
+        }
+        assert datetime.utcnow() - seen[bob.id] < timedelta(hours=1)
+        assert seen[alice.id] == stale

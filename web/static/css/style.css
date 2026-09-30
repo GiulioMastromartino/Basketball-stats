@@ -494,11 +494,21 @@ body.app-sidebar-open .app-sidebar-backdrop {
   border-radius: var(--hs-radius-sm);
   background: transparent;
   color: var(--hs-ink);
+  font-family: inherit;
   font-size: 0.82rem;
+  line-height: inherit;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
   transition: background var(--hs-transition);
+}
+
+/* Buttons do not inherit the surrounding font by default; without this the
+   sign-out buttons render in the system font next to Outfit links. */
+button.acct__action,
+button.app-sidebar__logout {
+  font-family: inherit;
+  appearance: none;
 }
 
 .acct__action:hover {
