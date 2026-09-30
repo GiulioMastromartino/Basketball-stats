@@ -117,7 +117,10 @@ def send_workos_invitation(email: str, organization_id: str = None):
 
     Args:
         email: The invitee's email address
-        organization_id: Optional WorkOS organization ID to invite into
+        organization_id: Optional WorkOS organization ID to invite into.
+            Not passed by this app: its ``Organization`` rows are local-only
+            (no WorkOS org ID is stored or synced), and sign-in is authorised
+            against local memberships. Add it when directory sync lands.
 
     Returns:
         The created WorkOS invitation object

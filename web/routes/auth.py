@@ -870,6 +870,14 @@ def invite_user():
     # invitation. Creating a user does NOT invite them, so the two calls are
     # separate, and ``workos_invite_sent`` is only set once the invitation
     # itself succeeded. ``workos_id`` is the USER id, never the invitation's.
+    #
+    # If the user is created but the invitation fails, we deliberately KEEP
+    # ``workos_id``. Deleting the WorkOS user to "compensate" would be
+    # destructive and could destroy a real account (the address may already
+    # exist in WorkOS, e.g. a re-invite of someone who signed in via SSO).
+    # The half-provisioned state is benign and self-healing: the fallback
+    # emails a login link, and ``/auth/callback`` resolves the local user by
+    # ``workos_id`` and otherwise by email, binding the two on first sign-in.
     workos_id = None
     workos_invite_sent = False
     if workos_configured:

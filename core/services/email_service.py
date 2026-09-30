@@ -170,9 +170,11 @@ def send_invite_email(to_email, username, login_url, org_name=None):
     # Plain text must not carry CR/LF: an org or username containing them
     # would let a caller inject extra headers or break the body layout. HTML
     # escaping is wrong here (it would show a literal "&amp;" to the reader),
-    # so control characters are stripped instead.
-    safe_user_txt = _single_line(username)
-    org_line = f" You've been added to {_single_line(org_name)}." if org_name else ""
+    # so control characters are stripped instead. Test the *sanitised* value
+    # for truthiness, so a whitespace-only name cannot yield "added to .".
+    safe_user_txt = _single_line(username) or "there"
+    clean_org = _single_line(org_name)
+    org_line = f" You've been added to {clean_org}." if clean_org else ""
     subject = "You're invited — sign in to HoopsLab"
     body = f"""Hi {safe_user_txt},{org_line}
 
