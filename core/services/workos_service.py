@@ -87,6 +87,10 @@ def create_workos_user(
     """
     Create a new user in WorkOS.
 
+    Note: ``create_user`` only creates the user — it does not send an
+    invitation (the SDK has no ``send_invitation`` argument here). Use
+    ``send_workos_invitation`` separately to email the invitee.
+
     Args:
         email: The user's email address
         first_name: Optional first name
@@ -101,8 +105,31 @@ def create_workos_user(
         first_name=first_name,
         last_name=last_name,
         email_verified=True,
-        send_invitation=True,
     )
+
+
+def send_workos_invitation(email: str, organization_id: str = None):
+    """
+    Send a WorkOS invitation email, landing the invitee on WorkOS sign-in.
+
+    Must be called separately from ``create_workos_user`` — creating a
+    user does not invite them.
+
+    Args:
+        email: The invitee's email address
+        organization_id: Optional WorkOS organization ID to invite into.
+            Not passed by this app: its ``Organization`` rows are local-only
+            (no WorkOS org ID is stored or synced), and sign-in is authorised
+            against local memberships. Add it when directory sync lands.
+
+    Returns:
+        The created WorkOS invitation object
+    """
+    client = get_workos_client()
+    kwargs = {"email": email}
+    if organization_id:
+        kwargs["organization_id"] = organization_id
+    return client.user_management.send_invitation(**kwargs)
 
 
 def get_logout_url(session_id: str = None) -> str:
