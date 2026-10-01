@@ -1320,15 +1320,16 @@ def get_all_lineups():
         if not allowed_ids:
             lineups = []
         else:
-            filtered = []
-            for l in lineups:
-                has_segment = LineupSegment.query.filter(
-                    LineupSegment.lineup_id == l.id,
-                    LineupSegment.game_id.in_(list(allowed_ids)),
-                ).first() is not None
-                if has_segment:
-                    filtered.append(l)
-            lineups = filtered
+            # One batched query for the whole page instead of one per lineup:
+            # a team with hundreds of lineups would otherwise cost hundreds
+            # of round trips on every /lineups request.
+            present = {
+                row[0]
+                for row in db.session.query(LineupSegment.lineup_id)
+                .filter(LineupSegment.game_id.in_(list(allowed_ids)))
+                .distinct()
+            }
+            lineups = [l for l in lineups if l.id in present]
 
     return jsonify(
         {

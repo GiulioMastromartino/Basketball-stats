@@ -1142,4 +1142,95 @@ class TestMissingTableResilience:
         html = client.get("/").get_data(as_text=True)
 
         assert 'action="/auth/accounts/remove"' in html
-        assert f"Forget {alice.username} on this device" in html
+        assert f"data-forgot-user=\"{alice.username}\"" in html
+
+    def test_forget_confirm_is_not_an_inline_js_string(self, client, two_users):
+        """No username may reach an inline onsubmit handler.
+
+        HTML attribute entities are decoded before the handler compiles, so a
+        quote in a username would break or inject into an inline string.
+        """
+        alice, _ = two_users
+        _login(client, alice)
+        _login(client, two_users[1])
+
+        html = client.get("/").get_data(as_text=True)
+
+        assert "onsubmit=" not in html.split('class="acct__forget-form"')[1].split(">")[0]
+        assert "data-forget-form" in html
+
+
+class TestRememberFailurePreservesCookie:
+    def test_backend_outage_during_add_keeps_existing_accounts(
+        self, client, two_users, mocker
+    ):
+        """A lookup that fails must not be mistaken for "no live tokens".
+
+        Pruning on that guess would hand back a cookie holding only the new
+        token, silently dropping accounts the browser still owns.
+        """
+        alice, bob = two_users
+        _login(client, alice)
+        before = _cookie_tokens(client)
+        assert len(before) == 1
+
+        import web.accounts as accounts_mod
+
+        # The listing used to prune dead entries fails, as it would mid-outage.
+        mocker.patch.object(
+            accounts_mod, "_list_remembered_accounts_resolved", return_value=([], False)
+        )
+        _login(client, bob)
+
+        # alice is still remembered; bob simply is not yet.
+        after = _cookie_tokens(client)
+        assert after == before
+        assert _acting_user(client) == str(bob.id)
+
+    def test_menu_still_renders_empty_on_backend_outage(self, client, two_users,
+                                                        mocker):
+        """Rendering keeps the tolerant empty-list behaviour."""
+        import web.accounts as accounts_mod
+
+        mocker.patch.object(
+            accounts_mod, "_list_remembered_accounts_resolved", return_value=([], False)
+        )
+        _login(client, two_users[0])
+
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert b"Add another account" in resp.data
+
+    def test_user_id_is_captured_before_rollback(self, client, two_users, mocker):
+        """Reading ``user.id`` after rollback can re-query a dead database.
+
+        The handler must log the id it captured up front instead.
+        """
+        import web.accounts as accounts_mod
+
+        reads = []
+
+        class _ExpiresOnReload:
+            """Mimics SQLAlchemy expiring attributes on rollback.
+
+            The first read (before any rollback) works; any later read
+            re-queries a database that is still down and raises.
+            """
+
+            @property
+            def id(self):
+                reads.append(1)
+                if len(reads) > 1:
+                    raise RuntimeError("database is gone")
+                return 42
+
+        mocker.patch.object(
+            accounts_mod, "_remember_account_inner",
+            side_effect=RuntimeError("no such table: account_tokens"),
+        )
+        with client.application.test_request_context("/"):
+            # Degrades to "not remembered" instead of propagating.
+            assert accounts_mod.remember_account(_ExpiresOnReload()) is None
+        # Exactly one read: the capture before the operation. A second read in
+        # the error handler is the re-query this guards against.
+        assert len(reads) == 1

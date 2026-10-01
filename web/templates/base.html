@@ -204,8 +204,12 @@
                                     <i class="fas fa-arrow-right-arrow-left acct__swap" aria-hidden="true"></i>
                                 </button>
                             </form>
+                            {# The confirm message is built in JS from data-attrs: a username #}
+                            {# containing a quote would otherwise break the #}
+                            {# inline handler (and open a script-injection #}
+                            {# hole), since HTML entities are decoded first. #}
                             <form method="POST" action="{{ url_for('auth.remove_account') }}" class="acct__forget-form"
-                                  onsubmit="return confirm('Forget {{ acct.user.username }} on this device? You can sign in again any time.');">
+                                  data-forgot-form data-forgot-user="{{ acct.user.username }}">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <input type="hidden" name="token_id" value="{{ acct.token_id }}"/>
                                 <input type="hidden" name="return_to" value="{{ request.path }}"/>
@@ -301,6 +305,26 @@
                 backdrop.addEventListener("click", close);
                 window.addEventListener("resize", function () {
                     if (window.matchMedia("(min-width: 900px)").matches) close();
+                });
+            })();
+
+            // Confirm-then-forget for a single remembered account. The
+            // message is assembled here from data-attrs rather than inlined
+            // in an onsubmit attribute: HTML attribute entities are decoded
+            // before the handler is compiled, so a username containing a
+            // quote would break (or inject into) an inline string.
+            (function () {
+                var forms = document.querySelectorAll("[data-forget-form]");
+                Array.prototype.forEach.call(forms, function (form) {
+                    form.addEventListener("submit", function (event) {
+                        var user = form.getAttribute("data-forget-user") || "this account";
+                        if (!window.confirm(
+                            "Forget " + user + " on this device? "
+                            + "You can sign in again any time."
+                        )) {
+                            event.preventDefault();
+                        }
+                    });
                 });
             })();
         </script>

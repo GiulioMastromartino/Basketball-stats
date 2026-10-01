@@ -463,6 +463,14 @@ body.app-sidebar-open .app-sidebar-backdrop {
   opacity: 1;
 }
 
+/* Touch interfaces have no hover, so the hidden-until-hover control would
+   be undiscoverable there and users would hit "switch" instead. */
+@media (hover: none) {
+  .acct__forget {
+    opacity: 1;
+  }
+}
+
 .acct__forget:hover {
   background: rgba(201, 76, 92, 0.12);
   color: var(--hs-loss);

@@ -139,6 +139,7 @@ def _write_cookie(tokens: list[str]) -> None:
     # Any listing computed earlier this request is now stale; drop it so a
     # later read in the same request re-resolves against the new cookie.
     g.pop("_hs_remembered_accounts", None)
+    g.pop("_hs_remembered_accounts_ok", None)
 
 
 def flush_account_cookie(response):
@@ -215,6 +216,10 @@ def remember_account(user: User) -> str | None:
     """
     if _accounting_disabled():
         return None
+    # Read the id BEFORE any rollback: SQLAlchemy expires loaded attributes
+    # on rollback, so touching ``user.id`` in the handler below can re-query
+    # a database that is still down and raise a second time.
+    user_id = getattr(user, "id", None)
     try:
         return _remember_account_inner(user)
     except Exception as exc:
@@ -231,14 +236,14 @@ def remember_account(user: User) -> str | None:
                         db.session.rollback()
                     except Exception:
                         pass
-                    _log.warning("remember_account retry failed: %s", retry_exc)
+                    _log.warning("remember_account retry failed for user %s: %s",
+                                 user_id, retry_exc)
                     return None
         try:
             db.session.rollback()
         except Exception:
             pass
-        _log.warning("remember_account failed for user %s: %s",
-                     getattr(user, "id", "?"), exc)
+        _log.warning("remember_account failed for user %s: %s", user_id, exc)
         return None
 
 
@@ -265,7 +270,13 @@ def _remember_account_inner(user: User) -> str | None:
     # would evict the one live login and force its owner to re-authenticate
     # for no reason. Reuses the batched listing rather than resolving each
     # token with its own queries.
-    live_hashes = {a["record"].token_hash for a in list_remembered_accounts()}
+    accounts, lookup_ok = _list_remembered_accounts_resolved()
+    if not lookup_ok:
+        # The backend is unreachable, so we cannot tell live tokens from
+        # dead ones. Pruning on that guess would silently drop accounts the
+        # browser still holds: keep the cookie untouched and skip remembering.
+        return None
+    live_hashes = {a["record"].token_hash for a in accounts}
     pairs = [(t, h) for t, h in pairs if h in live_hashes]
 
     if len(pairs) >= MAX_REMEMBERED_ACCOUNTS:
@@ -434,6 +445,22 @@ def list_remembered_accounts(touch: bool = True) -> list[dict]:
     Stale entries (revoked, deleted user, deactivated) are pruned from the
     cookie as a side effect so a revoked token cannot linger client-side.
 
+    A lookup failure degrades to an empty list for rendering (see
+    ``_list_remembered_accounts_resolved`` for callers that must distinguish
+    "no accounts" from "could not check").
+    """
+    return _list_remembered_accounts_resolved(touch=touch)[0]
+
+
+def _list_remembered_accounts_resolved(touch: bool = True) -> tuple[list[dict], bool]:
+    """``(accounts, lookup_ok)`` -- every live login this browser holds.
+
+    ``lookup_ok`` is False when the database could not be consulted. That
+    distinction matters for callers that prune the cookie from the result: an
+    empty list because nothing is remembered and an empty list because the
+    backend is down lead to opposite actions, and only the former may drop
+    tokens.
+
     Resolved in two batched queries (token rows, then users) no matter how
     many tokens the cookie holds, and cached on ``g`` so the context
     processor, the menu, and the logout path share one resolution per
@@ -447,12 +474,13 @@ def list_remembered_accounts(touch: bool = True) -> list[dict]:
     """
     cached = g.get("_hs_remembered_accounts", None)
     if cached is not None:
-        return cached
+        return cached, g.get("_hs_remembered_accounts_ok", True)
 
     tokens = _cookie_tokens()
     if not tokens:
         g._hs_remembered_accounts = []
-        return []
+        g._hs_remembered_accounts_ok = True
+        return [], True
 
     token_hashes = [hash_token(t) for t in tokens]
     try:
@@ -484,7 +512,8 @@ def list_remembered_accounts(touch: bool = True) -> list[dict]:
             pass
         _log.warning("list_remembered_accounts lookup failed: %s", exc)
         g._hs_remembered_accounts = []
-        return []
+        g._hs_remembered_accounts_ok = False
+        return [], False
 
     accounts: list[dict] = []
     live_tokens: list[str] = []
@@ -537,7 +566,8 @@ def list_remembered_accounts(touch: bool = True) -> list[dict]:
             db.session.rollback()
 
     g._hs_remembered_accounts = accounts
-    return accounts
+    g._hs_remembered_accounts_ok = True
+    return accounts, True
 
 
 def touch_active_account_for(user_id: int) -> None:

@@ -1002,53 +1002,119 @@ def repair_shared_lineups() -> dict:
 def ensure_lineup_team_unique_index() -> bool:
     """Replace global UNIQUE(lineup_hash) with UNIQUE(team_id, lineup_hash).
 
-    SQLite cannot drop a unique constraint in place, so rebuild the table
-    when the legacy schema is detected. Returns True when a rebuild ran.
-    No-op on Postgres/other dialects outside the legacy pattern and when
-    the correct composite index already exists.
+    Must run BEFORE ``repair_shared_lineups``: while the legacy global
+    constraint is in place, no second row can share a hash, so the repair
+    cannot create the per-team duplicates it needs.
+
+    * SQLite cannot drop a unique constraint in place, so the table is
+      rebuilt using SQLite's documented 12-step procedure (create, copy,
+      drop, rename) inside ONE transaction with ``foreign_keys=OFF``.
+      Renaming the *old* table first would instead rewrite
+      ``lineup_segments``'s foreign key to point at the dropped table,
+      because ``legacy_alter_table`` is off by default.
+    * Postgres drops the legacy constraint and creates the composite one.
+
+    Returns True when the schema was changed.
     """
     from sqlalchemy import inspect, text
+    from sqlalchemy.schema import CreateTable
 
     engine = db.engine
-    if engine.dialect.name != "sqlite":
+    if not inspect(engine).has_table("lineups"):
         return False
-    insp = inspect(engine)
+    changed = False
+    if engine.dialect.name == "sqlite":
+        insp = inspect(engine)
+        try:
+            uniques = insp.get_unique_constraints("lineups")
+        except Exception:
+            uniques = []
+        has_composite = any(
+            set(u.get("column_names") or []) == {"team_id", "lineup_hash"}
+            for u in uniques
+        )
+        if has_composite:
+            return False
+        legacy_global = any(
+            set(u.get("column_names") or []) == {"lineup_hash"}
+            for u in uniques
+        )
+        if not legacy_global:
+            # Older SQLite builds report unique constraints unreliably, so
+            # fall back to the stored DDL.
+            try:
+                row = db.session.execute(
+                    text(
+                        "SELECT sql FROM sqlite_master "
+                        "WHERE type='table' AND name='lineups'"
+                    )
+                ).first()
+                ddl = (row[0] if row else "") or ""
+            except Exception:
+                ddl = ""
+            compact = ddl.replace(" ", "")
+            if "UNIQUE(lineup_hash)" not in compact and "UNIQUE(lineup_hash)" not in ddl:
+                return False
+        # Data cannot contain cross-team duplicates yet (the global
+        # constraint prevented them), so a straight copy is safe.
+        cols = [c.name for c in Lineup.__table__.columns]
+        collist = ", ".join(f'"{c}"' for c in cols)
+        ddl_new = str(CreateTable(Lineup.__table__).compile(engine)).replace(
+            "CREATE TABLE lineups", "CREATE TABLE lineups_new", 1
+        )
+        with engine.begin() as conn:
+            # Must be outside a transaction to take effect, hence
+            # exec_driver_sql on a raw connection.
+            conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+            conn.exec_driver_sql(ddl_new)
+            conn.exec_driver_sql(  # noqa: S608 - column names come from the model
+                f'INSERT INTO lineups_new ({collist}) SELECT {collist} FROM lineups'
+            )
+            conn.exec_driver_sql("DROP TABLE lineups")
+            conn.exec_driver_sql("ALTER TABLE lineups_new RENAME TO lineups")
+            conn.exec_driver_sql("PRAGMA foreign_keys=ON")
+        db.session.commit()
+        return True
+
+    # Postgres / other: drop the legacy global constraint, add the composite.
     try:
-        indexes = insp.get_indexes("lineups")
-        uniques = insp.get_unique_constraints("lineups")
+        rows = db.session.execute(
+            text(
+                "SELECT conname FROM pg_constraint "
+                "WHERE conrelid = 'lineups'::regclass AND contype = 'u'"
+            )
+        ).fetchall()
     except Exception:
         return False
-    has_composite = any(
-        set(u.get("column_names") or []) == {"team_id", "lineup_hash"}
-        for u in uniques
-    )
-    if has_composite:
-        return False
-    legacy_global = any(
-        set(u.get("column_names") or []) == {"lineup_hash"}
-        for u in uniques
-    )
-    if not legacy_global:
-        # Also detect via raw DDL (older SQLite builds report uniques oddly).
+    names = [r[0] for r in rows]
+    composite = [
+        n for n in names if n == "uq_lineups_team_hash"
+    ]
+    legacy = [
+        n for n in names
+        if n != "uq_lineups_team_hash"
+    ]
+    for name in legacy:
         try:
-            row = db.session.execute(
-                text("SELECT sql FROM sqlite_master WHERE type='table' AND name='lineups'")
-            ).first()
-            ddl = (row[0] if row else "") or ""
+            db.session.execute(
+                text(f'ALTER TABLE lineups DROP CONSTRAINT "{name}"')  # noqa: S608 - name from pg_constraint
+            )
+            changed = True
         except Exception:
-            ddl = ""
-        if "UNIQUE (lineup_hash)" not in ddl and "UNIQUE(lineup_hash)" not in ddl.replace(" ", ""):
-            return False
-    # Rebuild with composite unique; data has no cross-team duplicates yet
-    # (global unique prevented them), so a straight copy is safe.
-    db.session.execute(text("ALTER TABLE lineups RENAME TO lineups_legacy"))
-    db.session.commit()
-    Lineup.__table__.create(engine)
-    cols = [c.name for c in Lineup.__table__.columns]
-    collist = ", ".join(f'"{c}"' for c in cols)
-    db.session.execute(
-        text(f'INSERT INTO lineups ({collist}) SELECT {collist} FROM lineups_legacy')
-    )
-    db.session.execute(text("DROP TABLE lineups_legacy"))
-    db.session.commit()
-    return True
+            db.session.rollback()
+            return changed
+    if not composite:
+        try:
+            db.session.execute(
+                text(
+                    "ALTER TABLE lineups ADD CONSTRAINT uq_lineups_team_hash "
+                    "UNIQUE (team_id, lineup_hash)"
+                )
+            )
+            changed = True
+        except Exception:
+            db.session.rollback()
+            return changed
+    if changed:
+        db.session.commit()
+    return changed
