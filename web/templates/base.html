@@ -193,7 +193,7 @@
                                 {# Stay on the current page across the switch #}
                                 {# rather than bouncing to the dashboard. #}
                                 <input type="hidden" name="return_to" value="{{ request.path }}"/>
-                                <button type="submit" class="acct__entry">
+                                <button type="submit" class="acct__entry" title="Switch to {{ acct.user.username }}">
                                     <span class="acct__avatar acct__avatar--sm" aria-hidden="true">{{ acct.user.username[:1]|upper }}</span>
                                     <span class="acct__id">
                                         <span class="acct__name">{{ acct.user.username }}</span>
@@ -202,6 +202,16 @@
                                         </span>
                                     </span>
                                     <i class="fas fa-arrow-right-arrow-left acct__swap" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('auth.remove_account') }}" class="acct__forget-form"
+                                  onsubmit="return confirm('Forget {{ acct.user.username }} on this device? You can sign in again any time.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <input type="hidden" name="token_id" value="{{ acct.token_id }}"/>
+                                <input type="hidden" name="return_to" value="{{ request.path }}"/>
+                                <button type="submit" class="acct__forget" title="Forget {{ acct.user.username }} on this device"
+                                        aria-label="Forget {{ acct.user.username }} on this device">
+                                    <i class="fas fa-xmark" aria-hidden="true"></i>
                                 </button>
                             </form>
                             {% endif %}

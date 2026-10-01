@@ -276,15 +276,18 @@ def backfill_lineups(app):
 
         print(f"  Found {len(segments)} segments to link...")
 
-        # Get existing lineups
+        # Get existing lineups (per-team: same 5 names on different teams
+        # are different lineups and must never share stats).
         lineup_cache = {}
         existing_lineups = Lineup.query.all()
         for lineup in existing_lineups:
-            lineup_cache[lineup.lineup_hash] = lineup.id
+            lineup_cache[(lineup.team_id, lineup.lineup_hash)] = lineup.id
         print(f"  Found {len(existing_lineups)} existing lineups")
 
         created_count = 0
         linked_count = 0
+
+        from core.models import Game as _Game  # noqa: F811 (local alias for clarity)
 
         for i, segment in enumerate(segments, 1):
             try:
@@ -300,20 +303,25 @@ def backfill_lineups(app):
                     except:
                         players = []
 
+                game = _Game.query.get(segment.game_id)
+                if game is None:
+                    continue
+                key = (game.team_id, lineup_hash)
                 # Create lineup if doesn't exist
-                if lineup_hash not in lineup_cache:
+                if key not in lineup_cache:
                     lineup = Lineup(
                         lineup_hash=lineup_hash,
                         players=sorted(players) if players else [],
                         is_starting=(created_count == 0),
+                        team_id=game.team_id,
                     )
                     db.session.add(lineup)
                     db.session.flush()
-                    lineup_cache[lineup_hash] = lineup.id
+                    lineup_cache[key] = lineup.id
                     created_count += 1
 
                 # Link segment to lineup
-                segment.lineup_id = lineup_cache[lineup_hash]
+                segment.lineup_id = lineup_cache[key]
                 linked_count += 1
 
                 if i % 100 == 0:

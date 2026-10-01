@@ -424,11 +424,48 @@ body.app-sidebar-open .app-sidebar-backdrop {
 }
 
 .acct__row {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
   margin: 0;
 }
 
-.acct__form {
+.acct__row .acct__form {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
+}
+
+.acct__forget-form {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.acct__forget {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--hs-radius-sm);
+  background: transparent;
+  color: var(--hs-ink-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--hs-transition), background var(--hs-transition), color var(--hs-transition);
+}
+
+.acct__row:hover .acct__forget,
+.acct__row:focus-within .acct__forget {
+  opacity: 1;
+}
+
+.acct__forget:hover {
+  background: rgba(201, 76, 92, 0.12);
+  color: var(--hs-loss);
 }
 
 .acct__entry {

@@ -552,9 +552,12 @@ class Lineup(db.Model):
     """Multi-game lineup tracking with cached stats"""
 
     __tablename__ = "lineups"
+    __table_args__ = (
+        db.UniqueConstraint("team_id", "lineup_hash", name="uq_lineups_team_hash"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
-    lineup_hash = db.Column(db.String(64), unique=True, nullable=False)
+    lineup_hash = db.Column(db.String(64), nullable=False)
     players = db.Column(db.JSON, nullable=False)
     display_name = db.Column(db.String(100), nullable=True)
     is_starting = db.Column(db.Boolean, default=False)
