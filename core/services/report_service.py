@@ -1631,8 +1631,8 @@ def _build_time_progression(events, game):
 
     sorted_events = sorted(events, key=lambda e: e.game_seconds or e.timestamp or 0)
 
-    def _record_scoring_play(scoring_team, points_scored):
-        """Append one scoring play to the progression and update runs/leads."""
+    def _track_position():
+        """Record timeline position and update leads (no run impact)."""
         nonlocal lead_changes, prev_lead_holder, prev_margin
         margin = team_score - opp_score
 
@@ -1669,6 +1669,12 @@ def _build_time_progression(events, game):
                 lead_changes += 1
         prev_lead_holder = current_lead_holder
 
+        prev_margin = margin
+
+    def _record_scoring_play(scoring_team, points_scored):
+        """Append one scoring play to the progression and update runs/leads."""
+        _track_position()
+
         if current_run["team"] == scoring_team:
             current_run["points"] += points_scored
             current_run["end_q"] = quarter
@@ -1700,8 +1706,6 @@ def _build_time_progression(events, game):
                     "start_lineup": list(on_court),
                 }
             )
-
-        prev_margin = margin
 
     for event in sorted_events:
         quarter = quarter_map.get(event.id, event.quarter or 1)
@@ -1749,6 +1753,11 @@ def _build_time_progression(events, game):
 
         for scoring_team, points_scored in scoring_plays:
             _record_scoring_play(scoring_team, points_scored)
+
+        if not scoring_plays and event.event_type == "OPP_SCORE":
+            # Miss with no inferred team score: no run impact, but the
+            # margin extreme still counts for leads/deficits/chart.
+            _track_position()
 
     if current_run["points"] >= 5:
         runs.append(
