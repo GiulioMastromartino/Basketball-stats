@@ -220,8 +220,10 @@ class LineupAnalytics:
     @staticmethod
     def _build_segment_payload(game_ids: List[int] = None) -> List[Dict]:
         """Build normalized lineup segment payload for aggregation engines."""
+        if game_ids is not None and len(game_ids) == 0:
+            return []
         query = LineupSegment.query
-        if game_ids:
+        if game_ids is not None:
             query = query.filter(LineupSegment.game_id.in_(game_ids))
 
         payload = []
@@ -273,8 +275,14 @@ class LineupAnalytics:
         Returns:
             Dictionary with on/off court statistics
         """
+        if game_ids is not None and len(game_ids) == 0:
+            empty = {"points_scored": 0, "points_allowed": 0,
+                     "possessions": 0, "segments": 0,
+                     "rating": {"ortg": 0, "drtg": 0, "net": 0}}
+            return {"player": player_name, "on_court": dict(empty),
+                    "off_court": dict(empty), "net_differential": 0}
         query = LineupSegment.query
-        if game_ids:
+        if game_ids is not None:
             query = query.filter(LineupSegment.game_id.in_(game_ids))
 
         segments = query.all()
@@ -670,8 +678,10 @@ class LineupAnalytics:
         Returns:
             List of lineup rankings
         """
+        if game_ids is not None and len(game_ids) == 0:
+            return []
         query = LineupSegment.query
-        if game_ids:
+        if game_ids is not None:
             query = query.filter(LineupSegment.game_id.in_(game_ids))
 
         segments = query.all()
@@ -1069,7 +1079,9 @@ class AnalyticsEngine:
             Play.description.label("description"),
         ).outerjoin(ShotEvent, ShotEvent.play_id == Play.id)
 
-        if game_ids:
+        if game_ids is not None:
+            if len(game_ids) == 0:
+                return []
             query = query.filter(ShotEvent.game_id.in_(game_ids))
 
         results = query.group_by(
@@ -1099,13 +1111,15 @@ class AnalyticsEngine:
         return sorted(rankings, key=lambda x: x["total_points"] or 0, reverse=True)
 
     @staticmethod
-    def get_player_season_stats(player_name: str, game_type: str = "ALL") -> Dict:
+    def get_player_season_stats(player_name: str, game_type: str = "ALL", team_id: int = None) -> Dict:
         """
         Get comprehensive season statistics for a player using aggregation.
 
         Args:
             player_name: Player to analyze
             game_type: Filter by game type ('ALL', 'Season', 'Friendly')
+            team_id: Optional team scope — when set, only games for this
+                team are included (prevents cross-team leakage).
 
         Returns:
             Dictionary with all player statistics
@@ -1130,10 +1144,17 @@ class AnalyticsEngine:
             func.sum(PlayerStat.plus_minus).label("plus_minus"),
         ).filter(PlayerStat.player_name == player_name)
 
-        if game_type == "Season":
-            query = query.join(Game).filter(Game.game_type == "Season")
-        elif game_type == "Friendly":
-            query = query.join(Game).filter(Game.game_type == "Friendly")
+        needs_game_join = (
+            game_type in ("Season", "Friendly") or team_id is not None
+        )
+        if needs_game_join:
+            query = query.join(Game, PlayerStat.game_id == Game.id)
+            if game_type == "Season":
+                query = query.filter(Game.game_type == "Season")
+            elif game_type == "Friendly":
+                query = query.filter(Game.game_type == "Friendly")
+            if team_id is not None:
+                query = query.filter(Game.team_id == team_id)
 
         result = query.first()
 
@@ -1220,7 +1241,9 @@ class AnalyticsEngine:
 
         if game_id:
             query = query.filter(PlayerStat.game_id == game_id)
-        elif game_ids:
+        elif game_ids is not None:
+            if len(game_ids) == 0:
+                return {}
             query = query.filter(PlayerStat.game_id.in_(game_ids))
 
         result = query.first()
@@ -1284,7 +1307,9 @@ class ShotChartAnalytics:
 
         if game_id:
             query = query.filter(ShotEvent.game_id == game_id)
-        elif game_ids:
+        elif game_ids is not None:
+            if len(game_ids) == 0:
+                return []
             query = query.filter(ShotEvent.game_id.in_(game_ids))
 
         if player_name:
@@ -1320,7 +1345,9 @@ class ShotChartAnalytics:
             Dict mapping zone names to {makes, attempts, frequency, fg_pct, pps}
         """
         query = ShotEvent.query
-        if game_ids:
+        if game_ids is not None:
+            if len(game_ids) == 0:
+                return {}
             query = query.filter(ShotEvent.game_id.in_(game_ids))
         if player_name:
             query = query.filter(ShotEvent.player_name == player_name)

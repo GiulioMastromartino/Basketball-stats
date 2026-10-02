@@ -28,11 +28,48 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import secrets
 from datetime import datetime, timedelta
 
 from flask import current_app, g, has_request_context, request
 from core.models import AccountToken, User, db
+
+_log = logging.getLogger(__name__)
+
+
+def _is_missing_table_error(exc: BaseException) -> bool:
+    """True when ``exc`` looks like a query against a table that was never
+    created (stale database that predates the model).
+
+    Matched by message rather than driver type so it works across SQLite
+    (``no such table``), Postgres (``UndefinedTable`` / ``does not exist``)
+    and any other backend without importing driver-specific error classes.
+    """
+    msg = str(exc).lower()
+    return (
+        "no such table" in msg
+        or "undefinedtable" in msg
+        or ("does not exist" in msg and "relation" in msg)
+    )
+
+
+def ensure_account_tables() -> bool:
+    """Create the remembered-login tables if a stale DB is missing them.
+
+    Returns True when the tables exist afterwards. Never raises: boot and
+    request paths must survive a database that cannot take DDL right now.
+    """
+    try:
+        AccountToken.__table__.create(db.engine, checkfirst=True)
+        return True
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        _log.warning("account-tables ensure failed: %s", exc)
+        return False
 
 # Cookie carrying the remembered identities for this browser.
 ACCOUNTS_COOKIE = "hs_accounts"
@@ -102,6 +139,7 @@ def _write_cookie(tokens: list[str]) -> None:
     # Any listing computed earlier this request is now stale; drop it so a
     # later read in the same request re-resolves against the new cookie.
     g.pop("_hs_remembered_accounts", None)
+    g.pop("_hs_remembered_accounts_ok", None)
 
 
 def flush_account_cookie(response):
@@ -170,9 +208,46 @@ def remember_account(user: User) -> str | None:
 
     Idempotent: re-logging into an account already remembered reuses its
     existing token instead of piling up duplicates.
+
+    Never raises for database problems: remembering is a convenience, and a
+    stale database (or a transient outage) must degrade to "logged in but not
+    remembered" rather than 500 the sign-in. Self-heals a missing table by
+    creating it and retrying once.
     """
     if _accounting_disabled():
         return None
+    # Read the id BEFORE any rollback: SQLAlchemy expires loaded attributes
+    # on rollback, so touching ``user.id`` in the handler below can re-query
+    # a database that is still down and raise a second time.
+    user_id = getattr(user, "id", None)
+    try:
+        return _remember_account_inner(user)
+    except Exception as exc:
+        if _is_missing_table_error(exc):
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            if ensure_account_tables():
+                try:
+                    return _remember_account_inner(user)
+                except Exception as retry_exc:
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+                    _log.warning("remember_account retry failed for user %s: %s",
+                                 user_id, retry_exc)
+                    return None
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        _log.warning("remember_account failed for user %s: %s", user_id, exc)
+        return None
+
+
+def _remember_account_inner(user: User) -> str | None:
     # One hash pass shared by every step below: lookup, prune, eviction.
     pairs = [(t, hash_token(t)) for t in _cookie_tokens()]
     by_hash = {h: t for t, h in pairs}
@@ -195,7 +270,13 @@ def remember_account(user: User) -> str | None:
     # would evict the one live login and force its owner to re-authenticate
     # for no reason. Reuses the batched listing rather than resolving each
     # token with its own queries.
-    live_hashes = {a["record"].token_hash for a in list_remembered_accounts()}
+    accounts, lookup_ok = _list_remembered_accounts_resolved()
+    if not lookup_ok:
+        # The backend is unreachable, so we cannot tell live tokens from
+        # dead ones. Pruning on that guess would silently drop accounts the
+        # browser still holds: keep the cookie untouched and skip remembering.
+        return None
+    live_hashes = {a["record"].token_hash for a in accounts}
     pairs = [(t, h) for t, h in pairs if h in live_hashes]
 
     if len(pairs) >= MAX_REMEMBERED_ACCOUNTS:
@@ -228,28 +309,49 @@ def _touch(record: AccountToken) -> None:
     if record.last_used_at and now - record.last_used_at < _LAST_USED_REFRESH:
         return
     record.last_used_at = now
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        _log.warning("account touch failed: %s", exc)
 
 
 
 def forget_all_accounts() -> int:
-    """Revoke every login this browser remembers. Returns how many."""
+    """Revoke every login this browser remembers. Returns how many.
+
+    Never raises: the cookie is cleared even when the database is
+    unreachable, so a broken backend cannot trap the user in a signed-in
+    state they cannot leave.
+    """
     tokens = _cookie_tokens()
     if not tokens:
         _write_cookie([])
         return 0
-    revoked = (
-        AccountToken.query.filter(
-            AccountToken.token_hash.in_([hash_token(t) for t in tokens]),
-            AccountToken.revoked_at.is_(None),
-        ).all()
-    )
-    now = datetime.utcnow()
-    for record in revoked:
-        record.revoked_at = now
-    db.session.commit()
+    try:
+        revoked = (
+            AccountToken.query.filter(
+                AccountToken.token_hash.in_([hash_token(t) for t in tokens]),
+                AccountToken.revoked_at.is_(None),
+            ).all()
+        )
+        now = datetime.utcnow()
+        for record in revoked:
+            record.revoked_at = now
+        db.session.commit()
+        count = len(revoked)
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        _log.warning("forget_all_accounts failed: %s", exc)
+        count = 0
     _write_cookie([])
-    return len(revoked)
+    return count
 
 
 def resolve_token(raw: str) -> tuple[AccountToken, User] | None:
@@ -289,15 +391,25 @@ def remembered_record(token_id) -> AccountToken | None:
         token_id = int(token_id)
     except (TypeError, ValueError):
         return None
-    record = db.session.get(AccountToken, token_id)
-    if record is None or record.revoked_at is not None:
+    try:
+        record = db.session.get(AccountToken, token_id)
+        if record is None or record.revoked_at is not None:
+            return None
+        if record.token_hash not in _remembered_hashes():
+            return None
+        user = db.session.get(User, record.user_id)
+        if user is None or not user.is_active:
+            return None
+        return record
+    except Exception as exc:
+        # A stale database (missing table) or a transient outage must make
+        # the switch/remove routes flash "not available", never 500.
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        _log.warning("remembered_record lookup failed: %s", exc)
         return None
-    if record.token_hash not in _remembered_hashes():
-        return None
-    user = db.session.get(User, record.user_id)
-    if user is None or not user.is_active:
-        return None
-    return record
 
 
 def _raw_token_for_hash(token_hash: str) -> str | None:
@@ -308,10 +420,21 @@ def _raw_token_for_hash(token_hash: str) -> str | None:
 
 
 def forget_record(record: AccountToken) -> None:
-    """Revoke a token row and strip its raw value from the cookie."""
+    """Revoke a token row and strip its raw value from the cookie.
+
+    The cookie is stripped even when the revoke commit fails, so a broken
+    backend cannot leave a dead token pinned in the browser.
+    """
     raw = _raw_token_for_hash(record.token_hash)
-    record.revoked_at = datetime.utcnow()
-    db.session.commit()
+    try:
+        record.revoked_at = datetime.utcnow()
+        db.session.commit()
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        _log.warning("forget_record revoke failed: %s", exc)
     if raw is not None:
         _write_cookie([t for t in _cookie_tokens() if t != raw])
 
@@ -321,6 +444,22 @@ def list_remembered_accounts(touch: bool = True) -> list[dict]:
 
     Stale entries (revoked, deleted user, deactivated) are pruned from the
     cookie as a side effect so a revoked token cannot linger client-side.
+
+    A lookup failure degrades to an empty list for rendering (see
+    ``_list_remembered_accounts_resolved`` for callers that must distinguish
+    "no accounts" from "could not check").
+    """
+    return _list_remembered_accounts_resolved(touch=touch)[0]
+
+
+def _list_remembered_accounts_resolved(touch: bool = True) -> tuple[list[dict], bool]:
+    """``(accounts, lookup_ok)`` -- every live login this browser holds.
+
+    ``lookup_ok`` is False when the database could not be consulted. That
+    distinction matters for callers that prune the cookie from the result: an
+    empty list because nothing is remembered and an empty list because the
+    backend is down lead to opposite actions, and only the former may drop
+    tokens.
 
     Resolved in two batched queries (token rows, then users) no matter how
     many tokens the cookie holds, and cached on ``g`` so the context
@@ -335,31 +474,46 @@ def list_remembered_accounts(touch: bool = True) -> list[dict]:
     """
     cached = g.get("_hs_remembered_accounts", None)
     if cached is not None:
-        return cached
+        return cached, g.get("_hs_remembered_accounts_ok", True)
 
     tokens = _cookie_tokens()
     if not tokens:
         g._hs_remembered_accounts = []
-        return []
+        g._hs_remembered_accounts_ok = True
+        return [], True
 
     token_hashes = [hash_token(t) for t in tokens]
-    records = (
-        AccountToken.query.filter(
-            AccountToken.token_hash.in_(token_hashes),
-            AccountToken.revoked_at.is_(None),
-        ).all()
-    )
-    by_hash = {r.token_hash: r for r in records}
-    users = (
-        {
-            u.id: u
-            for u in User.query.filter(
-                User.id.in_([r.user_id for r in records])
+    try:
+        records = (
+            AccountToken.query.filter(
+                AccountToken.token_hash.in_(token_hashes),
+                AccountToken.revoked_at.is_(None),
             ).all()
-        }
-        if records
-        else {}
-    )
+        )
+        by_hash = {r.token_hash: r for r in records}
+        users = (
+            {
+                u.id: u
+                for u in User.query.filter(
+                    User.id.in_([r.user_id for r in records])
+                ).all()
+            }
+            if records
+            else {}
+        )
+    except Exception as exc:
+        # Never prune the cookie or 500 the page when the database is
+        # unreachable (or the table was never created): the menu simply shows
+        # nothing until the backend recovers. Nothing is staged here, so the
+        # browser keeps its tokens.
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        _log.warning("list_remembered_accounts lookup failed: %s", exc)
+        g._hs_remembered_accounts = []
+        g._hs_remembered_accounts_ok = False
+        return [], False
 
     accounts: list[dict] = []
     live_tokens: list[str] = []
@@ -412,7 +566,8 @@ def list_remembered_accounts(touch: bool = True) -> list[dict]:
             db.session.rollback()
 
     g._hs_remembered_accounts = accounts
-    return accounts
+    g._hs_remembered_accounts_ok = True
+    return accounts, True
 
 
 def touch_active_account_for(user_id: int) -> None:

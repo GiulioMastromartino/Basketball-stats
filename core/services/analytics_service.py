@@ -2246,23 +2246,35 @@ class AnalyticsService:
 
     @staticmethod
     def get_game_top_performers(stats_with_metrics):
-        """Return top performers for points, efficiency, and rebounds as dicts."""
+        """Return top performers for points, efficiency, and rebounds as dicts.
+
+        Shape matches the game_summary_pdf / halftime_summary_pdf templates:
+        {"points": {"points": v, "player_name": n},
+         "efficiency": {"eff": v, "player_name": n},
+         "rebounds": {"reb": v, "player_name": n}}
+        """
         if not stats_with_metrics:
             return {
-                "points": {"player": None, "value": 0},
-                "efficiency": {"player": None, "value": 0},
-                "rebounds": {"player": None, "value": 0},
+                "points": {"points": 0, "player_name": None},
+                "efficiency": {"eff": 0, "player_name": None},
+                "rebounds": {"reb": 0, "player_name": None},
             }
         points_leader = max(stats_with_metrics, key=lambda s: getattr(s, "points", 0))
         eff_leader = max(stats_with_metrics, key=lambda s: getattr(s, "eff", 0))
         reb_leader = max(stats_with_metrics, key=lambda s: getattr(s, "reb", 0))
         return {
             "points": {
-                "player": points_leader.player_name,
-                "value": points_leader.points,
+                "points": points_leader.points,
+                "player_name": points_leader.player_name,
             },
-            "efficiency": {"player": eff_leader.player_name, "value": eff_leader.eff},
-            "rebounds": {"player": reb_leader.player_name, "value": reb_leader.reb},
+            "efficiency": {
+                "eff": eff_leader.eff,
+                "player_name": eff_leader.player_name,
+            },
+            "rebounds": {
+                "reb": reb_leader.reb,
+                "player_name": reb_leader.player_name,
+            },
         }
 
     @staticmethod

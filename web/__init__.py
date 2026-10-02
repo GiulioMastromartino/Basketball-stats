@@ -111,6 +111,19 @@ def create_app(config_name: str = None) -> Flask:
     # Auto-migrate missing columns (SQLite-safe) so stale dev DBs boot cleanly
     with app.app_context():
         auto_add_missing_columns(db)
+        try:
+            from core.services.lineup_service import (
+                ensure_lineup_team_unique_index,
+                repair_shared_lineups,
+            )
+
+            ensure_lineup_team_unique_index()
+            repair_shared_lineups()
+        except Exception:
+            # A half-applied rebuild would be invisible and expensive to
+            # debug later: log it loudly and drop the poisoned session.
+            db.session.rollback()
+            app.logger.exception("Lineup team-scope repair failed at startup")
     bcrypt.init_app(app)
     mail.init_app(app)
     if not disable_auth:

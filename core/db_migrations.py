@@ -46,10 +46,18 @@ def _compile_type(column, engine):
 
 
 def add_missing_columns(db, logger: Optional[object] = None) -> int:
-    """Add missing columns for existing tables based on SQLAlchemy models.
+    """Create missing tables and add missing columns based on SQLAlchemy models.
 
-    SQLite-safe: only uses ALTER TABLE ADD COLUMN, omits NOT NULL/UNIQUE/INDEX.
-    Returns the number of columns added.
+    Tables first (``CREATE TABLE IF NOT EXISTS`` semantics via
+    ``checkfirst=True``): a database created before a model existed -- e.g. an
+    established deployment picking up a new feature table such as
+    ``account_tokens`` -- would otherwise keep failing at runtime, because the
+    old code skipped tables it did not recognise. Then, for tables that
+    already existed, add any missing columns.
+
+    SQLite-safe: only uses CREATE TABLE / ALTER TABLE ADD COLUMN, omits
+    NOT NULL/UNIQUE/INDEX enforcement on added columns.
+    Returns the number of tables + columns created/added.
     """
     engine = db.engine
     inspector = inspect(engine)
@@ -59,6 +67,19 @@ def add_missing_columns(db, logger: Optional[object] = None) -> int:
         table_name = table.name
 
         if not inspector.has_table(table_name):
+            try:
+                table.create(engine, checkfirst=True)
+                columns_added += 1
+                if logger:
+                    logger.info(
+                        f"Schema auto-migrate: created missing table {table_name}"
+                    )
+            except Exception as exc:
+                db.session.rollback()
+                if logger:
+                    logger.warning(
+                        f"Schema auto-migrate: failed to create {table_name}: {exc}"
+                    )
             continue
 
         existing_cols = {c["name"] for c in inspector.get_columns(table_name)}

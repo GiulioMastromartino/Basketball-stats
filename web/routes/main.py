@@ -1565,6 +1565,10 @@ def delete_game(game_id):
         for lineup_id in affected_lineup_ids:
             lineup = Lineup.query.get(lineup_id)
             if lineup:
+                if lineup.team_id != team_id:
+                    # Legacy shared row owned by another team: just
+                    # recompute our side via repair, never delete theirs.
+                    continue
                 # Check if lineup still has segments
                 remaining_segments = LineupSegment.query.filter_by(
                     lineup_id=lineup_id

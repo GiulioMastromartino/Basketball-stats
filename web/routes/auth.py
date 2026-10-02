@@ -89,7 +89,22 @@ def _establish_identity(user, remember: bool = True) -> None:
     _clear_user_context()
     login_user(user, remember=remember)
     _apply_default_team_context(user)
-    remember_account(user)
+    # Remembering is best-effort: a stale database or a transient outage
+    # must never turn a successful authentication into a 500. The user is
+    # already signed in at this point; without a remembered token they just
+    # won't appear in the switcher until they sign in again.
+    # Capture the id first: SQLAlchemy expires loaded attributes on rollback,
+    # so reading ``user.id`` in the handler could re-query a database that is
+    # still unavailable and raise a second time, 500-ing the sign-in.
+    user_id = getattr(user, "id", None)
+    try:
+        remember_account(user)
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        logger.warning("remember_account failed for user %s: %s", user_id, exc)
 
 
 def _switching_enabled() -> bool:

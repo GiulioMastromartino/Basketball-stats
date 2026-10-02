@@ -56,6 +56,41 @@ def safe_query(func, fallback_result, error_message="Database table not found"):
         return fallback_result
 
 
+def _current_team_id():
+    """Team scope for every advanced/lineup query (never global)."""
+    return session.get("current_team_id")
+
+
+def _team_game_ids(team_id, game_type="ALL"):
+    """Game ids owned by team_id, optionally filtered by game_type.
+
+    Always returns a list (possibly empty). Callers must pass the result
+    down so an empty team never falls back to unfiltered global queries.
+    """
+    if team_id is None:
+        return []
+    q = Game.query.filter(Game.team_id == team_id)
+    if game_type == "Season":
+        q = q.filter(Game.game_type == "Season")
+    elif game_type == "Friendly":
+        q = q.filter(Game.game_type == "Friendly")
+    return [g.id for g in q.all()]
+
+
+def _get_owned_game(game_id, team_id):
+    """Return the Game only if it belongs to team_id, else None."""
+    if game_id is None or team_id is None:
+        return None
+    return Game.query.filter_by(id=game_id, team_id=team_id).first()
+
+
+def _get_owned_lineup(lineup_id, team_id):
+    """Return the Lineup only if it belongs to team_id, else None."""
+    if lineup_id is None or team_id is None:
+        return None
+    return Lineup.query.filter_by(id=lineup_id, team_id=team_id).first()
+
+
 # =============================================================================
 # PLAYER ADVANCED STATISTICS
 # =============================================================================
@@ -67,14 +102,22 @@ def safe_query(func, fallback_result, error_message="Database table not found"):
 def get_player_advanced_stats(player_name):
     """Get advanced statistics for a player."""
     game_type = request.args.get("game_type", "ALL")
+    team_id = _current_team_id()
 
-    stats = AnalyticsEngine.get_player_season_stats(player_name, game_type)
+    stats = AnalyticsEngine.get_player_season_stats(player_name, game_type, team_id=team_id)
 
     if not stats:
         return jsonify({"error": "No data found for player"}), 404
 
-    # Get shot quality metrics
-    shots = ShotEvent.query.filter(ShotEvent.player_name == player_name).all()
+    # Get shot quality metrics (team-scoped: only this team's games)
+    team_game_ids = _team_game_ids(team_id, game_type)
+    if not team_game_ids:
+        shots = []
+    else:
+        shots = ShotEvent.query.filter(
+            ShotEvent.player_name == player_name,
+            ShotEvent.game_id.in_(team_game_ids),
+        ).all()
     shot_data = [
         {
             "points": s.points or 0,
@@ -102,8 +145,9 @@ def get_player_advanced_stats(player_name):
 def get_player_usage(player_name):
     """Calculate true usage rate for a player."""
     game_type = request.args.get("game_type", "ALL")
+    team_id = _current_team_id()
 
-    # Get player stats
+    # Get player stats (team-scoped)
     query = db.session.query(
         func.sum(PlayerStat.fga).label("fga"),
         func.sum(PlayerStat.fta).label("fta"),
@@ -112,27 +156,30 @@ def get_player_usage(player_name):
         func.count(PlayerStat.id).label("games"),
     ).filter(PlayerStat.player_name == player_name)
 
+    query = query.join(Game, PlayerStat.game_id == Game.id).filter(
+        Game.team_id == team_id
+    )
     if game_type == "Season":
-        query = query.join(Game).filter(Game.game_type == "Season")
+        query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
-        query = query.join(Game).filter(Game.game_type == "Friendly")
+        query = query.filter(Game.game_type == "Friendly")
 
     player_result = query.first()
 
     if not player_result or player_result.games == 0:
         return jsonify({"error": "No data found"}), 404
 
-    # Get team totals
+    # Get team totals (same team + game_type scope)
     team_query = db.session.query(
         func.sum(PlayerStat.fga).label("fga"),
         func.sum(PlayerStat.fta).label("fta"),
         func.sum(PlayerStat.tov).label("tov"),
-    )
+    ).join(Game, PlayerStat.game_id == Game.id).filter(Game.team_id == team_id)
 
     if game_type == "Season":
-        team_query = team_query.join(Game).filter(Game.game_type == "Season")
+        team_query = team_query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
-        team_query = team_query.join(Game).filter(Game.game_type == "Friendly")
+        team_query = team_query.filter(Game.game_type == "Friendly")
 
     team_result = team_query.first()
 
@@ -181,16 +228,20 @@ def get_player_usage(player_name):
 def get_player_pps(player_name):
     """Get Points Per Shot for a player."""
     game_type = request.args.get("game_type", "ALL")
+    team_id = _current_team_id()
 
     query = db.session.query(
         func.sum(PlayerStat.points).label("points"),
         func.sum(PlayerStat.fga).label("fga"),
     ).filter(PlayerStat.player_name == player_name)
 
+    query = query.join(Game, PlayerStat.game_id == Game.id).filter(
+        Game.team_id == team_id
+    )
     if game_type == "Season":
-        query = query.join(Game).filter(Game.game_type == "Season")
+        query = query.filter(Game.game_type == "Season")
     elif game_type == "Friendly":
-        query = query.join(Game).filter(Game.game_type == "Friendly")
+        query = query.filter(Game.game_type == "Friendly")
 
     result = query.first()
 
@@ -222,6 +273,9 @@ def get_player_pps(player_name):
 def get_game_clutch_stats(game_id):
     """Get clutch time statistics for a game."""
     player_name = request.args.get("player")
+    team_id = _current_team_id()
+    if _get_owned_game(game_id, team_id) is None:
+        abort(404)
 
     clutch_stats = ClutchPerformance.get_clutch_stats(game_id, player_name)
 
@@ -583,6 +637,9 @@ def get_lineup_combination_detail():
 @team_access_required
 def get_rotation_analysis(game_id):
     """Get rotation analysis for a game."""
+    team_id = _current_team_id()
+    if _get_owned_game(game_id, team_id) is None:
+        abort(404)
     rotation = safe_query(
         lambda: LineupAnalytics.get_rotation_analysis(game_id),
         fallback_result={"game_id": game_id, "player_stints": {}, "rotation_data": []},
@@ -645,21 +702,30 @@ def get_shot_chart():
     player_name = request.args.get("player")
     play_id = request.args.get("play_id", type=int)
     game_type = request.args.get("game_type", "ALL")
+    team_id = _current_team_id()
+
+    if play_id is not None:
+        play = Play.query.filter_by(id=play_id, team_id=team_id).first()
+        if play is None:
+            return jsonify({"total_shots": 0, "shots": []})
 
     game_ids = None
     if game_id:
+        if _get_owned_game(game_id, team_id) is None:
+            abort(404)
         game_ids = [game_id]
-    elif game_type != "ALL":
-        query = Game.query.filter(Game.team_id == session['current_team_id'])
-        if game_type == "Season":
-            query = query.filter(Game.game_type == "Season")
-        elif game_type == "Friendly":
-            query = query.filter(Game.game_type == "Friendly")
-        games = query.all()
-        game_ids = [g.id for g in games]
+        game_id_param = game_id
+    else:
+        game_ids = _team_game_ids(team_id, game_type)
+        if not game_ids:
+            return jsonify({"total_shots": 0, "shots": []})
+        game_id_param = None
+        # When filtering by team game list, don't also pass a stale game_id.
+        if play_id is None and game_type == "ALL":
+            pass
 
     shots = ShotChartAnalytics.get_shot_chart_data(
-        game_id=game_id, player_name=player_name, play_id=play_id, game_ids=game_ids
+        game_id=game_id_param, player_name=player_name, play_id=play_id, game_ids=game_ids if game_id_param is None else None
     )
 
     return jsonify({"total_shots": len(shots), "shots": shots})
@@ -672,16 +738,11 @@ def get_shot_heatmap():
     """Get shot heatmap data by zone."""
     player_name = request.args.get("player")
     game_type = request.args.get("game_type", "ALL")
+    team_id = _current_team_id()
 
-    game_ids = None
-    if game_type != "ALL":
-        query = Game.query.filter(Game.team_id == session['current_team_id'])
-        if game_type == "Season":
-            query = query.filter(Game.game_type == "Season")
-        elif game_type == "Friendly":
-            query = query.filter(Game.game_type == "Friendly")
-        games = query.all()
-        game_ids = [g.id for g in games]
+    game_ids = _team_game_ids(team_id, game_type)
+    if not game_ids:
+        return jsonify({"player": player_name, "game_type": game_type, "heatmap": {}})
 
     heatmap = ShotChartAnalytics.get_heatmap_data(game_ids, player_name)
 
@@ -696,16 +757,11 @@ def get_hexbin_data():
     player_name = request.args.get("player")
     game_type = request.args.get("game_type", "ALL")
     hex_size = request.args.get("hex_size", 50, type=int)
+    team_id = _current_team_id()
 
-    game_ids = None
-    if game_type != "ALL":
-        query = Game.query.filter(Game.team_id == session['current_team_id'])
-        if game_type == "Season":
-            query = query.filter(Game.game_type == "Season")
-        elif game_type == "Friendly":
-            query = query.filter(Game.game_type == "Friendly")
-        games = query.all()
-        game_ids = [g.id for g in games]
+    game_ids = _team_game_ids(team_id, game_type)
+    if not game_ids:
+        return jsonify({"player": player_name, "hex_size": hex_size, "hexbins": []})
 
     hexbin = ShotChartAnalytics.get_hexbin_data(game_ids, player_name, hex_size)
 
@@ -717,7 +773,15 @@ def get_hexbin_data():
 @team_access_required
 def get_shots_by_play(play_id):
     """Get all shots for a specific play type."""
-    shots = ShotChartAnalytics.get_shot_chart_data(play_id=play_id)
+    team_id = _current_team_id()
+    play = Play.query.filter_by(id=play_id, team_id=team_id).first()
+    if play is None:
+        abort(404)
+    team_game_ids = _team_game_ids(team_id, "ALL")
+    if not team_game_ids:
+        shots = []
+    else:
+        shots = ShotChartAnalytics.get_shot_chart_data(play_id=play_id, game_ids=team_game_ids)
 
     # Aggregate stats
     total = len(shots)
@@ -747,16 +811,11 @@ def get_shots_by_play(play_id):
 def get_play_rankings():
     """Get play effectiveness rankings (optimized single query)."""
     game_type = request.args.get("game_type", "ALL")
+    team_id = _current_team_id()
 
-    game_ids = None
-    if game_type != "ALL":
-        query = Game.query.filter(Game.team_id == session['current_team_id'])
-        if game_type == "Season":
-            query = query.filter(Game.game_type == "Season")
-        elif game_type == "Friendly":
-            query = query.filter(Game.game_type == "Friendly")
-        games = query.all()
-        game_ids = [g.id for g in games]
+    game_ids = _team_game_ids(team_id, game_type)
+    if not game_ids:
+        return jsonify({"game_type": game_type, "rankings": []})
 
     rankings = AnalyticsEngine.get_team_plays_rankings(game_ids)
 
@@ -775,18 +834,20 @@ def get_four_factors():
     """Get Dean Oliver's Four Factors."""
     game_id = request.args.get("game_id", type=int)
     game_type = request.args.get("game_type", "ALL")
+    team_id = _current_team_id()
 
     game_ids = None
     if game_id:
+        if _get_owned_game(game_id, team_id) is None:
+            abort(404)
         game_ids = [game_id]
-    elif game_type != "ALL":
-        query = Game.query.filter(Game.team_id == session['current_team_id'])
-        if game_type == "Season":
-            query = query.filter(Game.game_type == "Season")
-        elif game_type == "Friendly":
-            query = query.filter(Game.game_type == "Friendly")
-        games = query.all()
-        game_ids = [g.id for g in games]
+    else:
+        game_ids = _team_game_ids(team_id, game_type)
+        if not game_ids:
+            return jsonify(
+                {"game_id": game_id, "game_type": game_type, "four_factors": {}}
+            )
+        game_id = None
 
     factors = AnalyticsEngine.get_four_factors(game_id=game_id, game_ids=game_ids)
 
@@ -826,6 +887,9 @@ def get_trend_alerts():
 @team_access_required
 def reconstruct_game_possessions(game_id):
     """Reconstruct and save possessions for a game."""
+    team_id = _current_team_id()
+    if _get_owned_game(game_id, team_id) is None:
+        abort(404)
     count = PossessionReconstructor.save_possessions(game_id)
 
     return jsonify(
@@ -842,6 +906,9 @@ def reconstruct_game_possessions(game_id):
 @team_access_required
 def get_game_possessions(game_id):
     """Get possession data for a game."""
+    team_id = _current_team_id()
+    if _get_owned_game(game_id, team_id) is None:
+        abort(404)
     possessions = (
         Possession.query.filter_by(game_id=game_id).order_by(Possession.id).all()
     )
@@ -1224,8 +1291,9 @@ def get_all_lineups():
     game_type = request.args.get("game_type", "ALL")
     min_minutes = request.args.get("min_minutes", 0, type=float)
     sort_by = request.args.get("sort_by", "total_seconds")
+    team_id = _current_team_id()
 
-    query = Lineup.query
+    query = Lineup.query.filter(Lineup.team_id == team_id)
 
     # Filter by minimum minutes
     if min_minutes > 0:
@@ -1244,6 +1312,24 @@ def get_all_lineups():
     query = query.order_by(desc(sort_column))
 
     lineups = query.all()
+
+    if game_type != "ALL":
+        # Only include lineups that actually appeared in this team's
+        # games of the requested type (cached totals mix all types).
+        allowed_ids = set(_team_game_ids(team_id, game_type))
+        if not allowed_ids:
+            lineups = []
+        else:
+            # One batched query for the whole page instead of one per lineup:
+            # a team with hundreds of lineups would otherwise cost hundreds
+            # of round trips on every /lineups request.
+            present = {
+                row[0]
+                for row in db.session.query(LineupSegment.lineup_id)
+                .filter(LineupSegment.game_id.in_(list(allowed_ids)))
+                .distinct()
+            }
+            lineups = [l for l in lineups if l.id in present]
 
     return jsonify(
         {
@@ -1279,17 +1365,26 @@ def get_lineup_card(lineup_id):
 
     Includes per-game breakdown and segment details.
     """
-    lineup = Lineup.query.get_or_404(lineup_id)
+    team_id = _current_team_id()
+    lineup = _get_owned_lineup(lineup_id, team_id)
+    if lineup is None:
+        abort(404)
 
-    # Get all segments for this lineup
-    segments = LineupSegment.query.filter_by(lineup_id=lineup_id).all()
+    # Get all segments for this lineup (only this team's games; legacy
+    # shared lineups may have segments from other teams pointing at the
+    # same row — never expose those).
+    segments = (
+        LineupSegment.query.join(Game, LineupSegment.game_id == Game.id)
+        .filter(LineupSegment.lineup_id == lineup_id, Game.team_id == team_id)
+        .all()
+    )
 
     # Group by game
     games_data = {}
     for segment in segments:
         game_id = segment.game_id
         if game_id not in games_data:
-            game = Game.query.filter_by(id=game_id, team_id=session.get('current_team_id')).first()
+            game = Game.query.filter_by(id=game_id, team_id=team_id).first()
             games_data[game_id] = {
                 "game_id": game_id,
                 "date": game.date if game else None,
@@ -1401,7 +1496,17 @@ def get_opponent_shots_for_lineup(lineup_id):
     """Get opponent shot locations for all segments in a lineup."""
     from core.models import GameEvent
 
-    segments = LineupSegment.query.filter_by(lineup_id=lineup_id).all()
+    lineup = Lineup.query.get(lineup_id)
+    if lineup is None:
+        return []
+    segments = (
+        LineupSegment.query.join(Game, LineupSegment.game_id == Game.id)
+        .filter(
+            LineupSegment.lineup_id == lineup_id,
+            Game.team_id == lineup.team_id,
+        )
+        .all()
+    )
     if not segments:
         return []
 
@@ -1447,7 +1552,14 @@ def get_player_shots_for_lineup(lineup_id):
     if not lineup or not lineup.players:
         return {}
 
-    segments = LineupSegment.query.filter_by(lineup_id=lineup_id).all()
+    segments = (
+        LineupSegment.query.join(Game, LineupSegment.game_id == Game.id)
+        .filter(
+            LineupSegment.lineup_id == lineup_id,
+            Game.team_id == lineup.team_id,
+        )
+        .all()
+    )
     if not segments:
         return {p: [] for p in lineup.players}
 
@@ -1509,9 +1621,11 @@ def _segment_matches_combination(segment_players, combo_players):
 
 
 def _get_segments_for_combination(combo_players, game_ids=None, with_combo=True):
-    query = LineupSegment.query
-    if game_ids:
-        query = query.filter(LineupSegment.game_id.in_(game_ids))
+    # game_ids=None is never allowed from team-scoped callers: an empty
+    # team must yield no segments, not the whole table.
+    if game_ids is None or len(game_ids) == 0:
+        return []
+    query = LineupSegment.query.filter(LineupSegment.game_id.in_(game_ids))
 
     segments = []
     for segment in query.all():
@@ -1684,7 +1798,10 @@ def update_lineup_name(lineup_id):
     if not data or "display_name" not in data:
         return jsonify({"error": "display_name required"}), 400
 
-    lineup = Lineup.query.get_or_404(lineup_id)
+    team_id = _current_team_id()
+    lineup = _get_owned_lineup(lineup_id, team_id)
+    if lineup is None:
+        abort(404)
     lineup.display_name = data["display_name"]
     db.session.commit()
 
@@ -1723,7 +1840,8 @@ def get_lineup_by_players():
         return jsonify({"error": "Exactly 5 players required"}), 400
 
     lineup_hash = generate_lineup_hash(players)
-    lineup = Lineup.query.filter_by(lineup_hash=lineup_hash).first()
+    team_id = _current_team_id()
+    lineup = Lineup.query.filter_by(team_id=team_id, lineup_hash=lineup_hash).first()
 
     if not lineup:
         return jsonify(

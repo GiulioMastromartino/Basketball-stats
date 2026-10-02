@@ -1014,7 +1014,35 @@ def _get_shot_scoring_data(game_id):
     shot_events_fg_total = sum(quarterly_fg_points.values())
     quarterly_points = defaultdict(int)
 
-    if shot_events_fg_total > 0 and ft_points > 0:
+    # Use actual tracked free throws per quarter when available instead of
+    # distributing FT points proportionally to FG points (which misattributes
+    # points, e.g. Q3 16/Q4 12 instead of the true 15/13).
+    quarterly_ft_points = defaultdict(int)
+    try:
+        ft_events = GameEvent.query.filter_by(game_id=game_id).all()
+        for evt in ft_events:
+            if evt.event_type in ("FT", "FT_MADE"):
+                # Reuse the canonical per-event scorer so FT_MADE events and
+                # the made-shot fallback (FT without ftm key) count too.
+                ft_pts = _event_team_points(evt)
+                if ft_pts:
+                    quarterly_ft_points[evt.quarter or 1] += ft_pts
+    except Exception as exc:
+        current_app.logger.warning(
+            f"Failed to fetch FT events for game {game_id}: {exc}"
+        )
+        quarterly_ft_points = defaultdict(int)
+
+    if quarterly_ft_points:
+        for quarter in set(list(quarterly_fg_points.keys()) + list(quarterly_ft_points.keys())):
+            quarterly_points[quarter] = quarterly_fg_points.get(quarter, 0) + quarterly_ft_points.get(quarter, 0)
+        # Validate against authoritative totals; fix drift on the max quarter.
+        total_distributed = sum(quarterly_points.values())
+        diff = total_points - total_distributed
+        if diff != 0:
+            max_q = max(quarterly_points.keys(), key=lambda q: quarterly_points[q])
+            quarterly_points[max_q] += diff
+    elif shot_events_fg_total > 0 and ft_points > 0:
         for quarter, q_fg_pts in quarterly_fg_points.items():
             ft_share = round((q_fg_pts / shot_events_fg_total) * ft_points)
             quarterly_points[quarter] = q_fg_pts + ft_share
@@ -1087,8 +1115,29 @@ def _get_opponent_box_score_from_events(game_id):
                 opp_tpm += 1
                 opp_pts += points
         elif shot_type == "ft":
+            # Live tracking stores FTs as {"points": 0/1, "shot_type": "ft",
+            # "result": "made"/"missed"} with no fta/ftm keys; other sources
+            # use fta/ftm. Prefer explicit ftm, fall back to points.
+            # A made FT always implies at least one attempt.
             fta = detail.get("fta", 1)
-            ftm = detail.get("ftm", 0) if result == "made" else 0
+            if "ftm" in detail:
+                ftm = detail.get("ftm", 0) if result == "made" else 0
+            else:
+                ftm = points if result == "made" else 0
+            try:
+                fta = int(fta)
+            except (TypeError, ValueError):
+                fta = 1
+            try:
+                ftm = int(ftm)
+            except (TypeError, ValueError):
+                ftm = 0
+            if result == "made":
+                fta = max(fta, 1)
+                ftm = min(max(ftm, 1), fta)
+            else:
+                fta = max(fta, 1)
+                ftm = 0
             opp_fta += fta
             opp_ftm += ftm
             opp_pts += ftm
@@ -1461,23 +1510,36 @@ def _event_team_points(event):
 
 
 def _get_starting_lineup_from_events(events):
-    """Extract starting lineup from first 5 SUB_IN events in Q1 (by lowest timestamp)."""
+    """Extract starting lineup (the 5 on court at tip-off).
+
+    The starters are the players on court BEFORE any substitution. A Q1
+    SUB_OUT identifies a starter only if that player never SUB_IN-ed
+    beforehand (a bench player who enters and leaves in Q1 is not a
+    starter). Returns [] unless 5 starters are identified so callers fall
+    back to lineup segments instead of reporting bench players.
+    """
     quarter_map = _build_quarter_map(events)
-    q1_sub_ins = []
-    for event in events:
-        quarter = quarter_map.get(event.id, event.quarter or 1)
-        if event.event_type == "SUB_IN" and quarter == 1 and event.player_name:
-            q1_sub_ins.append((event.timestamp or 0, event.player_name))
-    q1_sub_ins.sort(key=lambda x: x[0])
-    if q1_sub_ins:
-        return [name for _, name in q1_sub_ins[:5]]
-    sub_ins = [
-        (e.timestamp or 0, e.player_name)
-        for e in events
-        if e.event_type == "SUB_IN" and e.player_name
-    ]
-    sub_ins.sort(key=lambda x: x[0])
-    return [name for _, name in sub_ins[:5]]
+    q1 = sorted(
+        (
+            event
+            for event in events
+            if quarter_map.get(event.id, event.quarter or 1) == 1
+            and event.player_name
+        ),
+        key=lambda event: event.timestamp or 0,
+    )
+    entered = set()
+    seen = []
+    for event in q1:
+        name = event.player_name
+        if event.event_type == "SUB_IN":
+            entered.add(name)
+        elif event.event_type == "SUB_OUT":
+            if name not in entered and name not in seen:
+                seen.append(name)
+            if len(seen) == 5:
+                return seen
+    return []
 
 
 def _get_starting_lineup_from_segments(game_id):
@@ -1562,12 +1624,86 @@ def _build_time_progression(events, game):
 
     sorted_events = sorted(events, key=lambda e: e.game_seconds or e.timestamp or 0)
 
+    def _track_position():
+        """Record timeline position and update leads (no run impact)."""
+        nonlocal lead_changes, prev_lead_holder, prev_margin
+        margin = team_score - opp_score
+
+        score_progression.append(
+            {
+                "timestamp": event.timestamp,
+                "game_seconds": event.game_seconds,
+                "time_remaining": time_str,
+                "quarter": quarter,
+                "team_score": team_score,
+                "opp_score": opp_score,
+                "margin": margin,
+                "lineup": list(on_court),
+            }
+        )
+
+        if margin > max_lead["team"]:
+            max_lead["team"] = margin
+            max_lead["lineup_team"] = list(on_court)
+        if -margin > max_lead["opp"]:
+            max_lead["opp"] = -margin
+            max_lead["lineup_opp"] = list(on_court)
+
+        if quarter == 4 and total_seconds <= 120 and abs(margin) <= 5:
+            lineup_snapshots["clutch"] = list(on_court)
+        elif quarter > 4 and abs(margin) <= 5:
+            lineup_snapshots["clutch"] = list(on_court)
+
+        current_lead_holder = (
+            "team" if margin > 0 else ("opp" if margin < 0 else None)
+        )
+        if prev_lead_holder is not None and current_lead_holder is not None:
+            if prev_lead_holder != current_lead_holder:
+                lead_changes += 1
+        prev_lead_holder = current_lead_holder
+
+        prev_margin = margin
+
+    def _record_scoring_play(scoring_team, points_scored):
+        """Append one scoring play to the progression and update runs/leads."""
+        _track_position()
+
+        if current_run["team"] == scoring_team:
+            current_run["points"] += points_scored
+            current_run["end_q"] = quarter
+        else:
+            if current_run["points"] >= 5:
+                runs.append(
+                    {
+                        "type": current_run["team"],
+                        "points": current_run["points"],
+                        "start_q": current_run["start_q"],
+                        "end_q": current_run["end_q"] or current_run["start_q"],
+                        "start_time": current_run["start_time"],
+                        "lineup": current_run["start_lineup"],
+                    }
+                )
+                lineup_snapshots["runs"].append(
+                    {
+                        "run_index": len(runs) - 1,
+                        "players": current_run["start_lineup"],
+                    }
+                )
+            current_run.update(
+                {
+                    "team": scoring_team,
+                    "points": points_scored,
+                    "start_q": quarter,
+                    "end_q": quarter,
+                    "start_time": time_str,
+                    "start_lineup": list(on_court),
+                }
+            )
+
     for event in sorted_events:
         quarter = quarter_map.get(event.id, event.quarter or 1)
         time_str = event.time_remaining or "10:00"
         total_seconds = _parse_time_remaining(time_str)
-        points_scored = 0
-        scoring_team = None
 
         if event.event_type == "SUB_IN":
             if event.player_name:
@@ -1576,97 +1712,53 @@ def _build_time_progression(events, game):
             if event.player_name and event.player_name in on_court:
                 on_court.discard(event.player_name)
 
+        scoring_plays = []
+
         if event.event_type == "OPP_SCORE":
             detail = _parse_detail(event.detail)
-            points_scored = detail.get("points", _parse_detail_points(event.detail))
+            opp_points = detail.get("points", _parse_detail_points(event.detail))
 
-            opp_score += points_scored
-            scoring_team = "opp"
-
+            # Team field goals are not logged as events; they only appear as
+            # margin jumps on OPP_SCORE events. Recover them so team runs are
+            # detected and opp runs are broken by team scores (otherwise every
+            # run is an "Opp Run", e.g. a phantom 29-0 spanning team baskets).
+            # Scores are applied per-play below so intermediate leads (and
+            # lead changes within one event) are recorded, not just the final.
+            target_team_score = team_score
             if event.score_margin is not None:
-                margin = event.score_margin
-                team_score = opp_score + margin
-            else:
-                margin = team_score - opp_score
+                target_team_score = opp_score + opp_points + event.score_margin
+            inferred_team_points = target_team_score - team_score
+            if inferred_team_points > 0:
+                scoring_plays.append(("team", inferred_team_points))
+            elif (
+                event.score_margin is not None
+                and target_team_score != team_score
+            ):
+                # Downward margin correction with no inferred score.
+                team_score = target_team_score
+            if opp_points > 0:
+                scoring_plays.append(("opp", opp_points))
 
         team_points = _event_team_points(event)
         if team_points > 0:
-            team_score += team_points
-            points_scored = team_points
-            scoring_team = "team"
+            scoring_plays.append(("team", team_points))
 
         if event.event_type == "TURNOVER":
             quarterly_stats[quarter]["tov"] += 1
         if event.event_type in ("FOUL", "FOUL_PERSONAL"):
             quarterly_stats[quarter]["pf"] += 1
 
-        if scoring_team:
-            margin = team_score - opp_score
-
-            score_progression.append(
-                {
-                    "timestamp": event.timestamp,
-                    "game_seconds": event.game_seconds,
-                    "time_remaining": time_str,
-                    "quarter": quarter,
-                    "team_score": team_score,
-                    "opp_score": opp_score,
-                    "margin": margin,
-                    "lineup": list(on_court),
-                }
-            )
-
-            if margin > max_lead["team"]:
-                max_lead["team"] = margin
-                max_lead["lineup_team"] = list(on_court)
-            if -margin > max_lead["opp"]:
-                max_lead["opp"] = -margin
-                max_lead["lineup_opp"] = list(on_court)
-
-            if quarter == 4 and total_seconds <= 120 and abs(margin) <= 5:
-                lineup_snapshots["clutch"] = list(on_court)
-            elif quarter > 4 and abs(margin) <= 5:
-                lineup_snapshots["clutch"] = list(on_court)
-
-            current_lead_holder = (
-                "team" if margin > 0 else ("opp" if margin < 0 else None)
-            )
-            if prev_lead_holder is not None and current_lead_holder is not None:
-                if prev_lead_holder != current_lead_holder:
-                    lead_changes += 1
-            prev_lead_holder = current_lead_holder
-
-            if current_run["team"] == scoring_team:
-                current_run["points"] += points_scored
-                current_run["end_q"] = quarter
+        for scoring_team, points_scored in scoring_plays:
+            if scoring_team == "team":
+                team_score += points_scored
             else:
-                if current_run["points"] >= 5:
-                    runs.append(
-                        {
-                            "type": current_run["team"],
-                            "points": current_run["points"],
-                            "start_q": current_run["start_q"],
-                            "end_q": current_run["end_q"] or current_run["start_q"],
-                            "start_time": current_run["start_time"],
-                            "lineup": current_run["start_lineup"],
-                        }
-                    )
-                    lineup_snapshots["runs"].append(
-                        {
-                            "run_index": len(runs) - 1,
-                            "players": current_run["start_lineup"],
-                        }
-                    )
-                current_run = {
-                    "team": scoring_team,
-                    "points": points_scored,
-                    "start_q": quarter,
-                    "end_q": quarter,
-                    "start_time": time_str,
-                    "start_lineup": list(on_court),
-                }
+                opp_score += points_scored
+            _record_scoring_play(scoring_team, points_scored)
 
-            prev_margin = margin
+        if not scoring_plays and event.event_type == "OPP_SCORE":
+            # Miss with no inferred team score: no run impact, but the
+            # margin extreme still counts for leads/deficits/chart.
+            _track_position()
 
     if current_run["points"] >= 5:
         runs.append(

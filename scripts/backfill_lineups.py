@@ -45,12 +45,14 @@ def backfill_lineups():
 
     existing_lineups = Lineup.query.all()
     for lineup in existing_lineups:
-        lineup_cache[lineup.lineup_hash] = lineup.id
+        lineup_cache[(lineup.team_id, lineup.lineup_hash)] = lineup.id
     print(f"Found {len(existing_lineups)} existing lineups")
 
     created_count = 0
     linked_count = 0
     updated_count = 0
+
+    from core.services.lineup_service import resolve_team_id
 
     for i, segment in enumerate(segments, 1):
         try:
@@ -65,20 +67,24 @@ def backfill_lineups():
                 except:
                     players = []
 
-            if lineup_hash not in lineup_cache:
+            game = Game.query.get(segment.game_id)
+            team_id = game.team_id if game is not None else resolve_team_id(None)
+            key = (team_id, lineup_hash)
+            if key not in lineup_cache:
                 is_starting = i == 1
 
                 lineup = Lineup(
                     lineup_hash=lineup_hash,
                     players=sorted(players) if players else [],
                     is_starting=is_starting,
+                    team_id=team_id,
                 )
                 db.session.add(lineup)
                 db.session.flush()
-                lineup_cache[lineup_hash] = lineup.id
+                lineup_cache[key] = lineup.id
                 created_count += 1
 
-            segment.lineup_id = lineup_cache[lineup_hash]
+            segment.lineup_id = lineup_cache[key]
             linked_count += 1
 
             if i % 100 == 0:

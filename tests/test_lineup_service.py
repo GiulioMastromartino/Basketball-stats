@@ -923,3 +923,176 @@ class TestLineupAPIIntegration:
 
         segments = LineupSegment.query.filter_by(game_id=game.id).all()
         assert segments == []
+
+
+# =============================================================================
+# Lineup team-scoping: constraint migration + repair
+# =============================================================================
+
+
+class TestLineupTeamScope:
+    """The legacy schema had UNIQUE(lineup_hash) globally, which made two
+    teams in one org with the same five names share one row (and its cached
+    stats). These cover the migration that replaces it and the repair that
+splits already-shared rows."""
+
+    @staticmethod
+    def _install_legacy_global_unique_schema(lineup_ids, lineup_hash):
+        """Recreate the pre-fix table: global UNIQUE(lineup_hash).
+
+        Drops and rebuilds ``lineups`` by hand, preserving the given row ids.
+        """
+        from sqlalchemy import text
+
+        db.session.execute(text("PRAGMA foreign_keys=OFF"))
+        db.session.execute(text("DROP TABLE lineups"))
+        cols = ", ".join(
+            f'"{c.name}" {c.type.compile(dialect=db.engine.dialect)}'
+            for c in Lineup.__table__.columns
+            if not c.primary_key
+        )
+        # Table-level UNIQUE, exactly how SQLAlchemy emitted ``unique=True``
+        # on the column in the original model.
+        db.session.execute(
+            text(
+                f'CREATE TABLE lineups (id INTEGER PRIMARY KEY, {cols}, '
+                'UNIQUE ("lineup_hash"))'
+            )
+        )
+        for lid in lineup_ids:
+            db.session.execute(
+                text(
+                    'INSERT INTO lineups (id, team_id, lineup_hash, players) '
+                    "VALUES (:id, 1, :h, :p)"
+                ),
+                {"id": lid, "h": lineup_hash, "p": json.dumps(["A", "B"])},
+            )
+        db.session.commit()
+        db.session.execute(text("PRAGMA foreign_keys=ON"))
+        db.session.commit()
+
+    def test_migration_replaces_global_unique_and_keeps_rows(self, db_session):
+        from sqlalchemy import inspect
+
+        from core.services.lineup_service import ensure_lineup_team_unique_index
+
+        db_session.add(Lineup(team_id=1, lineup_hash="a" * 64, players=["A"]))
+        db_session.commit()
+        keep_id = Lineup.query.filter_by(lineup_hash="a" * 64).first().id
+
+        self._install_legacy_global_unique_schema([keep_id], "a" * 64)
+
+        assert ensure_lineup_team_unique_index() is True
+
+        uniques = inspect(db.engine).get_unique_constraints("lineups")
+        assert any(
+            set(u.get("column_names") or []) == {"team_id", "lineup_hash"}
+            for u in uniques
+        ), "composite UNIQUE(team_id, lineup_hash) must replace the global one"
+        # No data lost, and the row is still reachable by id.
+        assert Lineup.query.filter_by(id=keep_id).first() is not None
+
+    def test_migration_preserves_lineup_segments_foreign_key(self, db_session):
+        """The rebuild must not leave ``lineup_segments`` pointing at a
+        dropped table.
+
+        Renaming the OLD table first (the obvious implementation) rewrites
+        child foreign keys to reference the legacy name, and dropping it then
+        breaks every insert into ``lineup_segments``.
+        """
+        from sqlalchemy import text
+
+        from core.services.lineup_service import ensure_lineup_team_unique_index
+
+        db_session.add(Lineup(team_id=1, lineup_hash="b" * 64, players=["A"]))
+        db_session.commit()
+        self._install_legacy_global_unique_schema(
+            [Lineup.query.filter_by(lineup_hash="b" * 64).first().id], "b" * 64
+        )
+
+        ensure_lineup_team_unique_index()
+
+        # The child table's FK must still name the live table...
+        fk_sql = db_session.execute(
+            text("SELECT sql FROM sqlite_master WHERE name='lineup_segments'")
+        ).first()[0]
+        assert "REFERENCES lineups" in fk_sql
+        assert "lineups_legacy" not in fk_sql
+        # ...and enforcing them must report no violations.
+        assert db_session.execute(text("PRAGMA foreign_key_check")).fetchall() == []
+
+    def test_cross_team_duplicate_hash_inserts_after_migration(self, db_session):
+        from core.services.lineup_service import ensure_lineup_team_unique_index
+
+        db_session.add(Lineup(team_id=1, lineup_hash="c" * 64, players=["A"]))
+        db_session.commit()
+        self._install_legacy_global_unique_schema(
+            [Lineup.query.filter_by(lineup_hash="c" * 64).first().id], "c" * 64
+        )
+        ensure_lineup_team_unique_index()
+
+        db_session.add(Lineup(team_id=2, lineup_hash="c" * 64, players=["A"]))
+        db_session.commit()
+
+        assert Lineup.query.filter_by(lineup_hash="c" * 64).count() == 2
+
+    def test_migration_is_idempotent(self, db_session):
+        from core.services.lineup_service import ensure_lineup_team_unique_index
+
+        db_session.add(Lineup(team_id=1, lineup_hash="d" * 64, players=["A"]))
+        db_session.commit()
+        self._install_legacy_global_unique_schema(
+            [Lineup.query.filter_by(lineup_hash="d" * 64).first().id], "d" * 64
+        )
+
+        assert ensure_lineup_team_unique_index() is True
+        assert ensure_lineup_team_unique_index() is False
+
+    def test_migration_leaves_already_correct_schema_alone(self, db_session):
+        from core.services.lineup_service import ensure_lineup_team_unique_index
+
+        db_session.add(Lineup(team_id=1, lineup_hash="e" * 64, players=["A"]))
+        db_session.commit()
+
+        assert ensure_lineup_team_unique_index() is False
+
+    def test_repair_splits_a_lineup_shared_by_two_teams(
+        self, db_session, default_org, default_team
+    ):
+        """A segment per team on one shared row must become two rows."""
+        from core.models import Team
+        from core.services.lineup_service import repair_shared_lineups
+
+        other = Team(name="Other", organization_id=default_org.id, slug="other")
+        db_session.add(other)
+        db_session.commit()
+
+        shared_hash = "f" * 64
+        lineup = Lineup(team_id=default_team.id, lineup_hash=shared_hash,
+                        players=["A", "B"])
+        db_session.add(lineup)
+        db_session.commit()
+
+        games = []
+        for team in (default_team, other):
+            g = Game(team_id=team.id, date="2024-01-01", opponent="X",
+                     team_score=80, opponent_score=70, result="W",
+                     game_type="S", sort_date="2024-01-01")
+            db_session.add(g)
+            db_session.commit()
+            games.append(g)
+            db_session.add(LineupSegment(
+                lineup_id=lineup.id, game_id=g.id, lineup_hash=shared_hash,
+                players=["A", "B"], quarter=1,
+                start_timestamp=0, end_timestamp=600, duration_seconds=600,
+            ))
+        db_session.commit()
+
+        result = repair_shared_lineups()
+
+        assert result["split"] >= 1
+        rows = Lineup.query.filter_by(lineup_hash=shared_hash).all()
+        assert {r.team_id for r in rows} == {default_team.id, other.id}
+        for g, team in zip(games, (default_team, other)):
+            seg = LineupSegment.query.filter_by(game_id=g.id).first()
+            assert db.session.get(Lineup, seg.lineup_id).team_id == team.id

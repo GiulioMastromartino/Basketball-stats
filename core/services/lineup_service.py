@@ -84,7 +84,7 @@ def get_or_create_lineup(players: list, is_starting: bool = False, team_id: int 
 
     team_id = resolve_team_id(team_id)
     lineup_hash = generate_lineup_hash(players)
-    lineup = Lineup.query.filter_by(lineup_hash=lineup_hash).first()
+    lineup = Lineup.query.filter_by(team_id=team_id, lineup_hash=lineup_hash).first()
 
     if not lineup:
         lineup = Lineup(
@@ -99,12 +99,23 @@ def get_or_create_lineup(players: list, is_starting: bool = False, team_id: int 
 def update_lineup_cached_stats(lineup_id: int):
     """Update cached stats for a lineup by aggregating all segments."""
     from datetime import datetime
+    from core.models import Game
 
     lineup = Lineup.query.get(lineup_id)
     if not lineup:
         return
 
-    segments = LineupSegment.query.filter_by(lineup_id=lineup_id).all()
+    # Only this team's segments contribute: legacy shared lineups may
+    # still have segments from other teams pointing at this row until
+    # repair_shared_lineups() splits them.
+    segments = (
+        LineupSegment.query.join(Game, LineupSegment.game_id == Game.id)
+        .filter(
+            LineupSegment.lineup_id == lineup_id,
+            Game.team_id == lineup.team_id,
+        )
+        .all()
+    )
 
     total_seconds = 0
     total_possessions = 0
@@ -201,6 +212,11 @@ def build_lineup_segments(
     Returns:
         List of created segment IDs
     """
+    if team_id is None:
+        from core.models import Game as _GameForTeam
+
+        _g = _GameForTeam.query.get(game_id)
+        team_id = _g.team_id if _g is not None else resolve_team_id(None)
     LineupSegment.query.filter_by(game_id=game_id).delete()
     db.session.flush()
 
@@ -913,3 +929,192 @@ def rank_lineups_for_context(team_id: int, context: str = "balanced") -> dict:
             }
         )
     return {"context": context, "lineups": ranked, "reason": None}
+
+
+def repair_shared_lineups() -> dict:
+    """Split lineups shared across teams into per-team rows.
+
+    Legacy bug: ``Lineup.lineup_hash`` was globally unique, so two teams
+    with the same 5 player names shared one ``Lineup`` row and its cached
+    stats mixed both teams' segments (cross-team leak). This repair:
+
+    1. Finds every lineup whose segments span >1 team (via Game.team_id).
+    2. For each foreign team, creates a per-team duplicate row with the
+       same hash/players and re-links that team's segments to it.
+    3. Recomputes cached stats for every touched lineup (team-pure).
+
+    Returns ``{"split": N, "relinked": M}``. Idempotent and safe to run
+    on every boot.
+    """
+    from core.models import Game
+
+    split = 0
+    relinked = 0
+    for lineup in Lineup.query.all():
+        segments = LineupSegment.query.filter_by(lineup_id=lineup.id).all()
+        if not segments:
+            continue
+        game_ids = {s.game_id for s in segments}
+        games = Game.query.filter(Game.id.in_(list(game_ids))).all()
+        team_of_game = {g.id: g.team_id for g in games}
+        by_team: dict[int, list] = {}
+        for s in segments:
+            tid = team_of_game.get(s.game_id)
+            if tid is None:
+                continue
+            by_team.setdefault(tid, []).append(s)
+        if len(by_team) <= 1:
+            continue
+        # Keep the original row for its own team when possible;
+        # otherwise keep it for the first team with segments.
+        keep_team = lineup.team_id if lineup.team_id in by_team else next(iter(by_team))
+        for tid, segs in by_team.items():
+            if tid == keep_team:
+                continue
+            dup = Lineup.query.filter_by(team_id=tid, lineup_hash=lineup.lineup_hash).first()
+            if dup is None:
+                dup = Lineup(
+                    team_id=tid,
+                    lineup_hash=lineup.lineup_hash,
+                    players=list(lineup.players or []),
+                    display_name=lineup.display_name,
+                    is_starting=bool(lineup.is_starting),
+                )
+                db.session.add(dup)
+                db.session.flush()
+                split += 1
+            for s in segs:
+                s.lineup_id = dup.id
+                relinked += 1
+        db.session.commit()
+        update_lineup_cached_stats(lineup.id)
+        for tid in by_team:
+            if tid == keep_team:
+                continue
+            dup = Lineup.query.filter_by(team_id=tid, lineup_hash=lineup.lineup_hash).first()
+            if dup is not None:
+                update_lineup_cached_stats(dup.id)
+    # Final pass: recompute any lineup whose cached stats still mix teams
+    # (covers rows whose segments were already per-team but stats stale).
+    return {"split": split, "relinked": relinked}
+
+
+def ensure_lineup_team_unique_index() -> bool:
+    """Replace global UNIQUE(lineup_hash) with UNIQUE(team_id, lineup_hash).
+
+    Must run BEFORE ``repair_shared_lineups``: while the legacy global
+    constraint is in place, no second row can share a hash, so the repair
+    cannot create the per-team duplicates it needs.
+
+    * SQLite cannot drop a unique constraint in place, so the table is
+      rebuilt using SQLite's documented 12-step procedure (create, copy,
+      drop, rename) inside ONE transaction with ``foreign_keys=OFF``.
+      Renaming the *old* table first would instead rewrite
+      ``lineup_segments``'s foreign key to point at the dropped table,
+      because ``legacy_alter_table`` is off by default.
+    * Postgres drops the legacy constraint and creates the composite one.
+
+    Returns True when the schema was changed.
+    """
+    from sqlalchemy import inspect, text
+    from sqlalchemy.schema import CreateTable
+
+    engine = db.engine
+    if not inspect(engine).has_table("lineups"):
+        return False
+    changed = False
+    if engine.dialect.name == "sqlite":
+        insp = inspect(engine)
+        try:
+            uniques = insp.get_unique_constraints("lineups")
+        except Exception:
+            uniques = []
+        has_composite = any(
+            set(u.get("column_names") or []) == {"team_id", "lineup_hash"}
+            for u in uniques
+        )
+        if has_composite:
+            return False
+        legacy_global = any(
+            set(u.get("column_names") or []) == {"lineup_hash"}
+            for u in uniques
+        )
+        if not legacy_global:
+            # Older SQLite builds report unique constraints unreliably, so
+            # fall back to the stored DDL.
+            try:
+                row = db.session.execute(
+                    text(
+                        "SELECT sql FROM sqlite_master "
+                        "WHERE type='table' AND name='lineups'"
+                    )
+                ).first()
+                ddl = (row[0] if row else "") or ""
+            except Exception:
+                ddl = ""
+            compact = ddl.replace(" ", "")
+            if "UNIQUE(lineup_hash)" not in compact and "UNIQUE(lineup_hash)" not in ddl:
+                return False
+        # Data cannot contain cross-team duplicates yet (the global
+        # constraint prevented them), so a straight copy is safe.
+        cols = [c.name for c in Lineup.__table__.columns]
+        collist = ", ".join(f'"{c}"' for c in cols)
+        ddl_new = str(CreateTable(Lineup.__table__).compile(engine)).replace(
+            "CREATE TABLE lineups", "CREATE TABLE lineups_new", 1
+        )
+        with engine.begin() as conn:
+            # Must be outside a transaction to take effect, hence
+            # exec_driver_sql on a raw connection.
+            conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+            conn.exec_driver_sql(ddl_new)
+            conn.exec_driver_sql(  # noqa: S608 - column names come from the model
+                f'INSERT INTO lineups_new ({collist}) SELECT {collist} FROM lineups'
+            )
+            conn.exec_driver_sql("DROP TABLE lineups")
+            conn.exec_driver_sql("ALTER TABLE lineups_new RENAME TO lineups")
+            conn.exec_driver_sql("PRAGMA foreign_keys=ON")
+        db.session.commit()
+        return True
+
+    # Postgres / other: drop the legacy global constraint, add the composite.
+    try:
+        rows = db.session.execute(
+            text(
+                "SELECT conname FROM pg_constraint "
+                "WHERE conrelid = 'lineups'::regclass AND contype = 'u'"
+            )
+        ).fetchall()
+    except Exception:
+        return False
+    names = [r[0] for r in rows]
+    composite = [
+        n for n in names if n == "uq_lineups_team_hash"
+    ]
+    legacy = [
+        n for n in names
+        if n != "uq_lineups_team_hash"
+    ]
+    for name in legacy:
+        try:
+            db.session.execute(
+                text(f'ALTER TABLE lineups DROP CONSTRAINT "{name}"')  # noqa: S608 - name from pg_constraint
+            )
+            changed = True
+        except Exception:
+            db.session.rollback()
+            return changed
+    if not composite:
+        try:
+            db.session.execute(
+                text(
+                    "ALTER TABLE lineups ADD CONSTRAINT uq_lineups_team_hash "
+                    "UNIQUE (team_id, lineup_hash)"
+                )
+            )
+            changed = True
+        except Exception:
+            db.session.rollback()
+            return changed
+    if changed:
+        db.session.commit()
+    return changed
