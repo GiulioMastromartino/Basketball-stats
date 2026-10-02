@@ -898,10 +898,10 @@ class LineupAnalytics:
             possessions = stats["possessions"]
             if stats["total_seconds"] <= 0:
                 continue
+            if possessions < min_possessions:
+                continue
 
             effective_possessions = max(possessions, 1)
-            if possessions > 0 and possessions < min_possessions:
-                continue
 
             ortg = round(stats["points_scored"] / effective_possessions * 100, 1)
             drtg = round(stats["points_allowed"] / effective_possessions * 100, 1)

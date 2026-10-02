@@ -181,3 +181,38 @@ def test_segment_counts_shot_and_ft_points(db_session, sample_game):
     assert seg.points_allowed == 3
     assert seg.possessions == 2
     assert seg.duration_seconds and seg.duration_seconds > 0
+
+
+def test_segment_infers_team_points_without_shot_events(db_session, sample_game):
+    """Split-format log (no SHOT_2PT/SHOT_3PT events): segment offense comes
+    from net score_margin movement; possessions from possession ids."""
+    _evt(db_session, sample_game, event_type="OPP_SCORE",
+         detail=json.dumps({"points": 2, "shot_type": "2pt", "result": "made"}),
+         score_margin=-2, timestamp=100, game_seconds=100, possession_number=1)
+    _evt(db_session, sample_game, event_type="OPP_SCORE",
+         detail=json.dumps({"points": 0, "shot_type": "2pt", "result": "missed"}),
+         score_margin=1, timestamp=200, game_seconds=200, possession_number=2)
+    _evt(db_session, sample_game, event_type="OPP_SCORE",
+         detail=json.dumps({"points": 2, "shot_type": "2pt", "result": "made"}),
+         score_margin=1, timestamp=300, game_seconds=300, possession_number=3)
+    for i, s in enumerate(["S1", "S2", "S3", "S4", "S5"]):
+        _evt(db_session, sample_game, event_type="SUB_OUT", player_name=s,
+             timestamp=2000 + i * 10, game_seconds=600 + i * 10)
+        _evt(db_session, sample_game, event_type="SUB_IN",
+             player_name=f"B{i}", timestamp=2001 + i * 10,
+             game_seconds=600 + i * 10)
+    db_session.commit()
+    events = (
+        GameEvent.query.filter_by(game_id=sample_game.id)
+        .order_by(GameEvent.timestamp).all()
+    )
+    process_game_lineups(sample_game.id, events, None, sample_game.team_id)
+    seg = (
+        LineupSegment.query.filter_by(game_id=sample_game.id)
+        .order_by(LineupSegment.start_timestamp).first()
+    )
+    # implied team: 0 -> 3 -> 5, so 5 points; allowed 2 + 0 + 2 = 4
+    assert seg.points_scored == 5
+    assert seg.points_allowed == 4
+    # 3 distinct possession ids -> round(3/2) = 2 team possessions
+    assert seg.possessions == 2

@@ -196,6 +196,35 @@ def update_lineup_cached_stats(lineup_id: int):
     db.session.commit()
 
 
+def _parse_opp_score_points(detail) -> int:
+    """Points on an OPP_SCORE event. Shared by points_allowed accounting
+    and margin inference so both paths always agree."""
+    import json as _json
+
+    if isinstance(detail, str) and (
+        detail.startswith("{") or detail.startswith("[")
+    ):
+        try:
+            parsed = _json.loads(detail)
+        except (ValueError, TypeError):
+            return 2
+        if isinstance(parsed, dict):
+            try:
+                return int(parsed.get("points", 2))
+            except (TypeError, ValueError):
+                return 2
+        try:
+            return int(parsed)
+        except (TypeError, ValueError):
+            return 2
+    if detail is None or detail == "":
+        return 2
+    try:
+        return int(detail)
+    except (ValueError, TypeError):
+        return 2
+
+
 def parse_ft_event(detail, shot_attempt=None) -> tuple:
     """Interpret one FT/FT_MADE/FT_MISS event as (makes, attempts).
 
@@ -529,21 +558,7 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
         elif event.event_type == "FT_MADE":
             points_scored += 1
         elif event.event_type == "OPP_SCORE":
-            pts = 2
-            if event.detail:
-                try:
-                    if isinstance(event.detail, str) and (event.detail.startswith('{') or event.detail.startswith('[')):
-                        import json
-                        detail_data = json.loads(event.detail)
-                        if isinstance(detail_data, dict):
-                            pts = int(detail_data.get('points', 2))
-                        else:
-                            pts = int(event.detail)
-                    else:
-                        pts = int(event.detail)
-                except (ValueError, TypeError, json.JSONDecodeError):
-                    pts = 2
-            points_allowed += pts
+            points_allowed += _parse_opp_score_points(event.detail)
 
         if event.event_type in [
             "SHOT_2PT",
@@ -729,6 +744,49 @@ def process_game_lineups(
     PlayerLineupStats.query.filter(PlayerLineupStats.lineup_segment_id.in_(segment_ids)).delete(synchronize_session=False)
     db.session.commit()
 
+    # 4b. Split-format games log no timestamped team-shot events (their FGs
+    # live only in shot_events): attribute team points from score_margin
+    # movement between consecutive OPP_SCORE events - the same inference the
+    # report timeline uses. Net (not gross) movement is attributed, so
+    # margin noise cannot inflate totals by counting only upward wiggles.
+    # Live v2 games count SHOT_2PT/SHOT_3PT/FT_MADE directly.
+    _direct_shot_types = {"SHOT_2PT", "SHOT_3PT", "FT_MADE"}
+    use_margin_inference = not any(
+        e.event_type in _direct_shot_types for e in all_segment_events
+    )
+    seg_inferred_points = {}
+    if use_margin_inference:
+        _ordered = sorted(all_segment_events, key=lambda e: e.game_seconds or 0)
+        _implied_team = {}
+        _opp = 0
+        _team = 0
+        for _e in _ordered:
+            if _e.event_type != "OPP_SCORE":
+                continue
+            _pts = _parse_opp_score_points(_e.detail)
+            _opp += _pts
+            if _e.score_margin is not None:
+                # Team totals never decrease: clamp logging noise so
+                # segment attributions telescope exactly to the final total.
+                _team = max(_team, _opp + _e.score_margin)
+            _implied_team[_e.id] = _team
+        _prev_team = 0
+        for _seg in sorted(
+            segments, key=lambda s: (s.start_timestamp or 0, s.id)
+        ):
+            _seg_opp = [
+                e for e in events_by_segment.get(_seg.id, [])
+                if e.id in _implied_team
+            ]
+            if not _seg_opp:
+                seg_inferred_points[_seg.id] = 0
+                continue
+            _t_end = _implied_team[
+                max(_seg_opp, key=lambda e: e.game_seconds or 0).id
+            ]
+            seg_inferred_points[_seg.id] = max(0, _t_end - _prev_team)
+            _prev_team = _t_end
+
     # 5. Process each segment
     lineup_ids = set()
     new_player_stats = []
@@ -742,6 +800,8 @@ def process_game_lineups(
         poss = 0
         poss_ending = set()
         reb_conceded = 0
+        if use_margin_inference:
+            pts_scored += seg_inferred_points.get(segment.id, 0)
         
         player_map = {p: {
             "points": 0, "fga": 0, "fgm": 0, "tpa": 0, "tpm": 0, "fta": 0, "ftm": 0,
@@ -776,28 +836,18 @@ def process_game_lineups(
                     player_map[event.player_name]["ftm"] += 1
             elif et == "FT":
                 # Live format stores makes in detail {"ftm": n, "fta": m}.
+                # In margin-inference mode the segment total already includes
+                # these points via OPP_SCORE jumps; the shooter attribution
+                # below stays exact either way.
                 ftm, fta = parse_ft_event(event.detail, event.shot_attempt)
-                pts_scored += ftm
+                if not use_margin_inference:
+                    pts_scored += ftm
                 if event.player_name in player_map:
                     player_map[event.player_name]["points"] += ftm
                     player_map[event.player_name]["fta"] += fta
                     player_map[event.player_name]["ftm"] += ftm
             elif et == "OPP_SCORE":
-                pts = 2
-                if event.detail:
-                    try:
-                        if isinstance(event.detail, str) and (event.detail.startswith('{') or event.detail.startswith('[')):
-                            import json
-                            detail_data = json.loads(event.detail)
-                            if isinstance(detail_data, dict):
-                                pts = int(detail_data.get('points', 2))
-                            else:
-                                pts = int(event.detail)
-                        else:
-                            pts = int(event.detail)
-                    except (ValueError, TypeError, json.JSONDecodeError):
-                        pts = 2
-                pts_allowed += pts
+                pts_allowed += _parse_opp_score_points(event.detail)
             elif et == "OPP_OREB":
                 reb_conceded += 1
                 for p in player_map: player_map[p]["reb_conceded"] += 1
@@ -818,6 +868,17 @@ def process_game_lineups(
                 if event.possession_number and event.possession_number not in poss_ending:
                     poss_ending.add(event.possession_number)
                     poss += 1
+
+        if use_margin_inference:
+            # Team-possession endings are invisible in split-format logs
+            # (missed FGs leave no trace), so count from the possession ids
+            # touching the segment: each id is one total possession and the
+            # team's share is half. Reconciles with the possessions formula
+            # at game level (134 ids -> ~67 vs formula 69 for this game).
+            _distinct = {
+                e.possession_number for e in seg_events if e.possession_number
+            }
+            poss = max(1, round(len(_distinct) / 2)) if _distinct else poss
 
         # Update segment model
         segment.points_scored = pts_scored
