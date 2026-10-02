@@ -35,6 +35,14 @@ COURT_LINE = "#3a3a44"
 
 FONT_FAMILY = "monospace"
 
+# ── Light theme tokens (print/PDF-friendly white background) ────────────────
+LIGHT_BG         = "#ffffff"
+LIGHT_CARD       = "#ffffff"
+LIGHT_COURT_LINE = "#334155"
+LIGHT_PAINT      = "#eef2f7"
+LIGHT_TEXT       = "#1e293b"
+LIGHT_GRID       = "#cbd5e1"
+
 
 def _apply_dark_style(fig, axes):
     fig.patch.set_facecolor(BG)
@@ -72,7 +80,13 @@ def _smooth(x, y, resolution=300):
 
 # ── Shot charts ──────────────────────────────────────────────────────────────
 
-def generate_shot_chart(player_name, game_ids, db_session=None):
+def generate_shot_chart(player_name, game_ids, db_session=None, theme="dark"):
+    """Player shot chart as base64 PNG.
+
+    Args:
+        theme: "dark" (default, web dashboards) or "light" (print/PDF pages
+            with a white background, e.g. the game-summary PDF).
+    """
     session = db_session or db.session
     query = session.query(ShotEvent).filter(ShotEvent.player_name == player_name)
     if game_ids is not None:
@@ -85,10 +99,16 @@ def generate_shot_chart(player_name, game_ids, db_session=None):
     )
     if not shots:
         return ""
-    return _create_court_plot(shots)
+    return _create_court_plot(shots, theme=theme)
 
 
-def generate_team_shot_chart(game_ids, db_session=None):
+def generate_team_shot_chart(game_ids, db_session=None, theme="dark"):
+    """Team shot chart as base64 PNG.
+
+    Args:
+        theme: "dark" (default, web dashboards) or "light" (print/PDF pages
+            with a white background, e.g. the game-summary PDF).
+    """
     session = db_session or db.session
     shots = (
         session.query(ShotEvent)
@@ -100,42 +120,50 @@ def generate_team_shot_chart(game_ids, db_session=None):
     )
     if not shots:
         return ""
-    return _create_court_plot(shots, is_team=True)
+    return _create_court_plot(shots, is_team=True, theme=theme)
 
 
-def _draw_court(ax, lw=1.5):
-    kw = dict(color=COURT_LINE, linewidth=lw, zorder=1)
+def _draw_court(ax, lw=1.5, theme="dark"):
+    light = theme == "light"
+    line = LIGHT_COURT_LINE if light else COURT_LINE
+    paint = LIGHT_PAINT if light else "#1a1a20"
+    kw = dict(color=line, linewidth=lw, zorder=1)
     for xs, ys in [([0,500],[0,0]), ([0,500],[470,470]),
                    ([0,0],[0,470]), ([500,500],[0,470])]:
         ax.plot(xs, ys, **kw)
     pw, ph = 163.3, 193.3
     px = (500 - pw) / 2
     ax.add_patch(patches.Rectangle((px, 0), pw, ph,
-                                    lw=lw, edgecolor=COURT_LINE, facecolor="#1a1a20"))
+                                    lw=lw, edgecolor=line, facecolor=paint))
     ax.add_patch(patches.Circle((250, 195.3), 60,
-                                 lw=lw, edgecolor=COURT_LINE, facecolor="none"))
+                                 lw=lw, edgecolor=line, facecolor="none"))
     ax.plot([30,30], [0, 99.7], **kw)
     ax.plot([470,470], [0, 99.7], **kw)
     ax.add_patch(patches.Arc((250, 99.7), 440, 440,
                               theta1=0, theta2=180,
-                              lw=lw, edgecolor=COURT_LINE))
+                              lw=lw, edgecolor=line))
     ax.add_patch(patches.Arc((250, 52.5), 83.32, 83.32,
                               theta1=0, theta2=180,
-                              lw=lw, edgecolor=COURT_LINE))
+                              lw=lw, edgecolor=line))
     ax.add_patch(patches.Circle((250, 52.5), 7.5,
                                  lw=lw, edgecolor=GOLD, facecolor="none", zorder=3))
     ax.plot([220, 280], [40, 40], color=GOLD, linewidth=lw, zorder=3)
     ax.add_patch(patches.Arc((250, 470), 120, 120,
                               theta1=180, theta2=360,
-                              lw=lw, edgecolor=COURT_LINE))
+                              lw=lw, edgecolor=line))
 
 
-def _create_court_plot(shots, is_team=False):
+def _create_court_plot(shots, is_team=False, theme="dark"):
+    light = theme == "light"
+    bg = LIGHT_BG if light else BG
+    card = LIGHT_CARD if light else BG_CARD
+    border = LIGHT_GRID if light else BORDER
+    text_color = LIGHT_TEXT if light else WHITE
     try:
         fig, ax = plt.subplots(figsize=(7, 7.2))
-        fig.patch.set_facecolor(BG)
-        ax.set_facecolor(BG)
-        _draw_court(ax)
+        fig.patch.set_facecolor(bg)
+        ax.set_facecolor(bg)
+        _draw_court(ax, theme=theme)
         makes  = [s for s in shots if s.result == "made"]
         misses = [s for s in shots if s.result == "missed"]
         if makes:
@@ -162,10 +190,11 @@ def _create_court_plot(shots, is_team=False):
                      f"2PT {len(t2m)}/{len(t2)} ({t2_pct:.1f}%)   "
                      f"3PT {len(tpm)}/{len(tp)} ({tp_pct:.1f}%)")
         ax.text(250, 492, label, ha="center", va="bottom", fontsize=8,
-                fontfamily=FONT_FAMILY, color=WHITE,
-                bbox=dict(boxstyle="round,pad=0.4", facecolor=BG_CARD,
-                          edgecolor=BORDER, linewidth=0.8))
-        legend = ax.legend(loc="upper left", fontsize=8, framealpha=0, labelcolor=WHITE)
+                fontfamily=FONT_FAMILY, color=text_color,
+                bbox=dict(boxstyle="round,pad=0.4", facecolor=card,
+                          edgecolor=border, linewidth=0.8))
+        legend = ax.legend(loc="upper left", fontsize=8, framealpha=0,
+                           labelcolor=text_color)
         for t in legend.get_texts():
             t.set_fontfamily(FONT_FAMILY)
         ax.set_xlim(-15, 515)
