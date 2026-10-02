@@ -200,6 +200,9 @@ def _parse_opp_score_points(detail) -> int:
     """Points on an OPP_SCORE event. Shared by points_allowed accounting
     and margin inference so both paths always agree."""
     import json as _json
+    import logging as _logging
+
+    _log = _logging.getLogger(__name__)
 
     if isinstance(detail, str) and (
         detail.startswith("{") or detail.startswith("[")
@@ -207,21 +210,25 @@ def _parse_opp_score_points(detail) -> int:
         try:
             parsed = _json.loads(detail)
         except (ValueError, TypeError):
+            _log.debug("Unparseable OPP_SCORE detail %r, defaulting to 2", detail)
             return 2
         if isinstance(parsed, dict):
             try:
                 return int(parsed.get("points", 2))
             except (TypeError, ValueError):
+                _log.debug("OPP_SCORE detail %r has no points, defaulting to 2", detail)
                 return 2
         try:
             return int(parsed)
         except (TypeError, ValueError):
+            _log.debug("OPP_SCORE detail %r not numeric, defaulting to 2", detail)
             return 2
     if detail is None or detail == "":
         return 2
     try:
         return int(detail)
     except (ValueError, TypeError):
+        _log.debug("OPP_SCORE detail %r not numeric, defaulting to 2", detail)
         return 2
 
 
@@ -308,12 +315,20 @@ def infer_starting_lineup_from_events(events, quarter_of=None) -> list:
                 current = event.quarter
             elif event.event_type == "NEXT_QUARTER":
                 current += 1
-            running[id(event)] = (
+            # Stable key: DB primary key when persisted, object identity
+            # for transient (pre-flush) or duck-typed events without an id.
+            # The map is built and consumed within this call, so both are
+            # unambiguous here.
+            _db_id = getattr(event, "id", None)
+            _key = ("db", _db_id) if _db_id is not None else ("obj", id(event))
+            running[_key] = (
                 event.quarter if event.quarter is not None else current
             )
 
         def quarter_of(event, _running=running):
-            return _running.get(id(event), event.quarter or 1)
+            _db_id = getattr(event, "id", None)
+            _key = ("db", _db_id) if _db_id is not None else ("obj", id(event))
+            return _running.get(_key, event.quarter or 1)
 
     q1 = sorted(
         (
@@ -326,10 +341,11 @@ def infer_starting_lineup_from_events(events, quarter_of=None) -> list:
     entered = set()
     seen = []
     for event in q1:
-        if (event.event_type or "").startswith("OPP_"):
+        event_type = event.event_type or ""
+        if event_type.startswith("OPP_"):
             continue
         name = event.player_name
-        if event.event_type == "SUB_IN":
+        if event_type == "SUB_IN":
             entered.add(name)
         elif name not in entered and name not in seen:
             seen.append(name)

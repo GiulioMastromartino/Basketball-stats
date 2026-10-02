@@ -81,6 +81,12 @@ def _smooth(x, y, resolution=300):
 # ── Shot charts ──────────────────────────────────────────────────────────────
 
 def generate_shot_chart(player_name, game_ids, db_session=None, theme="dark"):
+    """Player shot chart as base64 PNG.
+
+    Args:
+        theme: "dark" (default, web dashboards) or "light" (print/PDF pages
+            with a white background, e.g. the game-summary PDF).
+    """
     session = db_session or db.session
     query = session.query(ShotEvent).filter(ShotEvent.player_name == player_name)
     if game_ids is not None:
@@ -97,6 +103,12 @@ def generate_shot_chart(player_name, game_ids, db_session=None, theme="dark"):
 
 
 def generate_team_shot_chart(game_ids, db_session=None, theme="dark"):
+    """Team shot chart as base64 PNG.
+
+    Args:
+        theme: "dark" (default, web dashboards) or "light" (print/PDF pages
+            with a white background, e.g. the game-summary PDF).
+    """
     session = db_session or db.session
     shots = (
         session.query(ShotEvent)
