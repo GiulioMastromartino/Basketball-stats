@@ -4,8 +4,23 @@ __pycache__/
 .git/
 .DS_Store
 .env
+.env.*
 basketball_stats.db
 basketball_stats.log
+*.log
 Games/
 Output/
 uploads/
+
+# Rust build artifacts: ~631 MB / ~3.9k files. Never needed inside the
+# image (the builder compiles from source) and hashing/uploading this
+# context on every build was the dominant build cost. Incremental builds
+# come from the BuildKit cargo cache mount in the Dockerfile instead.
+basketball_stats_rust/target/
+dist/
+
+# Local tooling output
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/

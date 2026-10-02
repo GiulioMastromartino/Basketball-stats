@@ -1,3 +1,12 @@
+# Every app service (migrator, scraper, web-1/2/3) runs the same image built
+# from the same Dockerfile. They used to each declare their own `build: .`,
+# so `docker-compose build` ran the same build five times over — and the
+# Jenkins pipeline then ran it a second time from deploy.sh. Sharing one
+# tagged image means a single build satisfies all five services.
+x-app-image: &app-image
+  image: basketball-stats:${APP_TAG:-latest}
+  build: .
+
 services:
    # ── Database ──────────────────────────────────────────────────────────
   db:
@@ -53,7 +62,7 @@ services:
       start_period: 90s
    # ── One-shot migrator (runs, then exits) ───────────────────────────
   migrator:
-    build: .
+    <<: *app-image
     restart: "no"
     depends_on:
       db:
@@ -78,7 +87,7 @@ services:
       - backend
     # ── Championship sync cron (daily external scrape → SQLite sidecar) ──
   scraper:
-    build: .
+    <<: *app-image
     restart: unless-stopped
     depends_on:
       migrator:
@@ -95,7 +104,7 @@ services:
       - backend
     # ── App replica 1 ─────────────────────────────────────────────────────────
   web-1:
-    build: .
+    <<: *app-image
     restart: unless-stopped
     depends_on:
       migrator:
@@ -120,7 +129,7 @@ services:
       - backend
     # ── App replica 2 ─────────────────────────────────────────────────────────
   web-2:
-    build: .
+    <<: *app-image
     restart: unless-stopped
     depends_on:
       migrator:
@@ -145,7 +154,7 @@ services:
       - backend
     # ── App replica 3 ─────────────────────────────────────────────────────────
   web-3:
-    build: .
+    <<: *app-image
     restart: unless-stopped
     depends_on:
       migrator:

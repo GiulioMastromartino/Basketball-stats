@@ -212,7 +212,7 @@ def build_lineup_segments(
         current_lineup = []
 
         if starting_lineup:
-            current_lineup = list(starting_lineup)
+            current_lineup = [p for p in starting_lineup if p]
         else:
             first_sub_in_timestamp = None
             for event in events:
@@ -242,8 +242,15 @@ def build_lineup_segments(
         segment_start_timestamp = None
         current_quarter = None
 
-        # Optimization: Pre-filter SUB_IN events to speed up matching
-        sub_in_events = [e for e in events if e.event_type == "SUB_IN"]
+        # Optimization: Pre-filter SUB_IN events to speed up matching.
+        # Nameless SUBs (dirty imports / partial console payloads) carry no
+        # actionable player, and a None in current_lineup would TypeError the
+        # lineup hash and roll back the whole game save — skip them.
+        sub_in_events = [
+            e
+            for e in events
+            if e.event_type == "SUB_IN" and e.player_name
+        ]
 
         for i, event in enumerate(events):
             if current_segment is None:
@@ -314,7 +321,9 @@ def build_lineup_segments(
                     )
 
             elif (
-                event.event_type == "SUB_IN" and event.player_name not in current_lineup
+                event.event_type == "SUB_IN"
+                and event.player_name
+                and event.player_name not in current_lineup
             ):
                 if len(current_lineup) < 5:
                     current_lineup.append(event.player_name)

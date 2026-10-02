@@ -37,8 +37,14 @@ fi
 
 # ── 3. Build & deploy ───────────────────────────────────────────────────
 echo ""
-echo "[STEP] Building images..."
-docker-compose -f "$COMPOSE_FILE" build
+# Jenkins builds the image once in its own stage and passes SKIP_BUILD=1.
+# Without this guard deploy.sh rebuilds the same image a second time.
+if [ "${SKIP_BUILD:-0}" = "1" ]; then
+    echo "[STEP] Skipping build (SKIP_BUILD=1) — using image from pipeline"
+else
+    echo "[STEP] Building images..."
+    docker-compose -f "$COMPOSE_FILE" build web-1
+fi
 
 echo ""
 echo "[STEP] Deploying services..."
@@ -99,8 +105,19 @@ fi
 
 # ── 5. Cleanup ──────────────────────────────────────────────────────────
 echo ""
-echo "[STEP] Cleaning up old Docker images..."
-docker system prune -f --filter "until=24h" 2>/dev/null || true
+echo "[STEP] Cleaning up old Docker objects (build cache preserved)..."
+# `docker system prune` deletes the BuildKit build cache as well as images.
+# Any cache older than the filter window goes, so the next build recompiles
+# the Rust extension from scratch — the 3-minute vs 20-minute swing. Prune
+# containers and dangling images instead, and cap the build cache with an
+# explicit storage budget rather than deleting it.
+docker container prune -f --filter "until=24h" >/dev/null 2>&1 || true
+docker image prune -f --filter "until=24h" >/dev/null 2>&1 || true
+docker builder prune -f --keep-storage "${BUILDKEEP_STORAGE:-10GB}" 2>&1 | tail -2 || true
+
+echo ""
+echo "[INFO] Docker disk usage after cleanup:"
+docker system df 2>/dev/null || true
 
 echo ""
 echo "=========================================="

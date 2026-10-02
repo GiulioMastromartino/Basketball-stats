@@ -24,7 +24,7 @@ def safe_divide(numerator, denominator, default=0.0):
 
 
 def safe_percentage(numerator, denominator, decimals=1):
-    return rust_analytics.safe_percentage(int(numerator), int(denominator))
+    return rust_analytics.safe_percentage(numerator, denominator, decimals)
 
 
 def _plays_used(fga, fta, tov):
@@ -113,12 +113,12 @@ def player_possessions_used(fga, fta, tov):
 # =============================================================================
 def offensive_rating(points, possessions):
     """ORtg = PTS / Poss * 100 (points per 100 possessions)"""
-    return rust_analytics.calculate_offensive_rating(int(points), int(possessions))
+    return rust_analytics.calculate_offensive_rating(int(points), float(possessions))
 
 
 def defensive_rating(points_allowed, opponent_possessions):
     """DRtg = OppPTS / OppPoss * 100"""
-    return rust_analytics.calculate_defensive_rating(int(points_allowed), int(opponent_possessions))
+    return rust_analytics.calculate_defensive_rating(int(points_allowed), float(opponent_possessions))
 
 
 def net_rating(ortg, drtg):
