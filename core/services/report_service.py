@@ -1030,7 +1030,10 @@ def _get_shot_scoring_data(game_id):
                     ftm = 0
                 if ftm:
                     quarterly_ft_points[evt.quarter or 1] += ftm
-    except Exception:
+    except Exception as exc:
+        current_app.logger.warning(
+            f"Failed to fetch FT events for game {game_id}: {exc}"
+        )
         quarterly_ft_points = defaultdict(int)
 
     if quarterly_ft_points:
@@ -1118,12 +1121,12 @@ def _get_opponent_box_score_from_events(game_id):
             # Live tracking stores FTs as {"points": 0/1, "shot_type": "ft",
             # "result": "made"/"missed"} with no fta/ftm keys; other sources
             # use fta/ftm. Prefer explicit ftm, fall back to points.
+            # A made FT always implies at least one attempt.
             fta = detail.get("fta", 1)
             if "ftm" in detail:
                 ftm = detail.get("ftm", 0) if result == "made" else 0
             else:
                 ftm = points if result == "made" else 0
-                fta = max(fta, 1) if result == "made" else max(detail.get("fta", 1), 1)
             try:
                 fta = int(fta)
             except (TypeError, ValueError):
@@ -1131,6 +1134,12 @@ def _get_opponent_box_score_from_events(game_id):
             try:
                 ftm = int(ftm)
             except (TypeError, ValueError):
+                ftm = 0
+            if result == "made":
+                fta = max(fta, 1)
+                ftm = min(max(ftm, 1), fta)
+            else:
+                fta = max(fta, 1)
                 ftm = 0
             opp_fta += fta
             opp_ftm += ftm
@@ -1506,47 +1515,34 @@ def _event_team_points(event):
 def _get_starting_lineup_from_events(events):
     """Extract starting lineup (the 5 on court at tip-off).
 
-    The starters are the players on court BEFORE any substitution, so they
-    are revealed by the first SUB_OUT events (eachSUB_OUT player was on
-    court), not by the first SUB_IN events (those are bench players coming
-    in). Falls back to first SUB_INs only if no SUB_OUT exists.
+    The starters are the players on court BEFORE any substitution. A Q1
+    SUB_OUT identifies a starter only if that player never SUB_IN-ed
+    beforehand (a bench player who enters and leaves in Q1 is not a
+    starter). Returns [] unless 5 starters are identified so callers fall
+    back to lineup segments instead of reporting bench players.
     """
     quarter_map = _build_quarter_map(events)
-    q1_sub_outs = []
-    for event in events:
-        quarter = quarter_map.get(event.id, event.quarter or 1)
-        if event.event_type == "SUB_OUT" and quarter == 1 and event.player_name:
-            q1_sub_outs.append((event.timestamp or 0, event.player_name))
-    q1_sub_outs.sort(key=lambda x: x[0])
+    q1 = sorted(
+        (
+            event
+            for event in events
+            if quarter_map.get(event.id, event.quarter or 1) == 1
+            and event.player_name
+        ),
+        key=lambda event: event.timestamp or 0,
+    )
+    entered = set()
     seen = []
-    for _, name in q1_sub_outs:
-        if name not in seen:
-            seen.append(name)
-        if len(seen) == 5:
-            break
-    if len(seen) == 5:
-        return seen
-    if seen:
-        # Partial: complete with earliest SUB_INs not already listed.
-        q1_sub_ins = []
-        for event in events:
-            quarter = quarter_map.get(event.id, event.quarter or 1)
-            if event.event_type == "SUB_IN" and quarter == 1 and event.player_name:
-                q1_sub_ins.append((event.timestamp or 0, event.player_name))
-        q1_sub_ins.sort(key=lambda x: x[0])
-        for _, name in q1_sub_ins:
-            if name not in seen:
+    for event in q1:
+        name = event.player_name
+        if event.event_type == "SUB_IN":
+            entered.add(name)
+        elif event.event_type == "SUB_OUT":
+            if name not in entered and name not in seen:
                 seen.append(name)
             if len(seen) == 5:
-                break
-        return seen
-    sub_ins = [
-        (e.timestamp or 0, e.player_name)
-        for e in events
-        if e.event_type == "SUB_IN" and e.player_name
-    ]
-    sub_ins.sort(key=lambda x: x[0])
-    return [name for _, name in sub_ins[:5]]
+                return seen
+    return []
 
 
 def _get_starting_lineup_from_segments(game_id):
@@ -1725,25 +1721,29 @@ def _build_time_progression(events, game):
             detail = _parse_detail(event.detail)
             opp_points = detail.get("points", _parse_detail_points(event.detail))
 
-            prev_team_score = team_score
-            opp_score += opp_points
-
-            if event.score_margin is not None:
-                team_score = opp_score + event.score_margin
-
             # Team field goals are not logged as events; they only appear as
             # margin jumps on OPP_SCORE events. Recover them so team runs are
             # detected and opp runs are broken by team scores (otherwise every
             # run is an "Opp Run", e.g. a phantom 29-0 spanning team baskets).
-            inferred_team_points = team_score - prev_team_score
+            # Scores are applied per-play below so intermediate leads (and
+            # lead changes within one event) are recorded, not just the final.
+            target_team_score = team_score
+            if event.score_margin is not None:
+                target_team_score = opp_score + opp_points + event.score_margin
+            inferred_team_points = target_team_score - team_score
             if inferred_team_points > 0:
                 scoring_plays.append(("team", inferred_team_points))
+            elif (
+                event.score_margin is not None
+                and target_team_score != team_score
+            ):
+                # Downward margin correction with no inferred score.
+                team_score = target_team_score
             if opp_points > 0:
                 scoring_plays.append(("opp", opp_points))
 
         team_points = _event_team_points(event)
         if team_points > 0:
-            team_score += team_points
             scoring_plays.append(("team", team_points))
 
         if event.event_type == "TURNOVER":
@@ -1752,6 +1752,10 @@ def _build_time_progression(events, game):
             quarterly_stats[quarter]["pf"] += 1
 
         for scoring_team, points_scored in scoring_plays:
+            if scoring_team == "team":
+                team_score += points_scored
+            else:
+                opp_score += points_scored
             _record_scoring_play(scoring_team, points_scored)
 
         if not scoring_plays and event.event_type == "OPP_SCORE":

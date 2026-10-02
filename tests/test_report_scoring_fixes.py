@@ -107,6 +107,21 @@ def test_starting_lineup_uses_first_sub_outs(db_session, sample_game):
     assert _get_starting_lineup_from_events(events) == starters
 
 
+def test_starting_lineup_ignores_bench_enter_and_leave(db_session, sample_game):
+    """A bench player who SUB_INs then SUB_OUTs in Q1 is not a starter;
+    with fewer than 5 identified starters the segment fallback applies."""
+    for i, s in enumerate(["S1", "S2", "S3"]):
+        _game_event(db_session, sample_game, event_type="SUB_OUT",
+                    player_name=s, timestamp=2000 + i * 2, game_seconds=300 + i)
+    _game_event(db_session, sample_game, event_type="SUB_IN",
+                player_name="BENCH", timestamp=2010, game_seconds=310)
+    _game_event(db_session, sample_game, event_type="SUB_OUT",
+                player_name="BENCH", timestamp=2020, game_seconds=320)
+    db_session.commit()
+    events = GameEvent.query.filter_by(game_id=sample_game.id).all()
+    assert _get_starting_lineup_from_events(events) == []
+
+
 def test_opponent_live_free_throws_counted(db_session, sample_game):
     _game_event(db_session, sample_game, event_type="OPP_SCORE", quarter=4,
                 detail=json.dumps({"points": 2, "shot_type": "2pt", "result": "made"}),
@@ -154,3 +169,26 @@ def test_scoring_runs_see_team_baskets(db_session, sample_game):
     for run in tp["runs"]:
         # margins here swing -2..+3, so no run can exceed 5 points
         assert run["points"] <= 5
+
+
+def test_lead_change_within_single_event(db_session, sample_game):
+    """Inferred team points are recorded before the opponent's points, so
+    a lead change inside one OPP_SCORE event is counted and the transient
+    max lead is tracked."""
+    sample_game.team_score = 11
+    sample_game.opponent_score = 12
+    # Opp trails 8-10, team inferred +3 takes the lead 11-10, opp +2 retakes.
+    _game_event(db_session, sample_game, event_type="OPP_SCORE", quarter=1,
+                detail=json.dumps({"points": 2, "shot_type": "2pt", "result": "made"}),
+                score_margin=-2, game_seconds=100)
+    _game_event(db_session, sample_game, event_type="OPP_SCORE", quarter=1,
+                detail=json.dumps({"points": 2, "shot_type": "2pt", "result": "made"}),
+                score_margin=-1, game_seconds=200)
+    db_session.commit()
+    events = GameEvent.query.filter_by(game_id=sample_game.id).all()
+    tp = _build_time_progression(events, sample_game)
+    # opp -> team (inferred +3) -> opp: two genuine lead changes, and the
+    # transient 1-pt team lead is tracked as max lead.
+    assert tp["lead_changes"] == 2
+    assert tp["max_lead"]["team"] == 1
+    assert tp["max_lead"]["opp"] == 2
