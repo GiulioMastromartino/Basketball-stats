@@ -9,6 +9,10 @@ pipeline {
         // Force it to shell out to `docker build` with BuildKit instead.
         DOCKER_BUILDKIT = '1'
         COMPOSE_DOCKER_CLI_BUILD = '1'
+        // Per-step timings. Without this a slow build is just "22 minutes";
+        // with it you can see whether the cost is the Rust compile, pip, the
+        // apt layer, or plain CPU contention.
+        BUILDKIT_PROGRESS = 'plain'
     }
 
     stages {
