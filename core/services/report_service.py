@@ -1021,15 +1021,12 @@ def _get_shot_scoring_data(game_id):
     try:
         ft_events = GameEvent.query.filter_by(game_id=game_id).all()
         for evt in ft_events:
-            if evt.event_type == "FT":
-                parsed = _parse_detail(evt.detail)
-                ftm = parsed.get("ftm", 0) or 0
-                try:
-                    ftm = int(ftm)
-                except (TypeError, ValueError):
-                    ftm = 0
-                if ftm:
-                    quarterly_ft_points[evt.quarter or 1] += ftm
+            if evt.event_type in ("FT", "FT_MADE"):
+                # Reuse the canonical per-event scorer so FT_MADE events and
+                # the made-shot fallback (FT without ftm key) count too.
+                ft_pts = _event_team_points(evt)
+                if ft_pts:
+                    quarterly_ft_points[evt.quarter or 1] += ft_pts
     except Exception as exc:
         current_app.logger.warning(
             f"Failed to fetch FT events for game {game_id}: {exc}"

@@ -54,11 +54,14 @@ def test_quarterly_points_use_actual_ft_quarter(db_session, sample_game):
             ShotEvent(game_id=sample_game.id, player_name="A", shot_type="2pt",
                       result="made", points=2, quarter=4)
         )
-    # Actual FTs: 1 in Q3, 2 in Q4 (proportional split would give 2/1)
+    # Actual FTs: 1 in Q3, 2 in Q4 (proportional split would give 2/1).
+    # Mix FT detail style with FT_MADE and made-shot-fallback styles.
     _game_event(db_session, sample_game, event_type="FT", quarter=3,
                 detail=json.dumps({"ftm": 1, "fta": 2}), game_seconds=1700)
+    _game_event(db_session, sample_game, event_type="FT_MADE", quarter=4,
+                detail=json.dumps({}), game_seconds=1900)
     _game_event(db_session, sample_game, event_type="FT", quarter=4,
-                detail=json.dumps({"ftm": 2, "fta": 2}), game_seconds=1900)
+                detail=json.dumps({}), shot_attempt="made", game_seconds=1950)
     db_session.commit()
 
     data = _get_shot_scoring_data(sample_game.id)
