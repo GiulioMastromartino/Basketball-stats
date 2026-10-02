@@ -1115,29 +1115,22 @@ def _get_opponent_box_score_from_events(game_id):
                 opp_tpm += 1
                 opp_pts += points
         elif shot_type == "ft":
-            # Live tracking stores FTs as {"points": 0/1, "shot_type": "ft",
-            # "result": "made"/"missed"} with no fta/ftm keys; other sources
-            # use fta/ftm. Prefer explicit ftm, fall back to points.
-            # A made FT always implies at least one attempt.
-            fta = detail.get("fta", 1)
-            if "ftm" in detail:
-                ftm = detail.get("ftm", 0) if result == "made" else 0
+            # Shared interpretation with the lineup stat paths: explicit
+            # fta/ftm keys win, otherwise made implies (1, 1). A made FT
+            # carrying only a points value keeps that fallback.
+            from core.services.lineup_service import parse_ft_event
+
+            if (
+                result == "made"
+                and "ftm" not in detail
+                and "fta" not in detail
+                and points
+            ):
+                ftm, fta = points, max(points, 1)
             else:
-                ftm = points if result == "made" else 0
-            try:
-                fta = int(fta)
-            except (TypeError, ValueError):
-                fta = 1
-            try:
-                ftm = int(ftm)
-            except (TypeError, ValueError):
-                ftm = 0
-            if result == "made":
-                fta = max(fta, 1)
-                ftm = min(max(ftm, 1), fta)
-            else:
-                fta = max(fta, 1)
-                ftm = 0
+                ftm, fta = parse_ft_event(
+                    detail, shot_attempt="made" if result == "made" else "missed"
+                )
             opp_fta += fta
             opp_ftm += ftm
             opp_pts += ftm
@@ -1189,7 +1182,7 @@ def generate_game_pdf_bytes(game_id):
 
     for player in stats_with_metrics:
         player.shot_chart = generate_shot_chart(
-            player.player_name, [game_id], db.session
+            player.player_name, [game_id], db.session, theme="light"
         )
 
     top_performers = AnalyticsService.get_game_top_performers(stats_with_metrics)
@@ -1317,7 +1310,7 @@ def generate_game_pdf_bytes(game_id):
         top_trios_def = []
 
     shot_events = ShotEvent.query.filter_by(game_id=game_id).first()
-    shot_chart = generate_team_shot_chart([game_id], db.session) if shot_events else ""
+    shot_chart = generate_team_shot_chart([game_id], db.session, theme="light") if shot_events else ""
 
     plays_data = get_summary_play_stats(game_id, play_type="Offense")
     plays_players_data = get_summary_play_player_stats(game_id, play_type="Offense")
@@ -1512,34 +1505,16 @@ def _event_team_points(event):
 def _get_starting_lineup_from_events(events):
     """Extract starting lineup (the 5 on court at tip-off).
 
-    The starters are the players on court BEFORE any substitution. A Q1
-    SUB_OUT identifies a starter only if that player never SUB_IN-ed
-    beforehand (a bench player who enters and leaves in Q1 is not a
-    starter). Returns [] unless 5 starters are identified so callers fall
-    back to lineup segments instead of reporting bench players.
+    Shared inference lives in lineup_service; quarters come from the
+    NEXT_QUARTER-based map so mislabeled quarters can't pollute Q1.
+    Returns [] unless 5 starters are identified (segment fallback applies).
     """
+    from core.services.lineup_service import infer_starting_lineup_from_events
+
     quarter_map = _build_quarter_map(events)
-    q1 = sorted(
-        (
-            event
-            for event in events
-            if quarter_map.get(event.id, event.quarter or 1) == 1
-            and event.player_name
-        ),
-        key=lambda event: event.timestamp or 0,
+    return infer_starting_lineup_from_events(
+        events, quarter_of=lambda e: quarter_map.get(e.id, e.quarter or 1)
     )
-    entered = set()
-    seen = []
-    for event in q1:
-        name = event.player_name
-        if event.event_type == "SUB_IN":
-            entered.add(name)
-        elif event.event_type == "SUB_OUT":
-            if name not in entered and name not in seen:
-                seen.append(name)
-            if len(seen) == 5:
-                return seen
-    return []
 
 
 def _get_starting_lineup_from_segments(game_id):

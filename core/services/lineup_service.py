@@ -196,32 +196,135 @@ def update_lineup_cached_stats(lineup_id: int):
     db.session.commit()
 
 
+def parse_ft_event(detail, shot_attempt=None) -> tuple:
+    """Interpret one FT/FT_MADE/FT_MISS event as (makes, attempts).
+
+    Single source of truth for free-throw accounting across the lineup
+    stat paths (batch processing, calculate_segment_stats,
+    populate_player_lineup_stats). Accepts JSON and Python-literal dict
+    strings. Explicit ftm/fta keys are authoritative; the made-shot
+    fallback applies only when the keys are absent. The make count is
+    always preserved: missing or degenerate attempts infer up to it.
+    """
+    import ast as _ast
+    import json as _json
+
+    if isinstance(detail, str):
+        stripped = detail.strip()
+        try:
+            parsed = _json.loads(stripped)
+        except (ValueError, TypeError):
+            try:
+                parsed = _ast.literal_eval(stripped)
+            except (ValueError, TypeError, SyntaxError):
+                parsed = {}
+    elif isinstance(detail, dict):
+        parsed = detail
+    else:
+        parsed = {}
+    if not isinstance(parsed, dict):
+        parsed = {}
+
+    def _to_int(value):
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    if "ftm" in parsed or "fta" in parsed:
+        ftm_raw = parsed.get("ftm", None)
+        fta_raw = parsed.get("fta", None)
+        if ftm_raw is None:
+            # No make count: infer from the shot result, like the report
+            # timeline does (a made FT without ftm still scored).
+            ftm = 1 if shot_attempt == "made" else 0
+        else:
+            ftm = _to_int(ftm_raw)
+        if fta_raw is None or _to_int(fta_raw) <= 0:
+            fta = max(ftm, 1)
+        else:
+            # Degenerate attempts below makes: trust the make count.
+            fta = max(_to_int(fta_raw), ftm, 1)
+        return max(0, min(ftm, fta)), fta
+    if shot_attempt == "made":
+        return 1, 1
+    return 0, 1
+
+
+def infer_starting_lineup_from_events(events, quarter_of=None) -> list:
+    """Infer the 5 starters (players on court at tip-off) from Q1 events.
+
+    A player counts as a starter when their first Q1 appearance is anything
+    other than a SUB_IN: a SUB_OUT, shot, rebound, foul, turnover, etc. all
+    prove court presence, while a bench player who enters (SUB_IN) and later
+    leaves or shoots in Q1 is excluded. Opponent events (OPP_SCORE, OPP_OREB,
+    ...) never count, even when they name an opponent player. Returns []
+    unless 5 starters are identified so callers fall back to another source
+    instead of reporting bench players or opponents.
+
+    Args:
+        events: GameEvent-like objects with timestamp/quarter/event_type/
+            player_name (and .id when quarter_of needs it).
+        quarter_of: Optional callable mapping an event to its quarter number.
+            Defaults to a NEXT_QUARTER-aware walk over timestamp order (with
+            explicit quarter values preserved), so events with a missing
+            quarter are not all misattributed to Q1.
+    """
+    if quarter_of is None:
+        ordered = sorted(events, key=lambda e: e.timestamp or 0)
+        running = {}
+        current = 1
+        for event in ordered:
+            if event.quarter is not None:
+                current = event.quarter
+            elif event.event_type == "NEXT_QUARTER":
+                current += 1
+            running[id(event)] = (
+                event.quarter if event.quarter is not None else current
+            )
+
+        def quarter_of(event, _running=running):
+            return _running.get(id(event), event.quarter or 1)
+
+    q1 = sorted(
+        (
+            event
+            for event in events
+            if quarter_of(event) == 1 and getattr(event, "player_name", None)
+        ),
+        key=lambda event: event.timestamp or 0,
+    )
+    entered = set()
+    seen = []
+    for event in q1:
+        if (event.event_type or "").startswith("OPP_"):
+            continue
+        name = event.player_name
+        if event.event_type == "SUB_IN":
+            entered.add(name)
+        elif name not in entered and name not in seen:
+            seen.append(name)
+            if len(seen) == 5:
+                return seen
+    return []
+
+
 def build_lineup_segments(
     game_id: int, events: list, starting_lineup: list = None, team_id: int = None
 ) -> list:
-    """
-    Process events chronologically to create LineupSegment records.
+    """Process events chronologically to create LineupSegment records.
 
-    Args:
-        game_id: ID of the game being processed
-        events: List of GameEvent objects sorted chronologically by timestamp
-        starting_lineup: Optional list of 5 player names as initial lineup.
-                        If None, extracts from first 5 SUB_IN events in Q1.
-        team_id: Team ID propagated to created Lineup rows (required by schema).
-
-    Returns:
-        List of created segment IDs
+    When no explicit starting lineup is given it is inferred from Q1
+    events; existing segments are only replaced once a 5-player lineup is
+    available, never deleted speculatively.
     """
     if team_id is None:
         from core.models import Game as _GameForTeam
 
         _g = _GameForTeam.query.get(game_id)
         team_id = _g.team_id if _g is not None else resolve_team_id(None)
-    LineupSegment.query.filter_by(game_id=game_id).delete()
-    db.session.flush()
 
     if not events:
-        db.session.commit()
         return []
 
     try:
@@ -230,28 +333,14 @@ def build_lineup_segments(
         if starting_lineup:
             current_lineup = list(starting_lineup)
         else:
-            first_sub_in_timestamp = None
-            for event in events:
-                if event.event_type == "SUB_IN":
-                    first_sub_in_timestamp = event.timestamp
-                    break
-
-            players_before_sub = []
-            for event in events:
-                if first_sub_in_timestamp and event.timestamp >= first_sub_in_timestamp:
-                    break
-
-                if event.player_name and event.event_type not in ("SUB_IN", "SUB_OUT"):
-                    if event.player_name not in players_before_sub:
-                        players_before_sub.append(event.player_name)
-                        if len(players_before_sub) == 5:
-                            break
-
-            current_lineup = players_before_sub
+            current_lineup = infer_starting_lineup_from_events(events)
 
         if len(current_lineup) < 5:
-            db.session.commit()
             return []
+
+        # Only replace existing segments once a valid lineup is available.
+        LineupSegment.query.filter_by(game_id=game_id).delete()
+        db.session.flush()
 
         segment_ids = []
         current_segment = None
@@ -435,17 +524,10 @@ def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
         elif event.event_type == "SHOT_3PT" and event.shot_attempt == "made":
             points_scored += 3
         elif event.event_type == "FT":
-            if event.shot_attempt == "made":
-                pts = 1
-                if event.detail:
-                    try:
-                        import json
-                        detail_data = json.loads(event.detail) if isinstance(event.detail, str) else event.detail
-                        if isinstance(detail_data, dict):
-                            pts = int(detail_data.get("ftm", 1))
-                    except (ValueError, TypeError, json.JSONDecodeError):
-                        pts = 1
-                points_scored += pts
+            ftm, _fta = parse_ft_event(event.detail, event.shot_attempt)
+            points_scored += ftm
+        elif event.event_type == "FT_MADE":
+            points_scored += 1
         elif event.event_type == "OPP_SCORE":
             pts = 2
             if event.detail:
@@ -561,7 +643,10 @@ def populate_player_lineup_stats(segment_id: int) -> None:
                 stats["points"] += 3
 
         elif event.event_type == "FT":
-            stats["fta"] += 1
+            ftm, fta = parse_ft_event(event.detail, event.shot_attempt)
+            stats["points"] += ftm
+            stats["ftm"] += ftm
+            stats["fta"] += fta
 
         elif event.event_type == "FT_MADE":
             stats["fta"] += 1
@@ -689,6 +774,14 @@ def process_game_lineups(
                     player_map[event.player_name]["points"] += 1
                     player_map[event.player_name]["fta"] += 1
                     player_map[event.player_name]["ftm"] += 1
+            elif et == "FT":
+                # Live format stores makes in detail {"ftm": n, "fta": m}.
+                ftm, fta = parse_ft_event(event.detail, event.shot_attempt)
+                pts_scored += ftm
+                if event.player_name in player_map:
+                    player_map[event.player_name]["points"] += ftm
+                    player_map[event.player_name]["fta"] += fta
+                    player_map[event.player_name]["ftm"] += ftm
             elif et == "OPP_SCORE":
                 pts = 2
                 if event.detail:
@@ -712,8 +805,7 @@ def process_game_lineups(
             # Atomic stats
             if event.player_name in player_map:
                 p_stats = player_map[event.player_name]
-                if et == "FT": p_stats["fta"] += 1
-                elif et == "FT_MISS": p_stats["fta"] += 1
+                if et == "FT_MISS": p_stats["fta"] += 1
                 elif et == "TURNOVER": p_stats["tov"] += 1
                 elif et == "AST": p_stats["ast"] += 1
                 elif et == "STL": p_stats["stl"] += 1
