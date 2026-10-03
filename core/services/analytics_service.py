@@ -65,7 +65,8 @@ def resolve_game_team_possessions(game, team_stats: dict) -> float:
         .scalar()
         or 0
     )
-    return float(segment_possessions)
+    # Never hand back zero: callers divide by this to build ratings.
+    return max(float(segment_possessions), 1.0)
 
 
 class AnalyticsService:

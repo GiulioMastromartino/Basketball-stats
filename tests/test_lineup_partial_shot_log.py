@@ -37,6 +37,23 @@ def _team_totals(game_id):
     }
 
 
+def _rewind_to_event_derived(game_id):
+    """Restore the pre-reconciliation segment totals.
+
+    Import already reconciles, so tests exercising the shortfall path must put
+    the segments back into their raw event-derived state. Recalculating from the
+    event log is exactly that state - and unlike zeroing the column it keeps the
+    free throws, which reconciliation never restores.
+    """
+    from core.services.lineup_service import calculate_segment_stats
+
+    for segment in LineupSegment.query.filter_by(game_id=game_id).all():
+        calculate_segment_stats(segment.id)
+    from core.models import db
+
+    db.session.commit()
+
+
 def _import_partial_log_game(db_session, team):
     with open(FIXTURE) as handle:
         payload = json.load(handle)
@@ -83,10 +100,168 @@ def test_reconciliation_never_overshoots_authoritative_points(db_session, defaul
     game = _import_partial_log_game(db_session, default_team)
     summary = reconcile_orphan_shot_points(game.id)
 
-    # shot_events is the complete record; nothing may be credited beyond it.
-    assert summary["points_authoritative"] <= 78
-    assert summary["points_added"] >= 0
-    assert summary["points_already_credited"] >= 0
+    # 67 field-goal points in the box score (56 two-point + 5 three-point... as
+    # recorded by shot_events), of which the log only credited part.
+    assert summary["points_authoritative"] == 67
+
+    # The real invariant: reconciled segment points never exceed the real score,
+    # and a repeat pass has nothing left to add.
+    scored = sum(
+        s.points_scored or 0
+        for s in LineupSegment.query.filter_by(game_id=game.id).all()
+    )
+    assert scored == game.team_score
+    assert summary["points_added"] == 0
+
+    # Rewinding and re-running reproduces the same total, never more.
+    _rewind_to_event_derived(game.id)
+    again = reconcile_orphan_shot_points(game.id)
+    scored_again = sum(
+        s.points_scored or 0
+        for s in LineupSegment.query.filter_by(game_id=game.id).all()
+    )
+    assert again["points_added"] > 0
+    assert scored_again == game.team_score
+
+
+def test_reconciliation_credits_no_unlinked_events(db_session, default_team):
+    """Events with no segment never reached a segment total.
+
+    Counting them as already-credited would shrink the shortfall and silently
+    reintroduce undercounting.
+    """
+    from core.models import GameEvent
+    from core.services.lineup_service import reconcile_orphan_shot_points
+
+    game = _import_partial_log_game(db_session, default_team)
+
+    linked = (
+        db_session.query(GameEvent)
+        .filter(
+            GameEvent.game_id == game.id,
+            GameEvent.event_type.in_(("SHOT_2PT", "SHOT_3PT")),
+            GameEvent.shot_attempt == "made",
+            GameEvent.lineup_segment_id.isnot(None),
+        )
+        .count()
+    )
+
+    _rewind_to_event_derived(game.id)
+    baseline = reconcile_orphan_shot_points(game.id)
+    assert baseline["points_already_credited"] == 30
+
+    # Detach the shot events: they contributed to no segment, so they must stop
+    # counting as already-credited and the shortfall must grow to compensate.
+    db_session.query(GameEvent).filter(
+        GameEvent.game_id == game.id,
+        GameEvent.event_type.in_(("SHOT_2PT", "SHOT_3PT")),
+    ).update({"lineup_segment_id": None})
+    db_session.commit()
+
+    _rewind_to_event_derived(game.id)
+    detached = reconcile_orphan_shot_points(game.id)
+    assert detached["points_already_credited"] == 0
+    assert detached["points_added"] == 67
+    assert linked >= 0
+
+
+def test_segment_possessions_reconcile_with_box_score(db_session, default_team):
+    """Possessions must be corrected on the same basis as points.
+
+    Reconciling points while leaving possessions at their partial event-derived
+    values would mix a corrected numerator with an uncorrected denominator and
+    inflate every lineup rate.
+    """
+    game = _import_partial_log_game(db_session, default_team)
+    totals = _team_totals(game.id)
+    box_possessions = resolve_game_team_possessions(game, totals)
+
+    tracked = sum(
+        s.possessions or 0
+        for s in LineupSegment.query.filter_by(game_id=game.id).all()
+    )
+    assert tracked == pytest.approx(round(box_possessions), abs=1)
+
+
+def test_largest_remainder_splits_exactly_and_deterministically():
+    from core.services.lineup_service import _largest_remainder
+
+    weights = [100, 50, 25]
+    for total in (0, 1, 7, 100):
+        shares = _largest_remainder(total, weights)
+        assert sum(shares) == total
+        assert shares == _largest_remainder(total, weights)
+        assert all(s >= 0 for s in shares)
+
+    # Heavier stints receive at least as much as lighter ones.
+    shares = _largest_remainder(100, weights)
+    assert shares[0] >= shares[1] >= shares[2]
+
+    # Zero weights fall back to an even spread rather than dividing by zero.
+    even = _largest_remainder(5, [0, 0, 0])
+    assert sum(even) == 5
+    assert max(even) - min(even) <= 1
+
+    assert _largest_remainder(5, []) == []
+
+
+def test_reconciliation_skips_players_with_no_stint(db_session, default_team):
+    """A shooter with no stint in a quarter has no defensible segment."""
+    from core.models import ShotEvent
+    from core.services.lineup_service import reconcile_orphan_shot_points
+
+    game = _import_partial_log_game(db_session, default_team)
+
+    # Give one shot an impossible quarter so no stint can match it, and rewind
+    # the segments so there is a shortfall to distribute.
+    orphan = (
+        ShotEvent.query.filter_by(game_id=game.id, result="made")
+        .order_by(ShotEvent.id)
+        .first()
+    )
+    assert orphan is not None
+    original_quarter = orphan.quarter
+    orphan.quarter = 99
+    db_session.commit()
+    _rewind_to_event_derived(game.id)
+
+    summary = reconcile_orphan_shot_points(game.id)
+    assert summary["unattributable_players"] >= 1
+
+    orphan.quarter = original_quarter
+    db_session.commit()
+
+
+def test_backfill_recalculation_does_not_revert_the_fix(
+    db_session, default_team
+):
+    """calculate_segment_stats() rebuilds from the log alone.
+
+    Any path that recalculates segments must re-run reconciliation, or the fix
+    is silently reverted.
+    """
+    from core.services.lineup_service import (
+        calculate_segment_stats,
+        reconcile_orphan_shot_points,
+    )
+
+    game = _import_partial_log_game(db_session, default_team)
+
+    def total_points():
+        return sum(
+            s.points_scored or 0
+            for s in LineupSegment.query.filter_by(game_id=game.id).all()
+        )
+
+    reconciled = total_points()
+    assert reconciled == game.team_score
+
+    for segment in LineupSegment.query.filter_by(game_id=game.id).all():
+        calculate_segment_stats(segment.id)
+    assert total_points() < game.team_score, "recalculation drops the fix"
+
+    reconcile_orphan_shot_points(game.id)
+    assert total_points() == game.team_score
 
 
 def test_team_possessions_uses_box_score_not_partial_segment_sum(
@@ -190,13 +365,16 @@ def test_production_paths_rank_identical_lineups(
 
     detail_ctx = AnalyticsService.build_game_detail(game.id)
     web = detail_ctx.get("top_game_lineups_off") or []
+    assert web, "detail page produced no lineups"
 
-    # generate_game_pdf_bytes renders through WeasyPrint; capture only the
-    # lineup arguments it computes.
-    seen = {}
+    # Capture the PDF's arguments, keeping the offensive and defensive calls
+    # apart so neither overwrites the other.
+    seen = {"offensive": None, "defensive": None}
 
     def capture(*args, **kwargs):
-        seen.update(kwargs)
+        rank_by = kwargs.get("rank_by", "overall")
+        if rank_by in seen:
+            seen[rank_by] = kwargs
         return original_rank(*args, **kwargs)
 
     mocker.patch(
@@ -209,19 +387,23 @@ def test_production_paths_rank_identical_lineups(
     mocker.patch.object(report_service.HTML, "write_pdf", return_value=b"pdf")
     report_service.generate_game_pdf_bytes(game.id)
 
-    pdf = original_rank(
-        game_id=game.id,
-        top_n=seen.get("top_n", 3),
-        rank_by="offensive",
-        min_possessions=seen.get("min_possessions"),
-        total_pts_scored_override=seen.get("total_pts_scored_override"),
-        total_pts_allowed_override=seen.get("total_pts_allowed_override"),
-        total_possessions_override=seen.get("total_possessions_override"),
-    )
+    pdf_args = seen["offensive"]
+    assert pdf_args, "PDF did not rank offensive lineups"
+
+    # Assert the production arguments against independently-derived expectations
+    # rather than against the PDF's own captured values.
+    assert pdf_args["min_possessions"] == MIN_GAME_LINEUP_POSSESSIONS
+    assert pdf_args["total_pts_scored_override"] == game.team_score
+    assert pdf_args["total_pts_allowed_override"] == game.opponent_score
+    assert pdf_args["total_possessions_override"] == pytest.approx(team_poss)
+
+    pdf = original_rank(game_id=game.id, **pdf_args)
 
     assert [r["players"] for r in web] == [r["players"] for r in pdf]
     assert [r["ortg"] for r in web] == [r["ortg"] for r in pdf]
-    assert team_poss > 0
+    assert [r["impact"]["offense_delta"] for r in web] == [
+        r["impact"]["offense_delta"] for r in pdf
+    ]
 
 
 def test_lineup_qualifying_threshold_excludes_tiny_stints(db_session, default_team):
