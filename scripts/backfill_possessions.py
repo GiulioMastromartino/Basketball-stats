@@ -24,6 +24,7 @@ from core.models import db, Game, GameEvent, LineupSegment
 from core.services.game_service import assign_possession_numbers
 from core.services.lineup_service import (
     calculate_segment_stats,
+    reconcile_orphan_shot_points,
     update_lineup_cached_stats,
 )
 
@@ -55,6 +56,11 @@ def backfill_possessions():
         for segment in segments:
             calculate_segment_stats(segment.id)
             segments_updated += 1
+
+        # calculate_segment_stats() rebuilds points/possessions from the event
+        # log alone, which is only a partial mirror of the shot record. Re-run the
+        # reconciliation so the fix is not silently reverted by this backfill.
+        reconcile_orphan_shot_points(game.id, segments=segments)
 
         # Update lineup cached stats
         lineup_ids = set(s.lineup_id for s in segments if s.lineup_id)

@@ -35,6 +35,41 @@ from core.charts import (
 )
 
 
+#: Minimum tracked possessions for a single-game lineup to qualify for the
+#: "best unit" highlights. Shared by the game detail page and the game PDF so
+#: both surfaces rank the same lineups.
+MIN_GAME_LINEUP_POSSESSIONS = 10
+
+
+def resolve_game_team_possessions(game, team_stats: dict) -> float:
+    """Return the authoritative team possessions for a game.
+
+    The box score is authoritative. ``sum(LineupSegment.possessions)`` is only a
+    partial view: it counts the possession ids that are visible in the event
+    log, and for partially-logged games that covers well under the whole game.
+    Preferring it produced absurd baselines - a 78-point game reported as
+    159.2 ORtg because only 49 of ~73 possessions were tracked - and those
+    baselines then poisoned every lineup delta derived from them.
+
+    Falls back to the segment sum only when the box score yields nothing.
+    """
+    box_possessions = calculate_possessions(
+        team_stats["fga"], team_stats["fta"], team_stats["oreb"], team_stats["tov"]
+    )
+    if box_possessions and box_possessions > 0:
+        return float(box_possessions)
+
+    segment_possessions = (
+        db.session.query(func.sum(LineupSegment.possessions))
+        .filter_by(game_id=game.id)
+        .scalar()
+        or 0
+    )
+    # Callers decide how to treat an unusable value: the rating builders floor it
+    # at 1.0, while calculate_team_advanced_from_stats skips the game on <= 0.
+    return float(segment_possessions)
+
+
 class AnalyticsService:
     @staticmethod
     def filter_games(query, game_type: str = "ALL", team_id: int = None,
@@ -1541,20 +1576,7 @@ class AnalyticsService:
         if not stat_rows:
             return None
         team_totals = AnalyticsService.sum_team_stat_rows(stat_rows)
-        team_poss = calculate_possessions(
-            team_totals["fga"],
-            team_totals["fta"],
-            team_totals["oreb"],
-            team_totals["tov"],
-        )
-        segment_poss = (
-            db.session.query(func.sum(LineupSegment.possessions))
-            .filter_by(game_id=game.id)
-            .scalar()
-            or 0
-        )
-        if segment_poss > 0:
-            team_poss = float(segment_poss)
+        team_poss = resolve_game_team_possessions(game, team_totals)
         if team_poss <= 0:
             return None
         total_minutes = sum(parse_minutes(s.minutes) for s in stat_rows)
@@ -2057,19 +2079,7 @@ class AnalyticsService:
             "reb_conceded": sum(p.reb_conceded or 0 for p in stats),
         }
 
-        team_poss = calculate_possessions(
-            team_stats["fga"], team_stats["fta"], team_stats["oreb"], team_stats["tov"]
-        )
-
-        segment_poss = (
-            db.session.query(func.sum(LineupSegment.possessions))
-            .filter_by(game_id=game.id)
-            .scalar()
-            or 0
-        )
-        if segment_poss > 0:
-            team_poss = float(segment_poss)
-        team_poss = max(team_poss, 1.0)
+        team_poss = max(resolve_game_team_possessions(game, team_stats), 1.0)
 
         total_game_min = sum(p.min_decimal for p in stats) / 5.0
         pace = calculate_pace(team_poss, total_game_min)
@@ -2149,7 +2159,7 @@ class AnalyticsService:
                 game.id,
                 top_n=3,
                 rank_by="offensive",
-                min_possessions=10,
+                min_possessions=MIN_GAME_LINEUP_POSSESSIONS,
                 total_pts_scored_override=game.team_score,
                 total_pts_allowed_override=game.opponent_score,
                 total_possessions_override=team_poss,
@@ -2158,7 +2168,7 @@ class AnalyticsService:
                 game.id,
                 top_n=3,
                 rank_by="defensive",
-                min_possessions=10,
+                min_possessions=MIN_GAME_LINEUP_POSSESSIONS,
                 total_pts_scored_override=game.team_score,
                 total_pts_allowed_override=game.opponent_score,
                 total_possessions_override=team_poss,
@@ -2172,7 +2182,7 @@ class AnalyticsService:
             top_game_duos_off = LineupAnalytics.get_combination_net_differentials(
                 combination_type="duo",
                 game_ids=[game.id],
-                min_possessions=10,
+                min_possessions=MIN_GAME_LINEUP_POSSESSIONS,
                 top_n=3,
                 require_positive=False,
                 total_pts_scored_override=game.team_score,
@@ -2183,7 +2193,7 @@ class AnalyticsService:
             top_game_duos_def = LineupAnalytics.get_combination_net_differentials(
                 combination_type="duo",
                 game_ids=[game.id],
-                min_possessions=10,
+                min_possessions=MIN_GAME_LINEUP_POSSESSIONS,
                 top_n=3,
                 require_positive=False,
                 total_pts_scored_override=game.team_score,
@@ -2200,7 +2210,7 @@ class AnalyticsService:
             top_game_trios_off = LineupAnalytics.get_combination_net_differentials(
                 combination_type="trio",
                 game_ids=[game.id],
-                min_possessions=10,
+                min_possessions=MIN_GAME_LINEUP_POSSESSIONS,
                 top_n=3,
                 require_positive=False,
                 total_pts_scored_override=game.team_score,
@@ -2211,7 +2221,7 @@ class AnalyticsService:
             top_game_trios_def = LineupAnalytics.get_combination_net_differentials(
                 combination_type="trio",
                 game_ids=[game.id],
-                min_possessions=10,
+                min_possessions=MIN_GAME_LINEUP_POSSESSIONS,
                 top_n=3,
                 require_positive=False,
                 total_pts_scored_override=game.team_score,
