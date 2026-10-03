@@ -1214,7 +1214,7 @@ def generate_game_pdf_bytes(game_id):
         "two_pt_made": sum(s.fgm for s in stats) - sum(s.tpm for s in stats),
         "two_pt_att": sum(s.fga for s in stats) - sum(s.tpa for s in stats),
     }
-    team_poss = resolve_game_team_possessions(game, team_stats)
+    team_poss = max(resolve_game_team_possessions(game, team_stats), 1.0)
 
     team_aggregates["ortg"] = calculate_ortg(game.team_score, team_poss)
     team_aggregates["drtg"] = calculate_ortg(game.opponent_score, team_poss)

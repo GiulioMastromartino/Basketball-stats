@@ -461,3 +461,44 @@ def test_shot_events_remain_the_complete_record(db_session, default_team):
 
     assert len(shots) == box_fga
     assert sum(1 for s in shots if s.result == "made") == box_fgm
+
+def test_segment_quarter_spans_cover_quarters_they_overlap():
+    """A stint crossing a quarter break must be a candidate for both.
+
+    Deriving the span from elapsed duration would misfire on overtime or any
+    non-standard quarter length, so it is derived from the events that fall
+    inside the segment.
+    """
+    from core.services.lineup_service import _segment_quarters
+
+    class _Seg:
+        def __init__(self, sid, start, end, quarter):
+            self.id = sid
+            self.start_timestamp = start
+            self.end_timestamp = end
+            self.quarter = quarter
+
+    class _Ev:
+        def __init__(self, ts, quarter):
+            self.timestamp = ts
+            self.quarter = quarter
+
+    segments = [_Seg(1, 1_000, 5_000, 1), _Seg(2, 5_000, 9_000, 2)]
+    # A quarter break at timestamp 6_000, inside the second segment's span.
+    events = [_Ev(1_000, 1), _Ev(6_000, 2), _Ev(9_000, 2)]
+
+    spans = _segment_quarters(segments, events)
+
+    assert spans[1] == {1}
+    assert spans[2] == {1, 2}, "segment crossing the break must span both"
+
+
+def test_resolve_game_team_possessions_reports_zero_rather_than_flooring():
+    """The resolver stays pure; callers apply their own policy."""
+    class _Game:
+        id = 999
+
+    empty = resolve_game_team_possessions(
+        _Game(), {"fga": 0, "fta": 0, "oreb": 0, "tov": 0}
+    )
+    assert empty == 0.0

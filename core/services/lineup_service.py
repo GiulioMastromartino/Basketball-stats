@@ -603,23 +603,58 @@ def _box_score_possessions(game_id: int):
     return float(value) if value and value > 0 else None
 
 
-def _segment_quarters(segment, fallback_quarter: int = 1) -> set:
-    """Every quarter a segment overlaps.
+def _segment_quarters(segments: list, events: list) -> dict:
+    """Map segment id -> every quarter that segment overlaps.
 
-    LineupSegment persists both `quarter` and `end_timestamp`, so a stint that
-    begins late in one quarter and ends early in the next belongs to both. A
-    single-quarter lookup would strand the second quarter's shots.
+    LineupSegment persists `quarter`, but a stint that begins late in one quarter
+    and ends early in the next belongs to both, and a single-quarter lookup
+    strands the second quarter's shots. The span is derived from the events that
+    actually fall inside each segment - from its start up to the next segment's
+    start - rather than from elapsed duration, so it stays correct for overtime
+    or any non-standard quarter length. The persisted `quarter` is always
+    included as the floor.
     """
-    start_q = segment.quarter or fallback_quarter
-    if not segment.end_timestamp or not segment.start_timestamp:
-        return {start_q}
-    if segment.end_timestamp <= segment.start_timestamp:
-        return {start_q}
-    # Each quarter is roughly 12 minutes; derive the span from the clock rather
-    # than assuming a fixed number of quarters per game.
-    span_ms = segment.end_timestamp - segment.start_timestamp
-    span_quarters = 1 + int(span_ms // (12 * 60 * 1000))
-    return {start_q + offset for offset in range(max(span_quarters, 1))}
+    ordered = sorted(
+        segments, key=lambda s: (s.start_timestamp or 0, s.id)
+    )
+    starts = [(s.start_timestamp or 0, s.id) for s in ordered]
+
+    # Buckets of (timestamp, quarter) for the span lookup.
+    timeline = sorted(
+        (e.timestamp or 0, e.quarter or 1) for e in events if e.quarter is not None
+    )
+
+    def quarter_at(timestamp: int, fallback: int) -> int:
+        chosen = timeline[0][1] if timeline else fallback
+        for ts, quarter in timeline:
+            if ts <= timestamp:
+                chosen = quarter
+            else:
+                break
+        return chosen or fallback
+
+    spans = {}
+    for index, segment in enumerate(ordered):
+        start_ts = segment.start_timestamp or 0
+        if index + 1 < len(starts):
+            end_ts = starts[index + 1][0]
+        else:
+            end_ts = segment.end_timestamp or start_ts
+
+        quarters = set()
+        if segment.quarter:
+            quarters.add(segment.quarter)
+
+        q_start = quarter_at(start_ts, segment.quarter or 1)
+        quarters.add(q_start)
+        if end_ts > start_ts:
+            q_end = quarter_at(end_ts, q_start)
+            # Quarters are sequential, so cover the whole inclusive span rather
+            # than only its endpoints.
+            low, high = min(q_start, q_end), max(q_start, q_end)
+            quarters.update(range(low, high + 1))
+        spans[segment.id] = quarters
+    return spans
 
 
 def reconcile_orphan_shot_points(
@@ -704,12 +739,11 @@ def reconcile_orphan_shot_points(
         .all()
     )
 
-    # Segment quarter span plus the stints each player occupied in it.
-    quarters_by_segment = {}
+    # Segment quarter spans plus the stints each player occupied in them.
+    quarters_by_segment = _segment_quarters(segments, events)
     stints_by_player = {}
     for seg in segments:
-        span = _segment_quarters(seg)
-        quarters_by_segment[seg.id] = span
+        span = quarters_by_segment.get(seg.id) or {seg.quarter or 1}
         players = seg.players or []
         if isinstance(players, str):
             try:
@@ -860,10 +894,9 @@ def _bump_player_lineup_points(per_stint_points: dict) -> None:
     for (segment_id, player), gained in per_stint_points.items():
         for row in rows_by_segment.get(segment_id, []):
             if _normalize_name(row.player_name) == player:
+                # Only points: `gained` is a point total, not a shot count, so
+                # fgm/fga must not be incremented from it.
                 row.points = (row.points or 0) + gained
-                # Keep the shooting columns coherent with the added score.
-                row.fgm = (row.fgm or 0) + gained
-                row.fga = (row.fga or 0) + gained
                 break
 
 def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:

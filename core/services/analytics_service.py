@@ -65,8 +65,9 @@ def resolve_game_team_possessions(game, team_stats: dict) -> float:
         .scalar()
         or 0
     )
-    # Never hand back zero: callers divide by this to build ratings.
-    return max(float(segment_possessions), 1.0)
+    # Callers decide how to treat an unusable value: the rating builders floor it
+    # at 1.0, while calculate_team_advanced_from_stats skips the game on <= 0.
+    return float(segment_possessions)
 
 
 class AnalyticsService:
@@ -2078,7 +2079,7 @@ class AnalyticsService:
             "reb_conceded": sum(p.reb_conceded or 0 for p in stats),
         }
 
-        team_poss = resolve_game_team_possessions(game, team_stats)
+        team_poss = max(resolve_game_team_possessions(game, team_stats), 1.0)
 
         total_game_min = sum(p.min_decimal for p in stats) / 5.0
         pace = calculate_pace(team_poss, total_game_min)
