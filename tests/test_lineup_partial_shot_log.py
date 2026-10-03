@@ -502,3 +502,29 @@ def test_resolve_game_team_possessions_reports_zero_rather_than_flooring():
         _Game(), {"fga": 0, "fta": 0, "oreb": 0, "tov": 0}
     )
     assert empty == 0.0
+
+
+def test_segment_quarter_span_excludes_next_segments_events():
+    """An event exactly on the next segment's start belongs to that segment."""
+    from core.services.lineup_service import _segment_quarters
+
+    class _Seg:
+        def __init__(self, sid, start, end, quarter):
+            self.id = sid
+            self.start_timestamp = start
+            self.end_timestamp = end
+            self.quarter = quarter
+
+    class _Ev:
+        def __init__(self, ts, quarter):
+            self.timestamp = ts
+            self.quarter = quarter
+
+    segments = [_Seg(1, 1_000, 5_000, 1), _Seg(2, 5_000, 9_000, 2)]
+    # The only Q3 event sits exactly on segment 2's start, so it must not
+    # stretch segment 1 into Q3.
+    events = [_Ev(1_000, 1), _Ev(5_000, 3)]
+
+    spans = _segment_quarters(segments, events)
+
+    assert spans[1] == {1}, "boundary event leaked into the previous segment"

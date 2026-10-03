@@ -625,6 +625,7 @@ def _segment_quarters(segments: list, events: list) -> dict:
     )
 
     def quarter_at(timestamp: int, fallback: int) -> int:
+        """Quarter of the latest event at or before `timestamp`."""
         chosen = timeline[0][1] if timeline else fallback
         for ts, quarter in timeline:
             if ts <= timestamp:
@@ -632,6 +633,20 @@ def _segment_quarters(segments: list, events: list) -> dict:
             else:
                 break
         return chosen or fallback
+
+    def quarter_before(timestamp: int, fallback: int) -> int:
+        """Quarter of the latest event strictly before `timestamp`.
+
+        An event sitting exactly on the next segment's start belongs to that
+        next segment, so the current segment's span must not reach it.
+        """
+        chosen = None
+        for ts, quarter in timeline:
+            if ts < timestamp:
+                chosen = quarter
+            else:
+                break
+        return chosen if chosen is not None else fallback
 
     spans = {}
     for index, segment in enumerate(ordered):
@@ -648,7 +663,7 @@ def _segment_quarters(segments: list, events: list) -> dict:
         q_start = quarter_at(start_ts, segment.quarter or 1)
         quarters.add(q_start)
         if end_ts > start_ts:
-            q_end = quarter_at(end_ts, q_start)
+            q_end = quarter_before(end_ts, q_start)
             # Quarters are sequential, so cover the whole inclusive span rather
             # than only its endpoints.
             low, high = min(q_start, q_end), max(q_start, q_end)
