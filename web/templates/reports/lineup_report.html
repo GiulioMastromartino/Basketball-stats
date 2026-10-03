@@ -537,7 +537,7 @@
 
         <!-- Top 5-Man Lineups -->
         <div class="section">
-            <div class="section-title">Top 5-Man Lineups (by Net Rating)</div>
+            <div class="section-title">Top 5-Man Lineups (by {{ lineup_rank_label }})</div>
             {% set hero = rankings[0] if rankings else none %}
             {% if hero %}
             <div class="lineup-hero avoid-break">
@@ -697,8 +697,9 @@
         </div>
         
         <!-- Top Trios -->
+        {% if trios %}
         <div class="section">
-            <div class="section-title">Top Trio Combinations</div>
+            <div class="section-title">Top Trio Combinations (by {{ rank_metric_label }})</div>
             <div class="trio-grid">
                 {% for trio in trios[:6] %}
                 <div class="trio-card">
@@ -710,14 +711,24 @@
                     <div class="trio-stats">
                         <span>ORtg {{ trio.ortg }}</span>
                         <span>DRtg {{ trio.drtg }}</span>
-                        <div class="trio-net {% if trio.net_rating >= 0 %}positive{% else %}negative{% endif %}">
-                            NET {% if trio.net_rating >= 0 %}+{% endif %}{{ trio.net_rating }}
+                        <div class="trio-net {% if trio.rank_metric >= 0 %}positive{% else %}negative{% endif %}">
+                            {{ trio.rank_metric_label }} {% if trio.rank_metric >= 0 %}+{% endif %}{{ trio.rank_metric }}
                         </div>
                     </div>
                 </div>
                 {% endfor %}
             </div>
         </div>
+        {% else %}
+        <div class="section">
+            <div class="section-title">Top Trio Combinations</div>
+            <div class="trio-grid">
+                <div class="trio-card">
+                    <div class="trio-players">No trio met the minimum possessions threshold</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         
         <!-- Footer -->
         <div class="footer">

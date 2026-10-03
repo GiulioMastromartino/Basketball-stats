@@ -525,9 +525,11 @@ def lineup_report_pdf():
     # page. game_ids from _get_games is already team- and season-scoped; passing
     # None (as this route used to do for game_type=ALL) drops that filter and
     # aggregates other teams' lineups.
-    min_possessions = request.args.get("min_possessions", 5, type=int)
-    if min_possessions is None or min_possessions < 1:
-        min_possessions = 5
+    # type=float to match the combinations endpoint, which accepts fractional
+    # thresholds from the Min Poss input.
+    min_possessions = request.args.get("min_possessions", 5.0, type=float)
+    if min_possessions < 1:
+        min_possessions = 5.0
     rank_by = request.args.get("rank_by", "overall")
     if rank_by not in {"overall", "offensive", "defensive"}:
         rank_by = "overall"

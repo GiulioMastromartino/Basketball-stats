@@ -289,15 +289,36 @@ class AdvancedPDFReports:
             for trio in trio_impacts
         ]
 
+        # Surface the metric the report is actually ranked by, so the template
+        # never labels an offensive/defensive ranking as "Net Rating".
+        rank_metric_key, rank_metric_label = {
+            "offensive": ("offense_delta", "OFF IMP"),
+            "defensive": ("defense_delta", "DEF IMP"),
+        }.get(rank_by, ("net_differential", "NET IMP"))
+        # Lineup rankings sort by raw ORtg/DRtg (see
+        # get_lineup_efficiency_rankings), so they need their own label rather
+        # than the ON/OFF differential label used by the combo cards.
+        lineup_rank_label = {
+            "offensive": "Offensive Rating (ORtg)",
+            "defensive": "Defensive Rating (DRtg)",
+        }.get(rank_by, "Net Rating")
+        for trio in trios:
+            trio["rank_metric"] = trio["compatibility"]
+            trio["rank_metric_label"] = rank_metric_label
+
         # Build duo matrix for visualization
         duo_matrix = AdvancedPDFReports._build_duo_matrix(duos)
-        
+
         html = render_template(
             "reports/lineup_report.html",
             rankings=rankings[:10],
             duos=duos[:20],
             trios=trios[:10],
             duo_matrix=duo_matrix,
+            rank_by=rank_by,
+            rank_metric_key=rank_metric_key,
+            rank_metric_label=rank_metric_label,
+            lineup_rank_label=lineup_rank_label,
             generated_date=datetime.now().strftime("%B %d, %Y"),
         )
 
