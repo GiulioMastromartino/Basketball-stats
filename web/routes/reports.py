@@ -521,8 +521,23 @@ def lineup_report_pdf():
     game_type = _get_game_type()
     games, game_ids = _get_games(game_type, _get_season_id())
 
+    # Mirror the /api/advanced/lineup/* filters so the PDF matches the Lineups
+    # page. game_ids from _get_games is already team- and season-scoped; passing
+    # None (as this route used to do for game_type=ALL) drops that filter and
+    # aggregates other teams' lineups.
+    # type=float to match the combinations endpoint, which accepts fractional
+    # thresholds from the Min Poss input.
+    min_possessions = request.args.get("min_possessions", 5.0, type=float)
+    if min_possessions < 1:
+        min_possessions = 5.0
+    rank_by = request.args.get("rank_by", "overall")
+    if rank_by not in {"overall", "offensive", "defensive"}:
+        rank_by = "overall"
+
     filename, pdf_bytes = generate_lineup_report_bytes(
-        game_ids=game_ids if game_type != "ALL" else None, min_possessions=5
+        game_ids=game_ids,
+        min_possessions=min_possessions,
+        rank_by=rank_by,
     )
 
     pdf_io = BytesIO(pdf_bytes)
