@@ -535,6 +535,237 @@ def link_events_to_segments(game_id: int) -> None:
     db.session.commit()
 
 
+def _normalize_name(value) -> str:
+    return (value or "").strip().lower()
+
+
+def _normalize_shot_family(value) -> str:
+    """Normalize a shot type to '2pt'/'3pt', or '' when unrecognized."""
+    text = _normalize_name(value)
+    if "3" in text:
+        return "3pt"
+    if "2" in text:
+        return "2pt"
+    return ""
+
+
+def _quarter_timeline(events: list) -> list:
+    """Sorted (timestamp, quarter) pairs used to place segments on the clock."""
+    return sorted(
+        (e.timestamp or 0, e.quarter or 1)
+        for e in events
+        if e.quarter is not None
+    )
+
+
+def _quarter_at(timeline: list, timestamp: int, fallback: int = 1) -> int:
+    """Quarter of the last timeline entry at or before `timestamp`."""
+    if not timeline:
+        return fallback
+    chosen = timeline[0][1]
+    for ts, quarter in timeline:
+        if ts <= timestamp:
+            chosen = quarter
+        else:
+            break
+    return chosen or fallback
+
+
+def reconcile_orphan_shot_points(game_id: int, segments: list = None) -> dict:
+    """Credit field goals that exist only in `shot_events` to lineup segments.
+
+    The event log is a partial mirror of the shot record: for many imports only
+    a subset of shots also appear as SHOT_2PT/SHOT_3PT rows, while `shot_events`
+    holds the complete record (its FGA/FGM match the box score exactly). Segments
+    derived purely from GameEvent therefore undercounted scoring, which is what
+    produced absurd baselines such as a 159 ORtg "team average" in a 78-point
+    game.
+
+    The reconciliation is target-based rather than shot-by-shot, so it cannot
+    double count. For each (player, quarter):
+
+    * authoritative points = made shots in `shot_events` for that player/quarter
+    * already credited     = points the log's own SHOT_* events contributed
+    * shortfall            = authoritative - credited (never negative)
+
+    ShotEvent rows carry no timestamp, so a shortfall cannot be placed on the
+    clock, but it can be placed on the floor: the shooter was on court during
+    their stints in that quarter. The shortfall is spread across those stints
+    weighted by stint duration, so segment totals reconcile with the complete
+    record while the split between a player's own stints remains a documented
+    estimate.
+
+    Deliberately untouched:
+
+    * Free throws, which are already fully represented as FT events.
+    * Possession counts, which derive from possession ids; inventing possession
+      endings would corrupt the possession model for every downstream metric.
+
+    Returns a summary dict for logging and tests.
+    """
+    from core.models import ShotEvent
+
+    if segments is None:
+        segments = (
+            LineupSegment.query.filter_by(game_id=game_id)
+            .order_by(LineupSegment.start_timestamp, LineupSegment.id)
+            .all()
+        )
+    segments = list(segments)
+    empty = {
+        "shots_total": 0,
+        "points_authoritative": 0,
+        "points_already_credited": 0,
+        "points_added": 0,
+        "budget": 0,
+        "players_reconciled": 0,
+        "unattributable_players": 0,
+    }
+    if not segments:
+        return empty
+
+    events = (
+        GameEvent.query.filter_by(game_id=game_id)
+        .order_by(GameEvent.timestamp)
+        .all()
+    )
+    timeline = _quarter_timeline(events)
+
+    # Segment quarter plus the stints each player occupied in it.
+    stints_by_player = {}
+    for seg in segments:
+        quarter = _quarter_at(timeline, seg.start_timestamp or 0)
+        players = seg.players or []
+        if isinstance(players, str):
+            try:
+                import json as _json
+
+                players = _json.loads(players)
+            except Exception:
+                players = []
+        for player in players:
+            stints_by_player.setdefault(_normalize_name(player), []).append((quarter, seg))
+
+    # Points the log already credited, per (player, quarter).
+    credited = {}
+    for event in events:
+        if event.event_type not in ("SHOT_2PT", "SHOT_3PT"):
+            continue
+        if _normalize_name(event.shot_attempt) != "made":
+            continue
+        points = 3 if event.event_type == "SHOT_3PT" else 2
+        key = (_normalize_name(event.player_name), event.quarter or 1)
+        credited[key] = credited.get(key, 0) + points
+
+    # Authoritative points per (player, quarter) from the complete record.
+    authoritative = {}
+    shots = ShotEvent.query.filter_by(game_id=game_id).order_by(ShotEvent.id).all()
+    for shot in shots:
+        points = shot.points or 0
+        if points <= 0:
+            continue
+        key = (_normalize_name(shot.player_name), shot.quarter or 1)
+        authoritative[key] = authoritative.get(key, 0) + points
+
+    # Budget guard: the shortfall is measured against the points the log's own
+    # shot events already contributed, so running this twice would otherwise
+    # credit the same gap again. Compare the complete record against the
+    # field-goal points currently sitting in the segments (total minus the free
+    # throws, which are counted separately and never reconciled here).
+    ft_points = 0
+    for event in events:
+        if event.event_type == "FT":
+            ftm, _fta = parse_ft_event(event.detail, event.shot_attempt)
+            ft_points += ftm
+        elif event.event_type == "FT_MADE":
+            ft_points += 1
+    current_fg_points = sum(s.points_scored or 0 for s in segments) - ft_points
+    budget = max(0, sum(authoritative.values()) - current_fg_points)
+
+    points_added = 0
+    players_reconciled = 0
+    unattributable = 0
+    per_stint_points = {}
+    remaining_budget = budget
+
+    for key, target in sorted(authoritative.items()):
+        if remaining_budget <= 0:
+            break
+        already = credited.get(key, 0)
+        shortfall = min(target - already, remaining_budget)
+        if shortfall <= 0:
+            continue
+        player, quarter = key
+
+        stints = [
+            (q, seg)
+            for q, seg in stints_by_player.get(player, [])
+            if q == quarter
+        ]
+        stints.sort(key=lambda pair: (pair[1].start_timestamp or 0, pair[1].id))
+        if not stints:
+            unattributable += 1
+            continue
+
+        durations = [max(seg.duration_seconds or 0, 0) for _q, seg in stints]
+        shares = _largest_remainder(shortfall, durations)
+        for (_q, seg), share in zip(stints, shares):
+            if share <= 0:
+                continue
+            seg.points_scored = (seg.points_scored or 0) + share
+            per_stint_points[(seg.id, player)] = (
+                per_stint_points.get((seg.id, player), 0) + share
+            )
+            points_added += share
+        players_reconciled += 1
+        remaining_budget -= shortfall
+
+    if per_stint_points:
+        # Keep per-player lineup stats consistent with the segment totals.
+        for (segment_id, player), gained in per_stint_points.items():
+            rows = PlayerLineupStats.query.filter_by(
+                lineup_segment_id=segment_id
+            ).all()
+            for row in rows:
+                if _normalize_name(row.player_name) == player:
+                    row.points = (row.points or 0) + gained
+                    break
+
+    db.session.commit()
+
+    return {
+        "shots_total": len(shots),
+        "points_authoritative": sum(authoritative.values()),
+        "points_already_credited": sum(credited.values()),
+        "points_added": points_added,
+        "budget": budget,
+        "players_reconciled": players_reconciled,
+        "unattributable_players": unattributable,
+    }
+
+
+def _largest_remainder(total: int, weights: list) -> list:
+    """Split `total` across `weights` by largest remainder, deterministically."""
+    weight_sum = sum(weights)
+    n = len(weights)
+    if n == 0:
+        return []
+    if weight_sum <= 0:
+        base = total // n
+        shares = [base] * n
+        for i in range(total - base * n):
+            shares[i] += 1
+        return shares
+
+    exact = [total * w / weight_sum for w in weights]
+    shares = [int(x) for x in exact]
+    remainder = total - sum(shares)
+    order = sorted(range(n), key=lambda i: (-(exact[i] - shares[i]), i))
+    for k in range(remainder):
+        shares[order[k % n]] += 1
+    return shares
+
+
 def calculate_segment_stats(segment_id: int, all_events: list = None) -> dict:
     """
     Calculate points_scored, points_allowed, possessions for a segment.
@@ -914,6 +1145,31 @@ def process_game_lineups(
     # 6. Bulk save everything
     db.session.bulk_save_objects(new_player_stats)
     db.session.commit()
+
+    # 6b. Partially-logged shot events: `shot_events` is the complete record
+    # while the event log mirrors only part of it, so segments built purely from
+    # GameEvent undercount scoring. Credit the difference from the complete
+    # record. Skipped when margin inference already telescoped team points to
+    # the final score, since that path is already whole-game.
+    if not use_margin_inference:
+        summary = reconcile_orphan_shot_points(game_id, segments=segments)
+        if summary.get("points_added"):
+            try:
+                from flask import current_app
+
+                current_app.logger.info(
+                    "Lineup shot reconciliation for game %s: %s authoritative "
+                    "pts, %s already credited, +%s pts across %s players "
+                    "(%s unattributable)",
+                    game_id,
+                    summary["points_authoritative"],
+                    summary["points_already_credited"],
+                    summary["points_added"],
+                    summary["players_reconciled"],
+                    summary["unattributable_players"],
+                )
+            except Exception:
+                pass
 
     # 7. Update affected lineups
     for lid in lineup_ids:

@@ -25,7 +25,11 @@ from core.models import (
     SystemSetting,
     db,
 )
-from core.services.analytics_service import AnalyticsService
+from core.services.analytics_service import (
+    AnalyticsService,
+    MIN_GAME_LINEUP_POSSESSIONS,
+    resolve_game_team_possessions,
+)
 from core.services.evolution_report_service import EvolutionReportService
 from core.services.schema4_evolution_report_service import (
     Schema4EvolutionReportService,
@@ -1210,22 +1214,7 @@ def generate_game_pdf_bytes(game_id):
         "two_pt_made": sum(s.fgm for s in stats) - sum(s.tpm for s in stats),
         "two_pt_att": sum(s.fga for s in stats) - sum(s.tpa for s in stats),
     }
-    team_poss = calculate_possessions(
-        team_stats["fga"], team_stats["fta"], team_stats["oreb"], team_stats["tov"]
-    )
-
-    # Use true tracked possessions if available for consistency with lineup stats
-    from core.models import LineupSegment
-
-    segment_poss = (
-        db.session.query(func.sum(LineupSegment.possessions))
-        .filter_by(game_id=game_id)
-        .scalar()
-        or 0
-    )
-    if segment_poss > 0:
-        team_poss = float(segment_poss)
-    team_poss = max(team_poss, 1.0)
+    team_poss = resolve_game_team_possessions(game, team_stats)
 
     team_aggregates["ortg"] = calculate_ortg(game.team_score, team_poss)
     team_aggregates["drtg"] = calculate_ortg(game.opponent_score, team_poss)
@@ -1239,6 +1228,7 @@ def generate_game_pdf_bytes(game_id):
             game_id,
             top_n=3,
             rank_by="offensive",
+            min_possessions=MIN_GAME_LINEUP_POSSESSIONS,
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
@@ -1247,6 +1237,7 @@ def generate_game_pdf_bytes(game_id):
             game_id,
             top_n=3,
             rank_by="defensive",
+            min_possessions=MIN_GAME_LINEUP_POSSESSIONS,
             total_pts_scored_override=game.team_score,
             total_pts_allowed_override=game.opponent_score,
             total_possessions_override=team_poss,
