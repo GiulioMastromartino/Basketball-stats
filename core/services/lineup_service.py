@@ -674,6 +674,11 @@ def reconcile_orphan_shot_points(game_id: int, segments: list = None) -> dict:
     # throws, which are counted separately and never reconciled here).
     ft_points = 0
     for event in events:
+        # Only free throws that landed in a segment are part of the segment
+        # total being measured; counting unlinked ones would overstate the
+        # field-goal points already present and shrink the budget.
+        if event.lineup_segment_id is None:
+            continue
         if event.event_type == "FT":
             ftm, _fta = parse_ft_event(event.detail, event.shot_attempt)
             ft_points += ftm

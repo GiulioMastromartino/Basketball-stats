@@ -120,32 +120,108 @@ def test_game_ratings_are_plausible_not_absurd(db_session, default_team):
     assert 85 <= drtg <= 125, f"implausible DRtg {drtg}"
 
 
-def test_web_and_pdf_select_the_same_lineups(db_session, default_team):
+def test_web_and_pdf_select_the_same_lineups(db_session, default_team, mocker):
     """The detail page and the PDF must not disagree about the best unit.
 
     Previously the page passed min_possessions=10 while the PDF passed nothing
     and silently inherited the 2.0 default, so each ranked different lineups.
+    This drives both production builders and compares what they hand the
+    template, rather than re-calling the ranking helper twice.
     """
+    from core.services.analytics_service import AnalyticsService
+    from core.services import report_service
+
+    game = _import_partial_log_game(db_session, default_team)
+
+    captured = {}
+
+    def spy(*args, **kwargs):
+        captured.setdefault("calls", []).append(kwargs)
+        return []
+
+    # Both modules import LineupAnalytics lazily inside the function, so the
+    # single shared definition in core.advanced_analytics is the patch point.
+    mocker.patch(
+        "core.advanced_analytics.LineupAnalytics.get_game_lineup_rankings",
+        side_effect=spy,
+    )
+    # Isolate the surrounding report rendering.
+    mocker.patch.object(
+        report_service, "render_template", return_value="<html></html>"
+    )
+    mocker.patch.object(report_service.HTML, "write_pdf", return_value=b"pdf")
+
+    AnalyticsService.build_game_detail(game.id)
+    web_calls = list(captured["calls"])
+    captured["calls"] = []
+    report_service.generate_game_pdf_bytes(game.id)
+    pdf_calls = list(captured["calls"])
+
+    assert web_calls, "detail page did not rank any lineups"
+    assert pdf_calls, "PDF did not rank any lineups"
+
+    # Both must apply the same qualification threshold...
+    for call in web_calls + pdf_calls:
+        assert call.get("min_possessions") == MIN_GAME_LINEUP_POSSESSIONS
+
+    # ...and the same possessions baseline.
+    web_poss = {c.get("total_possessions_override") for c in web_calls}
+    pdf_poss = {c.get("total_possessions_override") for c in pdf_calls}
+    assert web_poss == pdf_poss
+
+    # The baseline must be the box score, not the partial segment sum.
+    totals = _team_totals(game.id)
+    expected = resolve_game_team_possessions(game, totals)
+    for value in web_poss | pdf_poss:
+        assert value == pytest.approx(expected)
+
+
+def test_production_paths_rank_identical_lineups(
+    db_session, default_team, mocker
+):
+    """End-to-end: both surfaces must produce the same ordering and ratings."""
+    from core.services.analytics_service import AnalyticsService
+    from core.services import report_service
+
     game = _import_partial_log_game(db_session, default_team)
     totals = _team_totals(game.id)
     team_poss = resolve_game_team_possessions(game, totals)
+    original_rank = LineupAnalytics.get_game_lineup_rankings
 
-    def rank(**kwargs):
-        return LineupAnalytics.get_game_lineup_rankings(
-            game.id,
-            top_n=3,
-            rank_by="offensive",
-            total_pts_scored_override=game.team_score,
-            total_pts_allowed_override=game.opponent_score,
-            total_possessions_override=team_poss,
-            **kwargs,
-        )
+    detail_ctx = AnalyticsService.build_game_detail(game.id)
+    web = detail_ctx.get("top_game_lineups_off") or []
 
-    web = rank(min_possessions=MIN_GAME_LINEUP_POSSESSIONS)
-    pdf = rank(min_possessions=MIN_GAME_LINEUP_POSSESSIONS)
+    # generate_game_pdf_bytes renders through WeasyPrint; capture only the
+    # lineup arguments it computes.
+    seen = {}
+
+    def capture(*args, **kwargs):
+        seen.update(kwargs)
+        return original_rank(*args, **kwargs)
+
+    mocker.patch(
+        "core.advanced_analytics.LineupAnalytics.get_game_lineup_rankings",
+        side_effect=capture,
+    )
+    mocker.patch.object(
+        report_service, "render_template", return_value="<html></html>"
+    )
+    mocker.patch.object(report_service.HTML, "write_pdf", return_value=b"pdf")
+    report_service.generate_game_pdf_bytes(game.id)
+
+    pdf = original_rank(
+        game_id=game.id,
+        top_n=seen.get("top_n", 3),
+        rank_by="offensive",
+        min_possessions=seen.get("min_possessions"),
+        total_pts_scored_override=seen.get("total_pts_scored_override"),
+        total_pts_allowed_override=seen.get("total_pts_allowed_override"),
+        total_possessions_override=seen.get("total_possessions_override"),
+    )
 
     assert [r["players"] for r in web] == [r["players"] for r in pdf]
     assert [r["ortg"] for r in web] == [r["ortg"] for r in pdf]
+    assert team_poss > 0
 
 
 def test_lineup_qualifying_threshold_excludes_tiny_stints(db_session, default_team):
