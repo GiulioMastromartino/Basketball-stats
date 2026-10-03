@@ -213,29 +213,41 @@ class AdvancedPDFReports:
 
     @staticmethod
     def generate_lineup_report(
-        game_ids: List[int] = None, min_possessions: int = 5
+        game_ids: List[int] = None,
+        min_possessions: int = 5,
+        rank_by: str = "overall",
     ) -> tuple:
         """
         Generate lineup analysis report with:
         - Top 5 Lineups ranked by Net Rating
         - Substitution Timeline (Gantt chart)
         - Duo Compatibility Matrix
-        
+
+        Args:
+            game_ids: Explicit game filter. Always pass the team-scoped game id
+                list; ``None`` means "every game in the database" and would leak
+                other teams' lineups into the report.
+            min_possessions: Minimum possessions to qualify.
+            rank_by: 'overall', 'offensive', or 'defensive'
+
         Returns:
             Tuple of (filename, pdf_bytes)
         """
         # Get lineup rankings
         rankings = LineupAnalytics.get_lineup_efficiency_rankings(
-            game_ids, min_possessions
+            game_ids, min_possessions, rank_by=rank_by
         )
 
         # Use ON/OFF differential so compatibility is centered around neutral (0.0).
+        # require_positive stays False here because the duo matrix needs the
+        # negative half of the distribution to color its cells.
         duo_impacts = LineupAnalytics.get_combination_net_differentials(
             combination_type="duo",
             game_ids=game_ids,
             min_possessions=min_possessions,
             top_n=200,
             require_positive=False,
+            rank_by=rank_by,
         )
         duos = [
             {
@@ -252,8 +264,30 @@ class AdvancedPDFReports:
             for duo in duo_impacts
         ]
 
-        # Get trio compatibility
-        trios = LineupAnalytics.calculate_trio_compatibility(game_ids)
+        # Get trio compatibility. Must use the same ON/OFF differential source as
+        # the duos above and as /api/advanced/lineups/combinations, otherwise the
+        # PDF trios disagree with the Lineups page.
+        trio_impacts = LineupAnalytics.get_combination_net_differentials(
+            combination_type="trio",
+            game_ids=game_ids,
+            min_possessions=min_possessions,
+            top_n=200,
+            require_positive=True,
+            rank_by=rank_by,
+        )
+        trios = [
+            {
+                "players": trio["players"],
+                "segments": trio["segments"],
+                "possessions": trio["on"]["possessions"],
+                "minutes": trio["on"]["minutes"],
+                "ortg": trio["on"]["ortg"],
+                "drtg": trio["on"]["drtg"],
+                "net_rating": trio["on"]["net"],
+                "compatibility": trio["impact"]["net_differential"],
+            }
+            for trio in trio_impacts
+        ]
 
         # Build duo matrix for visualization
         duo_matrix = AdvancedPDFReports._build_duo_matrix(duos)
@@ -617,9 +651,13 @@ def generate_visual_game_report_bytes(game_id: int):
     return AdvancedPDFReports.generate_visual_game_report(game_id)
 
 
-def generate_lineup_report_bytes(game_ids: List[int] = None, min_possessions: int = 5):
+def generate_lineup_report_bytes(
+    game_ids: List[int] = None, min_possessions: int = 5, rank_by: str = "overall"
+):
     """Wrapper for lineup report generation."""
-    return AdvancedPDFReports.generate_lineup_report(game_ids, min_possessions)
+    return AdvancedPDFReports.generate_lineup_report(
+        game_ids, min_possessions, rank_by=rank_by
+    )
 
 
 def generate_player_scouting_card_bytes(player_name: str, game_type: str = "ALL"):

@@ -254,9 +254,29 @@ def test_generate_lineup_report_uses_duo_net_differential(db_session, mocker):
         "core.advanced_pdf_reports.LineupAnalytics.get_lineup_efficiency_rankings",
         return_value=[],
     )
-    mocker.patch(
-        "core.advanced_pdf_reports.LineupAnalytics.get_combination_net_differentials",
-        return_value=[
+
+    combo_calls = []
+
+    def fake_combinations(**kwargs):
+        combo_calls.append(kwargs)
+        if kwargs["combination_type"] == "trio":
+            return [
+                {
+                    "players": ["A", "B", "C"],
+                    "segments": 2,
+                    "on": {
+                        "minutes": 9.0,
+                        "possessions": 8.0,
+                        "ortg": 108.0,
+                        "drtg": 92.0,
+                        "net": 16.0,
+                    },
+                    "impact": {
+                        "net_differential": 21.0,
+                    },
+                }
+            ]
+        return [
             {
                 "players": ["A", "B"],
                 "segments": 4,
@@ -285,11 +305,11 @@ def test_generate_lineup_report_uses_duo_net_differential(db_session, mocker):
                     "net_differential": -12.0,
                 },
             },
-        ],
-    )
+        ]
+
     mocker.patch(
-        "core.advanced_pdf_reports.LineupAnalytics.calculate_trio_compatibility",
-        return_value=[],
+        "core.advanced_pdf_reports.LineupAnalytics.get_combination_net_differentials",
+        side_effect=fake_combinations,
     )
 
     filename, pdf_bytes = AdvancedPDFReports.generate_lineup_report(game_ids=[1], min_possessions=5)
@@ -301,3 +321,55 @@ def test_generate_lineup_report_uses_duo_net_differential(db_session, mocker):
     assert captured["context"]["duos"][0]["net_rating"] == 20.0
     assert captured["context"]["duo_matrix"]["matrix"]["A"]["B"] == 35.0
     assert captured["context"]["duo_matrix"]["matrix"]["A"]["C"] == -12.0
+
+    # Trios must come from the same ON/OFF differential source as duos and the
+    # /lineups/combinations API, so the PDF agrees with the Lineups page.
+    assert captured["context"]["trios"][0]["players"] == ["A", "B", "C"]
+    assert captured["context"]["trios"][0]["net_rating"] == 16.0
+    assert captured["context"]["trios"][0]["compatibility"] == 21.0
+
+    trio_call = next(c for c in combo_calls if c["combination_type"] == "trio")
+    assert trio_call["game_ids"] == [1]
+    assert trio_call["min_possessions"] == 5
+    assert trio_call["require_positive"] is True
+    assert trio_call["rank_by"] == "overall"
+
+
+def test_generate_lineup_report_never_passes_unfiltered_game_ids(db_session, mocker):
+    """game_ids=None means 'every game in the database', so the report must
+    forward the caller's explicit (team-scoped) list."""
+    rankings_calls = []
+    combo_calls = []
+
+    mocker.patch("core.advanced_pdf_reports.render_template", return_value="<html></html>")
+    html_instance = mocker.MagicMock()
+    html_instance.write_pdf.return_value = b"pdf"
+    mocker.patch("core.advanced_pdf_reports.HTML", return_value=html_instance)
+
+    def fake_rankings(game_ids=None, min_possessions=10, rank_by="overall"):
+        rankings_calls.append({"game_ids": game_ids, "min_possessions": min_possessions,
+                               "rank_by": rank_by})
+        return []
+
+    def fake_combinations(**kwargs):
+        combo_calls.append(kwargs)
+        return []
+
+    mocker.patch(
+        "core.advanced_pdf_reports.LineupAnalytics.get_lineup_efficiency_rankings",
+        side_effect=fake_rankings,
+    )
+    mocker.patch(
+        "core.advanced_pdf_reports.LineupAnalytics.get_combination_net_differentials",
+        side_effect=fake_combinations,
+    )
+
+    AdvancedPDFReports.generate_lineup_report(
+        game_ids=[7, 9], min_possessions=3, rank_by="defensive"
+    )
+
+    assert rankings_calls[0]["game_ids"] == [7, 9]
+    assert rankings_calls[0]["min_possessions"] == 3
+    assert rankings_calls[0]["rank_by"] == "defensive"
+    assert all(c["game_ids"] == [7, 9] for c in combo_calls)
+    assert all(c["rank_by"] == "defensive" for c in combo_calls)
