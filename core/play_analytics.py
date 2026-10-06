@@ -49,8 +49,34 @@ def _calc_metrics(shot_attempts, made_shots, points, turnovers, three_made):
     }
 
 
-def _play_map(play_type):
-    plays = Play.query.filter_by(play_type=play_type).all()
+def _resolve_analytics_team_id(game_id, team_id=None):
+    """Resolve the owning team for analytics scoping without breaking callers.
+
+    Explicit team_id wins; otherwise derive it from Game.team_id so legacy
+    callers passing only (game_id, play_type) still get tenant-scoped
+    results. Returns None when the game is missing/has no team (tests that
+    predate multi-tenancy) — callers then fall back to unscoped with a note.
+    """
+    if team_id is not None:
+        return team_id
+    try:
+        from core.models import Game
+
+        game = Game.query.filter_by(id=game_id).first()
+        team = getattr(game, "team_id", None)
+        return team if team is not None else None
+    except Exception:
+        return None
+
+
+def _play_map(play_type, team_id=None):
+    # Tenant-scoped when team_id is known. Unscoped only for legacy callers
+    # without game/team context — NOTE: that path can leak cross-team Plays
+    # into stats; prefer passing team_id (or a game_id whose Game resolves).
+    if team_id is not None:
+        plays = Play.query.filter_by(play_type=play_type, team_id=team_id).all()
+    else:
+        plays = Play.query.filter_by(play_type=play_type).all()
     return {play.id: play for play in plays}
 
 
@@ -134,8 +160,8 @@ def _legacy_player_turnover_stats(game_id, play_ids):
     )
 
 
-def get_play_stats(game_id, play_type="Offense"):
-    play_map = _play_map(play_type)
+def get_play_stats(game_id, play_type="Offense", team_id=None):
+    play_map = _play_map(play_type, team_id=_resolve_analytics_team_id(game_id, team_id))
     if not play_map:
         return []
 
@@ -193,8 +219,8 @@ def get_play_stats(game_id, play_type="Offense"):
     return final_stats
 
 
-def get_play_player_stats(game_id: int, play_type: str = "Offense"):
-    play_map = _play_map(play_type)
+def get_play_player_stats(game_id: int, play_type: str = "Offense", team_id=None):
+    play_map = _play_map(play_type, team_id=_resolve_analytics_team_id(game_id, team_id))
     if not play_map:
         return []
 
@@ -267,8 +293,8 @@ def get_play_player_stats(game_id: int, play_type: str = "Offense"):
     return plays_out
 
 
-def get_player_play_stats(game_id: int, play_type: str = "Offense"):
-    by_play = get_play_player_stats(game_id, play_type=play_type)
+def get_player_play_stats(game_id: int, play_type: str = "Offense", team_id=None):
+    by_play = get_play_player_stats(game_id, play_type=play_type, team_id=team_id)
     player_map = {}
 
     for play in by_play:
@@ -447,8 +473,8 @@ def _summary_fallback(game_id, play_map):
     return play_rows, player_rows
 
 
-def _collect_summary_play_analysis(game_id, play_type="Offense"):
-    play_map = _play_map(play_type)
+def _collect_summary_play_analysis(game_id, play_type="Offense", team_id=None):
+    play_map = _play_map(play_type, team_id=_resolve_analytics_team_id(game_id, team_id))
     if not play_map:
         return {"plays": [], "play_players": [], "player_plays": [], "estimated_possessions": False}
 
@@ -582,20 +608,20 @@ def _collect_summary_play_analysis(game_id, play_type="Offense"):
     }
 
 
-def get_summary_play_stats(game_id, play_type="Offense"):
-    return _collect_summary_play_analysis(game_id, play_type=play_type)["plays"]
+def get_summary_play_stats(game_id, play_type="Offense", team_id=None):
+    return _collect_summary_play_analysis(game_id, play_type=play_type, team_id=team_id)["plays"]
 
 
-def get_summary_play_player_stats(game_id: int, play_type: str = "Offense"):
-    return _collect_summary_play_analysis(game_id, play_type=play_type)["play_players"]
+def get_summary_play_player_stats(game_id: int, play_type: str = "Offense", team_id=None):
+    return _collect_summary_play_analysis(game_id, play_type=play_type, team_id=team_id)["play_players"]
 
 
-def get_summary_player_play_stats(game_id: int, play_type: str = "Offense"):
-    return _collect_summary_play_analysis(game_id, play_type=play_type)["player_plays"]
+def get_summary_player_play_stats(game_id: int, play_type: str = "Offense", team_id=None):
+    return _collect_summary_play_analysis(game_id, play_type=play_type, team_id=team_id)["player_plays"]
 
 
-def get_player_top_plays_by_points(game_id: int, limit: int = 3, play_type: str = "Offense"):
-    player_plays = get_player_play_stats(game_id, play_type=play_type)
+def get_player_top_plays_by_points(game_id: int, limit: int = 3, play_type: str = "Offense", team_id=None):
+    player_plays = get_player_play_stats(game_id, play_type=play_type, team_id=team_id)
     result = {}
     for entry in player_plays:
         plays = sorted(entry["plays"], key=lambda play: (play["points"], play["possessions"]), reverse=True)
@@ -603,8 +629,8 @@ def get_player_top_plays_by_points(game_id: int, limit: int = 3, play_type: str 
     return result
 
 
-def get_summary_player_top_plays_by_points(game_id: int, limit: int = 3, play_type: str = "Offense"):
-    player_plays = get_summary_player_play_stats(game_id, play_type=play_type)
+def get_summary_player_top_plays_by_points(game_id: int, limit: int = 3, play_type: str = "Offense", team_id=None):
+    player_plays = get_summary_player_play_stats(game_id, play_type=play_type, team_id=team_id)
     result = {}
     for entry in player_plays:
         plays = sorted(entry["plays"], key=lambda play: (play["points"], play["possessions"]), reverse=True)

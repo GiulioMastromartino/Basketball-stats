@@ -360,10 +360,34 @@ class PlayerStat(db.Model):
 
 
 class Play(db.Model):
+    """A team-scoped playbook play.
+
+    Tenant isolation: every Play belongs to one team (team_id) and all
+    lookups MUST filter by (id, team_id) or (team_id, name) — see
+    web/routes/api_v1.py and core/services/game_service.py. Never use
+    Play.query.get(id) or Play.query.filter_by(name=...) alone; both leak
+    cross-team rows (Play hijack).
+
+    Uniqueness: the intended constraint is UNIQUE(team_id, name)
+    (uq_plays_team_name). Existing deployments still carry the legacy
+    global UNIQUE on ``name``; until a migration drops that index and
+    creates the composite, code enforces scoping (team-filtered SELECTs
+    plus IntegrityError retry-SELECT in game_service._create_scoped_play)
+    so the model change never breaks an old database at runtime.
+    """
+
     __tablename__ = "plays"
+    __table_args__ = (
+        db.UniqueConstraint("team_id", "name", name="uq_plays_team_name"),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
-    name = db.Column(db.String(100), unique=True, nullable=False)
+    # NOTE: legacy global unique=True removed in favour of the composite
+    # above. Fresh create_all() gets the composite; migrated DBs need:
+    #   DROP INDEX (unique on plays.name) + ADD CONSTRAINT uq_plays_team_name.
+    # Code-level team scoping + IntegrityError handling keeps old DBs working.
+    name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
     play_type = db.Column(db.String(50), default="Offense")
     source = db.Column(db.String(20), default="imported")

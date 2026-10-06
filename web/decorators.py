@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import abort, flash, redirect, request, url_for, session, current_app
+from flask import abort, flash, jsonify, redirect, request, url_for, session, current_app
 from flask_login import current_user
 
 def _auth_disabled():
@@ -89,6 +89,20 @@ def team_access_required(f):
     return decorated_function
 
 admin_required = gm_required
+
+
+def auditor_write_guard():
+    """JSON 403 for read-only auditors on write endpoints; None otherwise.
+
+    Shared helper mirroring the POST /api/v1/games/import guard
+    (``{"error": "Auditors have read-only access"}``, 403) so JSON
+    writers reuse one message/status. No-op when auth is disabled.
+    """
+    if _auth_disabled():
+        return None
+    if getattr(current_user, "is_auditor", False):
+        return jsonify({"error": "Auditors have read-only access"}), 403
+    return None
 
 
 def require_own_org(org_id):
