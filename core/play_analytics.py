@@ -55,7 +55,7 @@ def _resolve_analytics_team_id(game_id, team_id=None):
     Explicit team_id wins; otherwise derive it from Game.team_id so legacy
     callers passing only (game_id, play_type) still get tenant-scoped
     results. Returns None when the game is missing/has no team (tests that
-    predate multi-tenancy) — callers then fall back to unscoped with a note.
+    predate multi-tenancy) — callers then resolve to an empty play map.
     """
     if team_id is not None:
         return team_id
@@ -70,13 +70,12 @@ def _resolve_analytics_team_id(game_id, team_id=None):
 
 
 def _play_map(play_type, team_id=None):
-    # Tenant-scoped when team_id is known. Unscoped only for legacy callers
-    # without game/team context — NOTE: that path can leak cross-team Plays
-    # into stats; prefer passing team_id (or a game_id whose Game resolves).
-    if team_id is not None:
-        plays = Play.query.filter_by(play_type=play_type, team_id=team_id).all()
-    else:
-        plays = Play.query.filter_by(play_type=play_type).all()
+    # Tenant-scoped when team_id is known. When the team cannot be resolved
+    # there is no safe scope, so return an empty map rather than leaking
+    # cross-team Plays into stats (fail closed).
+    if team_id is None:
+        return {}
+    plays = Play.query.filter_by(play_type=play_type, team_id=team_id).all()
     return {play.id: play for play in plays}
 
 

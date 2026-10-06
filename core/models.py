@@ -369,11 +369,12 @@ class Play(db.Model):
     cross-team rows (Play hijack).
 
     Uniqueness: the intended constraint is UNIQUE(team_id, name)
-    (uq_plays_team_name). Existing deployments still carry the legacy
-    global UNIQUE on ``name``; until a migration drops that index and
-    creates the composite, code enforces scoping (team-filtered SELECTs
-    plus IntegrityError retry-SELECT in game_service._create_scoped_play)
-    so the model change never breaks an old database at runtime.
+    (uq_plays_team_name). Fresh databases get it via create_all(); existing
+    deployments are migrated by scripts/migrate.py::migrate_plays_team_unique
+    (dupe check, drop legacy global index on name, create composite).
+    Code enforces scoping (team-filtered SELECTs plus IntegrityError
+    retry-SELECT in game_service._create_scoped_play) so the model change
+    never breaks an old database at runtime.
     """
 
     __tablename__ = "plays"
@@ -384,8 +385,8 @@ class Play(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     # NOTE: legacy global unique=True removed in favour of the composite
-    # above. Fresh create_all() gets the composite; migrated DBs need:
-    #   DROP INDEX (unique on plays.name) + ADD CONSTRAINT uq_plays_team_name.
+    # above. Fresh create_all() gets the composite; existing databases are
+    # migrated by scripts/migrate.py::migrate_plays_team_unique.
     # Code-level team scoping + IntegrityError handling keeps old DBs working.
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)

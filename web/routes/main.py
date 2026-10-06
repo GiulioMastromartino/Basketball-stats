@@ -537,32 +537,32 @@ def save_live_game():
         )
 
     # Team scope comes from the session only: a client-supplied team_id or
-    # season_id in the JSON body is never trusted.
-    team_id = session.get("current_team_id")
-    if not current_app.config.get("LOGIN_DISABLED", False):
-        try:
+    # season_id in the JSON body is never trusted. Scope checks live inside
+    # the try block so lookup (DB) failures follow the 500 path instead of
+    # being misreported as permission denials.
+    team_id = None
+    try:
+        team_id = session.get("current_team_id")
+        if not current_app.config.get("LOGIN_DISABLED", False):
             allowed_team_ids = {
                 t.id for t in (current_user.assigned_teams or [])
             }
-        except Exception:
-            allowed_team_ids = set()
-        if team_id not in allowed_team_ids:
-            return jsonify({"error": "Unknown team"}), 403
-    raw_season = session.get("current_season_id")
-    if raw_season in (None, ""):
-        season_id = None
-    elif raw_season == "ALL":
-        # "ALL" is a read-scope aggregate, not a valid write target.
-        return jsonify({"error": "Season selection required"}), 400
-    else:
-        try:
-            season_id = int(raw_season)
-        except (TypeError, ValueError):
-            return jsonify({"error": "Unknown season"}), 400
-        if Season.query.filter_by(id=season_id, team_id=team_id).first() is None:
-            return jsonify({"error": "Unknown season"}), 403
+            if team_id not in allowed_team_ids:
+                return jsonify({"error": "Unknown team"}), 403
+        raw_season = session.get("current_season_id")
+        if raw_season in (None, ""):
+            season_id = None
+        elif raw_season == "ALL":
+            # "ALL" is a read-scope aggregate, not a valid write target.
+            return jsonify({"error": "Season selection required"}), 400
+        else:
+            try:
+                season_id = int(raw_season)
+            except (TypeError, ValueError):
+                return jsonify({"error": "Unknown season"}), 400
+            if Season.query.filter_by(id=season_id, team_id=team_id).first() is None:
+                return jsonify({"error": "Unknown season"}), 403
 
-    try:
         game = create_game_from_live_data(
             data, team_id=team_id, season_id=season_id,
         )

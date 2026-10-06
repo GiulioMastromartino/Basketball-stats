@@ -8,6 +8,8 @@ chain that broke whenever the container was rebuilt (missing revision history).
 Strategy:
    1.  db.create_all()        - creates any missing tables, never drops existing ones
    1b. add_missing_columns    - adds new columns (team_id, organization_id) to existing tables
+   1c. notification columns   - adds notification prefs to users/players
+   1d. plays uniqueness       - UNIQUE(name) -> UNIQUE(team_id, name) w/ dupe check
    2.  Seed players           - populate players from distinct player_stats names (idempotent)
    3.  Activate inactive      - fix any players seeded with active=0
    4.  alembic stamp head     - baseline for future flask db migrate / upgrade
@@ -35,6 +37,131 @@ from core.models import (
 )
 from init_db import add_missing_columns, add_notification_columns
 from sqlalchemy import text
+
+
+def migrate_plays_team_unique(app=None):
+    """Idempotent migration: UNIQUE(name) -> UNIQUE(team_id, name) on plays.
+
+    Fresh databases get ``uq_plays_team_name`` via ``db.create_all()`` from
+    the model. Existing databases still carry the legacy global unique index
+    on ``plays.name``, which blocks two teams from using the same play name
+    (import then stores ``play_id=None`` and loses tracking). This helper:
+
+    1. Aborts (non-fatal, returns False) if duplicate (team_id, name) pairs
+       already exist, listing them so an operator can dedupe first.
+    2. Drops the legacy unique index on ``plays.name`` when present.
+    3. Creates ``uq_plays_team_name`` on ``(team_id, name)`` when missing.
+
+    Safe to re-run on every deploy. Returns True when the composite
+    uniqueness is in place, False otherwise.
+    """
+    from sqlalchemy import inspect as sa_inspect
+
+    with app.app_context():
+        engine = db.engine
+        dialect = engine.dialect.name
+
+        dupes = db.session.execute(
+            text(
+                "SELECT team_id, name, COUNT(*) AS n FROM plays "
+                "GROUP BY team_id, name HAVING COUNT(*) > 1 LIMIT 10"
+            )
+        ).all()
+        if dupes:
+            print(
+                "[migrate] Plays have duplicate (team_id, name) pairs; "
+                "dedupe before applying uq_plays_team_name:"
+            )
+            for team_id, name, n in dupes:
+                print(f"[migrate]   team_id={team_id} name={name!r} rows={n}")
+            return False
+
+        if dialect == "postgresql":
+            db.session.execute(
+                text(
+                    "ALTER TABLE plays DROP CONSTRAINT IF EXISTS plays_name_key"
+                )
+            )
+            # Drop any legacy unique index that enforced global name uniqueness.
+            for row in db.session.execute(
+                text(
+                    "SELECT indexname FROM pg_indexes "
+                    "WHERE tablename = 'plays'"
+                )
+            ).all():
+                idx = row[0]
+                if idx == "uq_plays_team_name":
+                    continue
+                cols = db.session.execute(
+                    text(
+                        "SELECT array_agg(a.attname ORDER BY i.indkey::int[]) "
+                        "FROM pg_index i JOIN pg_attribute a "
+                        "ON a.attrelid = i.indrelid "
+                        "AND a.attnum = ANY(i.indkey) "
+                        "WHERE i.indexrelid = :idx::regclass"
+                    ),
+                    {"idx": idx},
+                ).scalar()
+                if list(cols or []) == ["name"]:
+                    db.session.execute(
+                        text(f'DROP INDEX IF EXISTS "{idx}"')
+                    )
+                    print(f"[migrate] Dropped legacy unique index {idx} on plays.name.")
+            db.session.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_plays_team_name "
+                    "ON plays (team_id, name)"
+                )
+            )
+            db.session.commit()
+            print("[migrate] uq_plays_team_name is in place (postgresql).")
+            return True
+
+        # SQLite and other dialects: inspect index metadata.
+        inspector = sa_inspect(engine)
+        indexes = {idx["name"]: idx for idx in inspector.get_indexes("plays")}
+        unique_constraints = set()
+        try:
+            unique_constraints = {
+                c.get("name")
+                for c in inspector.get_unique_constraints("plays")
+            }
+        except NotImplementedError:
+            pass
+
+        if "uq_plays_team_name" in indexes or "uq_plays_team_name" in unique_constraints:
+            print("[migrate] uq_plays_team_name already present.")
+            return True
+
+        # Drop a legacy unique index on (name) alone when it is droppable.
+        # A table-level UNIQUE(name) shows up as an sqlite_autoindex that
+        # cannot be dropped without a table rebuild; that case is logged and
+        # left to code-level scoping until the table is recreated.
+        for idx_name, idx in indexes.items():
+            if idx_name == "uq_plays_team_name":
+                continue
+            if idx.get("unique") and list(idx.get("column_names") or []) == ["name"]:
+                if idx_name.startswith("sqlite_autoindex"):
+                    print(
+                        "[migrate] Legacy table-level UNIQUE(plays.name) is an "
+                        f"{idx_name}; SQLite cannot drop it without a rebuild. "
+                        "Code-level team scoping stays active; fresh "
+                        "create_all() databases already use the composite."
+                    )
+                    return False
+                with engine.begin() as conn:
+                    conn.execute(text(f'DROP INDEX IF EXISTS "{idx_name}"'))
+                print(f"[migrate] Dropped legacy unique index {idx_name} on plays.name.")
+
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_plays_team_name "
+                    "ON plays (team_id, name)"
+                )
+            )
+        print("[migrate] uq_plays_team_name is in place (sqlite).")
+        return True
 
 
 def run(app=None):
@@ -71,6 +198,16 @@ def run(app=None):
             print("[migrate] Notification columns added successfully.")
         except Exception as e:
             print(f"[migrate] Warning: add_notification_columns failed: {e}")
+
+        # ── 1d. Plays uniqueness: UNIQUE(name) -> UNIQUE(team_id, name) ────
+        # db.create_all() never alters existing tables, so deployments that
+        # predate the composite keep the legacy global unique index on
+        # plays.name (cross-team duplicate names then lose play tracking).
+        print("[migrate] Migrating plays uniqueness to (team_id, name)...")
+        try:
+            migrate_plays_team_unique(app)
+        except Exception as e:
+            print(f"[migrate] Warning: plays uniqueness migration failed: {e}")
 
         # ── 2. Seed players from player_stats (idempotent) ─────────────────
         try:

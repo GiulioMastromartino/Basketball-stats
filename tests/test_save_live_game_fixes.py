@@ -302,3 +302,84 @@ class TestSaveValidation:
 
         assert second.status_code in [400, 409]
         assert "already exists" in second.get_data(as_text=True).lower()
+
+
+class TestScopeLookupFailure500:
+    """DB failures during scope checks are server errors, not denials."""
+
+    @pytest.mark.integration
+    def test_assigned_teams_failure_is_500_not_403(
+        self, auth_client, live_game_payload, monkeypatch
+    ):
+        import web.routes.main as main_routes
+
+        class _BrokenTeams:
+            is_auditor = False
+            id = 1
+
+            @property
+            def assigned_teams(self):
+                raise RuntimeError("db down")
+
+        monkeypatch.setattr(main_routes, "current_user", _BrokenTeams())
+
+        response = auth_client.post(
+            "/live-game/save", json=live_game_payload,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data["error"] == "Failed to save game"
+        assert "request_id" in data
+        assert "db down" not in response.get_data(as_text=True)
+
+
+class TestPlayMapUnresolved:
+    """Unresolved team scope must fail closed (no cross-team leak)."""
+
+    def test_play_map_none_team_returns_empty(self, db_session):
+        from core.play_analytics import _play_map
+
+        assert _play_map("Offense", team_id=None) == {}
+
+
+class TestPlaysUniquenessMigration:
+    """Composite (team_id, name) uniqueness migration is safe and idempotent."""
+
+    def test_migration_noop_when_composite_present(
+        self, app, db_session, default_org
+    ):
+        from scripts.migrate import migrate_plays_team_unique
+
+        assert migrate_plays_team_unique(app) is True
+        # Idempotent: second run is also a clean no-op.
+        assert migrate_plays_team_unique(app) is True
+
+    @pytest.mark.integration
+    def test_cross_team_same_name_coexists(
+        self, app, db_session, default_org, default_team
+    ):
+        from scripts.migrate import migrate_plays_team_unique
+
+        team_b = Team(
+            name="Team B Same Name",
+            organization_id=default_org.id,
+            slug="team-b-same-name",
+        )
+        db_session.add(team_b)
+        db_session.commit()
+
+        db_session.add(
+            Play(name="Shared Play", team_id=default_team.id, play_type="Offense")
+        )
+        db_session.add(
+            Play(name="Shared Play", team_id=team_b.id, play_type="Offense")
+        )
+        db_session.commit()
+
+        assert (
+            Play.query.filter_by(name="Shared Play").count() == 2
+        )
+        # The migration helper must accept this state (no dupes within a team).
+        assert migrate_plays_team_unique(app) is True
