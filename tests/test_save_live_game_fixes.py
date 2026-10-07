@@ -9,10 +9,23 @@ Covers:
   non-dict rows, duplicate guard)
 """
 
+import ast
 import copy
+import inspect
 import json
 
 import pytest
+from sqlalchemy import (
+    Column,
+    Integer,
+    MetaData,
+    Table,
+    UniqueConstraint,
+)
+from sqlalchemy import (
+    inspect as sa_inspect,
+)
+from sqlalchemy.exc import IntegrityError
 
 from core.models import (
     Game,
@@ -23,6 +36,7 @@ from core.models import (
     Team,
     TeamAssignment,
     User,
+    db,
 )
 
 
@@ -383,3 +397,186 @@ class TestPlaysUniquenessMigration:
         )
         # The migration helper must accept this state (no dupes within a team).
         assert migrate_plays_team_unique(app) is True
+
+
+def _recreate_legacy_plays_table(app):
+    """Replace `plays` with the pre-PR shape: a global UNIQUE(name).
+
+    Built from the live model so it tracks column additions; only the
+    __table_args__ differs (UNIQUE(name) instead of UNIQUE(team_id, name)).
+    Mirrors what ``db.create_all()`` produced on a deployment predating
+    this PR -- SQLite renders that as an inline table constraint.
+    """
+    engine = db.engine
+    meta = MetaData()
+    # Stub so the plays.team_id foreign key resolves during DDL compilation.
+    Table("teams", meta, Column("id", Integer, primary_key=True))
+    legacy = Table(
+        "plays",
+        meta,
+        *(c.copy() for c in Play.__table__.columns),
+    )
+    legacy.append_constraint(UniqueConstraint("name"))
+
+    with engine.begin() as conn:
+        conn.exec_driver_sql("DROP TABLE IF EXISTS plays")
+    legacy.create(engine)
+    return legacy
+
+
+def _assert_composite_unique_only(engine):
+    """The only uniqueness on plays must be UNIQUE(team_id, name)."""
+    constraints = sa_inspect(engine).get_unique_constraints("plays")
+    assert not any(
+        list(c.get("column_names") or []) == ["name"] for c in constraints
+    ), "legacy global UNIQUE(plays.name) still present"
+    assert any(
+        list(c.get("column_names") or []) == ["team_id", "name"] for c in constraints
+    ), "composite UNIQUE(team_id, name) missing"
+
+
+class TestPlaysUniquenessMigrationLegacySQLite:
+    """The legacy global UNIQUE(name) must actually be removed.
+
+    Regression: the migration used to report success while that constraint
+    survived, because SQLAlchemy reflects an inline SQLite UNIQUE(name) via
+    get_unique_constraints (name=None) and never via get_indexes, so the
+    drop loop was skipped and the next run early-returned on the composite
+    index. Cross-team same-name imports then hit IntegrityError and
+    game_service._create_scoped_play silently stored play_id=None.
+    """
+
+    def test_legacy_global_unique_is_removed(self, app, db_session, default_team):
+        from scripts.migrate import migrate_plays_team_unique
+
+        _recreate_legacy_plays_table(app)
+        db_session.add(
+            Play(name="Horns", team_id=default_team.id, play_type="Offense")
+        )
+        db_session.commit()
+
+        assert migrate_plays_team_unique(app) is True
+
+        inspector = sa_inspect(db.engine)
+        constraints = inspector.get_unique_constraints("plays")
+        assert not any(
+            list(c.get("column_names") or []) == ["name"] for c in constraints
+        ), "legacy global UNIQUE(plays.name) still present"
+        assert any(
+            list(c.get("column_names") or []) == ["team_id", "name"]
+            for c in constraints
+        ), "composite UNIQUE(team_id, name) missing"
+
+    def test_cross_team_same_name_survives_after_migration(
+        self, app, db_session, default_org, default_team
+    ):
+        from scripts.migrate import migrate_plays_team_unique
+
+        _recreate_legacy_plays_table(app)
+        assert migrate_plays_team_unique(app) is True
+
+        team_b = Team(
+            name="Team B Legacy",
+            organization_id=default_org.id,
+            slug="team-b-legacy",
+        )
+        db_session.add(team_b)
+        db_session.commit()
+
+        # The whole point of the composite: two teams may reuse a play name.
+        db_session.add(Play(name="Iso", team_id=default_team.id, play_type="Offense"))
+        db_session.add(Play(name="Iso", team_id=team_b.id, play_type="Offense"))
+        db_session.commit()
+        assert Play.query.filter_by(name="Iso").count() == 2
+
+        # ...but a single team still cannot.
+        with pytest.raises(IntegrityError):
+            db_session.add(
+                Play(name="Iso", team_id=default_team.id, play_type="Defense")
+            )
+            db_session.commit()
+        db_session.rollback()
+
+    def test_existing_rows_survive_the_rebuild(self, app, db_session, default_team):
+        from scripts.migrate import migrate_plays_team_unique
+
+        _recreate_legacy_plays_table(app)
+        db_session.add(
+            Play(name="Horns", team_id=default_team.id, play_type="Offense")
+        )
+        db_session.commit()
+
+        assert migrate_plays_team_unique(app) is True
+        # Re-runs must be clean no-ops on the already-migrated schema.
+        assert migrate_plays_team_unique(app) is True
+        _assert_composite_unique_only(db.engine)
+        assert Play.query.filter_by(name="Horns").count() == 1
+
+    def test_migration_rebuilds_legacy_table_and_keeps_play_sequences_fk(
+        self, app, db_session, default_team
+    ):
+        """Rebuild renames plays_new -> plays; play_sequences must still resolve."""
+        from scripts.migrate import migrate_plays_team_unique
+
+        _recreate_legacy_plays_table(app)
+        play = Play(name="Horns", team_id=default_team.id, play_type="Offense")
+        db_session.add(play)
+        db_session.commit()
+
+        assert migrate_plays_team_unique(app) is True
+        _assert_composite_unique_only(db.engine)
+        db_session.expire_all()
+        assert Play.query.get(play.id) is not None
+
+
+class TestPostgresIndexProbeBinding:
+    """The Postgres index probe must not use ``:idx::regclass``.
+
+    SQLAlchemy's bind-param regex mis-parses ``:idx::regclass`` as the
+    parameter ``id``, so ``{"idx": ...}`` never binds and the literal colon
+    reaches the server -- the migration then dies on the first index
+    (plays_pkey) and run() swallows the error as a warning.
+    """
+
+    def test_double_colon_cast_binds_the_wrong_parameter(self):
+        from sqlalchemy import text
+
+        assert set(text("WHERE i.indexrelid = :idx::regclass")._bindparams) == {"id"}
+        assert set(
+            text("WHERE i.indexrelid = CAST(:idx AS regclass)")._bindparams
+        ) == {"idx"}
+
+    def test_migration_sql_avoids_the_double_colon_form(self):
+        """Check the SQL literals themselves, ignoring explanatory comments."""
+        from scripts import migrate as migrate_mod
+
+        source = inspect.getsource(migrate_mod.migrate_plays_team_unique)
+        sql_literals = [
+            node.value
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        ]
+        for literal in sql_literals:
+            assert ":idx::regclass" not in literal, (
+                f"SQL literal still uses :idx::regclass -> {literal!r}"
+            )
+        assert any("CAST(:idx AS regclass)" in lit for lit in sql_literals)
+        # A non-unique index on name is a legitimate perf index.
+        assert any("i.indisunique" in lit for lit in sql_literals)
+
+    def test_incomplete_legacy_table_is_left_alone(self, app, db_session, default_team):
+        """A plays table missing model columns must not be half-migrated."""
+        from scripts.migrate import migrate_plays_team_unique
+
+        _recreate_legacy_plays_table(app)
+        with db.engine.begin() as conn:
+            conn.exec_driver_sql("ALTER TABLE plays DROP COLUMN tags")
+
+        # Rebuild would copy a column the table does not have, so the
+        # migration reports failure and leaves the legacy constraint alone.
+        assert migrate_plays_team_unique(app) is False
+        inspector = sa_inspect(db.engine)
+        assert any(
+            list(c.get("column_names") or []) == ["name"]
+            for c in inspector.get_unique_constraints("plays")
+        )
