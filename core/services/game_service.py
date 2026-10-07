@@ -1,6 +1,8 @@
 import copy
 import json
+import math
 import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from core.models import Game, PlayerStat, ShotEvent, GameEvent, Play, db
@@ -135,6 +137,10 @@ def infer_zone_from_coords(x, y):
     """
     if x is None or y is None:
         return None
+    if isinstance(x, bool) or isinstance(y, bool):
+        return None
+    if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return None
     
     # Court is 500 x 470 (normalized)
     # Basket is at approximately x=250
@@ -228,6 +234,8 @@ def _normalize_payload_plays(data, is_nested_import):
 
 def get_nested_value(data, *keys, default=None):
     """Get a value from a dict trying multiple possible key names."""
+    if not isinstance(data, dict):
+        return default
     for key in keys:
         if key in data:
             return data[key]
@@ -238,6 +246,10 @@ def _safe_int(value):
     """Best-effort integer coercion for imported timeline fields."""
     if value is None or value == "":
         return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -245,6 +257,197 @@ def _safe_int(value):
             return int(float(value))
         except (TypeError, ValueError):
             return None
+
+
+def _safe_float(value):
+    """Best-effort float coercion; returns None on garbage, never crashes."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(result):
+        return None
+    return result
+
+
+_VALID_GAME_TYPES = {"Season", "Friendly", "Playoff", "Tournament"}
+
+
+def _parse_schema_version(value):
+    """Strictly parse schema_version into 1..4; raise ValueError otherwise."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return 1
+    if isinstance(value, bool):
+        raise ValueError("Invalid schema_version: must be 1..4")
+    try:
+        if isinstance(value, str):
+            parsed = int(float(value.strip()))
+        elif isinstance(value, float):
+            parsed = int(value)
+        else:
+            parsed = int(value)
+    except (TypeError, ValueError):
+        raise ValueError("Invalid schema_version: must be 1..4")
+    if parsed < 1 or parsed > 4:
+        raise ValueError("Invalid schema_version: must be 1..4")
+    return parsed
+
+
+def _normalize_game_type(value):
+    """None-safe allowlisted game_type truncated to the DB column width."""
+    if value is None:
+        return "Season"
+    text = value.strip() if isinstance(value, str) else str(value).strip()
+    if not text:
+        return "Season"
+    text = text[:20]
+    if text not in _VALID_GAME_TYPES:
+        return "Season"
+    return text
+
+
+def _coerce_score(value):
+    """Coerce a score via _safe_int with >=0 clamp; garbage becomes 0."""
+    coerced = _safe_int(value)
+    if coerced is None:
+        return 0
+    return max(0, coerced)
+
+
+def _validate_game_dates(raw_date):
+    """Validate raw date with datetime; return (display_date, sort_date).
+
+    Rejects impossible month/day and raises ValueError instead of
+    silently truncating overlong strings.
+    """
+    if raw_date is None:
+        raise ValueError("Game date is required")
+    raw_str = str(raw_date).strip()
+    if not raw_str:
+        raise ValueError("Game date is required")
+
+    if re.match(r"^\d{4}[-/]\d{2}[-/]\d{2}$", raw_str):
+        try:
+            if "-" in raw_str:
+                parsed = datetime.strptime(raw_str, "%Y-%m-%d")
+            else:
+                parsed = datetime.strptime(raw_str, "%Y/%m/%d")
+        except ValueError:
+            raise ValueError(f"Invalid game date: {raw_str}")
+        sort_date = f"{parsed.year:04d}-{parsed.month:02d}-{parsed.day:02d}"
+        display_date = f"{parsed.day:02d}-{parsed.month:02d}-{parsed.year:04d}"
+        return display_date, sort_date
+
+    match = re.match(r"^(\d{2})[-/](\d{2})[-/](\d{4})$", raw_str)
+    if match:
+        day_s, month_s, year_s = match.groups()
+        try:
+            parsed = datetime(int(year_s), int(month_s), int(day_s))
+        except ValueError:
+            raise ValueError(f"Invalid game date: {raw_str}")
+        sort_date = f"{parsed.year:04d}-{parsed.month:02d}-{parsed.day:02d}"
+        display_date = normalize_date_to_display(raw_str)
+        if not re.match(r"^\d{2}/\d{2}/\d{4}$", display_date):
+            display_date = f"{parsed.day:02d}/{parsed.month:02d}/{parsed.year:04d}"
+        return display_date, sort_date
+
+    raise ValueError(f"Invalid game date: {raw_str}")
+
+
+def _validate_minutes(value):
+    """Validate MM:SS minutes; garbage becomes '00:00', never crashes."""
+    if value is None:
+        return "00:00"
+    text = value.strip()[:10] if isinstance(value, str) else str(value).strip()[:10]
+    if re.match(r"^\d{1,3}:\d{2}$", text):
+        try:
+            _mm, _ss = text.split(":", 1)
+            if 0 <= int(_ss) < 60:
+                return text
+        except (TypeError, ValueError):
+            pass
+        return "00:00"
+    return "00:00"
+
+
+def _normalize_shot_type(value):
+    """Normalize shot_type; None-safe, lowercased, DB-width truncated."""
+    if value is None:
+        return ""
+    text = value.strip() if isinstance(value, str) else str(value).strip()
+    return text.strip().lower()[:10]
+
+
+def _normalize_shot_result(value):
+    """Normalize shot result; defaults to None (not 'made'), never crashes."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return None
+    text = value.strip().lower()
+    if not text:
+        return None
+    return text[:10]
+
+
+def _normalize_play_lookup(name):
+    """Normalize a play name for lookup: strip + collapse whitespace.
+
+    Lookup is case-preserving (display name keeps its case); only
+    surrounding whitespace and repeated internal spaces are collapsed
+    so "  Horns   Twist " and "Horns Twist" resolve to the same key.
+    Returns "" for non-string / empty / whitespace-only input.
+    """
+    if not isinstance(name, str):
+        return ""
+    return " ".join(name.strip().split())
+
+
+def _create_scoped_play(team_id, display_name, play_type="Offense"):
+    """Create a team-scoped Play, tolerating concurrent-create races.
+
+    Uses a SAVEPOINT (begin_nested) so an IntegrityError only rolls back
+    the single Play insert, not the enclosing game import. On conflict,
+    re-SELECTs the team-scoped row and returns it. Never falls back to a
+    cross-team row: if the scoped SELECT finds nothing (e.g. legacy
+    global UNIQUE on plays.name blocks a cross-team duplicate), returns
+    None so callers store play_id=None instead of hijacking another
+    team's Play. Callers must already have strip-guarded display_name.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    if not display_name:
+        return None
+    try:
+        with db.session.begin_nested():
+            new_play = Play(
+                name=display_name,
+                play_type=play_type or "Offense",
+                source="imported",
+                team_id=team_id,
+            )
+            db.session.add(new_play)
+            db.session.flush()
+        return new_play
+    except IntegrityError:
+        existing = Play.query.filter_by(team_id=team_id, name=display_name).first()
+        if existing is not None:
+            return existing
+        try:
+            current_app.logger.warning(
+                "Play create conflict for team %s name %r without scoped row; skipping",
+                team_id,
+                display_name,
+            )
+        except Exception:
+            pass
+        return None
 
 
 def _clock_seconds_to_time_remaining(clock_seconds: Optional[int]) -> Optional[str]:
@@ -322,7 +525,10 @@ def _build_shot_import_records(
     """Keep raw shot metadata for schema 4 event reconciliation."""
     records: List[Dict[str, Any]] = []
 
-    for index, s_data in enumerate(shot_events_source):
+    source_list = shot_events_source if isinstance(shot_events_source, list) else []
+    for s_data in source_list:
+        if not isinstance(s_data, dict):
+            continue
         shooter = get_nested_value(
             s_data, "player_name", "player", "shooter", default=""
         )
@@ -331,24 +537,28 @@ def _build_shot_import_records(
             get_nested_value(s_data, "clockSeconds", "clock_seconds", "clock")
         )
         timestamp = _safe_int(get_nested_value(s_data, "timestamp", "time", default=0))
-        shot_type = get_nested_value(s_data, "shot_type", "type", "ShotType", default="")
-        result = get_nested_value(s_data, "result", "Result", "made")
+        shot_type_raw = get_nested_value(s_data, "shot_type", "type", "ShotType", default="")
+        result_raw = get_nested_value(s_data, "result", "Result", "made")
         x = get_nested_value(s_data, "x_loc", "x", "xLoc")
         y = get_nested_value(s_data, "y_loc", "y", "yLoc")
         points = _safe_int(get_nested_value(s_data, "points", "Points", "pts", default=0))
 
+        shooter_norm = shooter.strip().lower() if isinstance(shooter, str) else ""
+        shot_type_norm = _normalize_shot_type(shot_type_raw)
+        result_norm = _normalize_shot_result(result_raw)
+
         records.append(
             {
-                "index": index,
-                "shooter": shooter.strip().lower() if shooter else "",
+                "index": len(records),
+                "shooter": shooter_norm,
                 "quarter": quarter,
                 "clock_seconds": clock_seconds,
                 "timestamp": timestamp,
-                "shot_type": shot_type.strip().lower() if shot_type else "",
-                "result": result,
-                "x_loc": float(x) if x is not None else None,
-                "y_loc": float(y) if y is not None else None,
-                "points": points or 0,
+                "shot_type": shot_type_norm,
+                "result": result_norm,
+                "x_loc": _safe_float(x),
+                "y_loc": _safe_float(y),
+                "points": max(0, points) if points is not None else 0,
                 "used": False,
             }
         )
@@ -360,7 +570,10 @@ def _build_raw_event_contexts(game_events_source: List[Dict[str, Any]]) -> List[
     """Normalize raw event timeline metadata for schema 4 gap filling."""
     contexts: List[Dict[str, Any]] = []
 
-    for index, e_data in enumerate(game_events_source):
+    source_list = game_events_source if isinstance(game_events_source, list) else []
+    for index, e_data in enumerate(source_list):
+        if not isinstance(e_data, dict):
+            continue
         quarter = _safe_int(get_nested_value(e_data, "quarter", "q", "period"))
         clock_seconds = _safe_int(
             get_nested_value(e_data, "clockSeconds", "clock_seconds", "clock")
@@ -405,7 +618,7 @@ def _match_schema4_shot_record(
     clock_seconds: Optional[int],
 ) -> Optional[Dict[str, Any]]:
     """Match a team shot event to the best raw shot record deterministically."""
-    normalized_player = player_name.strip().lower() if player_name else ""
+    normalized_player = player_name.strip().lower() if isinstance(player_name, str) else ""
     shot_family = _normalize_shot_family(event_type)
 
     candidates = [
@@ -476,7 +689,7 @@ def _build_safe_shot_backfill_matches(
         if not event.play_id or not event.player_name:
             continue
 
-        player_key = event.player_name.strip().lower()
+        player_key = event.player_name.strip().lower() if isinstance(event.player_name, str) else ""
         shot_family = _normalize_shot_family(event.event_type)
         if not shot_family:
             continue
@@ -572,7 +785,9 @@ def _score_delta_for_event(event: GameEvent) -> int:
     if event.event_type == "FT_MADE":
         return 1
     if event.event_type == "FT":
-        return _parse_detail_dict(event.detail).get("ftm", 0) or 0
+        ftm_raw = _parse_detail_dict(event.detail).get("ftm", 0)
+        ftm_val = _safe_int(ftm_raw)
+        return ftm_val if ftm_val is not None else 0
     if event.event_type == "OPP_SCORE":
         detail = _parse_detail_dict(event.detail)
         points = detail.get("points", 0)
@@ -663,7 +878,7 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
     Handles 'IMPORT_JSON' style structure (nested objects) vs 'LIVE' style (flat structure).
     Also supports legacy key name variations for backwards compatibility.
     """
-    if not data:
+    if not isinstance(data, dict) or not data:
         raise ValueError("No data received")
 
     # team_id is required by the schema; fall back to the first team so
@@ -671,17 +886,18 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
     team_id = resolve_team_id(team_id)
 
     # Extract format metadata for post-processing decisions
-    schema_version = data.get("schema_version", 1)  # Default to v1 if not present
-    features = data.get("features", {})  # Feature flags dict
+    schema_version = _parse_schema_version(data.get("schema_version", 1))
+    raw_features = data.get("features")
+    features = raw_features if isinstance(raw_features, dict) else {}
 
     # Detect structure type (Nested 'game' object vs Flat)
-    is_nested_import = "game" in data
-    
+    is_nested_import = isinstance(data.get("game"), dict)
+
     # For re-imports: remove IDs from data to prevent SQLAlchemy from updating existing records
     # This ensures new records are created instead of updating existing ones
-    if is_nested_import and "game" in data:
+    if is_nested_import:
         data = copy.deepcopy(data)
-        if "game" in data and isinstance(data["game"], dict):
+        if isinstance(data.get("game"), dict):
             data["game"].pop("id", None)
         for key in ["game_events", "shot_events", "player_stats"]:
             if key in data and isinstance(data[key], list):
@@ -696,37 +912,39 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
         game_data = data["game"]
         raw_date = get_nested_value(game_data, "date", "Date", "game_date")
 
-        # Determine dates
-        # JSON import usually has pre-formatted dates, but we verify
-        if raw_date and re.match(r"^\d{4}-\d{2}-\d{2}$", raw_date):
-            # It's YYYY-MM-DD
-            sort_date = raw_date
-            # Convert to DD-MM-YYYY for display
-            parts = raw_date.split("-")
-            display_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
-        else:
-            # Assume it's already display format or needs normalization
-            display_date = normalize_date_to_display(raw_date)
-            sort_date = normalize_sort_date(raw_date)
+        # Strict date validation: coerce via str().strip(), reject
+        # impossible month/day via datetime, raise instead of truncating.
+        display_date, sort_date = _validate_game_dates(raw_date)
 
-        opponent = get_nested_value(game_data, "opponent", "Opponent", "vs", "versus")
-        team_score = int(
+        opponent_raw = get_nested_value(game_data, "opponent", "Opponent", "vs", "versus")
+        opponent = opponent_raw.strip() if isinstance(opponent_raw, str) else (
+            str(opponent_raw).strip() if opponent_raw is not None else ""
+        )
+        if not opponent:
+            raise ValueError("Opponent is required")
+        if len(opponent) > 100:
+            raise ValueError("Opponent must be 1..100 characters")
+        team_score = _coerce_score(
             get_nested_value(
                 game_data, "team_score", "TeamScore", "our_score", default=0
             )
         )
-        opponent_score = int(
+        opponent_score = _coerce_score(
             get_nested_value(
                 game_data, "opponent_score", "OpponentScore", "their_score", default=0
             )
         )
-        game_type = get_nested_value(
-            game_data, "game_type", "GameType", "type", default="Season"
+        game_type = _normalize_game_type(
+            get_nested_value(
+                game_data, "game_type", "GameType", "type", default="Season"
+            )
         )
         source = "IMPORT_JSON"
-        
+
         # Override schema version if provided in the nested game object
-        schema_version = get_nested_value(game_data, "schema_version", "schemaversion", default=schema_version)
+        schema_version = _parse_schema_version(
+            get_nested_value(game_data, "schema_version", "schemaversion", default=schema_version)
+        )
 
         # Player stats list - support multiple key names
         player_stats_source = get_nested_value(
@@ -745,31 +963,37 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
         # LIVE GAME payload
         raw_date = get_nested_value(data, "date", "Date", "game_date")
 
-        # Handle date logic for LIVE input
-        if raw_date and re.match(r"^\d{4}-\d{2}-\d{2}$", raw_date):
-            sort_date = raw_date
-            parts = raw_date.split("-")
-            display_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
-        else:
-            display_date = normalize_date_to_display(raw_date)
-            sort_date = normalize_sort_date(raw_date)
+        # Strict date validation: coerce via str().strip(), reject
+        # impossible month/day via datetime, raise instead of truncating.
+        display_date, sort_date = _validate_game_dates(raw_date)
 
-        opponent = get_nested_value(data, "opponent", "Opponent", "vs", "versus")
-        team_score = int(
+        opponent_raw = get_nested_value(data, "opponent", "Opponent", "vs", "versus")
+        opponent = opponent_raw.strip() if isinstance(opponent_raw, str) else (
+            str(opponent_raw).strip() if opponent_raw is not None else ""
+        )
+        if not opponent:
+            raise ValueError("Opponent is required")
+        if len(opponent) > 100:
+            raise ValueError("Opponent must be 1..100 characters")
+        team_score = _coerce_score(
             get_nested_value(data, "team_score", "TeamScore", "our_score", default=0)
         )
-        opponent_score = int(
+        opponent_score = _coerce_score(
             get_nested_value(
                 data, "opponent_score", "OpponentScore", "their_score", default=0
             )
         )
-        game_type = get_nested_value(
-            data, "game_type", "GameType", "type", default="Season"
+        game_type = _normalize_game_type(
+            get_nested_value(
+                data, "game_type", "GameType", "type", default="Season"
+            )
         )
         source = "LIVE"
-        
+
         # Override schema version if provided in flat payload
-        schema_version = get_nested_value(data, "schema_version", "schemaversion", default=schema_version)
+        schema_version = _parse_schema_version(
+            get_nested_value(data, "schema_version", "schemaversion", default=schema_version)
+        )
 
         # LIVE payload uses a Dict for player_stats, list for others
         player_stats_source = get_nested_value(
@@ -783,22 +1007,13 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
             data, "game_events", "GameEvents", "events", "Events", default=[]
         )
 
-    # Validate constraints
-    if len(display_date) > 10:
-        # Emergency truncation or fix to prevent DB crash
-        # If it's 2026/01/2015 -> try to salvage or fail
-        current_app.logger.warning(
-            f"Date format too long: {display_date}. Attempting fix."
-        )
-        display_date = display_date[:10]
-
-    # Clean schema version (handle string like "3.0")
-    try:
-        if isinstance(schema_version, str):
-            schema_version = float(schema_version)
-        schema_version = int(schema_version)
-    except:
-        schema_version = 1
+    # Duplicate guard mirroring upload_game CSV/PDF/JSON checks so the
+    # route maps this ValueError to 400/409 instead of double-importing.
+    existing_game = Game.query.filter_by(
+        team_id=team_id, sort_date=sort_date, opponent=opponent
+    ).first()
+    if existing_game:
+        raise ValueError("Game already exists")
 
     # Create Game
     game = Game(
@@ -819,50 +1034,93 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
 
     # --- Performance Optimization: Play Cache ---
     # Pre-fetch all plays and sync payload-provided plays before ingesting events.
+    # Tenant-scoped: every lookup/creation below is filtered by team_id so a
+    # payload can never resolve to (hijack) another team's Play. Mirrors the
+    # route pattern Play.query.filter_by(id=..., team_id=...).first().
     from core.models import Play
-    existing_plays = Play.query.all()
-    play_cache = {p.name: p.id for p in existing_plays}
+    existing_plays = Play.query.filter_by(team_id=team_id).all()
+    play_cache = {_normalize_play_lookup(p.name): p.id for p in existing_plays}
     play_id_cache = {p.id: p.id for p in existing_plays}
 
     payload_plays = _normalize_payload_plays(data, is_nested_import)
+    # Import-local payload-id -> synced-id map. Payload-defined ids (e.g. 101)
+    # are external references, not DB ids: mapping them locally preserves
+    # valid imports (shot/event play_id 101 -> synced play) without ever
+    # aliasing arbitrary ids into the global play_id_cache (which would let
+    # a payload claim a cross-team DB id). Team isolation (filter_by team_id)
+    # below is untouched.
+    payload_id_map: Dict[int, int] = {}
     for payload_play in payload_plays:
         if not isinstance(payload_play, dict):
             continue
         payload_play_id = _safe_int(get_nested_value(payload_play, "id", "play_id", "playId"))
-        payload_play_name = get_nested_value(payload_play, "name", "play_name", "playName")
-        payload_play_name = payload_play_name.strip() if isinstance(payload_play_name, str) else ""
+        raw_play_name = get_nested_value(payload_play, "name", "play_name", "playName")
+        lookup_name = _normalize_play_lookup(raw_play_name)
+        display_name = lookup_name  # collapsed, case-preserved; never ""-created (guarded below)
         payload_play_type = get_nested_value(payload_play, "play_type", "playType", default="Offense") or "Offense"
 
-        existing_by_name = Play.query.filter_by(name=payload_play_name).first() if payload_play_name else None
-        existing_by_id = Play.query.get(payload_play_id) if payload_play_id else None
+        existing_by_id = (
+            Play.query.filter_by(id=payload_play_id, team_id=team_id).first()
+            if payload_play_id
+            else None
+        )
+        existing_by_name = None
+        if lookup_name:
+            if lookup_name in play_cache:
+                cached_id = play_cache[lookup_name]
+                existing_by_name = Play.query.filter_by(id=cached_id, team_id=team_id).first()
+                if existing_by_name is None:
+                    existing_by_name = Play.query.filter_by(team_id=team_id, name=display_name).first()
+            else:
+                existing_by_name = Play.query.filter_by(team_id=team_id, name=display_name).first()
 
         if existing_by_id:
             synced_play = existing_by_id
         elif existing_by_name:
             synced_play = existing_by_name
-        elif payload_play_name:
-            synced_play = Play(name=payload_play_name, play_type=payload_play_type, source="imported", team_id=team_id)
-            db.session.add(synced_play)
-            db.session.flush()
+        elif display_name:
+            synced_play = _create_scoped_play(team_id, display_name, payload_play_type)
+            if synced_play is None:
+                continue
         else:
             continue
 
-        play_cache[synced_play.name] = synced_play.id
+        play_cache[_normalize_play_lookup(synced_play.name)] = synced_play.id
         play_id_cache[synced_play.id] = synced_play.id
-        if payload_play_id:
-            play_id_cache[payload_play_id] = synced_play.id
+        # Import-local mapping only (not global alias): payload ids defined
+        # with a name in this import resolve to the synced play for later
+        # shot/event references. Arbitrary/undefined ids are never aliased.
+        if payload_play_id is not None and payload_play_id != synced_play.id:
+            # Only map ids that were explicitly defined with a name in the
+            # payload plays list (or embedded refs with names); bare id-only
+            # entries (no name) are skipped above via display_name guard, so
+            # they never create a mapping here.
+            if lookup_name:
+                payload_id_map.setdefault(payload_play_id, synced_play.id)
+        # SECURITY: never alias play_id_cache[payload_play_id] = synced_play.id
+        # when the requested id differs from the created/found id. That alias
+        # would let a payload claim an arbitrary (e.g. cross-team) id and have
+        # later events silently resolve to the wrong Play.
 
     def get_cached_play_id(name):
-        if not name: return None
-        name = name.strip()
-        if name in play_cache:
-            return play_cache[name]
-        
-        # Create new if not in cache
-        new_p = Play(name=name, play_type="Offense", source="imported", team_id=team_id)
-        db.session.add(new_p)
-        db.session.flush()
-        play_cache[name] = new_p.id
+        # Strip-before-guard: whitespace-only must return None, never create Play(name="").
+        lookup = _normalize_play_lookup(name)
+        if not lookup:
+            return None
+        if lookup in play_cache:
+            return play_cache[lookup]
+
+        existing = Play.query.filter_by(team_id=team_id, name=lookup).first()
+        if existing is not None:
+            play_cache[lookup] = existing.id
+            play_id_cache[existing.id] = existing.id
+            return existing.id
+
+        # Create new if not in cache (IntegrityError-safe with retry-SELECT).
+        new_p = _create_scoped_play(team_id, lookup, "Offense")
+        if new_p is None:
+            return None
+        play_cache[lookup] = new_p.id
         play_id_cache[new_p.id] = new_p.id
         return new_p.id
 
@@ -875,20 +1133,33 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
             return None
         if play_id_int in play_id_cache:
             return play_id_cache[play_id_int]
+        # Import-local payload mapping (defined ids with names in this
+        # payload only): preserves valid shot/event references without
+        # polluting the global cache with arbitrary ids.
+        if play_id_int in payload_id_map:
+            return payload_id_map[play_id_int]
 
-        existing = Play.query.get(play_id_int)
+        existing = Play.query.filter_by(id=play_id_int, team_id=team_id).first()
         if existing:
             play_id_cache[play_id_int] = existing.id
-            play_cache.setdefault(existing.name, existing.id)
+            play_cache.setdefault(_normalize_play_lookup(existing.name), existing.id)
             return existing.id
-        name = (play_name or "").strip()
-        if not name:
+        # Requested id is missing or belongs to another team: fall back to
+        # name resolution only, without aliasing the requested id.
+        lookup = _normalize_play_lookup(play_name)
+        if not lookup:
             return None
-        new_p = Play(name=name, play_type="Offense", source="imported", team_id=team_id)
-        db.session.add(new_p)
-        db.session.flush()
+        if lookup in play_cache:
+            return play_cache[lookup]
+        existing_by_name = Play.query.filter_by(team_id=team_id, name=lookup).first()
+        if existing_by_name is not None:
+            play_cache[lookup] = existing_by_name.id
+            return existing_by_name.id
+        new_p = _create_scoped_play(team_id, lookup, "Offense")
+        if new_p is None:
+            return None
         play_id_cache[new_p.id] = new_p.id
-        play_cache.setdefault(new_p.name, new_p.id)
+        play_cache.setdefault(lookup, new_p.id)
         return new_p.id
 
     # Objects to batch insert
@@ -901,30 +1172,43 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
     if isinstance(player_stats_source, dict):
         # LIVE or RESCUE format: {"Player Name": {stats...}}
         for p_name, stats in player_stats_source.items():
-            if not p_name: continue
-            fgm = get_nested_value(stats, "fgm", "FGM", "fg", default=0)
-            fga = get_nested_value(stats, "fga", "FGA", default=0)
-            tpm = get_nested_value(stats, "tpm", "3PM", "tp", "three_pm", default=0)
-            tpa = get_nested_value(stats, "tpa", "3PA", "three_pa", default=0)
-            ftm = get_nested_value(stats, "ftm", "FTM", "ft", default=0)
-            fta = get_nested_value(stats, "fta", "FTA", default=0)
-            oreb = get_nested_value(stats, "oreb", "OREB", "orb", default=0)
-            dreb = get_nested_value(stats, "dreb", "DREB", "drb", default=0)
-            ast = get_nested_value(stats, "ast", "AST", "assists", default=0)
-            tov = get_nested_value(stats, "tov", "TOV", "turnovers", "to", default=0)
-            stl = get_nested_value(stats, "stl", "STL", "steals", default=0)
-            blk = get_nested_value(stats, "blk", "BLK", "blocks", default=0)
-            pf = get_nested_value(stats, "pf", "PF", "fouls", default=0)
-            points = get_nested_value(stats, "points", "PTS", "pts", default=0)
-            minutes = get_nested_value(stats, "minutes", "MIN", "min", default="00:00")
-            plus_minus = get_nested_value(stats, "plus_minus", "+/-", "pm", "PlusMinus", default=0)
-            reb_conceded = get_nested_value(
-                stats,
+            if not p_name:
+                continue
+            if not isinstance(stats, dict):
+                continue
+            player_name_clean = p_name.strip() if isinstance(p_name, str) else str(p_name).strip()
+            if not player_name_clean:
+                continue
+            player_name_clean = player_name_clean[:100]
+
+            def _coerce_count(*keys):
+                coerced = _safe_int(get_nested_value(stats, *keys, default=0))
+                if coerced is None:
+                    return 0
+                return max(0, coerced)
+
+            fgm = _coerce_count("fgm", "FGM", "fg")
+            fga = _coerce_count("fga", "FGA")
+            tpm = _coerce_count("tpm", "3PM", "tp", "three_pm")
+            tpa = _coerce_count("tpa", "3PA", "three_pa")
+            ftm = _coerce_count("ftm", "FTM", "ft")
+            fta = _coerce_count("fta", "FTA")
+            oreb = _coerce_count("oreb", "OREB", "orb")
+            dreb = _coerce_count("dreb", "DREB", "drb")
+            ast = _coerce_count("ast", "AST", "assists")
+            tov = _coerce_count("tov", "TOV", "turnovers", "to")
+            stl = _coerce_count("stl", "STL", "steals")
+            blk = _coerce_count("blk", "BLK", "blocks")
+            pf = _coerce_count("pf", "PF", "fouls")
+            points = _coerce_count("points", "PTS", "pts")
+            minutes = _validate_minutes(get_nested_value(stats, "minutes", "MIN", "min", default="00:00"))
+            plus_minus_raw = _safe_int(get_nested_value(stats, "plus_minus", "+/-", "pm", "PlusMinus", default=0))
+            plus_minus = plus_minus_raw if plus_minus_raw is not None else 0
+            reb_conceded = _coerce_count(
                 "reb_conceded",
                 "REB_CONCEDED",
                 "rebConceded",
                 "rebounds_conceded",
-                default=0,
             )
 
             fg_pct = (fgm / fga * 100) if fga > 0 else 0.0
@@ -932,36 +1216,70 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
             ft_pct = (ftm / fta * 100) if fta > 0 else 0.0
 
             all_player_stats.append(PlayerStat(
-                game_id=game.id, player_name=p_name, minutes=minutes, points=points,
+                game_id=game.id, player_name=player_name_clean, minutes=minutes, points=points,
                 fgm=fgm, fga=fga, fg_percent=fg_pct, tpm=tpm, tpa=tpa, tp_percent=tp_pct,
                 ftm=ftm, fta=fta, ft_percent=ft_pct, oreb=oreb, dreb=dreb, reb=oreb + dreb,
                 ast=ast, tov=tov, stl=stl, blk=blk, pf=pf,
-                plus_minus=int(plus_minus or 0),
-                reb_conceded=int(reb_conceded or 0),
+                plus_minus=plus_minus,
+                reb_conceded=reb_conceded,
             ))
-    else:
+    elif isinstance(player_stats_source, list):
         # EXPORT format: [{"name": "Player Name", ...}]
+        _int_stat_keys = {
+            "points", "fgm", "fga", "tpm", "tpa", "ftm", "fta",
+            "oreb", "dreb", "reb", "ast", "tov", "stl", "blk",
+            "pf", "plus_minus", "reb_conceded",
+        }
+        _float_stat_keys = {"fg_percent", "tp_percent", "ft_percent"}
         for p_data in player_stats_source:
+            if not isinstance(p_data, dict):
+                continue
             player_name = get_nested_value(p_data, "player_name", "PlayerName", "name", "Name", "player")
-            if not player_name: continue
+            if not player_name:
+                continue
+            player_name = player_name.strip() if isinstance(player_name, str) else str(player_name).strip()
+            if not player_name:
+                continue
+            player_name = player_name[:100]
             valid_keys = {c.name for c in PlayerStat.__table__.columns if c.name not in ("id", "game_id")}
             stat_kwargs = {k: v for k, v in p_data.items() if k in valid_keys}
-            if "player_name" not in stat_kwargs: stat_kwargs["player_name"] = player_name
+            for key in list(stat_kwargs.keys()):
+                if key in _int_stat_keys:
+                    coerced = _safe_int(stat_kwargs[key])
+                    if key == "plus_minus":
+                        stat_kwargs[key] = coerced if coerced is not None else 0
+                    else:
+                        stat_kwargs[key] = max(0, coerced) if coerced is not None else 0
+                elif key in _float_stat_keys:
+                    coerced_f = _safe_float(stat_kwargs[key])
+                    stat_kwargs[key] = coerced_f if coerced_f is not None else 0.0
+                elif key == "minutes":
+                    stat_kwargs[key] = _validate_minutes(stat_kwargs[key])
+            if "player_name" not in stat_kwargs:
+                stat_kwargs["player_name"] = player_name
+            else:
+                raw_name = stat_kwargs["player_name"]
+                clean_name = raw_name.strip() if isinstance(raw_name, str) else str(raw_name).strip()
+                stat_kwargs["player_name"] = (clean_name[:100] or player_name)
             all_player_stats.append(PlayerStat(game_id=game.id, **stat_kwargs))
 
     db.session.add_all(all_player_stats)
 
     # --- Process Shot Events ---
-    for s_data in shot_events_source:
+    shot_source_list = shot_events_source if isinstance(shot_events_source, list) else []
+    for s_data in shot_source_list:
+        if not isinstance(s_data, dict):
+            continue
         if is_nested_import:
             # First try mapping exact database keys
             shooter = get_nested_value(s_data, "player_name", "player", "shooter", default="")
-            shot_type = get_nested_value(s_data, "shot_type", "type", "ShotType", default="")
-            pts = int(get_nested_value(s_data, "points", "Points", "pts", default=0))
-            result = get_nested_value(s_data, "result", "Result", "made", default="made")
+            shot_type_raw = get_nested_value(s_data, "shot_type", "type", "ShotType", default="")
+            pts_raw = _safe_int(get_nested_value(s_data, "points", "Points", "pts", default=0))
+            pts = max(0, pts_raw) if pts_raw is not None else 0
+            result = _normalize_shot_result(get_nested_value(s_data, "result", "Result", "made"))
             x = get_nested_value(s_data, "x_loc", "x", "xLoc")
             y = get_nested_value(s_data, "y_loc", "y", "yLoc")
-            q = get_nested_value(s_data, "quarter", "q", "period")
+            q = _safe_int(get_nested_value(s_data, "quarter", "q", "period"))
             play_id_val = get_nested_value(s_data, "play_id", "playId")
             play_name = get_nested_value(s_data, "play_name", "playName")
             if not play_name:
@@ -971,21 +1289,22 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
                 if play_id_val
                 else get_cached_play_id(play_name)
             )
-            
+
             all_shot_events.append(ShotEvent(
-                game_id=game.id, player_name=shooter.strip() if shooter else "",
-                shot_type=shot_type.strip() if shot_type else "", result=result, points=pts,
-                x_loc=float(x) if x is not None else None, y_loc=float(y) if y is not None else None,
-                quarter=int(q) if q is not None else None, play_id=play_id_nested,
+                game_id=game.id, player_name=shooter.strip() if isinstance(shooter, str) else "",
+                shot_type=_normalize_shot_type(shot_type_raw), result=result, points=pts,
+                x_loc=_safe_float(x), y_loc=_safe_float(y),
+                quarter=q, play_id=play_id_nested,
             ))
         else:
             shooter = get_nested_value(s_data, "shooter", "player", "player_name", default="")
-            shot_type = get_nested_value(s_data, "type", "shot_type", "ShotType", default="")
-            pts = int(get_nested_value(s_data, "points", "Points", "pts", default=0))
-            result = get_nested_value(s_data, "result", "Result", "made", default="made")
+            shot_type_raw = get_nested_value(s_data, "type", "shot_type", "ShotType", default="")
+            pts_raw = _safe_int(get_nested_value(s_data, "points", "Points", "pts", default=0))
+            pts = max(0, pts_raw) if pts_raw is not None else 0
+            result = _normalize_shot_result(get_nested_value(s_data, "result", "Result", "made"))
             x = get_nested_value(s_data, "x", "x_loc", "xLoc")
             y = get_nested_value(s_data, "y", "y_loc", "yLoc")
-            q = get_nested_value(s_data, "quarter", "q", "period")
+            q = _safe_int(get_nested_value(s_data, "quarter", "q", "period"))
             play_id_val = get_nested_value(s_data, "play_id", "playId")
             p_name = get_nested_value(s_data, "play_name", "playName")
             if not p_name:
@@ -997,10 +1316,10 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
             )
 
             all_shot_events.append(ShotEvent(
-                game_id=game.id, player_name=shooter.strip() if shooter else "",
-                shot_type=shot_type.strip() if shot_type else "", result=result, points=pts,
-                x_loc=float(x) if x is not None else None, y_loc=float(y) if y is not None else None,
-                quarter=int(q) if q is not None else None, play_id=v_play_id,
+                game_id=game.id, player_name=shooter.strip() if isinstance(shooter, str) else "",
+                shot_type=_normalize_shot_type(shot_type_raw), result=result, points=pts,
+                x_loc=_safe_float(x), y_loc=_safe_float(y),
+                quarter=q, play_id=v_play_id,
             ))
     
     db.session.add_all(all_shot_events)
@@ -1019,7 +1338,10 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
     # We need to store original shot event data, will do this after game_events created
     
     # --- Process Game Events ---
-    for event_index, e_data in enumerate(game_events_source):
+    game_source_list = game_events_source if isinstance(game_events_source, list) else []
+    for event_index, e_data in enumerate(game_source_list):
+        if not isinstance(e_data, dict):
+            continue
         if is_nested_import:
             event_type = get_nested_value(e_data, "event_type", "type", "EventType")
             player_name = get_nested_value(e_data, "player_name", "player", "PlayerName")
@@ -1101,11 +1423,13 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
                     clock_seconds = matched_shot["clock_seconds"]
 
             if shot_attempt is None and event_type == "FT":
-                ftm = detail_parsed.get("ftm", 0)
-                shot_attempt = "made" if ftm > 0 else "missed"
+                ftm_raw = detail_parsed.get("ftm", 0)
+                ftm_val = _safe_int(ftm_raw)
+                ftm_val = ftm_val if ftm_val is not None else 0
+                shot_attempt = "made" if ftm_val > 0 else "missed"
             elif shot_attempt is None and event_type in ("SHOT_2PT", "SHOT_3PT") and player_name:
                 key = (
-                    player_name.strip().lower(),
+                    player_name.strip().lower() if isinstance(player_name, str) else "",
                     quarter,
                     _normalize_shot_family(event_type),
                 )
@@ -1141,19 +1465,21 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
             if isinstance(detail, dict):
                 detail = json.dumps(detail)
 
+            timestamp_val = _safe_int(timestamp)
+            timestamp_val = timestamp_val if timestamp_val is not None else 0
             game_event = GameEvent(
                 game_id=game.id, event_type=event_type,
-                player_name=player_name.strip() if player_name else None,
+                player_name=player_name.strip() if isinstance(player_name, str) else None,
                 detail=str(detail) if detail is not None else None,
-                timestamp=int(timestamp) if timestamp else 0,
+                timestamp=timestamp_val,
                 shot_attempt=shot_attempt, play_id=p_id,
                 quarter=quarter,
                 time_remaining=time_remaining,
                 score_margin=score_margin,
                 possession_number=possession_number,
                 game_seconds=game_seconds,
-                x_loc=float(x) if x is not None else None,
-                y_loc=float(y) if y is not None else None,
+                x_loc=_safe_float(x),
+                y_loc=_safe_float(y),
                 zone=zone,
             )
             if matched_shot is not None:
@@ -1207,11 +1533,13 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
                     clock_seconds = matched_shot["clock_seconds"]
 
             if shot_attempt is None and event_type == "FT":
-                ftm = detail_parsed.get("ftm", 0)
-                shot_attempt = "made" if ftm > 0 else "missed"
+                ftm_raw = detail_parsed.get("ftm", 0)
+                ftm_val = _safe_int(ftm_raw)
+                ftm_val = ftm_val if ftm_val is not None else 0
+                shot_attempt = "made" if ftm_val > 0 else "missed"
             elif shot_attempt is None and event_type in ("SHOT_2PT", "SHOT_3PT") and player_name:
                 key = (
-                    player_name.strip().lower(),
+                    player_name.strip().lower() if isinstance(player_name, str) else "",
                     quarter,
                     _normalize_shot_family(event_type),
                 )
@@ -1255,19 +1583,21 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
             if isinstance(detail, dict):
                 detail = json.dumps(detail)
 
+            timestamp_val = _safe_int(timestamp)
+            timestamp_val = timestamp_val if timestamp_val is not None else 0
             game_event = GameEvent(
                 game_id=game.id, event_type=event_type,
-                player_name=player_name.strip() if player_name else None,
+                player_name=player_name.strip() if isinstance(player_name, str) else None,
                 detail=str(detail) if detail is not None else None,
-                timestamp=int(timestamp) if timestamp else 0,
+                timestamp=timestamp_val,
                 shot_attempt=shot_attempt, play_id=v_p_id,
                 quarter=quarter,
                 time_remaining=time_remaining,
                 score_margin=score_margin,
                 possession_number=possession_number,
                 game_seconds=game_seconds,
-                x_loc=float(x) if x is not None else None,
-                y_loc=float(y) if y is not None else None,
+                x_loc=_safe_float(x),
+                y_loc=_safe_float(y),
                 zone=zone,
             )
             if matched_shot is not None:

@@ -14,6 +14,7 @@ from flask import (
     url_for,
     flash,
     current_app,
+    g,
     jsonify,
     make_response,
     send_file,
@@ -79,7 +80,13 @@ from core.utils import (
 from core.services.notification_service import notify_game, notify_player_performance
 from core.services import create_game_from_live_data
 from core.services.analytics_service import AnalyticsService
-from web.decorators import gm_required, team_access_required, admin_view_required, require_own_org
+from web.decorators import (
+    gm_required,
+    team_access_required,
+    admin_view_required,
+    require_own_org,
+    auditor_write_guard,
+)
 
 main_bp = Blueprint("main", __name__)
 
@@ -513,6 +520,9 @@ def api_plays():
 @team_access_required
 def save_live_game():
     """Receive JSON data from live tracker and save to DB."""
+    denied = auditor_write_guard()
+    if denied is not None:
+        return denied
     data = request.get_json()
 
     if not data:
@@ -526,11 +536,35 @@ def save_live_game():
             400,
         )
 
+    # Team scope comes from the session only: a client-supplied team_id or
+    # season_id in the JSON body is never trusted. Scope checks live inside
+    # the try block so lookup (DB) failures follow the 500 path instead of
+    # being misreported as permission denials.
+    team_id = None
     try:
         team_id = session.get("current_team_id")
+        if not current_app.config.get("LOGIN_DISABLED", False):
+            allowed_team_ids = {
+                t.id for t in (current_user.assigned_teams or [])
+            }
+            if team_id not in allowed_team_ids:
+                return jsonify({"error": "Unknown team"}), 403
+        raw_season = session.get("current_season_id")
+        if raw_season in (None, ""):
+            season_id = None
+        elif raw_season == "ALL":
+            # "ALL" is a read-scope aggregate, not a valid write target.
+            return jsonify({"error": "Season selection required"}), 400
+        else:
+            try:
+                season_id = int(raw_season)
+            except (TypeError, ValueError):
+                return jsonify({"error": "Unknown season"}), 400
+            if Season.query.filter_by(id=season_id, team_id=team_id).first() is None:
+                return jsonify({"error": "Unknown season"}), 403
+
         game = create_game_from_live_data(
-            data, team_id=team_id,
-            season_id=session.get("current_season_id") if session.get("current_season_id") != "ALL" else None,
+            data, team_id=team_id, season_id=season_id,
         )
         current_app.logger.info(f"Live game saved successfully: Game ID {game.id}")
 
@@ -557,17 +591,23 @@ def save_live_game():
             400,
         )
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        error_msg = str(e)
-        current_app.logger.error(f"Live game save error: {error_msg}", exc_info=True)
+        request_id = g.get("request_id", "")
+        current_app.logger.error(
+            "Live game save failed: user_id=%s team_id=%s request_id=%s",
+            getattr(current_user, "id", None),
+            team_id,
+            request_id,
+            exc_info=True,
+        )
 
-        # Always return the root cause so the UI can display it to all users.
+        # Generic body: never disclose the raw exception to the client.
         return (
             jsonify(
                 {
-                    "error": error_msg,
-                    "details": error_msg,
+                    "error": "Failed to save game",
+                    "request_id": request_id,
                 }
             ),
             500,

@@ -19,7 +19,14 @@ def test_game_detail_renders_legacy_play_metrics(auth_client, db_session, defaul
     db_session.add(game)
     db_session.flush()
 
-    play = Play(name="Horns", play_type="Offense", description="Horns action")
+    # Team-scoped analytics only see same-team plays: the legacy fixture
+    # predates multi-tenancy, so bind the play to the game's team.
+    play = Play(
+        name="Horns",
+        play_type="Offense",
+        description="Horns action",
+        team_id=default_team.id,
+    )
     db_session.add(play)
     db_session.flush()
 

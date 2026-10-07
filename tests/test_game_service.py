@@ -596,7 +596,9 @@ class TestCreateGameFromLiveData:
         db_session.commit()
 
         payload = self._payload_with_top_level_plays()
-        game = create_game_from_live_data(payload)
+        # Team-scoped uniqueness is (team_id, name): pass the owning team so
+        # the import reuses the same-team play instead of creating its own.
+        game = create_game_from_live_data(payload, team_id=default_team.id)
 
         plays = Play.query.filter_by(name="Horns Twist").all()
         shot = ShotEvent.query.filter_by(game_id=game.id).first()
