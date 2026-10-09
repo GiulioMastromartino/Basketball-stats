@@ -105,6 +105,7 @@ services:
     env_file: .env.prod
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
+      AUTO_MIGRATE: "False"
       LOG_FILE: /dev/stdout
       RATELIMIT_STORAGE_URL: redis://redis:6379/0
       WORKOS_API_KEY: ${WORKOS_API_KEY}
@@ -117,13 +118,16 @@ services:
       - external_data:/app/data:ro
     command: ["gunicorn", "-c", "gunicorn_config.py", "run:app"]
     # nginx waits for this before starting, so it never proxies into a replica
-    # that is up but not yet listening on 8080.
+    # that is up but not yet listening on 8080. /health/ready runs a SELECT 1,
+    # so the probe also keeps a pooled DB connection warm: without traffic the
+    # pool drains (pool_recycle) and the first real request pays for a fresh
+    # connect on its critical path.
     healthcheck:
       test:
         - CMD
         - python
         - -c
-        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/metrics', timeout=3)"
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/health/ready', timeout=3)"
       interval: 15s
       timeout: 5s
       retries: 5
@@ -142,6 +146,7 @@ services:
     env_file: .env.prod
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
+      AUTO_MIGRATE: "False"
       LOG_FILE: /dev/stdout
       RATELIMIT_STORAGE_URL: redis://redis:6379/0
       WORKOS_API_KEY: ${WORKOS_API_KEY}
@@ -158,7 +163,7 @@ services:
         - CMD
         - python
         - -c
-        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/metrics', timeout=3)"
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/health/ready', timeout=3)"
       interval: 15s
       timeout: 5s
       retries: 5
@@ -177,6 +182,7 @@ services:
     env_file: .env.prod
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
+      AUTO_MIGRATE: "False"
       LOG_FILE: /dev/stdout
       RATELIMIT_STORAGE_URL: redis://redis:6379/0
       WORKOS_API_KEY: ${WORKOS_API_KEY}
@@ -193,7 +199,7 @@ services:
         - CMD
         - python
         - -c
-        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/metrics', timeout=3)"
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/health/ready', timeout=3)"
       interval: 15s
       timeout: 5s
       retries: 5
