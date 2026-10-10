@@ -312,6 +312,15 @@ def team_report_pdf():
 @team_access_required
 def player_report_pdf(player_name):
     """Generate multi-page PDF report for a player"""
+    return render_player_report_pdf(player_name)
+
+
+def render_player_report_pdf(player_name):
+    """Build the player PDF response.
+
+    Single code path for every player report URL (`/player/<name>/report.pdf`
+    and the legacy player-id export), so the layouts can no longer diverge.
+    """
     game_type = _get_game_type()
     games, game_ids = _get_games(game_type, _get_season_id())
 

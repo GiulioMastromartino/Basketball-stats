@@ -34,24 +34,19 @@ def export_game_pdf(game_id):
 @login_required
 @team_access_required
 def export_player_pdf(player_id):
-    """Export professional player performance report PDF."""
-    try:
-        generator = PlaysBasedPDFGenerator()
-        pdf_buffer = generator.generate_player_report_pdf(player_id)
-        
-        player = Player.query.filter_by(id=player_id, team_id=session.get('current_team_id')).first()
-        if not player:
-            abort(404)
-        filename = f"Player_Report_{player.name.replace(' ', '_')}.pdf"
-        
-        return send_file(
-            pdf_buffer,
-            mimetype="application/pdf",
-            as_attachment=True,
-            download_name=filename
-        )
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    """Export the player performance report PDF.
+
+    Legacy player-id URL: kept working, but consolidated onto the single
+    player-PDF generator in the reports blueprint so every route renders
+    the same layout.
+    """
+    from web.routes.reports import render_player_report_pdf
+
+    player = Player.query.filter_by(id=player_id, team_id=session.get('current_team_id')).first()
+    if not player:
+        abort(404)
+
+    return render_player_report_pdf(player.name)
 
 @pdf_export_bp.route("/api/pdf/team")
 @login_required
