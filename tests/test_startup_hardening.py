@@ -21,6 +21,7 @@ import pytest
 from sqlalchemy import text
 
 from config import TestingConfig, config_map
+from core import BoundedSMTPConnection
 
 
 # ---------------------------------------------------------------------------
@@ -128,33 +129,67 @@ def test_database_still_usable_after_startup_disposal(file_backed_app):
 # ---------------------------------------------------------------------------
 
 
-def test_mail_timeout_default_is_applied(monkeypatch, app):
+def test_mail_connect_passes_timeout_from_app_config(monkeypatch, app):
+    """The timeout must come from the app connect() resolved, not from a
+    current_app captured at some other point."""
     import core
-    from core import BoundedSMTPConnection
+    from core import mail
 
     created = []
     monkeypatch.setattr(core.smtplib, "SMTP", _recording_factory(created))
     with app.app_context():
-        BoundedSMTPConnection(_mail_state()).configure_host()
+        conn = mail.connect()
+        conn.configure_host()
 
-    assert len(created) == 1
-    assert created[0].timeout == 30
+    assert isinstance(conn, BoundedSMTPConnection)
+    assert conn.timeout == 30
+    assert created[-1].timeout == 30
 
 
 def test_mail_timeout_honours_config(monkeypatch, app):
     import core
-    from core import BoundedSMTPConnection
+    from core import mail
 
     created = []
     monkeypatch.setattr(core.smtplib, "SMTP", _recording_factory(created))
     app.config["MAIL_TIMEOUT"] = 7
     try:
         with app.app_context():
-            BoundedSMTPConnection(_mail_state()).configure_host()
+            mail.connect().configure_host()
     finally:
         app.config["MAIL_TIMEOUT"] = 30
 
     assert created[-1].timeout == 7
+
+
+def test_mail_connect_works_without_app_context_when_bound(app):
+    """Mail(app) must be usable outside an application context, and must take
+    its timeout from the bound app rather than a nonexistent current_app."""
+    from core import Mail
+
+    bound = Mail(app)
+    conn = bound.connect()  # no app context pushed
+
+    assert isinstance(conn, BoundedSMTPConnection)
+    assert conn.timeout == 30
+
+
+def test_mail_connect_prefers_bound_app_over_current_app(app):
+    """Two apps in play: connect() on a Mail bound to app B must use B's
+    config even while app A's context is active."""
+    from config import config_map
+    from core import Mail
+    from web import create_app
+
+    app_b = create_app("testing")
+    app_b.config["MAIL_TIMEOUT"] = 7
+    try:
+        bound = Mail(app_b)
+        with app.app_context():  # app A is current here
+            conn = bound.connect()
+        assert conn.timeout == 7
+    finally:
+        app_b.config["MAIL_TIMEOUT"] = 30
 
 
 def test_mail_timeout_is_applied_on_tls_and_ssl_paths(monkeypatch, app):
@@ -167,9 +202,9 @@ def test_mail_timeout_is_applied_on_tls_and_ssl_paths(monkeypatch, app):
 
     with app.app_context():
         BoundedSMTPConnection(
-            _mail_state(use_tls=True, username="u", password="p")
+            _mail_state(use_tls=True, username="u", password="p"), timeout=30
         ).configure_host()
-        BoundedSMTPConnection(_mail_state(use_ssl=True)).configure_host()
+        BoundedSMTPConnection(_mail_state(use_ssl=True), timeout=30).configure_host()
 
     tls_conn, ssl_conn = created[-2], created[-1]
     assert tls_conn.timeout == 30
@@ -179,7 +214,7 @@ def test_mail_timeout_is_applied_on_tls_and_ssl_paths(monkeypatch, app):
 
 
 def test_mail_extension_hands_out_bounded_connection(app):
-    from core import BoundedSMTPConnection, mail
+    from core import mail
 
     with app.app_context():
         conn = mail.connect()

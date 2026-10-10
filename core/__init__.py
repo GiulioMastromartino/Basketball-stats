@@ -23,11 +23,17 @@ class BoundedSMTPConnection(Connection):
     handshake stalls the save until gunicorn's worker timeout kills it.
 
     This subclass threads the configured timeout into smtplib; everything
-    else (TLS, auth, debug level) is inherited from ``Connection``.
+    else (TLS, auth, debug level) is inherited from ``Connection``. The
+    timeout is supplied by :meth:`Mail.connect` from the app it resolved, so
+    configuring the connection needs no application context of its own.
     """
 
+    def __init__(self, mail, timeout=None):
+        super().__init__(mail)
+        self.timeout = timeout
+
     def configure_host(self) -> smtplib.SMTP:
-        timeout = current_app.config.get("MAIL_TIMEOUT") or None
+        timeout = self.timeout or None
         if self.mail.use_ssl:
             self.host = smtplib.SMTP_SSL(
                 self.mail.server, self.mail.port, timeout=timeout
@@ -57,7 +63,12 @@ class Mail(_FlaskMail):
             raise RuntimeError(
                 "The current application was not configured with Flask-Mail"
             )
-        return BoundedSMTPConnection(state)
+        # Resolve the timeout from the same app connect() selected: reading
+        # current_app inside configure_host would both miss the bound-app
+        # case and fail when connect() runs outside an application context.
+        return BoundedSMTPConnection(
+            state, timeout=app.config.get("MAIL_TIMEOUT")
+        )
 
 
 mail = Mail()

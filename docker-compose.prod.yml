@@ -59,8 +59,14 @@ services:
       db:
         condition: service_healthy
     env_file: .env.prod
+    # The one-shot migrator is the ONE place the production app factory may
+    # touch the database at boot: it is a single process that exits, so no
+    # pooled connection can be inherited by a fork. This keeps the lineup
+    # repair (ensure_lineup_team_unique_index / repair_shared_lineups) running
+    # in production, which the AUTO_MIGRATE=False web replicas skip on purpose.
     environment:
       FLASK_ENV: production
+      AUTO_MIGRATE: "True"
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME}
       LOG_FILE: /dev/stdout
       GAMES_DIR: /app/Games
