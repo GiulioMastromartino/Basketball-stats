@@ -27,6 +27,16 @@
         pointer-events: none;
     }
 
+    /* Without JS the overlay is never dismissed, so it must not stay. */
+    .charts-unavailable {
+        border: 1px dashed #cbd5e0;
+        border-radius: 8px;
+        padding: 10px 12px;
+        color: #718096;
+        font-size: 12px;
+        text-align: center;
+    }
+
     .page-loading-card {
         background: white;
         border: 1px solid #e9ecef;
@@ -613,16 +623,18 @@
 </style>
 
 {% if not pdf_mode %}
-<!-- Loading overlay -->
+<!-- Loading overlay: progressive enhancement only. The page itself is never
+     hidden behind it, so a slow/blocked CDN cannot leave it blank. -->
 <div id="pageLoader" class="page-loading-overlay">
     <div class="page-loading-card">
         <span class="spinner"></span>
         Loading player analytics…
     </div>
 </div>
+<noscript><style>#pageLoader { display: none !important; }</style></noscript>
 {% endif %}
 
-<div id="playerPage" class="container-fluid {% if not pdf_mode %}page-hidden{% endif %}">
+<div id="playerPage" class="container-fluid">
     {% if pdf_mode %}<div class="pdf-page-one">{% endif %}
     <!-- Player Header -->
     <div class="player-header">
@@ -929,6 +941,7 @@
                             <img src="data:image/png;base64,{{ pdf_chart_scoring }}" alt="Scoring History" style="width:100%; height:100%; object-fit:contain;">
                             {% else %}
                             <canvas id="scoringChart"></canvas>
+                            <p class="charts-unavailable d-none mt-2" data-chart-fallback>Charts unavailable — Chart.js could not be loaded.</p>
                             {% endif %}
                         </div>
                     </div>
@@ -941,6 +954,7 @@
                             <img src="data:image/png;base64,{{ pdf_chart_shooting }}" alt="Shooting Efficiency" style="width:100%; height:100%; object-fit:contain;">
                             {% else %}
                             <canvas id="shootingChart"></canvas>
+                            <p class="charts-unavailable d-none mt-2" data-chart-fallback>Charts unavailable — Chart.js could not be loaded.</p>
                             {% endif %}
                         </div>
                     </div>
@@ -1127,11 +1141,14 @@
 {% endif %}
 
 {% if not pdf_mode %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- defer so a slow/blocked CDN can never hold up first paint: the page is
+     visible (and the shot chart builds) whether or not Chart.js arrives. -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 <script>
     const chartData = {{ chart_data|tojson }};
 
     let scoringChart, shootingChart;
+    let chartsBooted = false;
 
     function revealPlayerPage() {
         const loader = document.getElementById('pageLoader');
@@ -1143,12 +1160,73 @@
         }
     }
 
-    function buildCharts() {
+    function markChartsUnavailable() {
+        document.querySelectorAll('[data-chart-fallback]').forEach((el) => {
+            el.classList.remove('d-none');
+        });
+    }
+
+    /* Shot markers are plain DOM: they render with or without Chart.js. */
+    function renderShotChart() {
+        {% if shot_events %}
+        const shots = [
+            {% for s in shot_events %}
+            {
+                game: {{ s.game.opponent|tojson }},
+                x: {{ s.x_loc|tojson }},
+                y: {{ s.y_loc|tojson }},
+                result: {{ s.result|tojson }},
+                type: {{ s.shot_type|tojson }},
+                points: {{ s.points|tojson }}
+            },
+            {% endfor %}
+        ];
+
+        const shotLayer = document.getElementById('shotLayer');
+        const shotTooltip = document.getElementById('shot-tooltip');
+
+        if (shotLayer && shotTooltip) {
+            shots.forEach(shot => {
+                if (shot.x === null || shot.y === null) return;
+
+                const dot = document.createElement('div');
+                dot.classList.add('shot-point');
+                dot.classList.add(shot.result === 'made' ? 'shot-made' : 'shot-missed');
+
+                dot.style.left = shot.x + '%';
+                dot.style.top = shot.y + '%';
+
+                dot.addEventListener('mouseenter', (e) => {
+                    shotTooltip.innerHTML = `<strong>vs ${shot.game}</strong><br>${shot.type} (${shot.points} pts)<br>${shot.result.toUpperCase()}`;
+                    shotTooltip.style.display = 'block';
+                    shotTooltip.style.left = e.pageX + 10 + 'px';
+                    shotTooltip.style.top = e.pageY + 10 + 'px';
+                });
+
+                dot.addEventListener('mouseleave', () => {
+                    shotTooltip.style.display = 'none';
+                });
+
+                shotLayer.appendChild(dot);
+            });
+        }
+        {% endif %}
+    }
+
+    function initCharts() {
+        if (chartsBooted) return;
+        chartsBooted = true;
+
         try {
             const scoringEl = document.getElementById('scoringChart');
             const shootingEl = document.getElementById('shootingChart');
 
-            if (!scoringEl || !shootingEl || typeof Chart === 'undefined') return;
+            if (typeof Chart === 'undefined') {
+                markChartsUnavailable();
+                return;
+            }
+
+            if (!scoringEl || !shootingEl) return;
 
             if (scoringChart) scoringChart.destroy();
             if (shootingChart) shootingChart.destroy();
@@ -1207,61 +1285,41 @@
                     scales: { y: { beginAtZero: true, max: 100 } }
                 }
             });
-
-            /* Render Shot Chart */
-            {% if shot_events %}
-            const shots = [
-                {% for s in shot_events %}
-                {
-                    game: {{ s.game.opponent|tojson }},
-                    x: {{ s.x_loc|tojson }},
-                    y: {{ s.y_loc|tojson }},
-                    result: {{ s.result|tojson }},
-                    type: {{ s.shot_type|tojson }},
-                    points: {{ s.points|tojson }}
-                },
-                {% endfor %}
-            ];
-
-            const shotLayer = document.getElementById('shotLayer');
-            const shotTooltip = document.getElementById('shot-tooltip');
-
-            if (shotLayer && shotTooltip) {
-                shots.forEach(shot => {
-                    if (shot.x === null || shot.y === null) return;
-
-                    const dot = document.createElement('div');
-                    dot.classList.add('shot-point');
-                    dot.classList.add(shot.result === 'made' ? 'shot-made' : 'shot-missed');
-
-                    dot.style.left = shot.x + '%';
-                    dot.style.top = shot.y + '%';
-
-                    dot.addEventListener('mouseenter', (e) => {
-                        shotTooltip.innerHTML = `<strong>vs ${shot.game}</strong><br>${shot.type} (${shot.points} pts)<br>${shot.result.toUpperCase()}`;
-                        shotTooltip.style.display = 'block';
-                        shotTooltip.style.left = e.pageX + 10 + 'px';
-                        shotTooltip.style.top = e.pageY + 10 + 'px';
-                    });
-
-                    dot.addEventListener('mouseleave', () => {
-                        shotTooltip.style.display = 'none';
-                    });
-
-                    shotLayer.appendChild(dot);
-                });
-            }
-            {% endif %}
         } catch (error) {
             console.error('Failed to initialize player detail charts', error);
-        } finally {
-            revealPlayerPage();
+            markChartsUnavailable();
         }
     }
 
-    window.addEventListener('load', () => {
-        requestAnimationFrame(() => requestAnimationFrame(buildCharts));
+    function giveUpCharts() {
+        if (chartsBooted) return;
+        chartsBooted = true;
+        markChartsUnavailable();
+    }
+
+    /* Reveal as early as possible: courtside tablets routinely lose the CDN,
+       so first paint must never depend on window.load, requestAnimationFrame
+       or Chart.js being available. */
+    revealPlayerPage();
+    renderShotChart();
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof Chart === 'undefined') {
+            giveUpCharts();
+            return;
+        }
+        initCharts();
     });
+
+    /* Safety net for a DOMContentLoaded that never fires: the deferred CDN
+       script either arrived by then or never will. */
+    setTimeout(() => {
+        if (typeof Chart === 'undefined') {
+            giveUpCharts();
+            return;
+        }
+        initCharts();
+    }, 3000);
 </script>
 {% endif %}
 {% endblock %}
