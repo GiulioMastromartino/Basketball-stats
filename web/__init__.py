@@ -108,22 +108,48 @@ def create_app(config_name: str = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # Auto-migrate missing columns (SQLite-safe) so stale dev DBs boot cleanly
-    with app.app_context():
-        auto_add_missing_columns(db)
-        try:
-            from core.services.lineup_service import (
-                ensure_lineup_team_unique_index,
-                repair_shared_lineups,
-            )
+    # Auto-migrate missing columns (SQLite-safe) so stale dev DBs boot cleanly.
+    # Gated by AUTO_MIGRATE: gunicorn preloads this factory into the master
+    # process, and any database work here leaves a pooled connection that every
+    # forked worker then inherits (see the disposal comment below). Production
+    # sets AUTO_MIGRATE=False and runs migrations in the compose `migrator`.
+    if config.AUTO_MIGRATE:
+        with app.app_context():
+            auto_add_missing_columns(db)
+            try:
+                from core.services.lineup_service import (
+                    ensure_lineup_team_unique_index,
+                    repair_shared_lineups,
+                )
 
-            ensure_lineup_team_unique_index()
-            repair_shared_lineups()
-        except Exception:
-            # A half-applied rebuild would be invisible and expensive to
-            # debug later: log it loudly and drop the poisoned session.
-            db.session.rollback()
-            app.logger.exception("Lineup team-scope repair failed at startup")
+                ensure_lineup_team_unique_index()
+                repair_shared_lineups()
+            except Exception:
+                # A half-applied rebuild would be invisible and expensive to
+                # debug later: log it loudly and drop the poisoned session.
+                db.session.rollback()
+                app.logger.exception("Lineup team-scope repair failed at startup")
+
+            # Do not carry a pooled connection across fork().
+            #
+            # Gunicorn runs with preload_app=True, so this factory executes in
+            # the master process, which then forks the workers. The schema work
+            # above leaves one idle connection in the pool; every worker would
+            # inherit that same connection record and hand it out for its first
+            # request -- so the first request served by each worker would drive
+            # a Postgres backend that the master and sibling workers also hold.
+            # Concurrent use of one backend crosses the libpq protocol: the
+            # request hangs or dies with psycopg2.DatabaseError "error with
+            # status PGRES_TUPLES_OK and no message from the libpq".
+            #
+            # Disposing here is safe: this process is the sole owner of the
+            # connection (no fork has happened yet), and closing it simply
+            # makes every worker open its own on first use. Doing it in the
+            # worker instead (post_worker_init) is NOT equivalent: creating a
+            # fresh driver connection in a process that still holds the
+            # inherited one crashes libpq after fork on some platforms.
+            db.session.remove()
+            db.engine.dispose()
     bcrypt.init_app(app)
     mail.init_app(app)
     if not disable_auth:

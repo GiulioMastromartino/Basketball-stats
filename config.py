@@ -17,6 +17,22 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _engine_options(db_url: str | None) -> dict:
+    """SQLAlchemy engine options, varying by backend.
+
+    ``connect_args`` carries a bounded TCP connect so a cold or unreachable
+    database cannot pin a request thread forever (libpq's default connect has
+    no limit). The ``connect_timeout`` key is libpq-only; SQLite drivers would
+    reject it, so it is added for Postgres URLs alone.
+    """
+    options = {"pool_pre_ping": True, "pool_recycle": 300}
+    if db_url and db_url.startswith("postgres"):
+        options["connect_args"] = {
+            "connect_timeout": _env_int("DB_CONNECT_TIMEOUT", 10)
+        }
+    return options
+
+
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
     WTF_CSRF_ENABLED = True
@@ -33,7 +49,7 @@ class Config:
 
     SQLALCHEMY_DATABASE_URI = _db_url or f"sqlite:///{BASE_DIR / 'basketball_stats.db'}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 300}
+    SQLALCHEMY_ENGINE_OPTIONS = _engine_options(_db_url)
     GAMES_DIR = os.getenv("GAMES_DIR", str(BASE_DIR / "Games"))
     OUTPUT_DIR = os.getenv("OUTPUT_DIR", str(BASE_DIR / "Output"))
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", str(BASE_DIR / "uploads"))
@@ -91,6 +107,11 @@ class Config:
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
     # Default sender to username if not explicitly set (Critical for Gmail)
     MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER") or os.getenv("MAIL_USERNAME")
+    # Socket timeout for one SMTP connect/read/write pass. Flask-Mail builds
+    # smtplib.SMTP without a timeout, so a cold or black-holed SMTP host
+    # stalls the request thread that saved the game (the whole notification
+    # fan-out runs inline). See core/__init__.py for where this is applied.
+    MAIL_TIMEOUT = _env_int("MAIL_TIMEOUT", 30)
 
     # WorkOS Configuration
     WORKOS_API_KEY = os.getenv("WORKOS_API_KEY")
@@ -156,6 +177,14 @@ class Config:
     V2_CONSOLE_ALPHA = os.getenv("V2_CONSOLE_ALPHA", "").lower() in (
         "1", "true", "yes", "on",
     )
+    # Run the startup schema auto-migrate inside create_app(). Off by default
+    # because gunicorn runs with preload_app=True: the factory executes in the
+    # master process, and touching the database there leaves a pooled
+    # connection behind that every forked worker then inherits (see the
+    # comment at the disposal site in web/__init__.py). Production runs its
+    # migrations in the one-shot `migrator` compose service, so the web
+    # replicas keep this off; dev and tests keep it on for convenience.
+    AUTO_MIGRATE = os.getenv("AUTO_MIGRATE", "").lower() in ("1", "true", "yes", "on")
 
 
 class DevelopmentConfig(Config):
@@ -170,6 +199,10 @@ class DevelopmentConfig(Config):
     # Development defaults for WorkOS
     WORKOS_REDIRECT_URI = os.getenv(
         "WORKOS_REDIRECT_URI", "http://localhost:8080/auth/callback"
+    )
+    # Stale dev DBs boot cleanly without a manual migrate step.
+    AUTO_MIGRATE = os.getenv("AUTO_MIGRATE", "1").lower() in (
+        "1", "true", "yes", "on",
     )
     # Development default for Google Drive. Must be registered verbatim on the
     # OAuth client, otherwise Google rejects the consent redirect.
@@ -189,6 +222,11 @@ class TestingConfig(Config):
     SECRET_KEY = "test-secret-key"
     WORKOS_REDIRECT_URI = "http://localhost:8080/auth/callback"
     V2_CONSOLE_ALPHA = os.getenv("V2_CONSOLE_ALPHA", "1").lower() in (
+        "1", "true", "yes", "on",
+    )
+    # Tests build their schema with db.create_all(); keeping this on preserves
+    # the startup behaviour the suite was written against.
+    AUTO_MIGRATE = os.getenv("AUTO_MIGRATE", "1").lower() in (
         "1", "true", "yes", "on",
     )
 
