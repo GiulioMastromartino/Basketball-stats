@@ -1804,37 +1804,67 @@ def players_pages_zip():
         team_id=session.get("current_team_id"), season_id=season_id
     )
     zip_buffer = BytesIO()
+    skipped_players = []
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-        team_context = AnalyticsService.build_team_detail_context(
-            game_type, excluded_player,
-            team_id=session.get("current_team_id"), season_id=season_id
-        )
-        team_html = render_template(
-            "player_detail.html",
-            **team_context,
-            pdf_mode=True,
-            report_url="",
-            back_url="",
-        )
-        team_pdf = HTML(string=team_html, base_url=request.host_url).write_pdf()
-        zipf.writestr("Team_Total_Page.pdf", team_pdf)
-
-        for player in context["stats"]:
-            detail_context = AnalyticsService.build_player_detail(
-                player["player_name"], game_type,
+        try:
+            team_context = AnalyticsService.build_team_detail_context(
+                game_type, excluded_player,
                 team_id=session.get("current_team_id"), season_id=season_id
             )
-            html = render_template(
+            team_html = render_template(
                 "player_detail.html",
-                **detail_context,
+                **team_context,
                 pdf_mode=True,
                 report_url="",
                 back_url="",
             )
-            pdf_data = HTML(string=html, base_url=request.host_url).write_pdf()
+            team_pdf = HTML(string=team_html, base_url=request.host_url).write_pdf()
+            zipf.writestr("Team_Total_Page.pdf", team_pdf)
+        except Exception as e:
+            current_app.logger.error(f"Failed team page for pages.zip export: {e}")
+
+        for player in context["stats"]:
+            try:
+                detail_context = AnalyticsService.build_player_detail(
+                    player["player_name"], game_type,
+                    team_id=session.get("current_team_id"), season_id=season_id
+                )
+                html = render_template(
+                    "player_detail.html",
+                    **detail_context,
+                    pdf_mode=True,
+                    report_url="",
+                    back_url="",
+                )
+                pdf_data = HTML(string=html, base_url=request.host_url).write_pdf()
+            except Exception as e:
+                # A player without stats in this scope (or any other single
+                # failure) must not abort the whole export.
+                skipped_players.append(player["player_name"])
+                current_app.logger.warning(
+                    f"Skipped {player['player_name']} in pages.zip export: {e}"
+                )
+                continue
+
             filename = f"{player['player_name'].replace(' ', '_')}_page.pdf"
             zipf.writestr(filename, pdf_data)
+
+        if skipped_players:
+            zipf.writestr(
+                "README.txt",
+                "Players skipped (no stats in the selected game type/season):\n"
+                + "\n".join(f"- {name}" for name in skipped_players)
+                + "\n",
+            )
+
+    if skipped_players:
+        flash(
+            f"Exported {len(context['stats']) - len(skipped_players)} player pages; "
+            f"skipped {len(skipped_players)} without stats in this scope "
+            f"(see README.txt in the archive).",
+            "warning",
+        )
 
     zip_buffer.seek(0)
     return send_file(
