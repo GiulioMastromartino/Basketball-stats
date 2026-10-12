@@ -92,9 +92,13 @@ class AnalyticsService:
 
     @staticmethod
     def supports_plus_minus(game):
-        """Return True when a game source is expected to persist +/- values."""
+        """Return True when a game source is expected to persist +/- values.
+
+        CSV "IMPORT" games have no +/- column in the source box score, so
+        every persisted value is a fabricated 0 — those are excluded.
+        """
         return bool(
-            game and getattr(game, "source", None) in {"LIVE", "IMPORT", "IMPORT_JSON"}
+            game and getattr(game, "source", None) in {"LIVE", "IMPORT_JSON"}
         )
 
     @staticmethod
