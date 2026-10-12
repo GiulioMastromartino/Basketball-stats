@@ -60,11 +60,11 @@
             <div class="player-card-stats mt-3" style="grid-template-columns: repeat(2, 1fr);">
                 <div class="player-stat">
                     <div class="player-stat-value">{{ t.games }}</div>
-                    <div class="player-stat-label">Games Played</div>
+                    <div class="player-stat-label">Game{% if t.games != 1 %}s{% endif %} Played</div>
                 </div>
                 <div class="player-stat">
                     <div class="player-stat-value">{{ t.avg_score }}</div>
-                    <div class="player-stat-label">Avg Score</div>
+                    <div class="player-stat-label">{% if t.games > 1 %}Avg {% endif %}Score</div>
                 </div>
             </div>
         </div>

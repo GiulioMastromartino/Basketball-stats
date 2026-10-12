@@ -122,6 +122,7 @@
     .pm-pos { color: #15803d; background: #dcfce7; }
     .pm-neg { color: #b91c1c; background: #fee2e2; }
     .pm-neu { color: #6b7280; background: #f3f4f6; }
+    .pm-na { color: #9ca3af; font-weight: 700; cursor: help; }
 
     /* Redesigned Combinations Tab */
     .combo-highlight-card {
@@ -549,6 +550,12 @@
 
     <div class="tab-content" id="gameTabsContent">
 
+        {# Plus/minus is only "tracked" when the game source actually persists a
+           real +/- value: LIVE / IMPORT_JSON games, or any player showing a
+           non-zero +/-. CSV "IMPORT" box scores have no +/- column, so every
+           value is a fabricated 0 — those render an em dash instead. #}
+        {% set pm_tracked = (game.source in ['LIVE', 'IMPORT_JSON']) or ((stats | selectattr('plus_minus') | list | length) > 0) %}
+
         <!-- Tab 1: Box Score -->
         <div class="tab-pane fade show active" id="boxscore" role="tabpanel">
             <div class="table-container">
@@ -559,7 +566,7 @@
                                 <th class="ps-4">Player</th>
                                 <th class="text-center">MIN</th>
                                 <th class="text-center bg-light">PTS</th>
-                                <th class="text-center">+/-</th>
+                                <th class="text-center"{% if not pm_tracked %} title="Plus/minus not tracked for this game (no +/- column in the source box score)"{% endif %}>+/-</th>
                                 <th class="text-center">FG</th>
                                 <th class="text-center">3PT</th>
                                 <th class="text-center">FT</th>
@@ -571,7 +578,7 @@
                                 <th class="text-center">BLK</th>
                                 <th class="text-center">TOV</th>
                                 <th class="text-center">PF</th>
-                                <th class="text-center text-danger" title="Offensive Rebounds Conceded to Opponent">CONC</th>
+                                <th class="text-center text-danger" title="Offensive Rebounds Conceded to Opponent">OPP OREB</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -585,12 +592,16 @@
                                 <td class="text-center text-muted font-monospace">{{ p.minutes }}</td>
                                 <td class="text-center fw-bold bg-light fs-5">{{ p.points }}</td>
                                 <td class="text-center">
+                                    {% if pm_tracked %}
                                     {% if p.plus_minus > 0 %}
                                     <span class="pm-badge pm-pos">+{{ p.plus_minus }}</span>
                                     {% elif p.plus_minus < 0 %}
                                     <span class="pm-badge pm-neg">{{ p.plus_minus }}</span>
                                     {% else %}
                                     <span class="pm-badge pm-neu">0</span>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="pm-na" title="Plus/minus not tracked for this game (no +/- column in the source box score)">&mdash;</span>
                                     {% endif %}
                                 </td>
                                 <td class="text-center">{{ p.fgm }}-{{ p.fga }}</td>
@@ -641,7 +652,7 @@
                         <thead>
                             <tr>
                                 <th class="ps-4">PLAYER</th>
-                                <th class="text-center">+/-</th>
+                                <th class="text-center"{% if not pm_tracked %} title="Plus/minus not tracked for this game (no +/- column in the source box score)"{% endif %}>+/-</th>
                                 <th class="text-center">USG%</th>
                                 <th class="text-center">ORTG</th>
                                 <th class="text-center">PPP</th>
@@ -657,12 +668,16 @@
                             <tr>
                                 <td class="ps-4 fw-bold">{{ p.player_name }}</td>
                                 <td class="text-center">
+                                    {% if pm_tracked %}
                                     {% if p.plus_minus > 0 %}
                                     <span class="pm-badge pm-pos">+{{ p.plus_minus }}</span>
                                     {% elif p.plus_minus < 0 %}
                                     <span class="pm-badge pm-neg">{{ p.plus_minus }}</span>
                                     {% else %}
                                     <span class="pm-badge pm-neu">0</span>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="pm-na" title="Plus/minus not tracked for this game (no +/- column in the source box score)">&mdash;</span>
                                     {% endif %}
                                 </td>
                                 <td class="text-center">{{ "%.1f"|format(p.poss_per_40) }}</td>
