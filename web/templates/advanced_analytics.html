@@ -99,6 +99,17 @@
         </div>
     </div>
 
+    <!-- Status Display -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="stat-card">
+                <div id="status-display" class="success-state">
+                    <strong>JavaScript Status:</strong> <span id="js-status">Checking...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Navigation Tabs -->
     <ul class="nav nav-tabs-analytics" id="analyticsTabs" role="tablist">
         <li class="nav-item">
@@ -260,7 +271,8 @@ function log(msg, type) {
     console.log('[' + type.toUpperCase() + ']', msg);
 }
 
-// JavaScript loaded and running.
+// Set initial status
+document.getElementById('js-status').textContent = 'Loaded OK';
 log('JavaScript loaded and running', 'success');
 
 // Simple fetch wrapper
@@ -333,24 +345,6 @@ function drawShotChart(shots) {
     log('Shot chart rendered: ' + makes + ' makes, ' + misses + ' misses', 'success');
 }
 
-// Renders a visible, human-readable error state (with a Retry button where
-// the load can simply be re-run) in place of a chart/spinner placeholder.
-function showErrorState(elementId, message, retryFn) {
-    var el = document.getElementById(elementId);
-    if (!el) return;
-    el.innerHTML =
-        '<div class="col-12"><div class="error-state">' +
-        '<p><strong>' + message + '</strong></p>' +
-        (retryFn
-            ? '<button type="button" class="btn btn-sm btn-outline-danger" onclick="' +
-              retryFn +
-              '()"><i class="fas fa-redo me-1"></i>Retry</button>'
-            : '') +
-        '</div></div>';
-    el.style.display = 'block';
-    log('Error state shown: ' + message, 'error');
-}
-
 // Update zone stats display
 function updateZoneStats(heatmap) {
     var container = document.getElementById('zone-stats');
@@ -382,14 +376,6 @@ function loadShotData() {
     progressContainer.style.display = 'block';
     progressBar.style.width = '10%';
     
-    // Reset the placeholders so a retry shows progress again instead of the
-    // last error message.
-    document.getElementById('shot-loading').innerHTML =
-        '<i class="fas fa-spinner fa-spin"></i><p>Loading shot chart...</p>';
-    document.getElementById('shot-loading').style.display = 'block';
-    document.getElementById('zone-stats').innerHTML =
-        '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
-    
     var player = document.getElementById('filter-player').value;
     var gameType = document.getElementById('filter-game-type').value;
     
@@ -401,12 +387,7 @@ function loadShotData() {
     // Load shot chart data
     fetchData('/api/advanced/shots/chart' + params, function(err, data) {
         if (err) {
-            // Keep the page (and the SVG wrapper) intact so a retry can
-            // rebuild the chart; only the status placeholder is replaced.
-            progressContainer.style.display = 'none';
-            document.getElementById('shot-chart-wrapper').style.display = 'none';
-            document.getElementById('chart-legend').style.display = 'none';
-            showErrorState('shot-loading', 'Could not load the shot chart.', 'loadShotData');
+            document.getElementById('shot-chart-container').innerHTML = '<div class="error-state"><p>Error loading shots: ' + err.message + '</p></div>';
             return;
         }
         
@@ -415,15 +396,18 @@ function loadShotData() {
         var shots = data && data.shots ? data.shots : [];
         log('Received ' + shots.length + ' shots', 'info');
         
-        // drawShotChart renders the "No shots recorded" empty state itself.
-        drawShotChart(shots);
+        if (shots.length > 0) {
+            drawShotChart(shots);
+        } else {
+            document.getElementById('shot-chart-container').innerHTML = '<div class="empty-state"><p>No shots recorded</p></div>';
+        }
         
         progressBar.style.width = '80%';
         
         // Load heatmap data
         fetchData('/api/advanced/shots/heatmap' + params, function(err2, data2) {
             if (err2) {
-                showErrorState('zone-stats', 'Could not load the zone breakdown.', 'loadShotData');
+                document.getElementById('zone-stats').innerHTML = '<div class="error-state"><p>Error loading zones</p></div>';
             } else {
                 var heatmap = data2 && data2.heatmap ? data2.heatmap : {};
                 updateZoneStats(heatmap);
@@ -450,7 +434,7 @@ function loadFourFactors() {
     
     fetchData('/api/advanced/four-factors' + params, function(err, data) {
         if (err || !data || !data.four_factors) {
-            showErrorState('four-factors-content', 'Could not load the four factors.', 'loadFourFactors');
+            container.innerHTML = '<div class="col-12"><div class="error-state"><p>Error loading four factors</p></div></div>';
             return;
         }
         
@@ -481,7 +465,7 @@ function loadPlayerStats() {
     
     fetchData('/api/advanced/player/' + encodeURIComponent(player) + '/advanced', function(err, data) {
         if (err || !data) {
-            showErrorState('player-stats-content', 'Could not load stats for this player.', 'loadPlayerStats');
+            container.innerHTML = '<div class="error-state"><p>Error loading player stats</p></div>';
             return;
         }
         

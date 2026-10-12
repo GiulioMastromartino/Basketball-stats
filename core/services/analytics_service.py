@@ -92,13 +92,9 @@ class AnalyticsService:
 
     @staticmethod
     def supports_plus_minus(game):
-        """Return True when a game source is expected to persist +/- values.
-
-        CSV "IMPORT" games have no +/- column in the source box score, so
-        every persisted value is a fabricated 0 — those are excluded.
-        """
+        """Return True when a game source is expected to persist +/- values."""
         return bool(
-            game and getattr(game, "source", None) in {"LIVE", "IMPORT_JSON"}
+            game and getattr(game, "source", None) in {"LIVE", "IMPORT", "IMPORT_JSON"}
         )
 
     @staticmethod
@@ -760,22 +756,6 @@ class AnalyticsService:
         if len(game_ppgs) > 1 and statistics.mean(game_ppgs) > 0:
             consistency_value = statistics.stdev(game_ppgs) / statistics.mean(game_ppgs)
 
-        # Plus/minus: CSV "IMPORT" box scores have no +/- column and persist a
-        # fabricated 0, so only surface a value when the player actually has real
-        # +/- data (a LIVE/IMPORT_JSON game, or any non-zero +/- value).
-        # Otherwise leave it None so the Plus/Minus tile renders "N/A".
-        pm_supported = [
-            s
-            for s in player_stats
-            if AnalyticsService.supports_plus_minus(s.game)
-        ]
-        player_pm_avg = (
-            sum((s.plus_minus or 0) for s in pm_supported) / len(pm_supported)
-            if pm_supported
-            and any((s.plus_minus or 0) != 0 for s in pm_supported)
-            else None
-        )
-
         averages = {
             "mpg": total_minutes / gp,
             "ppg": totals["points"] / gp,
@@ -787,7 +767,7 @@ class AnalyticsService:
             "bpg": totals["blk"] / gp,
             "topg": totals["tov"] / gp,
             "pfpg": totals["pf"] / gp,
-            "pm": player_pm_avg,
+            "pm": totals["plus_minus"] / gp if gp > 0 else 0,
             "eff": calculate_efficiency(
                 totals["points"],
                 totals["reb"],

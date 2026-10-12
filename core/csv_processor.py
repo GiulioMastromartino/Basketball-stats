@@ -819,12 +819,9 @@ class CSVProcessor:
             return result
 
     @staticmethod
-    def process_game(filepath, info, errors=None):
+    def process_game(filepath, info):
         # Legacy direct-import path (filename convention). Unchanged behavior:
-        # lenient coercion, Total row skipped, None on unreadable file. The
-        # optional ``errors`` list collects the underlying failure reason so
-        # callers (cli_import.py) can report *why* a file was rejected instead
-        # of a generic "could not read" message.
+        # lenient coercion, Total row skipped, None on unreadable file.
         try:
             df = pd.read_csv(filepath)
 
@@ -835,6 +832,4 @@ class CSVProcessor:
             return {**info, 'players': players}
         except Exception as e:
             print(f"Error processing CSV: {e}")
-            if errors is not None:
-                errors.append(str(e))
             return None
