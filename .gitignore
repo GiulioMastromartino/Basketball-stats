@@ -82,3 +82,4 @@ template.pdf
 
 # External championship sidecar cache (SQLite, rebuilt by sync cron)
 data/external_cache.db*
+venv/
