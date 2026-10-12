@@ -4,6 +4,8 @@ Unit tests for core/advanced_analytics.py.
 Tests shot zone classification, clutch detection, and lineup analytics.
 """
 
+import math
+
 import pytest
 from core.advanced_analytics import (
     classify_shot_zone,
@@ -469,11 +471,338 @@ class TestGameLineupRankings:
         db_session.commit()
         
         rankings = LineupAnalytics.get_game_lineup_rankings(sample_game.id)
-        
+
         assert len(rankings) == 1
         # Should handle division by zero (possessions = 1 to avoid error)
         assert rankings[0]['ortg'] == 0.0
         assert rankings[0]['drtg'] == 0.0
+
+
+# =============================================================================
+# Defensive Grading - resistance per minute
+# =============================================================================
+
+
+def _seg(db_session, game, players, allowed, seconds, possessions=10, scored=0):
+    """Add one 5-man lineup segment and return it."""
+    from core.models import LineupSegment
+
+    segment = LineupSegment(
+        game_id=game.id,
+        start_timestamp=0,
+        end_timestamp=seconds,
+        quarter=1,
+        players=list(players),
+        lineup_hash=LineupAnalytics.generate_lineup_hash(players),
+        points_scored=scored,
+        points_allowed=allowed,
+        possessions=possessions,
+        duration_seconds=seconds,
+    )
+    db_session.add(segment)
+    db_session.commit()
+    return segment
+
+
+class TestResistancePerMinute:
+    """The defensive grading metric itself."""
+
+    def test_is_points_allowed_over_minutes(self):
+        ppm = LineupAnalytics._resistance_per_minute(points_allowed=16, duration_seconds=5.42 * 60)
+        assert ppm == pytest.approx(16 / 5.42)
+
+    def test_zero_duration_is_not_a_division_error(self):
+        # Must never win a "lowest first" sort by being undefined.
+        assert LineupAnalytics._resistance_per_minute(0, 0) == float("inf")
+
+    def test_grade_shrinks_short_stints_toward_the_baseline(self):
+        # Same rate, different sample: the short stint is pulled toward the
+        # baseline far harder than the long one.
+        short = LineupAnalytics._defensive_grade(3, 3 * 60, baseline_per_minute=2.125)
+        long = LineupAnalytics._defensive_grade(15, 15 * 60, baseline_per_minute=2.125)
+        assert short == pytest.approx((1.0 * 3 + 2.125 * 6) / 9)
+        assert long == pytest.approx((1.0 * 15 + 2.125 * 6) / 21)
+        assert short > long  # short stint is distrusted more
+
+    def test_grade_of_zero_weight_equals_raw_rate(self):
+        assert LineupAnalytics._defensive_grade(
+            9, 4 * 60, baseline_per_minute=99, shrinkage_minutes=0
+        ) == pytest.approx(2.25)
+
+    def test_zero_duration_never_produces_nan(self):
+        """Regression: inf (rate) * 0 (minutes) is NaN, and NaN breaks every
+        sort key and serialises as the invalid JSON token NaN."""
+        grade = LineupAnalytics._defensive_grade(0, 0, baseline_per_minute=2.125)
+        assert math.isinf(grade)
+        assert not math.isnan(grade)
+
+    def test_zero_weight_and_zero_duration_do_not_divide_by_zero(self):
+        # (rate*mins + baseline*w) / (mins + w) would be 0/0 once minutes is 0.
+        grade = LineupAnalytics._defensive_grade(
+            0, 0, baseline_per_minute=2.125, shrinkage_minutes=0
+        )
+        assert math.isinf(grade)
+
+    def test_zero_duration_with_zero_points_allowed(self):
+        grade = LineupAnalytics._defensive_grade(5, 0, baseline_per_minute=2.125)
+        assert math.isinf(grade)
+
+    def test_non_finite_grades_are_json_safe(self):
+        """`inf`/`NaN` must never appear in an API body."""
+        from core.advanced_analytics import _json_safe
+
+        assert _json_safe(float("inf")) is None
+        assert _json_safe(float("-inf")) is None
+        assert _json_safe(float("nan")) is None
+        assert _json_safe(2.5) == 2.5
+        assert _json_safe(None) is None
+        assert _json_safe(0) == 0
+
+    def test_sortable_grade_puts_undefined_last(self):
+        from core.advanced_analytics import _sortable_grade
+
+        assert _sortable_grade(None) == float("inf")
+        assert _sortable_grade(1.5) == 1.5
+
+
+class TestDefensiveRankingUsesResistanceNotDrtg:
+    """Regression guard for the 'best defensive unit allowed 16 points' bug.
+
+    The old defensive sort keyed on the ON/OFF DRtg differential, which let a
+    unit with the worst raw defensive rating onto the podium because its
+    possessions denominator had been inflated by the shot-log reconciliation.
+    """
+
+    @pytest.mark.integration
+    def test_short_stint_with_zero_allowed_is_excluded(self, db_session, sample_game):
+        from core.advanced_analytics import (
+            LineupAnalytics,
+            MIN_DEFENSIVE_MINUTES,
+        )
+
+        # A 0.8-minute unit that conceded nothing: unbeatable on any raw rate,
+        # but only two possessions of evidence.
+        _seg(db_session, sample_game, [f"A{i}" for i in range(5)], 0, 48)
+        # A real unit.
+        _seg(db_session, sample_game, [f"B{i}" for i in range(5)], 16, 5.4 * 60)
+
+        ranked = LineupAnalytics.get_game_lineup_rankings(
+            sample_game.id, rank_by="defensive", min_possessions=0.0
+        )
+
+        assert ranked[0]["players"][0] == "B0"
+        assert all(
+            r["total_seconds"] / 60 >= MIN_DEFENSIVE_MINUTES for r in ranked
+        )
+        assert ranked[0]["resistance_per_minute"] == pytest.approx(16 / 5.4, abs=0.01)
+
+    @pytest.mark.integration
+    def test_worst_drtg_is_not_crowned_best_defensive(self, db_session, sample_game):
+        """Longer stint with more points allowed must not win on possessions."""
+        # Unit W: long, concedes most -> worst DRtg
+        _seg(db_session, sample_game, [f"W{i}" for i in range(5)], 16, 5.42 * 60, possessions=16)
+        # Unit X: shorter, concedes less -> better DRtg
+        _seg(db_session, sample_game, [f"X{i}" for i in range(5)], 9, 3.02 * 60, possessions=10)
+        # Unit Y: shorter still, best DRtg of all
+        _seg(db_session, sample_game, [f"Y{i}" for i in range(5)], 9, 4.38 * 60, possessions=12)
+
+        ranked = LineupAnalytics.get_game_lineup_rankings(
+            sample_game.id, rank_by="defensive", min_possessions=0.0
+        )
+
+        # Ranked by resistance per minute (lowest first), not by DRtg.
+        order = [r["players"][0] for r in ranked]
+        assert order == ["Y0", "X0", "W0"]
+        grades = [r["defensive_grade"] for r in ranked]
+        assert grades == sorted(grades)
+
+    @pytest.mark.integration
+    def test_slightly_worse_but_significantly_longer_ranks_best(self, db_session, sample_game):
+        """The user's explicit requirement: time scales the grade."""
+        # Slightly worse rate, much longer on court -> should rank first.
+        _seg(db_session, sample_game, [f"L{i}" for i in range(5)], 10, 5.02 * 60, possessions=11)
+        # Better rate, much shorter -> should rank second.
+        _seg(db_session, sample_game, [f"S{i}" for i in range(5)], 9, 3.02 * 60, possessions=10)
+
+        ranked = LineupAnalytics.get_game_lineup_rankings(
+            sample_game.id, rank_by="defensive", min_possessions=0.0
+        )
+
+        assert ranked[0]["players"][0] == "L0"
+        assert ranked[0]["resistance_per_minute"] < ranked[1]["resistance_per_minute"]
+
+    @pytest.mark.integration
+    def test_tie_on_rate_breaks_toward_more_minutes(self, db_session, sample_game):
+        _seg(db_session, sample_game, [f"P{i}" for i in range(5)], 8, 4 * 60, possessions=8)
+        _seg(db_session, sample_game, [f"Q{i}" for i in range(5)], 8, 6 * 60, possessions=12)
+
+        ranked = LineupAnalytics.get_game_lineup_rankings(
+            sample_game.id, rank_by="defensive", min_possessions=0.0
+        )
+
+        # Identical resistance per minute: the better-sampled unit wins.
+        assert ranked[0]["players"][0] == "Q0"
+
+    @pytest.mark.integration
+    def test_offensive_ranking_is_unchanged(self, db_session, sample_game):
+        """The defensive rework must not disturb the other ranking modes."""
+        _seg(db_session, sample_game, [f"P{i}" for i in range(5)], 5, 300, scored=20, possessions=10)
+        _seg(db_session, sample_game, [f"Q{i}" for i in range(5)], 5, 300, scored=30, possessions=10)
+
+        ranked = LineupAnalytics.get_game_lineup_rankings(
+            sample_game.id, rank_by="offensive", min_possessions=0.0
+        )
+
+        assert ranked[0]["players"][0] == "Q0"
+        assert ranked[0]["ortg"] > ranked[1]["ortg"]
+
+    @pytest.mark.integration
+    def test_baseline_uses_same_source_as_denominator(self, db_session, sample_game):
+        """Shrinkage baseline must not mix a whole-game numerator with a
+        5-man-only denominator.
+
+        Segments with a player count other than 5 are skipped during
+        aggregation, so their minutes never reach `game_minutes`. Trusting the
+        box-score override for the numerator therefore overstates the baseline
+        and over-penalises short stints, which is exactly the failure mode this
+        test pins: an override of 100 points against 6 minutes of ranked play
+        must not produce a 16.7 pts/min baseline.
+        """
+        from core.advanced_analytics import DEFENSIVE_SHRINKAGE_MINUTES
+
+        # Two 5-man segments: 6 minutes total, 12 points allowed.
+        _seg(db_session, sample_game, [f"P{i}" for i in range(5)], 6, 3 * 60, possessions=10)
+        _seg(db_session, sample_game, [f"Q{i}" for i in range(5)], 6, 3 * 60, possessions=10)
+        # A 4-player segment, which aggregation skips.
+        _seg(db_session, sample_game, [f"R{i}" for i in range(4)], 88, 60, possessions=10)
+
+        ranked = LineupAnalytics.get_game_lineup_rankings(
+            sample_game.id,
+            rank_by="defensive",
+            min_possessions=0.0,
+            total_pts_allowed_override=100,  # box score, whole game
+        )
+
+        # Baseline is 12 points over 6 ranked minutes = 2.0 pts/min, not 100/6.
+        expected = (2.0 * 6 + 2.0 * DEFENSIVE_SHRINKAGE_MINUTES) / (
+            6 + DEFENSIVE_SHRINKAGE_MINUTES
+        )
+        assert len(ranked) == 2
+        assert ranked[0]["defensive_grade"] == pytest.approx(expected)
+        assert ranked[1]["defensive_grade"] == pytest.approx(expected)
+
+    @pytest.mark.integration
+    def test_defensive_payload_is_strictly_json_safe(self, db_session, sample_game):
+        """Every defensive field in the payload must be JSON-representable.
+
+        `LineupSegment.duration_seconds` defaults to 0 and several import paths
+        leave it unset. Flask renders a non-finite float as the bare tokens
+        `Infinity`/`NaN`, which strict JSON clients reject outright, so the
+        payload must never contain one. `json.dumps(..., allow_nan=False)`
+        fails the same way a strict client would.
+        """
+        import json as _json
+
+        _seg(db_session, sample_game, [f"Y{i}" for i in range(5)], 9, 4 * 60, possessions=10)
+        _seg(db_session, sample_game, [f"Z{i}" for i in range(5)], 6, 90, possessions=2)
+
+        for rank_by in ("defensive", "overall", "offensive"):
+            ranked = LineupAnalytics.get_game_lineup_rankings(
+                sample_game.id, rank_by=rank_by, min_possessions=0.0
+            )
+            for row in ranked:
+                body = _json.dumps(row, allow_nan=False)
+                assert "Infinity" not in body and "NaN" not in body
+                for field in ("resistance_per_minute", "defensive_grade"):
+                    value = row.get(field)
+                    assert value is None or (
+                        isinstance(value, (int, float)) and math.isfinite(value)
+                    ), f"{field}={value!r} is not JSON-safe"
+
+        # Same guarantee for the combination surface, where on_duration really
+        # can be 0 while possessions are positive.
+        _seg(db_session, sample_game, [f"D{i}" for i in range(5)], 4, 0, possessions=8)
+        combos = LineupAnalytics.get_combination_net_differentials(
+            "duo",
+            game_ids=[sample_game.id],
+            min_possessions=0,
+            rank_by="defensive",
+            require_positive=True,
+        )
+        for combo in combos:
+            body = _json.dumps(combo, allow_nan=False)
+            assert "Infinity" not in body and "NaN" not in body
+            on = combo["on"]
+            assert on["resistance_per_minute"] is None or math.isfinite(
+                on["resistance_per_minute"]
+            )
+
+
+class TestMultiGameAndCombinationDefensiveRanking:
+    """The same grading must apply to the season and duo/trio surfaces."""
+
+    @pytest.mark.integration
+    def test_efficiency_rankings_gate_and_order(self, db_session, sample_game, sample_games):
+        from core.advanced_analytics import (
+            LineupAnalytics,
+            MIN_DEFENSIVE_MINUTES,
+        )
+
+        game_ids = [g.id for g in sample_games]
+        _seg(db_session, sample_games[0], [f"A{i}" for i in range(5)], 0, 48)   # too short
+        _seg(db_session, sample_games[0], [f"B{i}" for i in range(5)], 16, 5.42 * 60)
+        _seg(db_session, sample_games[1], [f"C{i}" for i in range(5)], 9, 4.38 * 60)
+
+        ranked = LineupAnalytics.get_lineup_efficiency_rankings(
+            game_ids=game_ids, min_possessions=0, rank_by="defensive"
+        )
+
+        assert all(
+            r["total_seconds"] / 60 >= MIN_DEFENSIVE_MINUTES for r in ranked
+        )
+        grades = [r["defensive_grade"] for r in ranked]
+        assert grades == sorted(grades)
+        assert ranked[0]["players"][0] == "C0"
+
+    @pytest.mark.integration
+    def test_combination_defensive_ranking(self, db_session, sample_game):
+        from core.advanced_analytics import (
+            LineupAnalytics,
+            MIN_DEFENSIVE_MINUTES,
+        )
+
+        # Two duos sharing a segment set, with different points allowed.
+        for players, allowed in (
+            (["D1", "D2", "X", "Y", "Z"], 18),
+            (["D3", "D4", "X", "Y", "Z"], 6),
+        ):
+            _seg(db_session, sample_game, players, allowed, 6 * 60, possessions=20)
+
+        combos = LineupAnalytics.get_combination_net_differentials(
+            "duo",
+            game_ids=[sample_game.id],
+            min_possessions=0,
+            rank_by="defensive",
+            require_positive=True,
+        )
+
+        assert combos, "require_positive must not drop every defensive combo"
+        grades = [c["defensive_grade"] for c in combos]
+        assert grades == sorted(grades)
+        assert all(
+            c["on"]["minutes"] >= MIN_DEFENSIVE_MINUTES for c in combos
+        )
+
+        # D3/D4 sit only in the low-scoring segment, so they form the leading
+        # group. Several duos tie on grade and minutes here, so assert
+        # membership rather than a specific winner that depends on the
+        # aggregator's output order.
+        best = combos[0]["defensive_grade"]
+        leaders = [c["players"] for c in combos if c["defensive_grade"] == best]
+        assert ["D3", "D4"] in leaders
+        assert all("D3" in p or "D4" in p for p in leaders)
+        # And the high-scoring duo must not be in that leading group.
+        assert all("D1" not in p and "D2" not in p for p in leaders)
 
 
 # =============================================================================

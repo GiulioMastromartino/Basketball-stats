@@ -556,6 +556,16 @@
                             <div class="value">{{ hero.drtg }}</div>
                             <div class="label">DRtg</div>
                         </div>
+                        {% if rank_by == 'defensive' %}
+                        <div class="lineup-stat">
+                            <div class="value">{{ hero.resistance_per_minute }}</div>
+                            <div class="label">Res/Min</div>
+                        </div>
+                        <div class="lineup-stat">
+                            <div class="value">{{ hero.total_minutes }}'</div>
+                            <div class="label">Minutes</div>
+                        </div>
+                        {% endif %}
                         <div class="lineup-stat {% if hero.net_rating >= 0 %}positive{% else %}negative{% endif %}">
                             <div class="value">{% if hero.net_rating >= 0 %}+{% endif %}{{ hero.net_rating }}</div>
                             <div class="label">Net</div>
@@ -711,8 +721,9 @@
                     <div class="trio-stats">
                         <span>ORtg {{ trio.ortg }}</span>
                         <span>DRtg {{ trio.drtg }}</span>
+                        <span>{{ trio.points_allowed }} allowed in {{ trio.minutes }} min</span>
                         <div class="trio-net {% if trio.rank_metric >= 0 %}positive{% else %}negative{% endif %}">
-                            {{ trio.rank_metric_label }} {% if trio.rank_metric >= 0 %}+{% endif %}{{ trio.rank_metric }}
+                            {{ trio.rank_metric_label }} {% if trio.rank_metric_signed and trio.rank_metric >= 0 %}+{% endif %}{{ trio.rank_metric }}
                         </div>
                     </div>
                 </div>

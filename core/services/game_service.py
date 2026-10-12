@@ -278,13 +278,28 @@ def _safe_float(value):
 
 _VALID_GAME_TYPES = {"Season", "Friendly", "Playoff", "Tournament"}
 
+# Highest live-tracker schema version this build understands.
+#
+# ``web/static/js/live_game.js`` has sent ``SCHEMA_VERSION = 5`` since 1815d053,
+# but the range below was still pinned at 4, so every ``POST /live-game/save``
+# from the tracker was rejected with a 400 before anything was persisted. All
+# feature gates downstream are ``>=`` comparisons (see ``is_schema4`` and the
+# ``has_*_tracking`` flags), so v5 simply enables everything v4 does and needs no
+# bespoke handling. ``test_frontend_schema_version_is_within_supported_range``
+# pins the two sides together so they cannot drift apart again.
+MAX_SCHEMA_VERSION = 5
+
 
 def _parse_schema_version(value):
-    """Strictly parse schema_version into 1..4; raise ValueError otherwise."""
+    """Strictly parse schema_version into 1..MAX_SCHEMA_VERSION.
+
+    Raises ValueError for anything else so the route can answer 400 rather than
+    guessing at an unrecognised payload shape.
+    """
     if value is None or (isinstance(value, str) and not value.strip()):
         return 1
     if isinstance(value, bool):
-        raise ValueError("Invalid schema_version: must be 1..4")
+        raise ValueError(f"Invalid schema_version: must be 1..{MAX_SCHEMA_VERSION}")
     try:
         if isinstance(value, str):
             parsed = int(float(value.strip()))
@@ -293,9 +308,9 @@ def _parse_schema_version(value):
         else:
             parsed = int(value)
     except (TypeError, ValueError):
-        raise ValueError("Invalid schema_version: must be 1..4")
-    if parsed < 1 or parsed > 4:
-        raise ValueError("Invalid schema_version: must be 1..4")
+        raise ValueError(f"Invalid schema_version: must be 1..{MAX_SCHEMA_VERSION}")
+    if parsed < 1 or parsed > MAX_SCHEMA_VERSION:
+        raise ValueError(f"Invalid schema_version: must be 1..{MAX_SCHEMA_VERSION}")
     return parsed
 
 

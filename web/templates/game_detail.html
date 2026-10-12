@@ -905,8 +905,8 @@
                                         </div>
                                         <div class="d-flex flex-wrap gap-4 mt-3">
                                             <div class="h-stat-item">
-                                                <div class="h-stat-val text-white">{{ "%.1f"|format(top_game_lineups_def[0].drtg) }}</div>
-                                                <div class="h-stat-label">DEF Rating</div>
+                                                <div class="h-stat-val text-white">{{ "%.2f"|format(top_game_lineups_def[0].resistance_per_minute) }}</div>
+                                                <div class="h-stat-label">Resistance / Min</div>
                                             </div>
                                             <div class="h-stat-item">
                                                 <div class="h-stat-val text-white">{{ "%.1f"|format(top_game_lineups_def[0].total_minutes) }}'</div>
@@ -946,12 +946,12 @@
                                         </div>
                                     </div>
                                     <div class="text-end">
-                                        <div class="h3 mb-0 fw-bold text-danger">{{ "+" if lineup.impact.defense_delta >= 0 else "" }}{{ "%.1f"|format(lineup.impact.defense_delta) }}</div>
-                                        <div class="small text-muted text-uppercase fw-bold letter-spacing-1" style="font-size: 0.6rem;">DEFENSE DELTA</div>
-                                        <div class="fw-bold text-danger" style="font-size: 0.7rem;">{{ "%.1f"|format(lineup.drtg) }} DRTG</div>
+                                        <div class="h3 mb-0 fw-bold text-danger">{{ "%.2f"|format(lineup.resistance_per_minute) }}</div>
+                                        <div class="small text-muted text-uppercase fw-bold letter-spacing-1" style="font-size: 0.6rem;">RESISTANCE / MIN</div>
+                                        <div class="fw-bold text-danger" style="font-size: 0.7rem;">{{ lineup.points_allowed }} allowed in {{ "%.1f"|format(lineup.total_minutes) }} min</div>
                                     </div>
                                 </div>
-                                <div class="rating-bar-container"><div class="rating-bar-fill bg-danger" style="width: {{ [lineup.drtg, 150]|min / 1.5 }}%"></div></div>
+                                <div class="rating-bar-container"><div class="rating-bar-fill bg-danger" style="width: {{ [lineup.resistance_per_minute * 30, 100]|min }}%"></div></div>
                             </div>
                         </div>
                         {% endfor %}
@@ -966,11 +966,11 @@
                                 <h5 class="fw-bold mb-3">{{ duo.players|join(' + ') }}</h5>
                                 <div class="d-flex justify-content-between align-items-end">
                                     <div>
-                                        <div class="small text-muted text-uppercase mb-1">Defense Delta</div>
-                                        <div class="h2 mb-0 fw-black text-danger">+{{ "%.1f"|format(duo.impact.defense_delta) }}</div>
+                                        <div class="small text-muted text-uppercase mb-1">Resistance / Min</div>
+                                        <div class="h2 mb-0 fw-black text-danger">{{ "%.2f"|format(duo.on.resistance_per_minute) }}</div>
                                     </div>
                                     <div class="text-end">
-                                        <div class="badge bg-danger-soft text-danger rounded-pill px-3">{{ "%.1f"|format(duo.on.drtg) }} ON</div>
+                                        <div class="badge bg-danger-soft text-danger rounded-pill px-3">{{ duo.on.points_allowed }} ALL in {{ "%.1f"|format(duo.on.minutes) }}'</div>
                                     </div>
                                 </div>
                             </div>

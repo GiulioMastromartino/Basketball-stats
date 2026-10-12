@@ -11,6 +11,8 @@ from core.services.game_service import (
     normalize_sort_date,
     get_nested_value,
     create_game_from_live_data,
+    _parse_schema_version,
+    MAX_SCHEMA_VERSION,
 )
 from core.models import (
     Game,
@@ -1057,3 +1059,89 @@ class TestCreateGameFromLiveDataLineups:
         # Game should still be created
         assert game is not None
         assert game.opponent == "Error Test Team"
+
+
+# =============================================================================
+# Schema version validation
+# =============================================================================
+
+
+class TestSchemaVersion:
+    """The live tracker's schema_version must always be accepted.
+
+    The frontend has sent SCHEMA_VERSION=5 since 1815d053, but the backend range
+    was still pinned at 4, so every POST /live-game/save was answered 400 before
+    anything persisted. These tests pin both ends of that contract.
+    """
+
+    @pytest.mark.parametrize("version", [1, 2, 3, 4, 5])
+    def test_supported_versions_are_accepted(self, version):
+        assert _parse_schema_version(version) == version
+
+    @pytest.mark.parametrize("version", ["1", "2", "3", "4", "5"])
+    def test_supported_versions_as_strings_are_accepted(self, version):
+        """Real payloads arrive as strings from some importers."""
+        assert _parse_schema_version(version) == int(version)
+
+    @pytest.mark.parametrize("version", [0, -1, 6, 7, 99])
+    def test_unsupported_versions_are_rejected(self, version):
+        with pytest.raises(ValueError):
+            _parse_schema_version(version)
+
+    @pytest.mark.parametrize("bad", [True, False, "abc", "", "   ", None, [], {}])
+    def test_garbage_is_rejected_or_defaulted(self, bad):
+        if bad is None or bad == "" or bad == "   ":
+            # Absent/blank means "old format", which is a legitimate v1 default.
+            assert _parse_schema_version(bad) == 1
+        else:
+            with pytest.raises(ValueError):
+                _parse_schema_version(bad)
+
+    def test_float_is_truncated_not_rejected(self):
+        assert _parse_schema_version(5.0) == 5
+
+    def test_live_tracker_payload_survives_validation(self, db_session, default_team):
+        """End-to-end guard: a v5 flat/live payload must import, not 400."""
+        payload = {
+            "opponent": "Schema Five Team",
+            "team_score": 70,
+            "opponent_score": 65,
+            "date": "2024-02-17",
+            "schema_version": 5,
+            "player_stats": {
+                "A": {"points": 10, "fgm": 4, "fga": 8, "tpm": 0, "tpa": 0, "ftm": 2, "fta": 2},
+                "B": {"points": 8, "fgm": 3, "fga": 6, "tpm": 0, "tpa": 0, "ftm": 2, "fta": 2},
+                "C": {"points": 12, "fgm": 5, "fga": 9, "tpm": 1, "tpa": 2, "ftm": 0, "fta": 0},
+                "D": {"points": 6, "fgm": 3, "fga": 5, "tpm": 0, "tpa": 0, "ftm": 0, "fta": 0},
+                "E": {"points": 5, "fgm": 2, "fga": 4, "tpm": 0, "tpa": 1, "ftm": 1, "fta": 2},
+            },
+        }
+
+        game = create_game_from_live_data(payload, team_id=default_team.id)
+
+        assert game is not None
+        assert game.schema_version == 5
+
+    def test_frontend_schema_version_is_within_supported_range(self):
+        """The JS constant must never outrun the backend range.
+
+        This is the regression that reached prod: 1815d053 raised the frontend to
+        v5 while this validater still stopped at v4, so the tracker's own payload
+        was rejected by the server that shipped it. Read the constant straight
+        from the shipped file rather than duplicating it in the test.
+        """
+        import re
+        from pathlib import Path
+
+        js_path = Path(__file__).resolve().parents[1] / "web" / "static" / "js" / "live_game.js"
+        source = js_path.read_text(encoding="utf-8")
+
+        match = re.search(r"SCHEMA_VERSION\s*=\s*(\d+)\s*;", source)
+        assert match, f"Could not find SCHEMA_VERSION in {js_path}"
+
+        frontend_version = int(match.group(1))
+        assert frontend_version <= MAX_SCHEMA_VERSION, (
+            f"web/static/js/live_game.js sends schema_version={frontend_version} but "
+            f"MAX_SCHEMA_VERSION is {MAX_SCHEMA_VERSION}; raise the backend range "
+            f"or lower the frontend constant."
+        )

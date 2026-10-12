@@ -13,6 +13,7 @@ Implements sophisticated metrics including:
 
 import hashlib
 import json
+import math
 from collections import defaultdict
 from statistics import mean, stdev
 from typing import Dict, List, Optional, Tuple, Any
@@ -41,6 +42,44 @@ from core.utils import (
 )
 from core import utils as _utils
 from core import rust_analytics
+
+
+# =============================================================================
+# DEFENSIVE GRADING
+# =============================================================================
+
+#: Minimum on-court minutes before a lineup/combination may be ranked on
+#: defence. Without it a sub-minute stint that happened to face two possessions
+#: and concede nothing tops every defensive chart - the classic small-sample
+#: trap, and the reason confident "best defensive unit" call-outs are wrong.
+MIN_DEFENSIVE_MINUTES = 3.0
+
+#: Minutes of prior weight used when shrinking a lineup's defensive rate toward
+#: the baseline. A short stint is mostly noise, so it is pulled toward the
+#: baseline much harder than a long one is.
+DEFENSIVE_SHRINKAGE_MINUTES = 6.0
+
+
+def _json_safe(value):
+    """Map a non-finite float to ``None`` so it never reaches a JSON body.
+
+    ``inf`` is a useful sort key for "unrankable - worst possible", but Flask
+    serialises it as the bare token ``Infinity``, which is not valid JSON and
+    breaks strict clients. Translate at the payload boundary instead.
+    """
+    if value is None:
+        return None
+    try:
+        if isinstance(value, float) and not math.isfinite(value):
+            return None
+    except (TypeError, ValueError):
+        return None
+    return value
+
+
+def _sortable_grade(value):
+    """Ordering key that puts an undefined grade last rather than raising."""
+    return float("inf") if value is None else value
 
 
 # =============================================================================
@@ -246,6 +285,72 @@ class LineupAnalytics:
                 }
             )
         return payload
+
+    @staticmethod
+    def _resistance_per_minute(points_allowed: float, duration_seconds: float) -> float:
+        """Return points conceded per minute on court (``Resistance / minutes``).
+
+        This is the metric defensive lineups are graded on. It deliberately uses
+        minutes rather than possessions as the denominator: possessions are the
+        least reliable number in a partially-logged game (the event log holds no
+        ``SHOT_2PT``/``SHOT_3PT`` rows, so most possessions are invisible to it),
+        and a possessions-denominated rate therefore ranks stints by how much of
+        the log they happen to contain instead of by defence. Minutes come
+        straight off the clock and are always present.
+
+        Lower is better. ``float("inf")`` for a zero-duration stat line keeps it
+        at the bottom of an ascending sort instead of crashing it.
+        """
+        minutes = (duration_seconds or 0) / 60.0
+        if minutes <= 0:
+            return float("inf")
+        return float(points_allowed or 0) / minutes
+
+    @staticmethod
+    def _defensive_grade(
+        points_allowed: float,
+        duration_seconds: float,
+        baseline_per_minute: float,
+        shrinkage_minutes: float = DEFENSIVE_SHRINKAGE_MINUTES,
+    ) -> float:
+        """Return the shrunk resistance-per-minute a defensive unit is graded on.
+
+        This is the single number ``rank_by="defensive"`` sorts on, lowest
+        first. It combines three deliberate choices:
+
+        * **Resistance per minute.** Resistance is points allowed, so this is
+          points conceded per minute of court time. Denominating by minutes
+          rather than possessions is what lets a *slightly worse but
+          significantly longer* unit outrank a shorter one: minutes are exact,
+          while possession counts in this app are partly reconstructed (the
+          event log holds no ``SHOT_2PT``/``SHOT_3PT`` rows for many games, so
+          most possessions have to be inferred). Expressed as a DRtg it is just
+          this rate scaled by the game's possessions-per-minute, so the ranking
+          is identical - the units are the only difference.
+        * **Shrinkage toward the baseline.** Weighted by ``shrinkage_minutes``,
+          so a 3-minute stint cannot win on two lucky possessions while a
+          25-minute unit is graded at nearly face value.
+        * **An on-court gate.** Callers reject units under
+          ``MIN_DEFENSIVE_MINUTES`` before this is ever computed.
+
+        Baseline is the average points allowed per minute for the whole scope
+        being ranked (a game, or a set of games), so the grade reads naturally
+        as "how much better/worse than normal, per minute, on the clock".
+
+        Returns ``float("inf")`` when there is no court time at all, so the unit
+        sorts last instead of producing a NaN key. Callers must pass the value
+        through :func:`_json_safe` before putting it in a response body.
+        """
+        minutes = (duration_seconds or 0) / 60.0
+        if minutes <= 0:
+            # Guard before the blend: _resistance_per_minute returns inf here,
+            # and inf * 0 would silently become NaN and poison every sort.
+            return float("inf")
+
+        rate = LineupAnalytics._resistance_per_minute(points_allowed, duration_seconds)
+        weight = max(float(shrinkage_minutes or 0.0), 0.0)
+        baseline = float(baseline_per_minute or 0.0)
+        return (rate * minutes + baseline * weight) / (minutes + weight)
 
     @staticmethod
     def _rating(
@@ -503,10 +608,25 @@ class LineupAnalytics:
                     continue
                 if rank_by == "offensive" and off_diff <= 0:
                     continue
-                if rank_by == "defensive" and def_diff <= 0:
-                    continue
+                # No positivity gate for defensive: defensive rankings are graded
+                # on resistance per minute (see the sort below), not on the ON/OFF
+                # differential, so a combination with a sub-average differential can
+                # still be the stingiest unit on the floor and must not be dropped.
 
             players = key.split(",")
+            # Defensive grading: resistance per minute, shrunk toward the scope
+            # baseline, gated on a real on-court sample.
+            baseline_ppm = (
+                total_points_allowed / (total_duration / 60.0)
+                if total_duration > 0
+                else 0.0
+            )
+            on_grade = LineupAnalytics._defensive_grade(
+                on_points_allowed, on_duration, baseline_ppm
+            )
+            if rank_by == "defensive" and on_minutes < MIN_DEFENSIVE_MINUTES:
+                continue
+
             results.append(
                 {
                     "type": combination_type,
@@ -517,6 +637,14 @@ class LineupAnalytics:
                         "possessions": round(on_possessions, 1),
                         "points_scored": round(on_points_scored, 1),
                         "points_allowed": round(on_points_allowed, 1),
+                        "resistance_per_minute": _json_safe(
+                            round(
+                                LineupAnalytics._resistance_per_minute(
+                                    on_points_allowed, on_duration
+                                ),
+                                2,
+                            )
+                        ),
                         **on_rating,
                     },
                     "off": {
@@ -531,6 +659,10 @@ class LineupAnalytics:
                         "defense_delta": def_diff,
                         "net_differential": net_diff,
                     },
+                    # Full precision: this is the sort key, and rounding here
+                    # would make distinct grades compare equal. Templates
+                    # round for display.
+                    "defensive_grade": _json_safe(on_grade),
                 }
             )
 
@@ -543,12 +675,13 @@ class LineupAnalytics:
                 reverse=True,
             )
         elif rank_by == "defensive":
+            # Lowest resistance per minute first; more minutes breaks ties, so a
+            # better-sampled unit wins an otherwise equal contest.
             results.sort(
                 key=lambda item: (
-                    item["impact"]["defense_delta"],
-                    item["on"]["minutes"],
-                ),
-                reverse=True,
+                    _sortable_grade(item["defensive_grade"]),
+                    -item["on"]["minutes"],
+                )
             )
         else:
             results.sort(
@@ -609,6 +742,13 @@ class LineupAnalytics:
             totals.get("duration_seconds")
             or sum(s.get("duration_seconds", 0) for s in segment_data)
         )
+        # Baseline for defensive grading: points allowed per minute across the
+        # whole scope, which is what a unit's rate is shrunk toward.
+        baseline_ppm = (
+            float(total_points_allowed) / (total_duration / 60.0)
+            if total_duration > 0
+            else 0.0
+        )
 
         on_possessions = float(on_stats.get("possessions", 0) or 0)
         on_duration = float(on_stats.get("duration_seconds") or 0)
@@ -647,6 +787,12 @@ class LineupAnalytics:
                 "possessions": round(on_possessions, 1),
                 "points_scored": round(on_points_scored, 1),
                 "points_allowed": round(on_points_allowed, 1),
+                "resistance_per_minute": _json_safe(
+                    round(
+                        LineupAnalytics._resistance_per_minute(on_points_allowed, on_duration),
+                        2,
+                    )
+                ),
                 **on_rating,
             },
             "off": {
@@ -661,6 +807,11 @@ class LineupAnalytics:
                 "defense_delta": round(off_rating["drtg"] - on_rating["drtg"], 1),
                 "net_differential": round(on_rating["net"] - off_rating["net"], 1),
             },
+            "defensive_grade": _json_safe(
+                LineupAnalytics._defensive_grade(
+                    on_points_allowed, on_duration, baseline_ppm
+                )
+            ),
         }
 
     @staticmethod
@@ -725,9 +876,18 @@ class LineupAnalytics:
             if segment.lineup_id:
                 lineup_stats[lineup_hash]["lineup_id"] = segment.lineup_id
 
+        # Baseline for defensive shrinkage: points allowed per minute across
+        # every segment in scope.
+        all_minutes = sum(s["total_seconds"] for s in lineup_stats.values()) / 60.0
+        all_allowed = sum(s["points_allowed"] for s in lineup_stats.values())
+        baseline_ppm = all_allowed / all_minutes if all_minutes > 0 else 0.0
+
         # Calculate ratings and filter
         results = []
         for lineup_hash, stats in lineup_stats.items():
+            minutes = stats["total_seconds"] / 60.0
+            if rank_by == "defensive" and minutes < MIN_DEFENSIVE_MINUTES:
+                continue
             if stats["possessions"] >= min_possessions:
                 ortg = stats["points_scored"] / stats["possessions"] * 100
                 drtg = stats["points_allowed"] / stats["possessions"] * 100
@@ -739,12 +899,28 @@ class LineupAnalytics:
                         "segments": stats["segments"],
                         "games_played": len(stats["games"]),
                         "possessions": stats["possessions"],
-                        "total_minutes": round(stats["total_seconds"] / 60, 1),
+                        "total_minutes": round(minutes, 1),
+                        "total_seconds": stats["total_seconds"],
                         "points_scored": stats["points_scored"],
                         "points_allowed": stats["points_allowed"],
                         "ortg": round(ortg, 1),
                         "drtg": round(drtg, 1),
                         "net_rating": round(ortg - drtg, 1),
+                        "resistance_per_minute": _json_safe(
+                            round(
+                                LineupAnalytics._resistance_per_minute(
+                                    stats["points_allowed"], stats["total_seconds"]
+                                ),
+                                2,
+                            )
+                        ),
+                        "defensive_grade": _json_safe(
+                            LineupAnalytics._defensive_grade(
+                                stats["points_allowed"],
+                                stats["total_seconds"],
+                                baseline_ppm,
+                            )
+                        ),
                     }
                 )
 
@@ -752,9 +928,13 @@ class LineupAnalytics:
         if rank_by == "offensive":
             results.sort(key=lambda x: (x["ortg"], x["total_minutes"]), reverse=True)
         elif rank_by == "defensive":
+            # Lowest resistance per minute first; more minutes breaks ties.
             results.sort(
-                key=lambda x: (x["drtg"], -x["total_minutes"])
-            )  # Lower DRtg first, then more mins
+                key=lambda x: (
+                    _sortable_grade(x.get("defensive_grade")),
+                    -x["total_seconds"],
+                )
+            )
         else:
             results.sort(
                 key=lambda x: (x["net_rating"], x["total_minutes"]), reverse=True
@@ -893,12 +1073,33 @@ class LineupAnalytics:
             lineup_stats[key]["possessions"] += segment.possessions or 0
             lineup_stats[key]["segment_count"] += 1
 
+        # Defensive grading baseline: points allowed per minute across the
+        # ranked scope. Both sides must come from the same source: the numerator
+        # is the sum over the 5-man segments aggregated above, NOT the box score,
+        # because `game_minutes` only covers those same segments (segments with a
+        # player count other than 5 are skipped during aggregation). Mixing a
+        # whole-game numerator with a partial denominator overstates the
+        # baseline, which then over-penalises short stints under shrinkage.
+        game_minutes = sum(s["total_seconds"] for s in lineup_stats.values()) / 60.0
+        baseline_ppm = (
+            sum(s["points_allowed"] for s in lineup_stats.values()) / game_minutes
+            if game_minutes > 0
+            else 0.0
+        )
+
         results = []
         for lineup_hash, stats in lineup_stats.items():
             possessions = stats["possessions"]
-            if stats["total_seconds"] <= 0:
+            total_seconds = stats["total_seconds"]
+            if total_seconds <= 0:
                 continue
             if possessions < min_possessions:
+                continue
+            # Defensive grading needs a real on-court sample: a sub-three-minute
+            # stint is excluded rather than merely ranked low, so a "Best
+            # Defensive Unit" call-out is never built on two possessions.
+            minutes = total_seconds / 60.0
+            if rank_by == "defensive" and minutes < MIN_DEFENSIVE_MINUTES:
                 continue
 
             effective_possessions = max(possessions, 1)
@@ -919,7 +1120,7 @@ class LineupAnalytics:
                     "lineup_hash": lineup_hash,
                     "players": stats["players"],
                     "total_seconds": stats["total_seconds"],
-                    "total_minutes": round(stats["total_seconds"] / 60, 1),
+                    "total_minutes": round(minutes, 1),
                     "points_scored": stats["points_scored"],
                     "points_allowed": stats["points_allowed"],
                     "possessions": stats["possessions"],
@@ -927,6 +1128,19 @@ class LineupAnalytics:
                     "ortg": ortg,
                     "drtg": drtg,
                     "net_rating": net,
+                    "resistance_per_minute": _json_safe(
+                        round(
+                            LineupAnalytics._resistance_per_minute(
+                                stats["points_allowed"], total_seconds
+                            ),
+                            2,
+                        )
+                    ),
+                    "defensive_grade": _json_safe(
+                        LineupAnalytics._defensive_grade(
+                            stats["points_allowed"], total_seconds, baseline_ppm
+                        )
+                    ),
                     "impact": {
                         "offense_delta": off_delta,
                         "defense_delta": def_delta,
@@ -942,9 +1156,13 @@ class LineupAnalytics:
                 reverse=True,
             )
         elif rank_by == "defensive":
+            # Lowest shrunk resistance per minute first; more minutes breaks
+            # ties, so a better-sampled unit wins an otherwise equal contest.
             results.sort(
-                key=lambda x: (x["impact"]["defense_delta"], x["total_seconds"]),
-                reverse=True,
+                key=lambda x: (
+                    _sortable_grade(x["defensive_grade"]),
+                    -x["total_seconds"],
+                )
             )
         else:
             results.sort(

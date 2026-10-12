@@ -259,6 +259,8 @@ class AdvancedPDFReports:
                 "ortg": duo["on"]["ortg"],
                 "drtg": duo["on"]["drtg"],
                 "net_rating": duo["on"]["net"],
+                "resistance_per_minute": duo["on"].get("resistance_per_minute"),
+                "points_allowed": duo["on"].get("points_allowed", 0),
                 "compatibility": duo["impact"]["net_differential"],
             }
             for duo in duo_impacts
@@ -284,6 +286,8 @@ class AdvancedPDFReports:
                 "ortg": trio["on"]["ortg"],
                 "drtg": trio["on"]["drtg"],
                 "net_rating": trio["on"]["net"],
+                "resistance_per_minute": trio["on"].get("resistance_per_minute"),
+                "points_allowed": trio["on"].get("points_allowed", 0),
                 "compatibility": trio["impact"]["net_differential"],
             }
             for trio in trio_impacts
@@ -291,20 +295,27 @@ class AdvancedPDFReports:
 
         # Surface the metric the report is actually ranked by, so the template
         # never labels an offensive/defensive ranking as "Net Rating".
+        # Defensive rankings are graded on resistance per minute (points allowed
+        # per minute on court, lowest first), not on the ON/OFF differential.
         rank_metric_key, rank_metric_label = {
             "offensive": ("offense_delta", "OFF IMP"),
-            "defensive": ("defense_delta", "DEF IMP"),
+            "defensive": ("on.resistance_per_minute", "RES / MIN"),
         }.get(rank_by, ("net_differential", "NET IMP"))
-        # Lineup rankings sort by raw ORtg/DRtg (see
-        # get_lineup_efficiency_rankings), so they need their own label rather
-        # than the ON/OFF differential label used by the combo cards.
+        # Lineup rankings sort by raw ORtg, or by resistance per minute on the
+        # defensive side (see get_lineup_efficiency_rankings), so they need their
+        # own label rather than the ON/OFF differential label used by the combos.
         lineup_rank_label = {
             "offensive": "Offensive Rating (ORtg)",
-            "defensive": "Defensive Rating (DRtg)",
+            "defensive": "Resistance per Minute (lower is better)",
         }.get(rank_by, "Net Rating")
         for trio in trios:
-            trio["rank_metric"] = trio["compatibility"]
+            if rank_by == "defensive":
+                trio["rank_metric"] = trio["resistance_per_minute"] or 0.0
+            else:
+                trio["rank_metric"] = trio["compatibility"]
             trio["rank_metric_label"] = rank_metric_label
+            # Only the delta-style metrics carry a leading sign.
+            trio["rank_metric_signed"] = rank_by not in ("defensive",)
 
         # Build duo matrix for visualization
         duo_matrix = AdvancedPDFReports._build_duo_matrix(duos)
