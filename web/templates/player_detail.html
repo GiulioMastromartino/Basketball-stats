@@ -1187,7 +1187,12 @@
                 dot.style.top = shot.y + '%';
 
                 dot.addEventListener('mouseenter', (e) => {
-                    shotTooltip.innerHTML = `<strong>vs ${shot.game}</strong><br>${shot.type} (${shot.points} pts)<br>${shot.result.toUpperCase()}`;
+                    shotTooltip.replaceChildren();
+                    const title = document.createElement('strong');
+                    title.textContent = `vs ${shot.game}`;
+                    shotTooltip.append(title, document.createElement('br'),
+                        `${shot.type} (${shot.points} pts)`, document.createElement('br'),
+                        String(shot.result).toUpperCase());
                     shotTooltip.style.display = 'block';
                     shotTooltip.style.left = e.pageX + 10 + 'px';
                     shotTooltip.style.top = e.pageY + 10 + 'px';
@@ -1300,16 +1305,6 @@
         }
         initCharts();
     });
-
-    /* Safety net for a DOMContentLoaded that never fires: the deferred CDN
-       script either arrived by then or never will. */
-    setTimeout(() => {
-        if (typeof Chart === 'undefined') {
-            giveUpCharts();
-            return;
-        }
-        initCharts();
-    }, 3000);
 </script>
 {% endif %}
 {% endblock %}

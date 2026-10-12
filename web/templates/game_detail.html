@@ -550,11 +550,12 @@
 
     <div class="tab-content" id="gameTabsContent">
 
-        {# Plus/minus is only "tracked" when the game source actually persists a
-           real +/- value: LIVE / IMPORT_JSON games, or any player showing a
-           non-zero +/-. CSV "IMPORT" box scores have no +/- column, so every
-           value is a fabricated 0 — those render an em dash instead. #}
-        {% set pm_tracked = (game.source in ['LIVE', 'IMPORT_JSON']) or ((stats | selectattr('plus_minus') | list | length) > 0) %}
+        {# Plus/minus is only "tracked" when the game source persists a
+           real +/- value: LIVE / IMPORT_JSON games always qualify. CSV IMPORT
+           games qualify only when a player row carries a non-zero +/- (the
+           PlusMinus column is optional in the CSV; absent values are fabricated
+           0s and render as an em dash). #}
+        {% set pm_tracked = (game.source in ['LIVE', 'IMPORT_JSON']) or (stats | selectattr('plus_minus') | select('!=', 0) | list | length) > 0 %}
 
         <!-- Tab 1: Box Score -->
         <div class="tab-pane fade show active" id="boxscore" role="tabpanel">

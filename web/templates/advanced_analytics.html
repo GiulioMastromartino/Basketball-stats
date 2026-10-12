@@ -407,6 +407,7 @@ function loadShotData() {
             document.getElementById('shot-chart-wrapper').style.display = 'none';
             document.getElementById('chart-legend').style.display = 'none';
             showErrorState('shot-loading', 'Could not load the shot chart.', 'loadShotData');
+            showErrorState('zone-stats', 'Could not load the zone breakdown.', 'loadShotData');
             return;
         }
         

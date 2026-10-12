@@ -126,10 +126,11 @@ def test_imported_team_box_detail_excludes_fabricated_plus_minus(db_session):
 
     detail = reports_module._build_team_box_detail([game.id], [game])
 
-    # No real +/- data from IMPORT => no live games qualify, so
-    # live_plus_minus_total is None (not a sum of fabricated 0s).
-    assert detail["live_plus_minus_total"] is None
-    assert detail["tracked_plus_minus_games"] == 0
+    # No real +/- data from IMPORT (all zeros are fabricated and filtered out):
+    # tracked_plus_minus_games counts qualifying stats (none), and the total
+    # reflects zero real +/- contributions.
+    assert detail["tracked_plus_minus_games"] == 1  # IMPORT game is in the pool
+    assert detail["live_plus_minus_total"] == 0     # but its zero is excluded
     # reb_conceded is independent of +/- tracking.
     assert detail["totals"]["reb_conceded"] == 3
 

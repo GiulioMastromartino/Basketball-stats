@@ -1807,6 +1807,7 @@ def players_pages_zip():
     skipped_players = []
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        team_errors = []
         try:
             team_context = AnalyticsService.build_team_detail_context(
                 game_type, excluded_player,
@@ -1823,6 +1824,10 @@ def players_pages_zip():
             zipf.writestr("Team_Total_Page.pdf", team_pdf)
         except Exception as e:
             current_app.logger.error(f"Failed team page for pages.zip export: {e}")
+            team_errors.append(str(e))
+
+        skipped_players = []
+        pdf_errors = []
 
         for player in context["stats"]:
             try:
@@ -1830,6 +1835,11 @@ def players_pages_zip():
                     player["player_name"], game_type,
                     team_id=session.get("current_team_id"), season_id=season_id
                 )
+            except ValueError as e:
+                # Expected: the player has no stats in this scope.
+                skipped_players.append(player["player_name"])
+                continue
+            try:
                 html = render_template(
                     "player_detail.html",
                     **detail_context,
@@ -1839,30 +1849,49 @@ def players_pages_zip():
                 )
                 pdf_data = HTML(string=html, base_url=request.host_url).write_pdf()
             except Exception as e:
-                # A player without stats in this scope (or any other single
-                # failure) must not abort the whole export.
-                skipped_players.append(player["player_name"])
+                # PDF rendering failure: the player had stats, but the export
+                # failed. Report it as a rendering error, not a missing-stats skip.
+                pdf_errors.append((player["player_name"], str(e)))
                 current_app.logger.warning(
-                    f"Skipped {player['player_name']} in pages.zip export: {e}"
+                    f"PDF generation failed for {player['player_name']} in pages.zip export: {e}"
                 )
                 continue
 
             filename = f"{player['player_name'].replace(' ', '_')}_page.pdf"
             zipf.writestr(filename, pdf_data)
 
+        notices = []
         if skipped_players:
-            zipf.writestr(
-                "README.txt",
+            notices.append(
                 "Players skipped (no stats in the selected game type/season):\n"
                 + "\n".join(f"- {name}" for name in skipped_players)
-                + "\n",
             )
+        if team_errors:
+            notices.append(
+                "Team total page could not be generated:\n"
+                + "\n".join(f"- {e}" for e in team_errors)
+            )
+        if pdf_errors:
+            notices.append(
+                "Players with stats could not be rendered as PDF:\n"
+                + "\n".join(f"- {name}: {err}" for name, err in pdf_errors)
+            )
+        if notices:
+            zipf.writestr("README.txt", "\n\n".join(notices) + "\n")
 
-    if skipped_players:
+    if skipped_players or team_errors or pdf_errors:
+        parts = []
+        if skipped_players:
+            parts.append(
+                f"skipped {len(skipped_players)} without stats in this scope"
+            )
+        if team_errors:
+            parts.append(f"team total page failed ({len(team_errors)} error)")
+        if pdf_errors:
+            parts.append(f"{len(pdf_errors)} player PDF(s) failed to render")
         flash(
-            f"Exported {len(context['stats']) - len(skipped_players)} player pages; "
-            f"skipped {len(skipped_players)} without stats in this scope "
-            f"(see README.txt in the archive).",
+            f"Exported {len(context['stats']) - len(skipped_players) - len(pdf_errors)} "
+            "player pages; " + "; ".join(parts) + " (see README.txt in the archive).",
             "warning",
         )
 

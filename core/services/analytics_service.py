@@ -92,14 +92,26 @@ class AnalyticsService:
 
     @staticmethod
     def supports_plus_minus(game):
-        """Return True when a game source is expected to persist +/- values.
+        """Return True when a game is expected to persist real +/- values.
 
-        CSV "IMPORT" games have no +/- column in the source box score, so
-        every persisted value is a fabricated 0 — those are excluded.
+        LIVE games always have +/- data. IMPORT_JSON games persist +/- from
+        structured JSON. CSV "IMPORT" games have no +/- column in the source
+        box score, so a default 0 is fabricated — but if an Import row
+        explicitly carries a nonzero +/- we treat it as tracked.
         """
-        return bool(
-            game and getattr(game, "source", None) in {"LIVE", "IMPORT_JSON"}
-        )
+        if not game:
+            return False
+        source = getattr(game, "source", None)
+        if source in {"LIVE", "IMPORT_JSON"}:
+            return True
+        # IMPORT: only tracked if the player actually recorded a +/- value.
+        return False
+
+    @staticmethod
+    def _stat_has_real_plus_minus(stat):
+        """True when a PlayerStat carries a real (non-default) +/- value."""
+        return bool(stat and getattr(stat, "plus_minus", None) is not None
+                    and (stat.plus_minus or 0) != 0)
 
     @staticmethod
     def calculate_game_stats(stats):
@@ -359,6 +371,7 @@ class AnalyticsService:
             s
             for s in stats
             if AnalyticsService.supports_plus_minus(game_map.get(s.game_id))
+            or AnalyticsService._stat_has_real_plus_minus(s)
         ]
         if pm_game_stats:
             avg_plus_minus = sum((s.plus_minus or 0) for s in pm_game_stats) / len(
@@ -486,7 +499,8 @@ class AnalyticsService:
                     "tov": s.tov,
                     "pf": s.pf,
                     "plus_minus": s.plus_minus
-                    if AnalyticsService.supports_plus_minus(game)
+                    if (AnalyticsService.supports_plus_minus(game)
+                        or AnalyticsService._stat_has_real_plus_minus(s))
                     else None,
                     "is_live": game.source == "LIVE",
                     "fgm": s.fgm,
@@ -666,10 +680,20 @@ class AnalyticsService:
 
     @staticmethod
     def calculate_plus_minus_leaders(games, db_session=None):
-        """Calculate plus/minus leaders for sources that persist +/- values."""
+        """Calculate plus/minus leaders for sources that persist real +/- values.
+
+        LIVE/IMPORT_JSON games always qualify. IMPORT (CSV) games qualify when
+        the player actually recorded a non-zero +/- (the PlusMinus column is
+        optional, defaulting to a fabricated 0).
+        """
         session = db_session or db.session
-        live_ids = [g.id for g in games if AnalyticsService.supports_plus_minus(g)]
-        if not live_ids:
+        live_ids = [
+            g.id for g in games
+            if AnalyticsService.supports_plus_minus(g)
+        ]
+        import_ids = [g.id for g in games if getattr(g, "source", None) == "IMPORT"]
+        pm_game_ids = set(live_ids) | set(import_ids)
+        if not pm_game_ids:
             return []
 
         data = (
@@ -679,9 +703,16 @@ class AnalyticsService:
                 func.sum(PlayerStat.plus_minus).label("total_pm"),
                 func.avg(PlayerStat.plus_minus).label("avg_pm"),
             )
-            .filter(PlayerStat.game_id.in_(live_ids))
+            .filter(PlayerStat.game_id.in_(pm_game_ids))
             .filter(PlayerStat.minutes != "00:00")
             .filter(PlayerStat.minutes != "0")
+            .filter(
+                # Exclude fabricated 0s from IMPORT games that lacked a +/- column.
+                db.or_(
+                    PlayerStat.game.has(Game.source.in_(["LIVE", "IMPORT_JSON"])),
+                    PlayerStat.plus_minus != 0,
+                )
+            )
             .group_by(PlayerStat.player_name)
             .order_by(desc("avg_pm"))
             .limit(10)
@@ -762,17 +793,18 @@ class AnalyticsService:
 
         # Plus/minus: CSV "IMPORT" box scores have no +/- column and persist a
         # fabricated 0, so only surface a value when the player actually has real
-        # +/- data (a LIVE/IMPORT_JSON game, or any non-zero +/- value).
+        # +/- data — a LIVE/IMPORT_JSON game, or an IMPORT game whose stat
+        # carries a non-zero +/- (the PlusMinus column is optional in CSV).
         # Otherwise leave it None so the Plus/Minus tile renders "N/A".
         pm_supported = [
             s
             for s in player_stats
             if AnalyticsService.supports_plus_minus(s.game)
+            or AnalyticsService._stat_has_real_plus_minus(s)
         ]
         player_pm_avg = (
             sum((s.plus_minus or 0) for s in pm_supported) / len(pm_supported)
             if pm_supported
-            and any((s.plus_minus or 0) != 0 for s in pm_supported)
             else None
         )
 
