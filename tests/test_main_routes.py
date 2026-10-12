@@ -246,7 +246,8 @@ class TestMainRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Team Total", response.data)
         self.assertIn(b"without Player2", response.data)
-        self.assertIn(b"Download Detail", response.data)
+        # One export action only (no duplicate Download Detail / Export PDF).
+        self.assertIn(b"Download PDF Report", response.data)
         self.assertIn(b"+10.0", response.data)
 
     def test_opponent_detail_page_renders_summary_and_matchups(self):
