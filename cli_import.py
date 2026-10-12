@@ -3,9 +3,11 @@
 
 Games are multi-tenant: ``games.team_id`` is NOT NULL and every stat row hangs
 off a game, so the target team MUST be resolved before the first INSERT. This
-script therefore picks the team up front (``--team`` / ``--team-id`` /
-``IMPORT_TEAM`` / ``IMPORT_TEAM_ID`` env vars, otherwise the first team of the
-current organization) and aborts with an actionable message when it cannot.
+script picks the team up front (``--team`` / ``--team-id`` /
+``IMPORT_TEAM`` / ``IMPORT_TEAM_ID`` env vars). When neither is supplied the
+first team in the database is used — but if the database spans more than one
+organization an explicit ``--team``/``--team-id`` is required, since a CLI has
+no user session and cannot infer a "current" organization.
 
 Usage::
 
@@ -98,7 +100,17 @@ def resolve_team(team=None, team_id=None):
             f"no team named {team!r}. Existing teams: {_team_choices()}"
         )
 
-    # Default: the first team of the current organization.
+# Default: the first team in the database. A CLI has no user session, so
+    # there is no "current" organization to derive; if the database spans
+    # multiple organizations, require an explicit --team/--team-id instead of
+    # silently picking a team from any organization.
+    orgs = db.session.query(Team.organization_id).distinct().count()
+    if orgs > 1 and team is None and team_id is None:
+        raise TeamResolutionError(
+            "database spans multiple organizations; pass --team or "
+            f"--team-id to select the import target. Existing teams: "
+            f"{_team_choices()}"
+        )
     fallback = Team.query.order_by(Team.organization_id, Team.id).first()
     if fallback is None:
         raise TeamResolutionError(
@@ -156,8 +168,11 @@ def import_all_csvs(app=None, games_dir=None, team=None, team_id=None):
         games_dir = Path(games_dir or app.config["GAMES_DIR"])
         print(f"Looking for games in: {games_dir.absolute()}")
 
-        if not games_dir.exists():
-            result["fatal"] = f"Directory {games_dir} does not exist!"
+        if not games_dir.is_dir():
+            result["fatal"] = (
+                f"Games directory {games_dir} does not exist "
+                "(use --games-dir to point at the folder, or check the path)."
+            )
             print(f"ERROR: {result['fatal']}")
             return result
 
@@ -290,12 +305,6 @@ def import_all_csvs(app=None, games_dir=None, team=None, team_id=None):
     return result
 
 
-def _record_failure(result, filename, reason):
-    """Count a failed file and remember why (for the summary banner)."""
-    result["errors"] += 1
-    result["failures"].append((filename, reason))
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Import box-score CSVs from the Games/ folder into the "
@@ -304,8 +313,8 @@ def main(argv=None):
     parser.add_argument(
         "--team",
         help="Target team, by name or slug (case-insensitive). Defaults to the "
-             "first team of the current organization. --team-id wins when "
-             "both are given.",
+             "first team in the database; required when multiple organizations "
+             "exist. --team-id wins when both are given.",
     )
     parser.add_argument(
         "--team-id",

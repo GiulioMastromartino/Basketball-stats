@@ -133,7 +133,8 @@ def test_team_id_flag_wins_over_team_name(app, db_session, tmp_path):
     assert Game.query.one().team_id == bravo.id
 
 
-def test_default_team_is_the_first_of_the_current_org(app, db_session, tmp_path):
+def test_default_team_is_the_first_in_single_org(app, db_session, tmp_path):
+    """When only one organization exists, default team is the first by (org, id)."""
     _make_team("Alpha", "alpha")
     _make_team("Bravo", "bravo")
     _write_csv(tmp_path)
@@ -149,6 +150,32 @@ def test_default_team_is_the_first_of_the_current_org(app, db_session, tmp_path)
     game = Game.query.one()
     assert game.team_id == expected.id
     assert _null_team_games() == 0
+
+
+def test_default_team_requires_explicit_selection_in_multi_org(
+    app, db_session, tmp_path, monkeypatch
+):
+    """Multiple organizations => no implicit current org, so --team/--team-id is required."""
+    monkeypatch.setattr(cli_import, "create_app", lambda *a, **k: app)
+    # Two organizations, one team each.
+    org1 = default_org = Organization.query.filter_by(slug="test-org").first()
+    if org1 is None:
+        org1 = Organization(name="Test Org", slug="test-org")
+        cli_import.db.session.add(org1)
+        cli_import.db.session.commit()
+    org2 = Organization(name="Second Org", slug="org2")
+    cli_import.db.session.add(org2)
+    cli_import.db.session.commit()
+    t1 = Team(name="Alpha", slug="alpha", organization_id=org1.id)
+    t2 = Team(name="Bravo", slug="bravo", organization_id=org2.id)
+    cli_import.db.session.add_all([t1, t2])
+    cli_import.db.session.commit()
+    _write_csv(tmp_path)
+
+    exit_code = cli_import.main(["--games-dir", str(tmp_path)])
+
+    assert exit_code == 2
+    assert Game.query.count() == 0
 
 
 def test_import_without_any_team_fails_loudly(app, db_session, tmp_path):
