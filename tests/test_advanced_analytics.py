@@ -564,6 +564,34 @@ class TestResistancePerMinute:
         assert _sortable_grade(None) == float("inf")
         assert _sortable_grade(1.5) == 1.5
 
+    def test_frontend_min_defensive_minutes_matches_python(self):
+        """The JS constant in lineups.html must never drift from the Python one.
+
+        A mismatch lets sub-threshold lineups sort past the client-side 3-minute
+        gate while the server still filters them out, or vice-versa.
+        """
+        import re
+        from pathlib import Path
+        from core.advanced_analytics import MIN_DEFENSIVE_MINUTES
+
+        template_path = (
+            Path(__file__).resolve().parents[1]
+            / "web" / "templates" / "lineups.html"
+        )
+        source = template_path.read_text(encoding="utf-8")
+
+        match = re.search(
+            r"const\s+MIN_DEFENSIVE_MINUTES\s*=\s*([\d.]+)\s*;", source
+        )
+        assert match, f"Could not find MIN_DEFENSIVE_MINUTES in {template_path}"
+
+        js_value = float(match.group(1))
+        assert js_value == MIN_DEFENSIVE_MINUTES, (
+            f"lineups.html hardcodes MIN_DEFENSIVE_MINUTES={js_value} but "
+            f"core/advanced_analytics.py defines {MIN_DEFENSIVE_MINUTES}; "
+            f"keep them in sync."
+        )
+
 
 class TestDefensiveRankingUsesResistanceNotDrtg:
     """Regression guard for the 'best defensive unit allowed 16 points' bug.

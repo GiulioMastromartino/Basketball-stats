@@ -266,6 +266,15 @@ class AdvancedPDFReports:
             for duo in duo_impacts
         ]
 
+        for duo in duos:
+            if rank_by == "defensive":
+                duo["rank_metric"] = duo["resistance_per_minute"] or 0.0
+            else:
+                duo["rank_metric"] = duo["compatibility"]
+            duo["rank_metric_label"] = rank_metric_label
+            # Only the delta-style metrics carry a leading sign.
+            duo["rank_metric_signed"] = rank_by not in ("defensive",)
+
         # Get trio compatibility. Must use the same ON/OFF differential source as
         # the duos above and as /api/advanced/lineups/combinations, otherwise the
         # PDF trios disagree with the Lineups page.

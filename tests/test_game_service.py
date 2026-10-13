@@ -1140,7 +1140,7 @@ class TestSchemaVersion:
         assert match, f"Could not find SCHEMA_VERSION in {js_path}"
 
         frontend_version = int(match.group(1))
-        assert frontend_version <= MAX_SCHEMA_VERSION, (
+        assert 1 <= frontend_version <= MAX_SCHEMA_VERSION, (
             f"web/static/js/live_game.js sends schema_version={frontend_version} but "
             f"MAX_SCHEMA_VERSION is {MAX_SCHEMA_VERSION}; raise the backend range "
             f"or lower the frontend constant."

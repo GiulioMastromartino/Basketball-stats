@@ -567,6 +567,21 @@ class LineupAnalytics:
             or sum(s.get("duration_seconds", 0) for s in segment_data)
         )
 
+        # Defensive grading baseline: points allowed per minute across the
+        # 5-man scope only. The on/off differentials above use whole-scope
+        # totals (overrides or Rust-aggregated), but the baseline rate must
+        # come from the same 5-man segments the combos are derived from -
+        # mixing a whole-game numerator with a partial denominator overstates
+        # the baseline and over-penalises short stints under shrinkage.
+        five_man_segments = [s for s in segment_data if len(s.get("players", [])) == 5]
+        five_man_points_allowed = sum(s.get("points_allowed", 0) for s in five_man_segments)
+        five_man_duration = sum(s.get("duration_seconds", 0) for s in five_man_segments)
+        baseline_ppm = (
+            five_man_points_allowed / (five_man_duration / 60.0)
+            if five_man_duration > 0
+            else 0.0
+        )
+
         results = []
         for key, on_stats in combo_stats.items():
             on_duration = float(on_stats.get("duration_seconds") or 0)
@@ -614,13 +629,6 @@ class LineupAnalytics:
                 # still be the stingiest unit on the floor and must not be dropped.
 
             players = key.split(",")
-            # Defensive grading: resistance per minute, shrunk toward the scope
-            # baseline, gated on a real on-court sample.
-            baseline_ppm = (
-                total_points_allowed / (total_duration / 60.0)
-                if total_duration > 0
-                else 0.0
-            )
             on_grade = LineupAnalytics._defensive_grade(
                 on_points_allowed, on_duration, baseline_ppm
             )
@@ -742,11 +750,19 @@ class LineupAnalytics:
             totals.get("duration_seconds")
             or sum(s.get("duration_seconds", 0) for s in segment_data)
         )
-        # Baseline for defensive grading: points allowed per minute across the
-        # whole scope, which is what a unit's rate is shrunk toward.
+        # Defensive grading baseline: 5-man segments only. The on/off
+        # differentials use whole-scope totals, but the baseline rate must
+        # come from the same 5-man scope the combos are derived from.
+        five_man_segments = [s for s in segment_data if len(s.get("players", [])) == 5]
+        five_man_points_allowed = sum(
+            s.get("points_allowed", 0) for s in five_man_segments
+        )
+        five_man_duration = sum(
+            s.get("duration_seconds", 0) for s in five_man_segments
+        )
         baseline_ppm = (
-            float(total_points_allowed) / (total_duration / 60.0)
-            if total_duration > 0
+            five_man_points_allowed / (five_man_duration / 60.0)
+            if five_man_duration > 0
             else 0.0
         )
 
