@@ -697,8 +697,8 @@
                         <div class="pdf-highlight-title">{{ top_lineups_def[0].players|join(' · ') }}</div>
                         <div class="pdf-stat-row">
                             <div class="pdf-stat-col">
-                                <div class="pdf-stat-val">{{ "%.1f"|format(top_lineups_def[0].drtg) }}</div>
-                                <div class="pdf-stat-label">DEF Rating</div>
+                                <div class="pdf-stat-val">{{ "%.2f"|format(top_lineups_def[0].resistance_per_minute) }}</div>
+                                <div class="pdf-stat-label">Resistance / Min</div>
                             </div>
                             <div class="pdf-stat-col">
                                 <div class="pdf-stat-val">{{ "%.1f"|format(top_lineups_def[0].total_minutes) }}'</div>
@@ -721,8 +721,8 @@
                         <div class="pdf-highlight-title">{{ top_duos_def[0].players|join(' + ') }}</div>
                         <div class="pdf-stat-row">
                             <div class="pdf-stat-col">
-                                <div class="pdf-stat-val">+{{ "%.1f"|format(top_duos_def[0].impact.defense_delta) }}</div>
-                                <div class="pdf-stat-label">Defense Δ</div>
+                                <div class="pdf-stat-val">{{ "%.1f"|format(top_duos_def[0].on.resistance_per_minute) }}</div>
+                                <div class="pdf-stat-label">RESISTANCE / MIN</div>
                             </div>
                             <div class="pdf-stat-col">
                                 <div class="pdf-stat-val">{{ "%.1f"|format(top_duos_def[0].on.minutes) }}'</div>

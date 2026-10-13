@@ -305,6 +305,32 @@
     // "request failed" apart from "no data for these criteria".
     let lineupLoadError = null;
 
+    // Defensive units are graded on resistance (points allowed) per minute of
+    // court time, lowest first - the same metric LineupAnalytics sorts on
+    // server-side. Prefer the server-computed shrunk grade and fall back to
+    // computing it from the raw rate so older payloads still sort right.
+    const MIN_DEFENSIVE_MINUTES = 3.0;
+
+    function courtMinutes(item) {
+        if (!item) return 0;
+        if (item.on && Number.isFinite(Number(item.on.minutes))) return Number(item.on.minutes);
+        return Number(item.total_minutes || 0);
+    }
+
+    function defensiveGrade(item) {
+        if (!item) return Infinity;
+        // The server already shrinks toward the game baseline; use it verbatim
+        // so the page order matches the API order exactly.
+        if (Number.isFinite(item.defensive_grade)) return item.defensive_grade;
+        // Combinations nest their rate under `.on`, lineups carry it top-level.
+        const src = item.on || item;
+        if (Number.isFinite(Number(src.resistance_per_minute))) return Number(src.resistance_per_minute);
+        const minutes = courtMinutes(item);
+        if (!(minutes > 0)) return Infinity;
+        const allowed = Number(src.points_allowed != null ? src.points_allowed : item.points_allowed) || 0;
+        return allowed / minutes;
+    }
+
     $(document).ready(function() {
         refreshAllData();
     });
@@ -402,10 +428,25 @@
                 return valB - valA;
             });
         } else {
+            // Defensive mode. Grade units exactly the way LineupAnalytics does
+            // server-side, lowest first, so the page order matches the API and
+            // the PDF instead of diverging from them.
+            //
+            // The minimum-minutes gate runs server-side only for data fetched in
+            // defensive mode. When the page was loaded in another mode and the
+            // user switches here, that gate never ran, so a 48-second stint that
+            // conceded nothing would otherwise sort first - the exact failure
+            // this PR fixes. Re-apply the gate client-side.
+            filtered = filtered.filter(item => courtMinutes(item) >= MIN_DEFENSIVE_MINUTES);
             filtered.sort((a, b) => {
-                const valA = type === 'lineup' ? a.drtg : (a.impact?.defense_delta || 0);
-                const valB = type === 'lineup' ? b.drtg : (b.impact?.defense_delta || 0);
-                return currentMode === 'defensive' && type === 'lineup' ? valA - valB : valB - valA;
+                // defensiveGrade returns Infinity for invalid/undefined items;
+                // Infinity - Infinity is NaN in JS, which makes Array.sort's
+                // behaviour undefined. Guard both ends explicitly.
+                const ga = defensiveGrade(a), gb = defensiveGrade(b);
+                if (ga === Infinity && gb === Infinity) return 0;
+                if (ga === Infinity) return 1;
+                if (gb === Infinity) return -1;
+                return ga - gb;
             });
         }
 
@@ -427,10 +468,10 @@
         const rankClass = rank <= 3 ? `rank-${rank}` : 'bg-light text-muted';
         
         let heroVal, heroLabel, subVal, subLabel;
-        
+
         if (type === 'lineup') {
-            heroVal = isOff ? item.ortg : item.drtg;
-            heroLabel = isOff ? 'OFF RATING' : 'DEF RATING';
+            heroVal = isOff ? item.ortg : item.resistance_per_minute;
+            heroLabel = isOff ? 'OFF RATING' : 'RESISTANCE / MIN';
             subVal = item.net_rating;
             subLabel = 'NET RATING';
         } else {
