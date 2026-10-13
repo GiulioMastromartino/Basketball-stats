@@ -395,6 +395,7 @@ def _build_player_box_detail(stats, games_played):
         s
         for s in stats
         if AnalyticsService.supports_plus_minus(getattr(s, "game", None))
+        or AnalyticsService._stat_has_real_plus_minus(s)
     ]
     total_plus_minus = sum((s.plus_minus or 0) for s in pm_stats)
     pm_games = len(pm_stats)
@@ -734,13 +735,24 @@ def _build_team_box_detail(game_ids, games):
         if reb_conceded_games
         else 0.0,
     }
-    live_games = [game for game in games if AnalyticsService.supports_plus_minus(game)]
+    live_games = [
+        game for game in games
+        if AnalyticsService.supports_plus_minus(game)
+        or game.source == "IMPORT"
+    ]
     live_ids = [game.id for game in live_games]
     total_plus_minus = 0
     if live_ids:
         total_plus_minus = (
             db.session.query(func.sum(PlayerStat.plus_minus))
             .filter(PlayerStat.game_id.in_(live_ids))
+            .filter(
+                # Exclude fabricated 0s from IMPORT games without a +/- column.
+                db.or_(
+                    PlayerStat.game.has(Game.source.in_(["LIVE", "IMPORT_JSON"])),
+                    PlayerStat.plus_minus != 0,
+                )
+            )
             .scalar()
             or 0
         )

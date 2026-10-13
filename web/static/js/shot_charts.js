@@ -426,18 +426,32 @@ class ShotChartManager {
             params.append('game_type', this.currentFilters.game_type);
             
             const response = await fetch(`/api/advanced/shots/chart?${params}`);
+            if (!response.ok) throw new Error(`Shot chart request failed: ${response.status}`);
             const data = await response.json();
             
             this.shotChart.loadShots(data.shots);
             this.hexbinChart.loadShots(data.shots);
             
-            // Load heatmap data
+            // Reset zone-stats to loading, then attempt the heatmap fetch.
+            // If the heatmap fails, the catch below shows an error state
+            // instead of leaving zone-stats stuck in "loading".
+            const zoneEl = document.getElementById('zone-stats');
+            if (zoneEl) {
+                zoneEl.innerHTML = '<span class="text-muted">Loading zone breakdown…</span>';
+            }
             const heatmapResponse = await fetch(`/api/advanced/shots/heatmap?${params}`);
+            if (!heatmapResponse.ok) {
+                throw new Error(`Heatmap request failed: ${heatmapResponse.status}`);
+            }
             const heatmapData = await heatmapResponse.json();
             this.zoneHeatmap.loadZoneData(heatmapData.heatmap);
             
         } catch (error) {
             console.error('Error loading shots:', error);
+            const zoneEl = document.getElementById('zone-stats');
+            if (zoneEl) {
+                zoneEl.innerHTML = '<div class="empty-state"><p>Zone breakdown unavailable</p></div>';
+            }
         }
     }
     

@@ -5,7 +5,9 @@ from core.services.analytics_service import AnalyticsService
 from web.routes import reports as reports_module
 
 
-def test_imported_player_metrics_keep_plus_minus(db_session):
+def test_imported_player_metrics_exclude_fabricated_plus_minus(db_session):
+    """IMPORT games with no +/- column get fabricated 0s; those must NOT
+    surface as real +/- data — only LIVE/IMPORT_JSON games count."""
     game = Game(
         date="10-03-2026",
         opponent="Import Opponent",
@@ -15,6 +17,7 @@ def test_imported_player_metrics_keep_plus_minus(db_session):
         game_type="Season",
         sort_date="2026-03-10",
         source="IMPORT",
+        schema_version=1,
     )
     db_session.add(game)
     db_session.flush()
@@ -38,7 +41,7 @@ def test_imported_player_metrics_keep_plus_minus(db_session):
         blk=0,
         tov=2,
         pf=2,
-        plus_minus=7,
+        plus_minus=0,  # fabricated 0 from CSV import without +/- column
         reb_conceded=3,
     )
     db_session.add(stat)
@@ -47,13 +50,16 @@ def test_imported_player_metrics_keep_plus_minus(db_session):
     report = AnalyticsService.calculate_player_metrics([stat], {game.id: game}, 1)
     box_detail = reports_module._build_player_box_detail([stat], 1)
 
-    assert report["advanced"]["avg_plus_minus"] == 7.0
-    assert report["game_logs"][0]["plus_minus"] == 7
-    assert box_detail["totals"]["plus_minus"] == 7
+    # No real +/- data => pm is None / "N/A", not a fabricated average.
+    assert report["advanced"]["avg_plus_minus"] is None
+    assert report["game_logs"][0]["plus_minus"] is None
+    assert box_detail["totals"]["plus_minus"] is None
+    # reb_conceded is independent of +/- and is still surfaced.
     assert box_detail["totals"]["reb_conceded"] == 3
 
 
-def test_imported_team_box_detail_keeps_plus_minus_and_reb_conceded(db_session):
+def test_imported_team_box_detail_excludes_fabricated_plus_minus(db_session):
+    """IMPORT games without real +/- source must not surface +/- totals."""
     game = Game(
         date="11-03-2026",
         opponent="Team Import Opponent",
@@ -63,6 +69,7 @@ def test_imported_team_box_detail_keeps_plus_minus_and_reb_conceded(db_session):
         game_type="Season",
         sort_date="2026-03-11",
         source="IMPORT",
+        schema_version=1,
     )
     db_session.add(game)
     db_session.flush()
@@ -88,7 +95,7 @@ def test_imported_team_box_detail_keeps_plus_minus_and_reb_conceded(db_session):
                 blk=0,
                 tov=1,
                 pf=2,
-                plus_minus=5,
+                plus_minus=0,  # fabricated — no +/- column in CSV
                 reb_conceded=2,
             ),
             PlayerStat(
@@ -110,7 +117,7 @@ def test_imported_team_box_detail_keeps_plus_minus_and_reb_conceded(db_session):
                 blk=0,
                 tov=1,
                 pf=1,
-                plus_minus=-1,
+                plus_minus=0,  # fabricated — no +/- column in CSV
                 reb_conceded=1,
             ),
         ]
@@ -119,7 +126,12 @@ def test_imported_team_box_detail_keeps_plus_minus_and_reb_conceded(db_session):
 
     detail = reports_module._build_team_box_detail([game.id], [game])
 
-    assert detail["live_plus_minus_total"] == 4
+    # No real +/- data from IMPORT (all zeros are fabricated and filtered out):
+    # tracked_plus_minus_games counts qualifying stats (none), and the total
+    # reflects zero real +/- contributions.
+    assert detail["tracked_plus_minus_games"] == 1  # IMPORT game is in the pool
+    assert detail["live_plus_minus_total"] == 0     # but its zero is excluded
+    # reb_conceded is independent of +/- tracking.
     assert detail["totals"]["reb_conceded"] == 3
 
 
