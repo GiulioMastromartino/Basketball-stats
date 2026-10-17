@@ -153,6 +153,17 @@ class TestMainRoutes:
         assert response.status_code == 404
 
     @pytest.mark.integration
+    def test_game_detail_no_duplicate_export_buttons(self, auth_client, sample_game):
+        """Regression: game detail should not have duplicate export buttons."""
+        response = auth_client.get(f"/game/{sample_game.id}")
+        assert response.status_code == 200
+        html = response.data.decode("utf-8")
+        export_raw_count = html.count("Export Raw Data")
+        export_json_count = html.count("Export JSON")
+        assert export_raw_count == 1
+        assert export_json_count == 0
+
+    @pytest.mark.integration
     def test_player_detail_page(self, auth_client, sample_player_stat):
         """Test player detail page loads."""
         response = auth_client.get(f"/player/{sample_player_stat.player_name}")
