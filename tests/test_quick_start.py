@@ -16,6 +16,9 @@ These tests run the real setup function against a temporary SQLite database
 (the developer's ``basketball_stats.db`` is never touched).
 """
 
+import importlib.util
+from pathlib import Path
+
 import pytest
 from sqlalchemy import inspect, text
 
@@ -28,6 +31,23 @@ from core.models import (
     TeamAssignment,
     User,
 )
+
+# The repository root holds ``quick_start.py``, but ``scripts/`` holds a
+# module with the same name and some tests put ``scripts/`` on ``sys.path``
+# (scripts/migrate.py does it at import time). Importing by file path keeps
+# this test bound to the root script, whatever else is on sys.path.
+QUICK_START_PATH = Path(__file__).resolve().parent.parent / "quick_start.py"
+
+
+@pytest.fixture(scope="module")
+def quick_start_module():
+    """The root ``quick_start.py`` module, loaded by path."""
+    spec = importlib.util.spec_from_file_location(
+        "root_quick_start", QUICK_START_PATH
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 @pytest.fixture
@@ -56,15 +76,13 @@ def quick_start_app(monkeypatch, tmp_path):
         db.engine.dispose()
 
 
-def _run_setup(app):
-    import quick_start
-
-    quick_start.setup_local_environment(app=app)
+def _run_setup(app, module):
+    module.setup_local_environment(app=app)
 
 
-def test_setup_creates_organization_with_slug(quick_start_app):
+def test_setup_creates_organization_with_slug(quick_start_app, quick_start_module):
     """The organization must exist AND carry a slug (NOT NULL, UNIQUE)."""
-    _run_setup(quick_start_app)
+    _run_setup(quick_start_app, quick_start_module)
 
     with quick_start_app.app_context():
         orgs = Organization.query.all()
@@ -75,9 +93,11 @@ def test_setup_creates_organization_with_slug(quick_start_app):
         assert " " not in org.slug, "the slug must be url-safe"
 
 
-def test_setup_creates_single_team_attached_to_the_organization(quick_start_app):
+def test_setup_creates_single_team_attached_to_the_organization(
+    quick_start_app, quick_start_module
+):
     """Exactly one team, bound to the organization, with the documented slug."""
-    _run_setup(quick_start_app)
+    _run_setup(quick_start_app, quick_start_module)
 
     with quick_start_app.app_context():
         teams = Team.query.all()
@@ -88,9 +108,11 @@ def test_setup_creates_single_team_attached_to_the_organization(quick_start_app)
         assert team.slug == "default-team"
 
 
-def test_setup_creates_admin_user_with_membership_and_assignment(quick_start_app):
+def test_setup_creates_admin_user_with_membership_and_assignment(
+    quick_start_app, quick_start_module
+):
     """The admin user (plus its org membership / team assignment) must exist."""
-    _run_setup(quick_start_app)
+    _run_setup(quick_start_app, quick_start_module)
 
     with quick_start_app.app_context():
         admin = User.query.filter_by(username="admin").first()
@@ -114,9 +136,9 @@ def test_setup_creates_admin_user_with_membership_and_assignment(quick_start_app
         assert assignment.is_coach is True
 
 
-def test_sample_games_are_attached_to_the_team(quick_start_app):
+def test_sample_games_are_attached_to_the_team(quick_start_app, quick_start_module):
     """``games.team_id`` is NOT NULL: the sample games must belong to the team."""
-    _run_setup(quick_start_app)
+    _run_setup(quick_start_app, quick_start_module)
 
     with quick_start_app.app_context():
         team = Team.query.one()
@@ -127,18 +149,18 @@ def test_sample_games_are_attached_to_the_team(quick_start_app):
             assert game.team_id == team.id
 
 
-def test_setup_is_idempotent(quick_start_app):
+def test_setup_is_idempotent(quick_start_app, quick_start_module):
     """Running the setup twice must not raise and must not duplicate anything."""
-    _run_setup(quick_start_app)
+    _run_setup(quick_start_app, quick_start_module)
 
     with quick_start_app.app_context():
         games_after_first_run = Game.query.count()
         assert games_after_first_run > 0
 
     # Second run: must not raise.
-    _run_setup(quick_start_app)
+    _run_setup(quick_start_app, quick_start_module)
     # ... and a third one, for good measure.
-    _run_setup(quick_start_app)
+    _run_setup(quick_start_app, quick_start_module)
 
     with quick_start_app.app_context():
         assert Organization.query.count() == 1
@@ -151,7 +173,7 @@ def test_setup_is_idempotent(quick_start_app):
         )
 
 
-def test_setup_reuses_an_existing_organization(quick_start_app):
+def test_setup_reuses_an_existing_organization(quick_start_app, quick_start_module):
     """An organization that already exists (slug taken) is reused, not cloned."""
     with quick_start_app.app_context():
         from web import db
@@ -171,7 +193,7 @@ def test_setup_reuses_an_existing_organization(quick_start_app):
         db.session.commit()
         existing_id = existing.id
 
-    _run_setup(quick_start_app)
+    _run_setup(quick_start_app, quick_start_module)
 
     with quick_start_app.app_context():
         assert Organization.query.count() == 1
@@ -179,7 +201,9 @@ def test_setup_reuses_an_existing_organization(quick_start_app):
         assert Team.query.count() == 1
 
 
-def test_setup_gives_a_legacy_organization_without_slug_a_slug(quick_start_app):
+def test_setup_gives_a_legacy_organization_without_slug_a_slug(
+    quick_start_app, quick_start_module
+):
     """Rows predating the NOT NULL slug column get one instead of crashing."""
     with quick_start_app.app_context():
         from web import db
@@ -210,30 +234,31 @@ def test_setup_gives_a_legacy_organization_without_slug_a_slug(quick_start_app):
         )
         db.session.commit()
 
-    _run_setup(quick_start_app)
+    _run_setup(quick_start_app, quick_start_module)
 
     with quick_start_app.app_context():
         org = Organization.query.one()
         assert org.slug, "a legacy organization without slug must get one"
 
 
-def test_setup_does_not_write_to_the_project_database(quick_start_app, tmp_path):
-    """The setup must only touch the database the app is configured with."""
-    import quick_start
-
+def test_setup_only_touches_the_configured_database(quick_start_app, tmp_path):
+    """The setup must only write to the database the app is configured with."""
     with quick_start_app.app_context():
         from web import db
 
         uri = str(db.engine.url)
         assert str(tmp_path) in uri
 
-    assert quick_start.ORG_SLUG == "default-organization"
-    assert quick_start.TEAM_SLUG == "default-team"
+
+def test_setup_uses_the_documented_slugs(quick_start_module):
+    """The slugs are part of the contract with the rest of the project."""
+    assert quick_start_module.ORG_SLUG == "default-organization"
+    assert quick_start_module.TEAM_SLUG == "default-team"
 
 
-def test_tables_exist_after_setup(quick_start_app):
+def test_tables_exist_after_setup(quick_start_app, quick_start_module):
     """The setup creates the full schema (games.team_id NOT NULL included)."""
-    _run_setup(quick_start_app)
+    _run_setup(quick_start_app, quick_start_module)
 
     with quick_start_app.app_context():
         from web import db
@@ -247,12 +272,12 @@ def test_tables_exist_after_setup(quick_start_app):
         assert game_columns["team_id"]["nullable"] is False
 
 
-def test_cli_import_can_resolve_the_team_after_setup(quick_start_app):
+def test_cli_import_can_resolve_the_team_after_setup(quick_start_app, quick_start_module):
     """The reported symptom: after setup, cli_import.py aborted with
     "database spans multiple organizations" / "no team to import into"."""
     import cli_import
 
-    _run_setup(quick_start_app)
+    _run_setup(quick_start_app, quick_start_module)
 
     with quick_start_app.app_context():
         team = Team.query.one()
