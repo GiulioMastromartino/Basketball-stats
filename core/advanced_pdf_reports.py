@@ -280,18 +280,17 @@ class AdvancedPDFReports:
                 "resistance_per_minute": duo["on"].get("resistance_per_minute"),
                 "points_allowed": duo["on"].get("points_allowed", 0),
                 "compatibility": duo["impact"]["net_differential"],
+                "offense_delta": duo["impact"].get("offense_delta"),
             }
             for duo in duo_impacts
         ]
 
         for duo in duos:
-            if rank_by == "defensive":
-                duo["rank_metric"] = duo["resistance_per_minute"] or 0.0
-            else:
-                duo["rank_metric"] = duo["compatibility"]
-            duo["rank_metric_label"] = rank_metric_label
-            # Only the delta-style metrics carry a leading sign.
-            duo["rank_metric_signed"] = rank_by not in ("defensive",)
+            duo.update(
+                AdvancedPDFReports._combination_rank_metric(
+                    duo, rank_by, rank_metric_label
+                )
+            )
 
         # Get trio compatibility. Must use the same ON/OFF differential source as
         # the duos above and as /api/advanced/lineups/combinations, otherwise the
@@ -316,18 +315,17 @@ class AdvancedPDFReports:
                 "resistance_per_minute": trio["on"].get("resistance_per_minute"),
                 "points_allowed": trio["on"].get("points_allowed", 0),
                 "compatibility": trio["impact"]["net_differential"],
+                "offense_delta": trio["impact"].get("offense_delta"),
             }
             for trio in trio_impacts
         ]
 
         for trio in trios:
-            if rank_by == "defensive":
-                trio["rank_metric"] = trio["resistance_per_minute"] or 0.0
-            else:
-                trio["rank_metric"] = trio["compatibility"]
-            trio["rank_metric_label"] = rank_metric_label
-            # Only the delta-style metrics carry a leading sign.
-            trio["rank_metric_signed"] = rank_by not in ("defensive",)
+            trio.update(
+                AdvancedPDFReports._combination_rank_metric(
+                    trio, rank_by, rank_metric_label
+                )
+            )
 
         # Build duo matrix for visualization
         duo_matrix = AdvancedPDFReports._build_duo_matrix(duos)
@@ -350,6 +348,36 @@ class AdvancedPDFReports:
         filename = f"lineup_analysis_{datetime.now().strftime('%Y%m%d')}.pdf"
 
         return filename, pdf_bytes
+
+    @staticmethod
+    def _combination_rank_metric(
+        entry: Dict, rank_by: str, rank_metric_label: str
+    ) -> Dict:
+        """Grade a duo/trio row on the metric the report is actually ranked by.
+
+        The value must always match the label the report advertises, otherwise
+        the PDF prints a number under the wrong metric name:
+
+        - offensive -> the OFF/DEF impact delta ("OFF IMP")
+        - defensive -> resistance per minute on court ("RES / MIN", lower is
+          better, so it carries no leading sign)
+        - otherwise -> the ON/OFF net differential ("NET IMP")
+
+        Duos and trios share this helper so the two sections can never drift
+        apart again.
+        """
+        if rank_by == "defensive":
+            value = entry.get("resistance_per_minute") or 0.0
+        elif rank_by == "offensive":
+            value = entry.get("offense_delta") or 0.0
+        else:
+            value = entry.get("compatibility") or 0.0
+        return {
+            "rank_metric": value,
+            "rank_metric_label": rank_metric_label,
+            # Only the delta-style metrics carry a leading sign.
+            "rank_metric_signed": rank_by != "defensive",
+        }
 
     @staticmethod
     def _build_duo_matrix(duos: List[Dict]) -> Dict:

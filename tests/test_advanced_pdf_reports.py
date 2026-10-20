@@ -1,3 +1,5 @@
+import re
+
 from core.advanced_pdf_reports import AdvancedPDFReports
 from core.models import Game, PlayerStat, ShotEvent
 
@@ -483,13 +485,48 @@ def test_lineup_report_trio_cards_are_labeled_with_the_active_rank_metric(
     assert captured["rank_metric_label"] == "OFF IMP"
 
 
+def _combination_payload(
+    players,
+    *,
+    net_differential,
+    offense_delta,
+    defense_delta,
+    resistance_per_minute=0.25,
+    on_net=20.0,
+    ortg=110.0,
+    drtg=90.0,
+    segments=4,
+):
+    """A combination payload shaped like the real one from
+    LineupAnalytics.get_combination_net_differentials (impact carries
+    offense_delta / defense_delta / net_differential)."""
+    return {
+        "players": list(players),
+        "segments": segments,
+        "on": {
+            "minutes": 12.0,
+            "possessions": 10.0,
+            "ortg": ortg,
+            "drtg": drtg,
+            "net": on_net,
+            "resistance_per_minute": resistance_per_minute,
+        },
+        "impact": {
+            "offense_delta": offense_delta,
+            "defense_delta": defense_delta,
+            "net_differential": net_differential,
+        },
+    }
+
+
 def test_generate_lineup_report_labels_every_duo_with_the_rank_metric(
     db_session, mocker
 ):
     """Regression guard: the rank-metric label used to be resolved *after* the
     duo loop, so the very first duo raised
     ``UnboundLocalError: cannot access local variable 'rank_metric_label'``.
-    Every duo/trio entry must carry the label and the signed flag."""
+    Every duo/trio entry must carry the label and the signed flag, and the
+    value must be the metric the label names."""
     captured = {}
 
     def fake_render(template_name, **context):
@@ -508,47 +545,35 @@ def test_generate_lineup_report_labels_every_duo_with_the_rank_metric(
     def fake_combinations(**kwargs):
         if kwargs["combination_type"] == "trio":
             return [
-                {
-                    "players": ["A", "B", "C"],
-                    "segments": 3,
-                    "on": {
-                        "minutes": 9.0,
-                        "possessions": 8.0,
-                        "ortg": 108.0,
-                        "drtg": 92.0,
-                        "net": 16.0,
-                        "resistance_per_minute": 0.5,
-                    },
-                    "impact": {"net_differential": 21.0},
-                }
+                _combination_payload(
+                    ["A", "B", "C"],
+                    net_differential=21.0,
+                    offense_delta=14.0,
+                    defense_delta=7.0,
+                    resistance_per_minute=0.5,
+                    on_net=16.0,
+                    ortg=108.0,
+                    drtg=92.0,
+                    segments=3,
+                )
             ]
         return [
-            {
-                "players": ["A", "B"],
-                "segments": 4,
-                "on": {
-                    "minutes": 12.0,
-                    "possessions": 10.0,
-                    "ortg": 110.0,
-                    "drtg": 90.0,
-                    "net": 20.0,
-                    "resistance_per_minute": 0.25,
-                },
-                "impact": {"net_differential": 35.0},
-            },
-            {
-                "players": ["A", "C"],
-                "segments": 4,
-                "on": {
-                    "minutes": 12.0,
-                    "possessions": 10.0,
-                    "ortg": 95.0,
-                    "drtg": 100.0,
-                    "net": -5.0,
-                    "resistance_per_minute": 0.75,
-                },
-                "impact": {"net_differential": -12.0},
-            },
+            _combination_payload(
+                ["A", "B"],
+                net_differential=35.0,
+                offense_delta=12.0,
+                defense_delta=9.0,
+            ),
+            _combination_payload(
+                ["A", "C"],
+                net_differential=-12.0,
+                offense_delta=-4.0,
+                defense_delta=6.0,
+                resistance_per_minute=0.75,
+                on_net=-5.0,
+                ortg=95.0,
+                drtg=100.0,
+            ),
         ]
 
     mocker.patch(
@@ -567,11 +592,13 @@ def test_generate_lineup_report_labels_every_duo_with_the_rank_metric(
     for duo in captured["duos"]:
         assert duo["rank_metric_label"] == "NET IMP"
         assert duo["rank_metric_signed"] is True
+        # "NET IMP" names the net differential, so that is what must be shown.
         assert duo["rank_metric"] == duo["compatibility"]
 
     for trio in captured["trios"]:
         assert trio["rank_metric_label"] == "NET IMP"
         assert trio["rank_metric_signed"] is True
+        assert trio["rank_metric"] == trio["compatibility"]
 
     # The template contract is unchanged.
     assert captured["rank_metric_key"] == "net_differential"
@@ -579,11 +606,12 @@ def test_generate_lineup_report_labels_every_duo_with_the_rank_metric(
     assert captured["lineup_rank_label"] == "Net Rating"
 
 
-def test_generate_lineup_report_labels_duos_for_offensive_and_defensive_ranks(
+def test_generate_lineup_report_ranks_duos_on_the_metric_it_labels(
     db_session, mocker
 ):
-    """The label/signed flag follow the active rank_by for duos too, not just
-    for trios."""
+    """The printed value must match the printed label: an offensive report is
+    graded on the OFF/DEF impact delta ("OFF IMP"), not on the net
+    differential the overall report uses."""
     captured = {}
 
     def fake_render(template_name, **context):
@@ -601,21 +629,26 @@ def test_generate_lineup_report_labels_duos_for_offensive_and_defensive_ranks(
 
     def fake_combinations(**kwargs):
         if kwargs["combination_type"] == "trio":
-            return []
+            return [
+                _combination_payload(
+                    ["A", "B", "C"],
+                    net_differential=21.0,
+                    offense_delta=14.0,
+                    defense_delta=7.0,
+                    resistance_per_minute=0.5,
+                    on_net=16.0,
+                    ortg=108.0,
+                    drtg=92.0,
+                    segments=3,
+                )
+            ]
         return [
-            {
-                "players": ["A", "B"],
-                "segments": 4,
-                "on": {
-                    "minutes": 12.0,
-                    "possessions": 10.0,
-                    "ortg": 110.0,
-                    "drtg": 90.0,
-                    "net": 20.0,
-                    "resistance_per_minute": 0.25,
-                },
-                "impact": {"net_differential": 35.0},
-            }
+            _combination_payload(
+                ["A", "B"],
+                net_differential=35.0,
+                offense_delta=12.0,
+                defense_delta=9.0,
+            )
         ]
 
     mocker.patch(
@@ -623,11 +656,72 @@ def test_generate_lineup_report_labels_duos_for_offensive_and_defensive_ranks(
         side_effect=fake_combinations,
     )
 
+    # Offensive: the label names the impact delta, so that is the value.
     AdvancedPDFReports.generate_lineup_report(game_ids=[1], rank_by="offensive")
     assert captured["duos"][0]["rank_metric_label"] == "OFF IMP"
     assert captured["duos"][0]["rank_metric_signed"] is True
+    assert captured["duos"][0]["rank_metric"] == 12.0
+    assert captured["duos"][0]["rank_metric"] == captured["duos"][0]["offense_delta"]
+    assert captured["trios"][0]["rank_metric"] == 14.0
 
+    # Defensive: resistance per minute, and no leading sign (lower is better).
     AdvancedPDFReports.generate_lineup_report(game_ids=[1], rank_by="defensive")
     assert captured["duos"][0]["rank_metric_label"] == "RES / MIN"
     assert captured["duos"][0]["rank_metric_signed"] is False
     assert captured["duos"][0]["rank_metric"] == 0.25
+    assert captured["trios"][0]["rank_metric"] == 0.5
+
+
+def test_lineup_report_template_renders_the_duo_rank_metric_with_its_label(
+    app, db_session, mocker
+):
+    """The duo rows of the PDF must print the metric the report is ranked by,
+    with its label - not an unlabelled ON/OFF net differential."""
+    html_instance = mocker.MagicMock()
+    html_instance.write_pdf.return_value = b"pdf"
+    # NOTE: render_template is NOT mocked here, so the real
+    # reports/lineup_report.html template is exercised.
+    html_mock = mocker.patch(
+        "core.advanced_pdf_reports.HTML", return_value=html_instance
+    )
+    mocker.patch(
+        "core.advanced_pdf_reports.LineupAnalytics.get_lineup_efficiency_rankings",
+        return_value=[],
+    )
+
+    def fake_combinations(**kwargs):
+        if kwargs["combination_type"] == "trio":
+            return []
+        return [
+            _combination_payload(
+                ["A", "B"],
+                net_differential=35.0,
+                offense_delta=12.0,
+                defense_delta=9.0,
+            )
+        ]
+
+    mocker.patch(
+        "core.advanced_pdf_reports.LineupAnalytics.get_combination_net_differentials",
+        side_effect=fake_combinations,
+    )
+
+    # The app injects team context via the session, so the real template needs
+    # a request context.
+    with app.test_request_context("/reports/lineup/report.pdf"):
+        AdvancedPDFReports.generate_lineup_report(game_ids=[1], rank_by="offensive")
+        html = html_mock.call_args.kwargs["string"]
+
+    # The duo row shows the labelled rank metric.
+    duo_net = re.search(r'<div class="duo-net[^"]*">(.*?)</div>', html, re.S)
+    assert duo_net is not None
+    duo_net_html = duo_net.group(1)
+    assert "OFF IMP" in duo_net_html
+    assert "+12.0" in duo_net_html
+    # ... and NOT the net differential, which "OFF IMP" does not name.
+    assert "35.0" not in duo_net_html
+
+    # The section advertises the metric it is ranked by, and the machine
+    # readable metric id travels with it.
+    assert "Top Duo Combinations (by OFF IMP)" in html
+    assert 'data-rank-metric="offense_delta"' in html
