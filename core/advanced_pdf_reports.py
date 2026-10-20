@@ -238,6 +238,24 @@ class AdvancedPDFReports:
             game_ids, min_possessions, rank_by=rank_by
         )
 
+        # Surface the metric the report is actually ranked by, so the template
+        # never labels an offensive/defensive ranking as "Net Rating".
+        # Defensive rankings are graded on resistance per minute (points allowed
+        # per minute on court, lowest first), not on the ON/OFF differential.
+        # NOTE: this mapping must be resolved BEFORE the duo/trio loops below,
+        # because both loops stamp the label onto every entry they produce.
+        rank_metric_key, rank_metric_label = {
+            "offensive": ("offense_delta", "OFF IMP"),
+            "defensive": ("on.resistance_per_minute", "RES / MIN"),
+        }.get(rank_by, ("net_differential", "NET IMP"))
+        # Lineup rankings sort by raw ORtg, or by resistance per minute on the
+        # defensive side (see get_lineup_efficiency_rankings), so they need their
+        # own label rather than the ON/OFF differential label used by the combos.
+        lineup_rank_label = {
+            "offensive": "Offensive Rating (ORtg)",
+            "defensive": "Resistance per Minute (lower is better)",
+        }.get(rank_by, "Net Rating")
+
         # Use ON/OFF differential so compatibility is centered around neutral (0.0).
         # require_positive stays False here because the duo matrix needs the
         # negative half of the distribution to color its cells.
@@ -302,21 +320,6 @@ class AdvancedPDFReports:
             for trio in trio_impacts
         ]
 
-        # Surface the metric the report is actually ranked by, so the template
-        # never labels an offensive/defensive ranking as "Net Rating".
-        # Defensive rankings are graded on resistance per minute (points allowed
-        # per minute on court, lowest first), not on the ON/OFF differential.
-        rank_metric_key, rank_metric_label = {
-            "offensive": ("offense_delta", "OFF IMP"),
-            "defensive": ("on.resistance_per_minute", "RES / MIN"),
-        }.get(rank_by, ("net_differential", "NET IMP"))
-        # Lineup rankings sort by raw ORtg, or by resistance per minute on the
-        # defensive side (see get_lineup_efficiency_rankings), so they need their
-        # own label rather than the ON/OFF differential label used by the combos.
-        lineup_rank_label = {
-            "offensive": "Offensive Rating (ORtg)",
-            "defensive": "Resistance per Minute (lower is better)",
-        }.get(rank_by, "Net Rating")
         for trio in trios:
             if rank_by == "defensive":
                 trio["rank_metric"] = trio["resistance_per_minute"] or 0.0
