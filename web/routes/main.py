@@ -22,6 +22,7 @@ from flask import (
 )
 from io import BytesIO
 from urllib.parse import unquote
+from markupsafe import escape
 from flask_login import login_required, current_user
 from sqlalchemy import func
 from weasyprint import HTML
@@ -1778,6 +1779,239 @@ def players_cards_pdf():
     )
 
 
+# ---------------------------------------------------------------------------
+# /players/pages.zip - work estimate and time budget
+# ---------------------------------------------------------------------------
+# The export renders one WeasyPrint PDF per player plus a team page inside a
+# single synchronous request. Measured on the seeded DB (10 games, 15
+# players): 16 pages took 103.8s and 1.27 MB, i.e. ~6.5s per page. Both
+# nginx (proxy_read_timeout 120s) and gunicorn (timeout = 120) give up after
+# 120s, so a slightly bigger roster turns the export into an opaque 504
+# gateway timeout with no feedback and no way to recover. Estimate the work
+# before rendering anything and refuse early with an actionable message.
+PAGES_ZIP_SECONDS_PER_PAGE_BASE = 3.0
+PAGES_ZIP_SECONDS_PER_GAME = 0.45
+PAGES_ZIP_BUDGET_SECONDS = 100.0
+PAGES_ZIP_HARD_TIMEOUT_SECONDS = 120.0
+
+
+def _pages_zip_budget_seconds():
+    """Safe budget for one export request (configurable for tests/deploys)."""
+    try:
+        budget = float(
+            current_app.config.get(
+                "PLAYERS_PAGES_ZIP_BUDGET_SECONDS", PAGES_ZIP_BUDGET_SECONDS
+            )
+        )
+    except (TypeError, ValueError):
+        budget = PAGES_ZIP_BUDGET_SECONDS
+    return max(budget, 1.0)
+
+
+def _pages_zip_seconds_per_page(scope_game_count):
+    """Estimated seconds to render a single player page (team page included)."""
+    return (
+        PAGES_ZIP_SECONDS_PER_PAGE_BASE
+        + PAGES_ZIP_SECONDS_PER_GAME * max(scope_game_count, 0)
+    )
+
+
+def _pages_zip_export_plan(game_type, limit, team_id, season_id):
+    """Preview the pages.zip work without rendering a single PDF.
+
+    The player set mirrors AnalyticsService.build_players_listing_context:
+    the players with stats in the most recent `limit` games plus the active
+    roster. Every rendered page always covers the *full* game scope of the
+    selected game type, so the page cost is driven by that scope.
+    """
+    scope_games = AnalyticsService.filter_games(
+        Game.query.order_by(Game.sort_date.desc()),
+        game_type, team_id, season_id,
+    ).all()
+    listing_games = scope_games[:limit] if limit > 0 else scope_games
+    listing_game_ids = [g.id for g in listing_games]
+
+    player_names = set()
+    if listing_game_ids:
+        rows = (
+            db.session.query(PlayerStat.player_name)
+            .filter(PlayerStat.game_id.in_(listing_game_ids))
+            .filter(PlayerStat.minutes != "00:00")
+            .filter(PlayerStat.minutes != "0")
+            .distinct()
+            .all()
+        )
+        player_names = {row[0] for row in rows}
+
+    # Roster players without stats are listed as well (the export skips
+    # them, so they only make the estimate more conservative).
+    roster_names = set()
+    if team_id is not None:
+        known = {name.lower() for name in player_names}
+        try:
+            roster = Player.query.filter_by(team_id=team_id, active=True).all()
+        except Exception:
+            roster = []
+        for roster_player in roster:
+            if roster_player.name.lower() not in known:
+                roster_names.add(roster_player.name)
+                player_names.add(roster_player.name)
+
+    return {
+        "player_names": player_names,
+        "roster_names": roster_names,
+        "player_count": len(player_names),
+        "page_count": len(player_names) + 1,  # + the team total page
+        "scope_game_count": len(scope_games),
+        "listing_game_count": len(listing_games),
+        "scope_games": scope_games,
+    }
+
+
+def _pages_zip_suggested_limit(scope_games, roster_names, per_page, budget):
+    """Smallest number of most recent games whose export still fits.
+
+    Returns None when even a single game is too much.
+    """
+    game_ids = [game.id for game in scope_games]
+    if not game_ids:
+        return None
+    rows = (
+        db.session.query(PlayerStat.game_id, PlayerStat.player_name)
+        .filter(PlayerStat.game_id.in_(game_ids))
+        .filter(PlayerStat.minutes != "00:00")
+        .filter(PlayerStat.minutes != "0")
+        .all()
+    )
+    players_by_game = {}
+    for game_id, player_name in rows:
+        players_by_game.setdefault(game_id, set()).add(player_name)
+
+    cumulative = set(roster_names)
+    for index, game in enumerate(scope_games, start=1):
+        cumulative |= players_by_game.get(game.id, set())
+        if (len(cumulative) + 1) * per_page <= budget:
+            return index
+    return None
+
+
+def _pages_zip_wants_json():
+    """True when the caller expects a JSON body instead of the HTML page."""
+    if (request.args.get("format") or "").strip().lower() == "json":
+        return True
+    accept = request.accept_mimetypes
+    return accept["application/json"] > accept["text/html"]
+
+
+def _pages_zip_error_payload(plan, per_page, estimate, budget,
+                             suggested_limit, suggested_url):
+    """Actionable description of an export that does not fit the budget."""
+    players = plan["player_count"]
+    pages = plan["page_count"]
+    max_pages = int(budget // per_page) if per_page > 0 else 0
+
+    message = (
+        f"This export would render {pages} pages for {players} players, about "
+        f"{int(round(estimate))} seconds of PDF work. That is over the "
+        f"{int(budget)} second budget of a single request: nginx "
+        f"(proxy_read_timeout {int(PAGES_ZIP_HARD_TIMEOUT_SECONDS)}s) and "
+        "gunicorn (timeout = 120) would cut the request off and the browser "
+        "would only show a 504 gateway timeout. Narrow the selection and "
+        "export again."
+    )
+
+    hints = [
+        "&game_type=Season, &game_type=Friendly or &game_type=Playoff export a "
+        "single competition, so every page covers fewer games.",
+        "&limit=N keeps only the N most recent games, so fewer players qualify "
+        "for a page.",
+        "&exclude_player=Name leaves a player out of the team total page.",
+        f"At most {max_pages} pages ({max_pages - 1} players) fit in one "
+        "request right now.",
+        "If the selection cannot be narrowed, download the pages one player at "
+        "a time from the Players page.",
+    ]
+    if suggested_limit:
+        hints.insert(
+            0,
+            f"Try &limit={suggested_limit}: the last {suggested_limit} "
+            f"game(s) fit in the budget.",
+        )
+
+    return {
+        "error": "export_too_large",
+        "message": message,
+        "players": players,
+        "pages": pages,
+        "estimated_seconds": int(round(estimate)),
+        "budget_seconds": int(budget),
+        "max_pages": max_pages,
+        "suggested_limit": suggested_limit,
+        "suggested_url": suggested_url,
+        "parameters": ["limit", "game_type", "exclude_player", "sort", "order"],
+        "hints": hints,
+    }
+
+
+def _pages_zip_too_large_response(payload):
+    """422 with an actionable message instead of a 504 gateway timeout."""
+    if _pages_zip_wants_json():
+        response = jsonify(payload)
+        response.status_code = 422
+        return response
+
+    message = payload["message"]
+    hints = payload["hints"]
+    players = payload["players"]
+    pages = payload["pages"]
+    estimate = payload["estimated_seconds"]
+    budget = payload["budget_seconds"]
+    suggested_limit = payload.get("suggested_limit")
+    suggested_url = payload.get("suggested_url")
+
+    hint_items = "".join(f"<li>{escape(hint)}</li>" for hint in hints)
+    suggested_link = ""
+    if suggested_url and suggested_limit:
+        suggested_link = (
+            f'<p><a class="cta" href="{escape(suggested_url)}">'
+            f"Export the last {escape(str(suggested_limit))} game(s) instead"
+            "</a></p>"
+        )
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Export too large - HoopsStats</title>
+<style>
+  body {{ background:#0f1420; color:#e6edf7; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; margin:0; padding:32px 20px; }}
+  .card {{ max-width:720px; margin:0 auto; background:#161d2e; border:1px solid #26314a; border-radius:12px; padding:28px; }}
+  h1 {{ font-size:22px; margin:0 0 12px; color:#f2c14e; }}
+  p {{ line-height:1.55; color:#c8d3e6; }}
+  ul {{ line-height:1.55; color:#c8d3e6; padding-left:20px; }}
+  code {{ background:#0f1420; border:1px solid #26314a; border-radius:4px; padding:1px 5px; color:#a3bffa; }}
+  .cta {{ display:inline-block; margin-top:6px; background:#667eea; color:#fff; text-decoration:none; padding:10px 16px; border-radius:8px; font-weight:600; }}
+  .meta {{ font-size:13px; color:#8b98b0; margin-top:18px; }}
+  a {{ color:#a3bffa; }}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>This export is too large for a single request</h1>
+    <p>{escape(message)}</p>
+    <p><strong>Narrow the selection:</strong></p>
+    <ul>{hint_items}</ul>
+    {suggested_link}
+    <p class="meta">Pages: {pages} &middot; Players: {players} &middot;
+      Estimated time: {estimate}s &middot; Budget: {budget}s</p>
+    <p><a href="/players">Back to the players page</a></p>
+  </div>
+</body>
+</html>
+"""
+    return make_response(html, 422)
+
+
 @main_bp.route("/players/pages.zip")
 @login_required
 @team_access_required
@@ -1798,10 +2032,54 @@ def players_pages_zip():
     order = request.args.get("order", "desc")
     excluded_player = (request.args.get("exclude_player") or "").strip()
     season_id = resolve_request_season_id(session.get("current_team_id"))
+    team_id = session.get("current_team_id")
+
+    # Fail fast: estimate the PDF work before rendering a single page so a
+    # huge roster gets an explicit, actionable error instead of a 504.
+    plan = _pages_zip_export_plan(game_type, limit, team_id, season_id)
+    per_page = _pages_zip_seconds_per_page(plan["scope_game_count"])
+    budget = _pages_zip_budget_seconds()
+    estimate = per_page * plan["page_count"]
+
+    if estimate > budget:
+        suggested_limit = _pages_zip_suggested_limit(
+            plan["scope_games"], plan["roster_names"], per_page, budget
+        )
+        suggested_args = {
+            "game_type": game_type,
+            "sort": sort_by,
+            "order": order,
+        }
+        if suggested_limit:
+            suggested_args["limit"] = suggested_limit
+        if excluded_player:
+            suggested_args["exclude_player"] = excluded_player
+        suggested_url = url_for("main.players_pages_zip", **suggested_args)
+        current_app.logger.warning(
+            f"pages.zip export refused: {plan['page_count']} pages "
+            f"(~{int(round(estimate))}s) exceed the {int(budget)}s budget"
+        )
+        return _pages_zip_too_large_response(
+            _pages_zip_error_payload(
+                plan, per_page, estimate, budget, suggested_limit, suggested_url
+            )
+        )
+
+    if (request.args.get("estimate") or "").strip().lower() in ("1", "true", "yes"):
+        # Cheap preview used by the Players page to show the user how big
+        # the export is before starting it.
+        return jsonify({
+            "players": plan["player_count"],
+            "pages": plan["page_count"],
+            "estimated_seconds": int(round(estimate)),
+            "seconds_per_page": round(per_page, 2),
+            "budget_seconds": int(budget),
+            "games": plan["scope_game_count"],
+        })
 
     context = AnalyticsService.build_players_listing_context(
         game_type, limit, sort_by, order, excluded_player,
-        team_id=session.get("current_team_id"), season_id=season_id
+        team_id=team_id, season_id=season_id
     )
     zip_buffer = BytesIO()
     skipped_players = []
