@@ -1109,7 +1109,7 @@ class LineupAnalytics:
             total_seconds = stats["total_seconds"]
             if total_seconds <= 0:
                 continue
-            if possessions < min_possessions and possessions > 0:
+            if possessions < min_possessions:
                 continue
             # Defensive grading needs a real on-court sample: a sub-three-minute
             # stint is excluded rather than merely ranked low, so a "Best
