@@ -1846,12 +1846,14 @@ def _pages_zip_export_plan(game_type, limit, team_id, season_id):
     # Roster players without stats are listed as well (the export skips
     # them, so they only make the estimate more conservative).
     roster_names = set()
+    active_roster_names = set()
     if team_id is not None:
         known = {name.lower() for name in player_names}
         try:
             roster = Player.query.filter_by(team_id=team_id, active=True).all()
         except Exception:
             roster = []
+        active_roster_names = {p.name for p in roster}
         for roster_player in roster:
             if roster_player.name.lower() not in known:
                 roster_names.add(roster_player.name)
@@ -1860,6 +1862,11 @@ def _pages_zip_export_plan(game_type, limit, team_id, season_id):
     return {
         "player_names": player_names,
         "roster_names": roster_names,
+        # The WHOLE active roster, not only the players that are missing from
+        # the current listing: at a smaller limit a roster player that played
+        # in the current games may have no stats in the last N games, yet the
+        # listing still offers that player a page.
+        "active_roster_names": active_roster_names,
         "player_count": len(player_names),
         "page_count": len(player_names) + 1,  # + the team total page
         "scope_game_count": len(scope_games),
@@ -1870,6 +1877,11 @@ def _pages_zip_export_plan(game_type, limit, team_id, season_id):
 
 def _pages_zip_suggested_limit(scope_games, roster_names, per_page, budget):
     """Smallest number of most recent games whose export still fits.
+
+    ``roster_names`` must be the WHOLE active roster: every active roster
+    player gets a page whenever the listing still offers them, whatever the
+    limit is. Names are compared case-insensitively, exactly like the export
+    plan does, so a player is never counted twice under two spellings.
 
     Returns None when even a single game is too much.
     """
@@ -1885,9 +1897,9 @@ def _pages_zip_suggested_limit(scope_games, roster_names, per_page, budget):
     )
     players_by_game = {}
     for game_id, player_name in rows:
-        players_by_game.setdefault(game_id, set()).add(player_name)
+        players_by_game.setdefault(game_id, set()).add(player_name.lower())
 
-    cumulative = set(roster_names)
+    cumulative = {name.lower() for name in roster_names}
     for index, game in enumerate(scope_games, start=1):
         cumulative |= players_by_game.get(game.id, set())
         if (len(cumulative) + 1) * per_page <= budget:
@@ -1926,7 +1938,7 @@ def _pages_zip_error_payload(plan, per_page, estimate, budget,
         "&limit=N keeps only the N most recent games, so fewer players qualify "
         "for a page.",
         "&exclude_player=Name leaves a player out of the team total page.",
-        f"At most {max_pages} pages ({max_pages - 1} players) fit in one "
+        f"At most {max_pages} pages ({max(max_pages - 1, 0)} players) fit in one "
         "request right now.",
         "If the selection cannot be narrowed, download the pages one player at "
         "a time from the Players page.",
@@ -2043,7 +2055,10 @@ def players_pages_zip():
 
     if estimate > budget:
         suggested_limit = _pages_zip_suggested_limit(
-            plan["scope_games"], plan["roster_names"], per_page, budget
+            plan["scope_games"],
+            plan["active_roster_names"] or plan["roster_names"],
+            per_page,
+            budget,
         )
         suggested_args = {
             "game_type": game_type,

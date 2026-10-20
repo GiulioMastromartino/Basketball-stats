@@ -21,7 +21,9 @@ import pytest
 from core.models import Game, PlayerStat, Team
 
 
-def _add_game_with_players(db_session, team, player_names, game_type="Season"):
+def _add_game_with_players(
+    db_session, team, player_names, game_type="Season", sort_date="2024-02-17"
+):
     """One game with a box score for every given player."""
     game = Game(
         date="17-02-2024",
@@ -30,7 +32,7 @@ def _add_game_with_players(db_session, team, player_names, game_type="Season"):
         opponent_score=70,
         result="W",
         game_type=game_type,
-        sort_date="2024-02-17",
+        sort_date=sort_date,
         source="MANUAL",
         team_id=team.id,
     )
@@ -186,6 +188,52 @@ def test_pages_zip_stays_scoped_to_the_session_team(
 
 
 # --- the page tells the user what is going on --------------------------------
+
+
+def test_pages_zip_suggested_limit_is_itself_accepted(
+    auth_client, db_session, default_team
+):
+    """A suggested limit must be accepted: the route must never suggest a
+    selection that it refuses again with the very same error.
+
+    The suggestion used to count only the roster players that were missing
+    from the current listing. A roster player who DID play in the current
+    games but has no stats in the last N games was left out, so the route
+    suggested a limit whose real export did not fit the budget any more.
+    """
+    from core.models import Player
+
+    # 40 roster players that played in the OLDER game only ...
+    roster_names = [f"Roster {i:02d}" for i in range(40)]
+    _add_game_with_players(
+        db_session, default_team, roster_names, sort_date="2024-01-01"
+    )
+    # ... and 5 players in the newest game who are not on the roster.
+    _add_game_with_players(
+        db_session,
+        default_team,
+        ["Recent A", "Recent B", "Recent C", "Recent D", "Recent E"],
+        sort_date="2024-02-01",
+    )
+    for name in roster_names:
+        db_session.add(Player(team_id=default_team.id, name=name, active=True))
+    db_session.commit()
+
+    response = auth_client.get(_export_url(format="json"))
+
+    assert response.status_code == 422, response.status_code
+    payload = response.get_json()
+    suggested = payload.get("suggested_limit")
+
+    if suggested is None:
+        # Nothing fits in the budget: the route must not promise a limit.
+        assert payload["suggested_limit"] is None
+        return
+
+    second = auth_client.get(_export_url(format="json", limit=suggested))
+    assert second.status_code != 422, (
+        f"the suggested limit={suggested} is refused again: {second.get_json()}"
+    )
 
 
 def test_players_page_shows_the_export_feedback(auth_client):
