@@ -130,13 +130,16 @@ def ensure_admin(org, team):
         db.session.add(admin)
         try:
             db.session.flush()
-        except IntegrityError:
+        except IntegrityError as exc:
             # e.g. the email is already taken by another account: fall back
             # to the existing user instead of aborting the setup.
             db.session.rollback()
             admin = User.query.filter_by(username=ADMIN_USERNAME).first()
             if admin is None:
-                raise
+                raise RuntimeError(
+                    f"could not create the {ADMIN_USERNAME!r} user: the email "
+                    f"{ADMIN_EMAIL!r} is already used by another account"
+                ) from exc
     elif not admin.organization_id:
         admin.organization_id = org.id
         db.session.flush()
@@ -252,6 +255,9 @@ def setup_local_environment(app=None):
 
         org = ensure_organization()
         team = ensure_team(org)
+        # Commit the org/team before the user: a failure while creating the
+        # admin must not take the organization and the team down with it.
+        db.session.commit()
         ensure_admin(org, team)
         db.session.commit()
         print(f"✓ Organization: {org.name} (slug: {org.slug})")
