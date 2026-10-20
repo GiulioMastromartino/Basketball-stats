@@ -1928,6 +1928,8 @@ def _pages_zip_error_payload(plan, per_page, estimate, budget,
         "&exclude_player=Name leaves a player out of the team total page.",
         f"At most {max_pages} pages ({max_pages - 1} players) fit in one "
         "request right now.",
+        "If the selection cannot be narrowed, download the pages one player at "
+        "a time from the Players page.",
     ]
     if suggested_limit:
         hints.insert(
