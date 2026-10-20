@@ -8,26 +8,33 @@
         <!-- CSRF Token -->
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <!-- Bootstrap CSS -->
+        <!-- Bootstrap CSS (vendored: served from /static, no CDN needed) -->
         <link
-            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+            href="{{ static_url('vendor/bootstrap-5.3.2/bootstrap.min.css') }}"
             rel="stylesheet"
         />
 
-        <!-- Fonts & Icons -->
+        <!-- Fonts & Icons (vendored) -->
         <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            href="{{ static_url('vendor/fonts/fonts.css') }}"
             rel="stylesheet"
         />
         <link
             rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+            href="{{ static_url('vendor/fontawesome-6.5.1/css/all.min.css') }}"
         />
 
         <!-- Main Stylesheet -->
         <link
             rel="stylesheet"
             href="{{ static_url('css/style.css') }}"
+        />
+
+        <!-- Favicon -->
+        <link
+            rel="icon"
+            href="{{ static_url('images/basketball_icon.svg') }}"
+            type="image/svg+xml"
         />
 
         <style>
@@ -183,11 +190,11 @@
         </style>
         {% block extra_css %}{% endblock %}
 
-        <!-- jQuery -->
-        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <!-- jQuery (vendored) -->
+        <script src="{{ static_url('vendor/jquery-3.6.0/jquery.min.js') }}"></script>
 
-        <!-- Bootstrap JS Bundle -->
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+        <!-- Bootstrap JS Bundle (vendored) -->
+        <script src="{{ static_url('vendor/bootstrap-5.3.2/bootstrap.bundle.min.js') }}"></script>
     </head>
     <body class="legacy-shell">
         {% if current_user.is_authenticated %}

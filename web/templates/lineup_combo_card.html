@@ -428,7 +428,7 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ static_url('vendor/chartjs/chart.umd.min.js') }}"></script>
 <script>
     const comboType = {{ combo_type | tojson }};
     const comboPlayers = {{ players | tojson }};
@@ -439,7 +439,20 @@
         return (v >= 0 ? '+' : '') + v.toFixed(1);
     }
 
+    function showFatal(message) {
+        const grid = document.getElementById('statsGrid');
+        if (grid) grid.innerHTML = `<div class="alert alert-danger">${message}</div>`;
+        hideLoader();
+    }
+
     function loadComboCard() {
+        // jQuery is vendored under /static/vendor/jquery-3.6.0. If it could not
+        // be loaded we must degrade to a visible message instead of throwing
+        // "ReferenceError: $ is not defined" and leaving a blank page.
+        if (typeof window.jQuery === 'undefined') {
+            showFatal('Interactive data is unavailable: a required JavaScript library could not be loaded.');
+            return;
+        }
         $.ajax({
             url: '/api/advanced/lineups/combinations/detail',
             method: 'GET',
@@ -551,6 +564,9 @@
 
     function renderTrendChart(games) {
         const ctx = document.getElementById('trendChart');
+        // Chart.js is vendored under /static/vendor. If it could not be loaded
+        // the rest of the page must still work - just skip the chart.
+        if (typeof Chart === 'undefined') return;
         const sorted = [...games].sort((a,b) => (a.date||'').localeCompare(b.date||''));
         if (trendChart) trendChart.destroy();
         trendChart = new Chart(ctx, {

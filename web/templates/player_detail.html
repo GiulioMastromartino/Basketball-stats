@@ -1131,9 +1131,10 @@
 {% endif %}
 
 {% if not pdf_mode %}
-<!-- defer so a slow/blocked CDN can never hold up first paint: the page is
+<!-- Vendored Chart.js: served from /static so the page works offline.
+     defer so a slow/blocked asset can never hold up first paint: the page is
      visible (and the shot chart builds) whether or not Chart.js arrives. -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+<script src="{{ static_url('vendor/chartjs/chart.umd.min.js') }}" defer></script>
 <script>
     const chartData = {{ chart_data|tojson }};
 

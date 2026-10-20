@@ -9,6 +9,7 @@ Covers:
 """
 
 import io
+import re
 import zipfile
 
 from core.models import (
@@ -106,9 +107,13 @@ def test_player_page_does_not_depend_on_cdn_or_load_event():
         assert 'data-chart-fallback' in html
         assert 'Charts unavailable' in html
 
-        # The CDN script can never block first paint, and the reveal no
-        # longer waits for window.load / rAF / Chart.js.
-        assert 'cdn.jsdelivr.net/npm/chart.js" defer' in html
+        # The Chart.js script can never block first paint, and the reveal no
+        # longer waits for window.load / rAF / Chart.js.  Chart.js is served
+        # from the vendored /static copy, so the page also works offline.
+        chart_tags = re.findall(r"<script[^>]*src=\"[^\"]*chart[^\"]*\"[^>]*>", html)
+        assert chart_tags, "the player page does not load Chart.js"
+        assert all("defer" in tag for tag in chart_tags), chart_tags
+        assert "/static/vendor/chartjs/" in html
         assert 'requestAnimationFrame(' not in html
         assert 'DOMContentLoaded' in html
         assert 'revealPlayerPage();' in html
