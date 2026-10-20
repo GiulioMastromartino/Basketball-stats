@@ -118,8 +118,14 @@ def ensure_team(org):
 
 
 def ensure_admin(org, team):
-    """Create the local admin user and its org/team links when missing."""
+    """Create the local admin user and its org/team links when missing.
+
+    Returns ``(admin, created)``: ``created`` is True only when this call
+    actually set the password, so the caller can print it. An admin that
+    already existed keeps its own password, which this script never knows.
+    """
     admin = User.query.filter_by(username=ADMIN_USERNAME).first()
+    created = False
     if admin is None:
         admin = User(
             username=ADMIN_USERNAME,
@@ -130,6 +136,7 @@ def ensure_admin(org, team):
         db.session.add(admin)
         try:
             db.session.flush()
+            created = True
         except IntegrityError as exc:
             # e.g. the email is already taken by another account: fall back
             # to the existing user instead of aborting the setup.
@@ -163,7 +170,7 @@ def ensure_admin(org, team):
         )
 
     db.session.flush()
-    return admin
+    return admin, created
 
 
 def create_sample_data(team):
@@ -258,18 +265,26 @@ def setup_local_environment(app=None):
         # Commit the org/team before the user: a failure while creating the
         # admin must not take the organization and the team down with it.
         db.session.commit()
-        ensure_admin(org, team)
+        _, admin_created = ensure_admin(org, team)
         db.session.commit()
         print(f"✓ Organization: {org.name} (slug: {org.slug})")
         print(f"✓ Team: {team.name} (slug: {team.slug})")
-        # Never echo a custom ADMIN_PASSWORD: it is a secret that ends up in
-        # CI logs and shared terminals. Only the built-in default is shown.
-        shown_password = (
-            "<from ADMIN_PASSWORD>"
-            if os.getenv("ADMIN_PASSWORD")
-            else DEFAULT_ADMIN_PASSWORD
-        )
-        print(f"✓ Admin: {ADMIN_USERNAME}/{shown_password}")
+        if admin_created:
+            # Never echo a custom ADMIN_PASSWORD: it is a secret that ends up
+            # in CI logs and shared terminals. Only the built-in default is
+            # shown.
+            shown_password = (
+                "<from ADMIN_PASSWORD>"
+                if os.getenv("ADMIN_PASSWORD")
+                else DEFAULT_ADMIN_PASSWORD
+            )
+            print(f"✓ Admin: {ADMIN_USERNAME}/{shown_password}")
+        else:
+            # The admin already existed: this script never touched its
+            # password, so it must not claim one.
+            print(
+                f"✓ Admin: {ADMIN_USERNAME} (existing user, password unchanged)"
+            )
 
         # Sample data is per team: a team that already has games keeps them,
         # so a second run does not duplicate the demo games.

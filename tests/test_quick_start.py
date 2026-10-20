@@ -80,6 +80,26 @@ def _run_setup(app, module):
     module.setup_local_environment(app=app)
 
 
+def test_setup_banner_never_echoes_a_custom_password(
+    quick_start_app, quick_start_module, monkeypatch, capsys
+):
+    """The banner must not print a secret and must not claim a password.
+
+    A custom ADMIN_PASSWORD is a secret that ends up in CI logs, and an
+    admin that already existed keeps a password this script never set.
+    """
+    monkeypatch.setenv("ADMIN_PASSWORD", "sup3r-s3cret")
+    _run_setup(quick_start_app, quick_start_module)
+    first = capsys.readouterr().out
+    assert "sup3r-s3cret" not in first, "the admin password must not be echoed"
+
+    # A second run must not claim a password for the existing admin.
+    _run_setup(quick_start_app, quick_start_module)
+    second = capsys.readouterr().out
+    assert "sup3r-s3cret" not in second
+    assert "password unchanged" in second
+
+
 def test_setup_creates_organization_with_slug(quick_start_app, quick_start_module):
     """The organization must exist AND carry a slug (NOT NULL, UNIQUE)."""
     _run_setup(quick_start_app, quick_start_module)
