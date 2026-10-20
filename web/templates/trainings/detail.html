@@ -384,7 +384,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+<script src="{{ static_url('vendor/fabric-5.3.1/fabric.min.js') }}"></script>
 <script src="{{ static_url('js/playbuilder/frame_snapshots.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
