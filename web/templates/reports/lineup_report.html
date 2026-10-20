@@ -343,6 +343,15 @@
         .duo-net.positive { color: var(--accent-hot); }
         .duo-net.negative { color: var(--accent-cold); }
 
+        .duo-metric-label {
+            font-size: 8px;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-right: 4px;
+        }
+
         .duo-meta {
             grid-column: 1 / -1;
             font-family: var(--font-mono);
@@ -677,8 +686,8 @@
         {% endif %}
 
         <!-- Duo Compatibility -->
-        <div class="section page-start">
-            <div class="section-title">Top Duo Combinations</div>
+        <div class="section page-start" data-rank-metric="{{ rank_metric_key }}">
+            <div class="section-title">Top Duo Combinations (by {{ rank_metric_label }})</div>
             {% set duo_subset = duos[:12] %}
             {% if duo_subset %}
             <table class="lineup-table">
@@ -690,10 +699,10 @@
                     <td>
                         {% if idx < duo_subset|length %}
                         {% set duo = duo_subset[idx] %}
-                        <div class="duo-item avoid-break {% if duo.compatibility >= 0 %}positive{% else %}negative{% endif %}">
+                        <div class="duo-item avoid-break {% if duo.rank_metric >= 0 %}positive{% else %}negative{% endif %}">
                             <div class="duo-names">{{ duo.player1 }} & {{ duo.player2 }}</div>
-                            <div class="duo-net {% if duo.compatibility >= 0 %}positive{% else %}negative{% endif %}">
-                                {% if duo.compatibility >= 0 %}+{% endif %}{{ duo.compatibility }}
+                            <div class="duo-net {% if duo.rank_metric >= 0 %}positive{% else %}negative{% endif %}">
+                                <span class="duo-metric-label">{{ duo.rank_metric_label }}</span>{% if duo.rank_metric_signed and duo.rank_metric >= 0 %}+{% endif %}{{ duo.rank_metric }}
                             </div>
                             <div class="duo-meta">{{ duo.possessions }} poss · ON Net {% if duo.net_rating >= 0 %}+{% endif %}{{ duo.net_rating }}</div>
                         </div>
@@ -708,7 +717,7 @@
         
         <!-- Top Trios -->
         {% if trios %}
-        <div class="section">
+        <div class="section" data-rank-metric="{{ rank_metric_key }}">
             <div class="section-title">Top Trio Combinations (by {{ rank_metric_label }})</div>
             <div class="trio-grid">
                 {% for trio in trios[:6] %}
