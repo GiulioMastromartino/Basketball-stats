@@ -262,10 +262,14 @@ def setup_local_environment(app=None):
         db.session.commit()
         print(f"✓ Organization: {org.name} (slug: {org.slug})")
         print(f"✓ Team: {team.name} (slug: {team.slug})")
-        print(
-            f"✓ Admin: {ADMIN_USERNAME}/"
-            f"{os.getenv('ADMIN_PASSWORD', DEFAULT_ADMIN_PASSWORD)}"
+        # Never echo a custom ADMIN_PASSWORD: it is a secret that ends up in
+        # CI logs and shared terminals. Only the built-in default is shown.
+        shown_password = (
+            "<from ADMIN_PASSWORD>"
+            if os.getenv("ADMIN_PASSWORD")
+            else DEFAULT_ADMIN_PASSWORD
         )
+        print(f"✓ Admin: {ADMIN_USERNAME}/{shown_password}")
 
         # Sample data is per team: a team that already has games keeps them,
         # so a second run does not duplicate the demo games.
