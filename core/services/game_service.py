@@ -12,6 +12,13 @@ from core.utils import normalize_date_to_display
 from flask import current_app
 
 
+class DuplicateGameError(Exception):
+    """Raised when a game import would create a duplicate (same team, date,
+    opponent). Routes translate this to HTTP 409 instead of 500 so concurrent
+    imports across app nodes never surface a raw IntegrityError."""
+    pass
+
+
 def validate_play_id(play_id):
     """
     Validate that a play ID exists in the database before using it.
@@ -1028,7 +1035,7 @@ def create_game_from_live_data(data, team_id: int = None, season_id: int = None)
         team_id=team_id, sort_date=sort_date, opponent=opponent
     ).first()
     if existing_game:
-        raise ValueError("Game already exists")
+        raise DuplicateGameError("Game already exists")
 
     # Create Game
     game = Game(

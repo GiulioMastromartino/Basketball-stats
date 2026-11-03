@@ -7,7 +7,6 @@ Prometheus metrics, and request diagnostics.
 
 import logging
 import os
-import threading
 import time
 import uuid
 from logging.handlers import RotatingFileHandler
@@ -21,7 +20,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from prometheus_flask_exporter import PrometheusMetrics
 from sqlalchemy import inspect, text
-from config import get_config
+from config import get_config, ProductionConfig
 from core.models import User, Team, bcrypt, db, PlayType
 from core.db_migrations import add_missing_columns as auto_add_missing_columns
 from core import mail
@@ -33,7 +32,10 @@ login_manager = LoginManager()
 csrf = CSRFProtect()
 limiter = Limiter(
     key_func=get_remote_address,
-    storage_uri="memory://",
+    # storage_uri is intentionally NOT hardcoded here: Flask-Limiter reads
+    # app.config["RATELIMIT_STORAGE_URI"] in init_app, so each node can use
+    # Redis (cluster-wide) or memory:// (single-node). Set via config.py.
+    storage_uri=None,
 )
 cache = Cache()
 migrate = Migrate()
@@ -91,6 +93,11 @@ def create_app(config_name: str = None) -> Flask:
     # Load configuration
     config = get_config(config_name)
     app.config.from_object(config)
+
+    # Production fail-fast: SECRET_KEY must be set and >= 32 chars so that
+    # signed session cookies validate identically on every app node.
+    if isinstance(config, ProductionConfig):
+        config.validate_secret_key()
     disable_auth = os.getenv("DISABLE_AUTH", "").lower() in ("1", "true", "yes", "on")
     if disable_auth:
         # Allow all requests through login_required for isolated/personal deployments
@@ -360,29 +367,6 @@ def create_app(config_name: str = None) -> Flask:
 
     # Register CLI commands
     register_commands(app)
-
-    # Initialize automatic sync scheduler if enabled
-    if config.SYNC_ENABLED and config.SERVER_URLS:
-
-        def _sync_loop():
-            """Background thread that periodically syncs with peer servers."""
-            import httpx
-
-            while True:
-                time.sleep(config.SYNC_INTERVAL)
-                try:
-                    with app.app_context():
-                        for url in config.SERVER_URLS:
-                            try:
-                                with httpx.Client(timeout=config.SYNC_TIMEOUT) as client:
-                                    client.get(f"{url.rstrip('/')}/health/live")
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
-
-        sync_thread = threading.Thread(target=_sync_loop, daemon=True)
-        sync_thread.start()
 
     return app
 

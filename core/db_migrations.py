@@ -111,3 +111,149 @@ def add_missing_columns(db, logger: Optional[object] = None) -> int:
                     )
 
     return columns_added
+
+
+# ── Multi-server: import idempotency at the DB layer ─────────────────────
+
+
+def _fk_child_tables(db, parent_table: str, parent_pk: str = "id"):
+    """Return list of (child_table, child_fk_column) that reference parent_table.pk.
+
+    Used by dedupe_games() to cascade-delete child rows of duplicate games
+    generically, without hard-coding every child table name.
+    """
+    children = []
+    for table in db.Model.metadata.sorted_tables:
+        child_name = table.name
+        if child_name == parent_table:
+            continue
+        for fk in table.foreign_keys:
+            # fk.target_fullname is like "games.id" — check it references
+            # our parent table's primary key.
+            if (
+                fk.target_fullname
+                == f"{parent_table}.{parent_pk}"
+            ):
+                # fk.parent is the child Column that carries the FK constraint.
+                children.append((child_name, fk.parent.name))
+                break
+    return children
+
+
+def dedupe_games(db, logger: Optional[object] = None) -> int:
+    """Remove duplicate games, keeping the lowest-id row per (team_id,
+    sort_date, opponent).
+
+    Child rows (player_stats, shot_events, game_events, lineup_segments, …)
+    are deleted via FK introspection so the dedupe is complete and safe to
+    re-run. Returns the number of duplicate game rows removed.
+    """
+    engine = db.engine
+    inspector = inspect(engine)
+
+    if not inspector.has_table("games"):
+        return 0
+
+    # Find duplicates: same team_id + sort_date + opponent, more than one row.
+    dupes = db.session.execute(
+        text(
+            "SELECT MIN(id) AS keep_id, team_id, sort_date, opponent, "
+            "COUNT(*) AS n FROM games "
+            "GROUP BY team_id, sort_date, opponent HAVING COUNT(*) > 1"
+        )
+    ).all()
+
+    removed = 0
+    for keep_id, team_id, sort_date, opponent, n in dupes:
+        # Child rows of all duplicate games (including the keeper's children
+        # would be wrong — we only delete children of the *loser* rows).
+        loser_ids = db.session.execute(
+            text(
+                "SELECT id FROM games WHERE team_id = :t AND sort_date = :s "
+                "AND opponent = :o AND id != :k ORDER BY id"
+            ),
+            {"t": team_id, "s": sort_date, "o": opponent, "k": keep_id},
+        ).scalars().all()
+
+        for loser_id in loser_ids:
+            # Delete child rows referencing this game.
+            for child_table, fk_col in _fk_child_tables(db, "games"):
+                try:
+                    db.session.execute(
+                        text(
+                            f'DELETE FROM "{child_table}" WHERE "{fk_col}" = :lid'
+                        ),
+                        {"lid": loser_id},
+                    )
+                except Exception:
+                    # Child table may not exist or lack this FK on this
+                    # dialect; skip it without aborting the dedupe transaction.
+                    pass
+
+            db.session.execute(
+                text("DELETE FROM games WHERE id = :lid"), {"lid": loser_id}
+            )
+            removed += 1
+
+    if removed:
+        db.session.commit()
+        if logger:
+            logger.info(f"Dedupe games: removed {removed} duplicate row(s)")
+
+    return removed
+
+
+def add_games_unique_index(db, logger: Optional[object] = None) -> bool:
+    """Create ``uq_games_team_date_opponent`` on games(team_id, sort_date,
+    opponent) after deduping. Idempotent and safe to re-run on every deploy.
+
+    Returns True when the index is in place.
+    """
+    engine = db.engine
+    inspector = inspect(engine)
+
+    if not inspector.has_table("games"):
+        if logger:
+            logger.warning("add_games_unique_index: games table missing")
+        return False
+
+    # Always dedupe first so the unique index can be created.
+    dedupe_games(db, logger=logger)
+
+    dialect = engine.dialect.name
+    index_name = "uq_games_team_date_opponent"
+    existing = {
+        idx["name"] for idx in inspector.get_indexes("games")
+    } | {
+        c["name"] for c in inspector.get_unique_constraints("games")
+    }
+
+    if index_name in existing:
+        return True
+
+    try:
+        if dialect == "postgresql":
+            db.session.execute(
+                text(
+                    f'CREATE UNIQUE INDEX IF NOT EXISTS "{index_name}" '
+                    f'ON games (team_id, sort_date, opponent)'
+                )
+            )
+        else:
+            # SQLite: CREATE UNIQUE INDEX on existing dupes fails; dedupe
+            # above already removed them, so this is safe.
+            db.session.execute(
+                text(
+                    f'CREATE UNIQUE INDEX IF NOT EXISTS "{index_name}" '
+                    f'ON games (team_id, sort_date, opponent)'
+                )
+            )
+        db.session.commit()
+        if logger:
+            logger.info(f"Created {index_name} on games(team_id, sort_date, opponent)")
+        return True
+    except Exception as exc:
+        db.session.rollback()
+        if logger:
+            logger.warning(f"add_games_unique_index failed: {exc}")
+        return False

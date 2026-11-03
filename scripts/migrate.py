@@ -36,6 +36,7 @@ from core.models import (
     SystemSetting,
 )
 from init_db import add_missing_columns, add_notification_columns
+from core.db_migrations import dedupe_games, add_games_unique_index
 from sqlalchemy import text
 
 
@@ -290,6 +291,18 @@ def run(app=None):
             migrate_plays_team_unique(app)
         except Exception as e:
             print(f"[migrate] Warning: plays uniqueness migration failed: {e}")
+
+        # ── 1e. Game import idempotency: dedupe + unique index ─────────────
+        # Two app nodes importing the same CSV concurrently must not create
+        # duplicate games. Dedupe (keeps lowest id, cascades child rows via
+        # FK introspection) then creates uq_games_team_date_opponent so the
+        # database itself rejects any future duplicate insert — the race
+        # loser gets IntegrityError → DuplicateGameError → 409 from the route.
+        print("[migrate] Deduplicating games and adding unique index...")
+        try:
+            add_games_unique_index(app)
+        except Exception as e:
+            print(f"[migrate] Warning: game dedupe/unique-index failed: {e}")
 
         # ── 2. Seed players from player_stats (idempotent) ─────────────────
         try:
