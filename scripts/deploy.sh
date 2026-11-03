@@ -28,7 +28,7 @@ echo "[STEP] Backing up PostgreSQL database..."
 mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="${BACKUP_DIR}/pre_deploy_${TIMESTAMP}.sql"
 
-DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep db | head -1)"
+DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep db | head -1 || true)"
 if docker exec "$DB_CONTAINER" pg_dump -U "${DB_USER}" "${DB_NAME}" > "$BACKUP_FILE" 2>/dev/null; then
     echo "[OK] Backup saved: $BACKUP_FILE ($(wc -c < "$BACKUP_FILE") bytes)"
 else
