@@ -2,9 +2,11 @@
 Health check endpoints for Kubernetes and container orchestration.
 """
 
+import httpx
 from flask import Blueprint, jsonify, current_app
 from sqlalchemy import text
 from core.models import db
+from config import get_config
 
 health_bp = Blueprint("health", __name__)
 
@@ -29,31 +31,69 @@ def ready():
         ), 503
 
 
-@health_bp.route("/health/sync", methods=["GET"])
-def sync():
-    """Sync-health probe for monitors (no auth — external metadata only).
-
-    Returns 200 with ``{"status": "ok"}`` when every tracked championship
-    checked in recently, else 503 with ``{"status": "stale"}`` so uptime
-    monitors and the ``HoopsLabSyncStale`` Prometheus alert can fire.
-    Per-championship detail lives behind login at
-    ``/analytics/championship/sync-health``.
-    """
-    from core.sync_diff import sync_health_snapshot
-
-    snapshot = sync_health_snapshot()
-    champs = snapshot.get("championships", [])
-    stale = [c["display_name"] or c["id"] for c in champs if c.get("stale")]
-    error_count = sum(len(c.get("recent_errors") or []) for c in champs)
-    if snapshot.get("error") and not champs:
-        # Unauthenticated probe: log the detail, expose only the status.
-        current_app.logger.error("sync probe failed: %s", snapshot["error"])
-        return jsonify({"status": "unknown", "championships": 0,
-                        "whatsapp": "unknown"}), 503
-    from core.services.whatsapp_service import get_connection_state
-    body = {"championships": len(champs),
-            "whatsapp": get_connection_state()}
-    if stale or error_count:
-        return jsonify({"status": "stale", "stale": stale,
-                        "error_count": error_count, **body}), 503
     return jsonify({"status": "ok", **body}), 200
+
+
+@health_bp.route("/health/peers", methods=["GET"])
+def peers():
+    """Check health of all configured peer servers."""
+    config = get_config()
+    peer_urls = config.SERVER_URLS
+    results = []
+
+    for url in peer_urls:
+        try:
+            with httpx.Client(timeout=config.SYNC_TIMEOUT) as client:
+                resp = client.get(f"{url.rstrip('/')}/health/live")
+                results.append(
+                    {
+                        "server": url,
+                        "status": "healthy" if resp.status_code == 200 else "unhealthy",
+                        "status_code": resp.status_code,
+                    }
+                )
+        except Exception as exc:
+            results.append(
+                {
+                    "server": url,
+                    "status": "unreachable",
+                    "error": str(exc),
+                }
+            )
+
+    healthy = sum(1 for r in results if r.get("status") == "healthy")
+    return jsonify(
+        {
+            "status": "healthy" if healthy == len(results) else "degraded",
+            "total": len(results),
+            "healthy": healthy,
+            "servers": results,
+        }
+    ), 200
+
+
+@health_bp.route("/health/peers/<path:server_url>", methods=["GET"])
+def peer(server_url):
+    """Check health of a specific peer server."""
+    config = get_config()
+    full_url = server_url if "://" in server_url else f"http://{server_url}"
+
+    if full_url not in config.SERVER_URLS:
+        return jsonify(
+            {"status": "error", "message": f"Server {full_url} not in configured peers"}
+        ), 400
+
+    try:
+        with httpx.Client(timeout=config.SYNC_TIMEOUT) as client:
+            resp = client.get(f"{full_url.rstrip('/')}/health/live")
+            return jsonify(
+                {
+                    "server": full_url,
+                    "status": "healthy" if resp.status_code == 200 else "unhealthy",
+                    "status_code": resp.status_code,
+                }
+            ), 200
+    except Exception as exc:
+        return jsonify(
+            {"server": full_url, "status": "unreachable", "error": str(exc)}
+        ), 503

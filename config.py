@@ -186,6 +186,17 @@ class Config:
     # replicas keep this off; dev and tests keep it on for convenience.
     AUTO_MIGRATE = os.getenv("AUTO_MIGRATE", "").lower() in ("1", "true", "yes", "on")
 
+    # Multi-server configuration
+    SERVER_URLS = [
+        url.strip()
+        for url in os.getenv("SERVER_URLS", "").split(",")
+        if url.strip()
+    ]
+    # Automatic sync between peer servers
+    SYNC_ENABLED = os.getenv("SYNC_ENABLED", "False").lower() in ("true", "1", "yes")
+    SYNC_INTERVAL = int(os.getenv("SYNC_INTERVAL", "300"))
+    SYNC_TIMEOUT = int(os.getenv("SYNC_TIMEOUT", "10"))
+
 
 class DevelopmentConfig(Config):
     DEBUG = True

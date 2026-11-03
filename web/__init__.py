@@ -7,6 +7,7 @@ Prometheus metrics, and request diagnostics.
 
 import logging
 import os
+import threading
 import time
 import uuid
 from logging.handlers import RotatingFileHandler
@@ -359,6 +360,29 @@ def create_app(config_name: str = None) -> Flask:
 
     # Register CLI commands
     register_commands(app)
+
+    # Initialize automatic sync scheduler if enabled
+    if config.SYNC_ENABLED and config.SERVER_URLS:
+
+        def _sync_loop():
+            """Background thread that periodically syncs with peer servers."""
+            import httpx
+
+            while True:
+                time.sleep(config.SYNC_INTERVAL)
+                try:
+                    with app.app_context():
+                        for url in config.SERVER_URLS:
+                            try:
+                                with httpx.Client(timeout=config.SYNC_TIMEOUT) as client:
+                                    client.get(f"{url.rstrip('/')}/health/live")
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+        sync_thread = threading.Thread(target=_sync_loop, daemon=True)
+        sync_thread.start()
 
     return app
 

@@ -7,8 +7,10 @@ import json
 import re
 from datetime import datetime
 
+import httpx
 from flask import Blueprint, jsonify, request, session, abort, current_app
 from flask_login import login_required, current_user
+from config import get_config
 from core.models import (
     Play,
     PlaySequence,
@@ -776,3 +778,93 @@ def delete_player(player_id):
                      target_type="player", target_id=player_id)
     return jsonify({"success": True, "player": name,
                     "stats_removed": removed_count}), 200
+
+
+# ── Multi-server / automatic sync endpoints ──────────────────────────────
+
+
+def _get_sync_config():
+    config = get_config()
+    return {
+        "server_urls": config.SERVER_URLS,
+        "sync_enabled": config.SYNC_ENABLED,
+        "sync_interval": config.SYNC_INTERVAL,
+        "sync_timeout": config.SYNC_TIMEOUT,
+    }
+
+
+@api_v1_bp.route("/sync/status", methods=["GET"])
+@login_required
+@team_access_required
+def sync_status():
+    """Return multi-server sync configuration and status."""
+    return jsonify(_get_sync_config())
+
+
+@api_v1_bp.route("/sync/trigger", methods=["POST"])
+@login_required
+@team_access_required
+def sync_trigger():
+    """Trigger a manual sync cycle with configured peer servers."""
+    config = get_config()
+    peer_urls = config.SERVER_URLS
+    results = []
+
+    for url in peer_urls:
+        try:
+            with httpx.Client(timeout=config.SYNC_TIMEOUT) as client:
+                resp = client.get(f"{url.rstrip('/')}/api/v1/sync")
+                if resp.status_code == 200:
+                    results.append({"server": url, "status": "synced"})
+                else:
+                    results.append(
+                        {"server": url, "status": "error", "status_code": resp.status_code}
+                    )
+        except Exception as exc:
+            results.append({"server": url, "status": "unreachable", "error": str(exc)})
+
+    synced = sum(1 for r in results if r.get("status") == "synced")
+    return jsonify(
+        {
+            "status": "complete" if synced == len(peer_urls) else "partial",
+            "total": len(peer_urls),
+            "synced": synced,
+            "results": results,
+        }
+    ), 200
+
+
+@api_v1_bp.route("/sync/peers", methods=["GET"])
+@login_required
+@team_access_required
+def sync_peers():
+    """Check which peer servers are reachable for sync."""
+    config = get_config()
+    peer_urls = config.SERVER_URLS
+    results = []
+
+    for url in peer_urls:
+        try:
+            with httpx.Client(timeout=config.SYNC_TIMEOUT) as client:
+                resp = client.get(f"{url.rstrip('/')}/health/live")
+                results.append(
+                    {
+                        "server": url,
+                        "status": "reachable" if resp.status_code == 200 else "unhealthy",
+                        "status_code": resp.status_code,
+                    }
+                )
+        except Exception as exc:
+            results.append(
+                {"server": url, "status": "unreachable", "error": str(exc)}
+            )
+
+    reachable = sum(1 for r in results if r.get("status") == "reachable")
+    return jsonify(
+        {
+            "status": "healthy" if reachable == len(peer_urls) else "degraded",
+            "total": len(peer_urls),
+            "reachable": reachable,
+            "servers": results,
+        }
+    ), 200
