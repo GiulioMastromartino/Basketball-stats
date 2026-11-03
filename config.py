@@ -193,14 +193,6 @@ class Config:
     # (e.g. `node1`, `node2`, `truenas`). Defaults to a stable dev value.
     NODE_NAME = os.getenv("NODE_NAME", "basketball-stats")
 
-    # AUTO_MIGRATE gates the boot-time schema auto-migrate
-    # (add_missing_columns). Off in production so the one-shot migrator is
-    # the sole schema actor; on in dev/test for convenience. When gunicorn
-    # runs with preload_app=True, the factory executes in the master process
-    # and touching the DB there leaves a pooled connection behind that every
-    # forked worker inherits.
-    AUTO_MIGRATE = os.getenv("AUTO_MIGRATE", "").lower() in ("1", "true", "yes", "on")
-
     # Rate-limit storage URI. Reads RATELIMIT_STORAGE_URI first (canonical),
     # falls back to the legacy RATELIMIT_STORAGE_URL env key, then to
     # memory:// (per-process, single-node only). For cluster-wide rate

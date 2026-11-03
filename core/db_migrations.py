@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional, Iterable
 
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.sql import sqltypes
 
 
@@ -185,10 +186,20 @@ def dedupe_games(db, logger: Optional[object] = None) -> int:
                         ),
                         {"lid": loser_id},
                     )
-                except Exception:
+                except ProgrammingError:
                     # Child table may not exist or lack this FK on this
                     # dialect; skip it without aborting the dedupe transaction.
+                    db.session.rollback()
                     pass
+                except Exception as exc:
+                    # Real errors (permission denied, SQL syntax, connection
+                    # issues) should not be silently swallowed.
+                    db.session.rollback()
+                    if logger:
+                        logger.warning(
+                            f"Failed deleting child rows from {child_table} "
+                            f"for game {loser_id}: {exc}"
+                        )
 
             db.session.execute(
                 text("DELETE FROM games WHERE id = :lid"), {"lid": loser_id}
@@ -233,12 +244,18 @@ def add_games_unique_index(db, logger: Optional[object] = None) -> bool:
 
     try:
         if dialect == "postgresql":
-            db.session.execute(
+            # CONCURRENTLY cannot run inside a transaction; use autocommit
+            # so the index build does not take an ACCESS EXCLUSIVE lock on
+            # a populated production table.
+            conn = db.engine.connect()
+            conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+            conn.execute(
                 text(
-                    f'CREATE UNIQUE INDEX IF NOT EXISTS "{index_name}" '
+                    f'CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "{index_name}" '
                     f'ON games (team_id, sort_date, opponent)'
                 )
             )
+            conn.close()
         else:
             # SQLite: CREATE UNIQUE INDEX on existing dupes fails; dedupe
             # above already removed them, so this is safe.
@@ -248,7 +265,7 @@ def add_games_unique_index(db, logger: Optional[object] = None) -> bool:
                     f'ON games (team_id, sort_date, opponent)'
                 )
             )
-        db.session.commit()
+            db.session.commit()
         if logger:
             logger.info(f"Created {index_name} on games(team_id, sort_date, opponent)")
         return True

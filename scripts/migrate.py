@@ -300,7 +300,7 @@ def run(app=None):
         # loser gets IntegrityError → DuplicateGameError → 409 from the route.
         print("[migrate] Deduplicating games and adding unique index...")
         try:
-            add_games_unique_index(app)
+            add_games_unique_index(db)
         except Exception as e:
             print(f"[migrate] Warning: game dedupe/unique-index failed: {e}")
 
