@@ -186,6 +186,24 @@ class Config:
     # replicas keep this off; dev and tests keep it on for convenience.
     AUTO_MIGRATE = os.getenv("AUTO_MIGRATE", "").lower() in ("1", "true", "yes", "on")
 
+    # Multi-server / cluster configuration
+    #
+    # NODE_NAME identifies this app instance in health probes, logs, and
+    # Prometheus `instance` labels. Must be unique per physical server
+    # (e.g. `node1`, `node2`, `truenas`). Defaults to a stable dev value.
+    NODE_NAME = os.getenv("NODE_NAME", "basketball-stats")
+
+    # Rate-limit storage URI. Reads RATELIMIT_STORAGE_URI first (canonical),
+    # falls back to the legacy RATELIMIT_STORAGE_URL env key, then to
+    # memory:// (per-process, single-node only). For cluster-wide rate
+    # limiting set this to redis://... on every app node.
+    _ratelimit_uri = (
+        os.getenv("RATELIMIT_STORAGE_URI")
+        or os.getenv("RATELIMIT_STORAGE_URL")
+        or "memory://"
+    )
+    RATELIMIT_STORAGE_URI = _ratelimit_uri
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
@@ -233,9 +251,6 @@ class TestingConfig(Config):
 
 class ProductionConfig(Config):
     _secret_key = os.getenv("SECRET_KEY")
-    if not _secret_key:
-        import warnings
-        warnings.warn("SECRET_KEY not set; will raise on first use")
     SECRET_KEY = _secret_key or ""
     DEBUG = False
     SESSION_COOKIE_SECURE = True
@@ -246,6 +261,19 @@ class ProductionConfig(Config):
     LOG_LEVEL = "INFO"
     # In production, WORKOS_REDIRECT_URI must be set via environment variable
     # No default - will raise error if not configured
+
+    def validate_secret_key(self):
+        """Fail fast in production if SECRET_KEY is missing or too short.
+
+        Called explicitly from create_app() when FLASK_ENV=production, not at
+        import time, so importing config.py in tests/dev does not blow up.
+        """
+        if not self.SECRET_KEY or len(self.SECRET_KEY) < 32:
+            raise RuntimeError(
+                "ProductionConfig requires SECRET_KEY >= 32 chars; "
+                "set it in the environment (identical on every app node so "
+                "signed session cookies validate cluster-wide)."
+            )
 
 
 config_map = {

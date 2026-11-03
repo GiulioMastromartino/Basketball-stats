@@ -23,6 +23,7 @@ from core.models import (
 from core.csv_processor import CSVProcessor
 from core.parser import parse_game_pdf
 from core.services import create_game_from_live_data
+from core.services.game_service import DuplicateGameError
 from web.decorators import team_access_required
 
 api_v1_bp = Blueprint("api_v1", __name__)
@@ -673,6 +674,9 @@ def import_game_webhook():
             season_id=(request.args.get("season")
                        if (request.args.get("season") or "ALL") != "ALL"
                        else None))
+    except DuplicateGameError as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 409
     except ValueError as exc:
         db.session.rollback()
         return jsonify({"error": str(exc)}), 400

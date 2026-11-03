@@ -79,6 +79,7 @@ from core.utils import (
 )
 from core.services.notification_service import notify_game, notify_player_performance
 from core.services import create_game_from_live_data
+from core.services.game_service import DuplicateGameError
 from core.services.analytics_service import AnalyticsService
 from web.decorators import (
     gm_required,
@@ -589,6 +590,14 @@ def save_live_game():
         return (
             jsonify({"error": "Validation Error", "details": error_msg}),
             400,
+        )
+
+    except DuplicateGameError as exc:
+        db.session.rollback()
+        current_app.logger.warning(f"Live game duplicate: {exc}")
+        return (
+            jsonify({"error": "Validation Error", "details": str(exc)}),
+            409,
         )
 
     except Exception:
