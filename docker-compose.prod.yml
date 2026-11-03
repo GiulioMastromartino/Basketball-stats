@@ -7,8 +7,8 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "5432:5432"
+    # PostgreSQL is internal-only; no published port. App connects via Docker
+    # service name `db`. Do NOT publish 5432 to the internet.
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     healthcheck:
