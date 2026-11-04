@@ -287,8 +287,9 @@ services:
       web-3:
         condition: service_healthy
     ports:
-      # Host :80 is held by the system nginx (default page); Tailscale Funnel
-      # targets :8080, so the app nginx serves there.
+      # Host :443 → container :80 (HTTPS entry point for the internet).
+      - "443:80"
+      # Host :8080 → container :80 (HTTP entry point for Tailscale Funnel).
       - "8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
