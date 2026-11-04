@@ -22,6 +22,11 @@ else
     echo "[WARN] /app/.env.prod not mounted — falling back to repo .env.prod (placeholders)"
 fi
 
+# docker-compose reads .env by default; copy .env.prod to .env so all
+# variables (DB_USER, DB_PASSWORD, DB_NAME, …) reach the compose services.
+cp /app/.env.prod .env.prod 2>/dev/null || true
+cp /app/.env.prod .env 2>/dev/null || true
+
 # ── 2. Backup database ──────────────────────────────────────────────────
 echo ""
 echo "[STEP] Backing up PostgreSQL database..."
@@ -48,11 +53,9 @@ docker-compose -f "$COMPOSE_FILE" build
 
 echo ""
 echo "[STEP] Deploying services..."
-# Skip the 'db' service (PostgreSQL runs on host) and point web services at host PostgreSQL.
-# Docker containers reach the host via the Docker gateway IP (usually 172.17.0.1).
-HOST_GATEWAY="$(ip route | awk '/default/ {print $3; exit}')"
-export DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${HOST_GATEWAY}:5432/${DB_NAME}"
-docker-compose -f "$COMPOSE_FILE" up -d --scale db=0
+# Let docker-compose start all services including 'db' (PostgreSQL in Docker).
+# The app connects to 'db' via Docker networking as configured in DATABASE_URL.
+docker-compose -f "$COMPOSE_FILE" up -d
 
 # ── 3b. Check Evolution WhatsApp instance status ─────────────────────────
 echo ""
