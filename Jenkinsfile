@@ -51,16 +51,6 @@ print('All dependencies verified')
             }
         }
 
-        stage('Dry-Run — Confirm Deploy') {
-            input {
-                message "Deploy this build to production?"
-                ok "Deploy to Production"
-            }
-            steps {
-                echo 'Deployment approved — proceeding...'
-            }
-        }
-
         stage('Deploy to Production') {
             steps {
                 sh '''
