@@ -295,7 +295,8 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d/basketball.conf:/etc/nginx/conf.d/default.conf:ro
       # Let's Encrypt certificates for HTTPS termination.
-      - /etc/letsencrypt/live/www.superhooper.work.gd:/etc/letsencrypt/live/www.superhooper.work.gd:ro
+      - ./nginx/certs/fullchain.pem:/etc/letsencrypt/live/www.superhooper.work.gd/fullchain.pem:ro
+      - ./nginx/certs/privkey.pem:/etc/letsencrypt/live/www.superhooper.work.gd/privkey.pem:ro
     networks:
       - backend
 volumes:
