@@ -297,6 +297,9 @@ services:
       # Let's Encrypt certificates for HTTPS termination.
       - ./nginx/certs/fullchain.pem:/etc/letsencrypt/live/www.superhooper.work.gd/fullchain.pem:ro
       - ./nginx/certs/privkey.pem:/etc/letsencrypt/live/www.superhooper.work.gd/privkey.pem:ro
+      # Let's Encrypt certificates for hoopslab.2bd.net HTTPS termination.
+      - ./nginx/certs/hoopslab-fullchain.pem:/etc/letsencrypt/live/hoopslab.2bd.net/fullchain.pem:ro
+      - ./nginx/certs/hoopslab-privkey.pem:/etc/letsencrypt/live/hoopslab.2bd.net/privkey.pem:ro
     networks:
       - backend
 volumes:
