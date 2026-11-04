@@ -28,11 +28,17 @@ echo "[STEP] Backing up PostgreSQL database..."
 mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="${BACKUP_DIR}/pre_deploy_${TIMESTAMP}.sql"
 
-DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep db | head -1 || true)"
-if docker exec "$DB_CONTAINER" pg_dump -U "${DB_USER}" "${DB_NAME}" > "$BACKUP_FILE" 2>/dev/null; then
+# Prefer host pg_dump when PostgreSQL runs on localhost (single-server deploy);
+# fall back to Docker 'db' container when running in Docker Compose.
+if pg_dump -U "${DB_USER}" -h localhost "${DB_NAME}" > "$BACKUP_FILE" 2>/dev/null; then
     echo "[OK] Backup saved: $BACKUP_FILE ($(wc -c < "$BACKUP_FILE") bytes)"
 else
-    echo "[WARN] Database backup failed — continuing anyway"
+    DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep db | head -1 || true)"
+    if [ -n "$DB_CONTAINER" ] && docker exec "$DB_CONTAINER" pg_dump -U "${DB_USER}" "${DB_NAME}" > "$BACKUP_FILE" 2>/dev/null; then
+        echo "[OK] Backup saved: $BACKUP_FILE ($(wc -c < "$BACKUP_FILE") bytes)"
+    else
+        echo "[WARN] Database backup failed — continuing anyway"
+    fi
 fi
 
 # ── 3. Build & deploy ───────────────────────────────────────────────────
@@ -42,7 +48,11 @@ docker-compose -f "$COMPOSE_FILE" build
 
 echo ""
 echo "[STEP] Deploying services..."
-docker-compose -f "$COMPOSE_FILE" up -d
+# Skip the 'db' service (PostgreSQL runs on host) and point web services at host PostgreSQL.
+# Docker containers reach the host via the Docker gateway IP (usually 172.17.0.1).
+HOST_GATEWAY="$(ip route | awk '/default/ {print $3; exit}')"
+export DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${HOST_GATEWAY}:5432/${DB_NAME}"
+docker-compose -f "$COMPOSE_FILE" up -d --scale db=0
 
 # ── 3b. Check Evolution WhatsApp instance status ─────────────────────────
 echo ""
