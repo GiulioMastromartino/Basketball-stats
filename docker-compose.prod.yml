@@ -287,13 +287,15 @@ services:
       web-3:
         condition: service_healthy
     ports:
-      # Host :443 → container :80 (HTTPS entry point for the internet).
-      - "443:80"
+      # Host :443 → container :443 (HTTPS with Let's Encrypt certs).
+      - "443:443"
       # Host :8080 → container :80 (HTTP entry point for Tailscale Funnel).
       - "8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d/basketball.conf:/etc/nginx/conf.d/default.conf:ro
+      # Let's Encrypt certificates for HTTPS termination.
+      - /etc/letsencrypt/live/www.superhooper.work.gd:/etc/letsencrypt/live/www.superhooper.work.gd:ro
     networks:
       - backend
 volumes:
