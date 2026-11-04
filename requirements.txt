@@ -38,3 +38,5 @@ google-auth==2.58.1
 google-auth-oauthlib==1.4.1
 # Fernet encryption for Drive OAuth tokens at rest (see config.py).
 cryptography==50.0.1
+# Redis client for Flask-Limiter storage (minimum 3.0 required by flask-limiter>=3.8.0)
+redis==5.2.0
