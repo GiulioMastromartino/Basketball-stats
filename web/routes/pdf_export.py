@@ -7,7 +7,14 @@ from io import BytesIO
 
 pdf_export_bp = Blueprint("pdf_export", __name__)
 
-@pdf_export_bp.route("/api/pdf/game/<int:game_id>")
+# NOTE: this blueprint is mounted with ``url_prefix="/api/pdf"`` (see
+# ``register_blueprints`` in ``web/__init__.py``).  Flask *prepends* that
+# prefix to every rule below, so the rules must NOT repeat it - otherwise
+# the public URLs end up doubled (``/api/pdf/api/pdf/...``) and the
+# canonical ``/api/pdf/game/<id>`` style URLs 404.
+
+
+@pdf_export_bp.route("/game/<int:game_id>")
 @login_required
 @team_access_required
 def export_game_pdf(game_id):
@@ -30,7 +37,7 @@ def export_game_pdf(game_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@pdf_export_bp.route("/api/pdf/player/<int:player_id>")
+@pdf_export_bp.route("/player/<int:player_id>")
 @login_required
 @team_access_required
 def export_player_pdf(player_id):
@@ -48,7 +55,7 @@ def export_player_pdf(player_id):
 
     return render_player_report_pdf(player.name)
 
-@pdf_export_bp.route("/api/pdf/team")
+@pdf_export_bp.route("/team")
 @login_required
 @team_access_required
 def export_team_pdf():

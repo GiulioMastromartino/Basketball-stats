@@ -544,7 +544,7 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ static_url('vendor/chartjs/chart.umd.min.js') }}"></script>
 <script>
     const lineupId = {{ lineup.id | tojson }};
     let netRatingChart;
@@ -697,6 +697,9 @@
 
     function renderTrendChart(games) {
         const ctx = document.getElementById('netRatingChart');
+        // Chart.js is vendored under /static/vendor. If it could not be loaded
+        // the rest of the page must still work - just skip the chart.
+        if (typeof Chart === 'undefined') return;
         const sortedGames = [...(games || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
         const netRatings = sortedGames.map(game => {
             const poss = Number(game.possessions || 0);

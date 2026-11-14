@@ -395,10 +395,6 @@
                 <i class="fas fa-database me-2"></i>Export Raw Data
             </a>
 
-            <a href="{{ url_for('main.export_game_raw', game_id=game.id) }}" class="btn btn-outline-secondary shadow-sm">
-                <i class="fas fa-file-code me-2"></i>Export JSON
-            </a>
-
             {% if current_user.is_authenticated %}
             <span class="d-inline-flex align-items-center gap-2" data-share-box data-share-target-type="game" data-share-target-id="{{ game.id }}">
                 <select class="form-select form-select-sm shadow-sm" data-share-expiry aria-label="Share link expiry" style="width: auto;">

@@ -1,7 +1,28 @@
+"""Tests for the optional native Rust analytics extension.
+
+The ``basketball_stats`` extension module (source lives in ``basketball_stats_rust/``)
+is OPTIONAL: when it is not built, ``core/rust_analytics.py`` logs
+"Rust analytics library NOT FOUND. Falling back to pure Python (slower)." and the
+application keeps working.
+
+A plain ``import basketball_stats`` at module level aborted collection of the
+ENTIRE test suite (ModuleNotFoundError) on machines without the compiled
+extension. Import it through ``pytest.importorskip`` instead so this module is
+skipped when the extension is absent, while still running (and passing) when the
+extension IS built.
+"""
 
 import json
 import pytest
-import basketball_stats as rust
+
+rust = pytest.importorskip(
+    "basketball_stats",
+    reason=(
+        "Optional Rust extension 'basketball_stats' is not built (build it from "
+        "basketball_stats_rust/ with maturin); the application falls back to "
+        "pure Python."
+    ),
+)
 
 def test_rust_classify_shot_zone():
     # FT

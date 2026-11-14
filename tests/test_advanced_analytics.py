@@ -470,12 +470,48 @@ class TestGameLineupRankings:
         db_session.add(segment)
         db_session.commit()
         
-        rankings = LineupAnalytics.get_game_lineup_rankings(sample_game.id)
+        # min_possessions=0 keeps the zero-possession lineup in the ranking so the
+        # division-by-zero guard (effective_possessions = max(possessions, 1)) is
+        # actually exercised. The default minimum (2.0) deliberately filters out
+        # lineups with too small a sample, which is the production behaviour.
+        rankings = LineupAnalytics.get_game_lineup_rankings(
+            sample_game.id, min_possessions=0
+        )
 
         assert len(rankings) == 1
         # Should handle division by zero (possessions = 1 to avoid error)
         assert rankings[0]['ortg'] == 0.0
         assert rankings[0]['drtg'] == 0.0
+
+    @pytest.mark.integration
+    def test_get_game_lineup_rankings_filters_below_min_possessions(
+        self, db_session, sample_game
+    ):
+        """A stint below min_possessions is not ranked (production behaviour)."""
+        from core.models import LineupSegment
+        from core.advanced_analytics import LineupAnalytics
+
+        players = ["P1", "P2", "P3", "P4", "P5"]
+        segment = LineupSegment(
+            game_id=sample_game.id,
+            start_timestamp=0,
+            end_timestamp=1000,
+            quarter=1,
+            players=players,
+            lineup_hash=LineupAnalytics.generate_lineup_hash(players),
+            points_scored=2,
+            points_allowed=2,
+            possessions=1,  # Below the requested minimum of 2 possessions
+            duration_seconds=60,
+        )
+        db_session.add(segment)
+        db_session.commit()
+
+        rankings = LineupAnalytics.get_game_lineup_rankings(
+            sample_game.id, min_possessions=2
+        )
+
+        assert rankings == []
 
 
 # =============================================================================

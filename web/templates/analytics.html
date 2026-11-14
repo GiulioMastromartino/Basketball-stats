@@ -966,7 +966,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ static_url('vendor/chartjs/chart.umd.min.js') }}"></script>
 <script>
             function getReportGameType() {
                 const gameType = document.getElementById("gameType");

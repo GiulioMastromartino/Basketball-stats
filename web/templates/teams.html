@@ -16,7 +16,7 @@
                 <!-- Search -->
                 <div style="flex: 1; min-width: 250px; position: relative;">
                     <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                    <input type="text" placeholder="Search opponents..." style="padding-left: 36px; width: 100%; border-radius: var(--border-radius);" onkeyup="searchTeams(this.value)">
+                    <input type="text" placeholder="Search opponents..." aria-label="Search opponents" style="padding-left: 36px; width: 100%; border-radius: var(--border-radius);" onkeyup="searchTeams(this.value)">
                 </div>
 
                 <!-- Sort/Filter (Visual only for now matching players page style) -->
@@ -50,8 +50,8 @@
                         </div>
                     </div>
 
-                    <a href="{{ url_for('main.opponent_games', opponent_name=t.name) }}" class="btn btn-outline btn-sm">
-                        <i class="fas fa-chevron-right"></i>
+                    <a href="{{ url_for('main.opponent_games', opponent_name=t.name) }}" class="btn btn-outline btn-sm" aria-label="View games against {{ t.name }}">
+                        <i class="fas fa-chevron-right" aria-hidden="true"></i>
                     </a>
                 </div>
             </div>

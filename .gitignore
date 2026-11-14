@@ -3,6 +3,9 @@
 .env.prod
 .env.local
 venv/
+# `venv/` above only matches a directory; worktrees use a symlinked venv,
+# which `git add -A` would otherwise stage (and commit as a broken link).
+venv
 
 # Python cache
 __pycache__/
