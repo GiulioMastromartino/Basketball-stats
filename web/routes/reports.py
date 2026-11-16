@@ -1,5 +1,3 @@
-import ast
-import json
 import os
 import zipfile
 from collections import defaultdict
@@ -45,7 +43,6 @@ from core.play_analytics import (
     get_summary_player_top_plays_by_points,
 )
 from core.utils import (
-    calculate_efg_percent,
     calculate_ortg,
     calculate_possessions,
     parse_minutes,
@@ -649,7 +646,10 @@ def live_halftime_pdf():
             "Player1": {points, fgm, fga, tpm, tpa, ftm, fta, oreb, dreb, ast, stl, blk, tov, pf, minutes, plus_minus},
             ...
         },
-        "game_events": [...],  # For Q1/Q2 filtering
+        # Either source is accepted; shot_locations is what the legacy
+        # tracker sends, game_events is the v2/saved-game shape.
+        "shot_locations": [...],
+        "game_events": [...],
         "schema_version": 4
     }
     """
@@ -657,227 +657,36 @@ def live_halftime_pdf():
     from weasyprint import HTML
     from io import BytesIO
     from flask import send_file
-    from datetime import datetime
 
-    data = request.get_json()
+    from core.halftime_summary import build_halftime_summary
 
-    if not data:
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict) or not data:
         return jsonify({"error": "No data provided"}), 400
 
-    opponent = data.get("opponent", "Unknown")
-    date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
-    team_score = data.get("team_score", 0)
-    opp_score = data.get("opp_score", 0)
-    player_stats_raw = data.get("player_stats", {})
-    game_events = data.get("game_events", [])
-    schema_version = data.get("schema_version", 1)
+    opponent = str(data.get("opponent") or "Unknown").strip() or "Unknown"
+    date = (
+        str(data.get("date") or "").strip()
+        or datetime.now().strftime("%Y-%m-%d")
+    )
+    try:
+        schema_version = int(data.get("schema_version", 1))
+    except (TypeError, ValueError):
+        schema_version = 1
 
-    def format_seconds_to_minutes(total_seconds):
-        total_seconds = int(total_seconds or 0)
-        minutes = total_seconds // 60
-        seconds = total_seconds % 60
-        return f"{minutes}:{seconds:02d}"
-
-    stats = []
-
-    for player_name, p_data in player_stats_raw.items():
-        fgm = p_data.get("fgm", 0)
-        fga = p_data.get("fga", 0)
-        tpm = p_data.get("tpm", 0)
-        tpa = p_data.get("tpa", 0)
-        ftm = p_data.get("ftm", 0)
-        fta = p_data.get("fta", 0)
-        oreb = p_data.get("oreb", 0)
-        dreb = p_data.get("dreb", 0)
-        points = p_data.get("points", 0)
-        ast = p_data.get("ast", 0)
-        stl = p_data.get("stl", 0)
-        blk = p_data.get("blk", 0)
-        tov = p_data.get("tov", 0)
-        pf = p_data.get("pf", 0)
-        
-        # Live game uses minutes_seconds, not a formatted minutes string
-        total_seconds = p_data.get("minutes_seconds", 0)
-        minutes = format_seconds_to_minutes(total_seconds)
-        
-        plus_minus = p_data.get("plus_minus", 0)
-        quarter_minutes = p_data.get("quarter_minutes", {}) or {}
-        q1_minutes_seconds = quarter_minutes.get("1", quarter_minutes.get(1, 0))
-        q2_minutes_seconds = quarter_minutes.get("2", quarter_minutes.get(2, 0))
-
-        two_pt_made = max(0, fgm - tpm)
-        two_pt_att = max(0, fga - tpa)
-
-        fg_pct = (fgm / fga * 100) if fga > 0 else 0
-        tp_pct = (tpm / tpa * 100) if tpa > 0 else 0
-        ft_pct = (ftm / fta * 100) if fta > 0 else 0
-        two_pt_pct = (two_pt_made / two_pt_att * 100) if two_pt_att > 0 else 0
-        efg_pct = calculate_efg_percent(fgm, tpm, fga)
-
-        eff = (
-            points + (oreb + dreb) + ast + stl + blk - ((fga - fgm) + (fta - ftm) + tov)
-        )
-
-        stats.append(
-            {
-                "player_name": player_name,
-                "minutes": minutes,
-                "q1_minutes": format_seconds_to_minutes(q1_minutes_seconds),
-                "q2_minutes": format_seconds_to_minutes(q2_minutes_seconds),
-                "points": points,
-                "reb": oreb + dreb,
-                "oreb": oreb,
-                "dreb": dreb,
-                "ast": ast,
-                "stl": stl,
-                "blk": blk,
-                "tov": tov,
-                "pf": pf,
-                "fgm": fgm,
-                "fga": fga,
-                "fg_percent": fg_pct,
-                "tpm": tpm,
-                "tpa": tpa,
-                "tp_percent": tp_pct,
-                "ftm": ftm,
-                "fta": fta,
-                "ft_percent": ft_pct,
-                "two_pt_made": two_pt_made,
-                "two_pt_att": two_pt_att,
-                "two_pt_pct": two_pt_pct,
-                "efg_pct": efg_pct,
-                "plus_minus": plus_minus,
-                "eff": eff,
-            }
-        )
-
-    stats.sort(key=lambda x: x["points"], reverse=True)
-
-    top_performers = {}
-    if stats:
-        top_performers["points"] = max(stats, key=lambda x: x["points"])
-        top_performers["efficiency"] = max(stats, key=lambda x: x["eff"])
-        top_performers["rebounds"] = max(stats, key=lambda x: x["reb"])
-
-    total_fgm = sum(s["fgm"] for s in stats)
-    total_fga = sum(s["fga"] for s in stats)
-    total_tpm = sum(s["tpm"] for s in stats)
-    total_tpa = sum(s["tpa"] for s in stats)
-    total_ftm = sum(s["ftm"] for s in stats)
-    total_fta = sum(s["fta"] for s in stats)
-    total_two_pt_made = sum(s["two_pt_made"] for s in stats)
-    total_two_pt_att = sum(s["two_pt_att"] for s in stats)
-
-    team_aggregates = {
-        "fg_pct": (total_fgm / total_fga * 100) if total_fga > 0 else 0,
-        "tp_pct": (total_tpm / total_tpa * 100) if total_tpa > 0 else 0,
-        "ft_pct": (total_ftm / total_fta * 100) if total_fta > 0 else 0,
-        "two_pt_pct": (total_two_pt_made / total_two_pt_att * 100)
-        if total_two_pt_att > 0
-        else 0,
-    }
-
-    quarterly_stats = {
-        "1": {"pts": 0, "fgm": 0, "fga": 0, "tpm": 0, "tpa": 0, "ftm": 0, "fta": 0, "tov": 0, "pf": 0, "reb": 0, "ast": 0, "stl": 0, "blk": 0},
-        "2": {"pts": 0, "fgm": 0, "fga": 0, "tpm": 0, "tpa": 0, "ftm": 0, "fta": 0, "tov": 0, "pf": 0, "reb": 0, "ast": 0, "stl": 0, "blk": 0},
-    }
-
-    shot_locations = data.get("shot_locations", [])
-    shot_results_map = {} # (player, quarter, type) -> [results]
-    for s in shot_locations:
-        # Match shot results for game_events backfill
-        key = (s.get("player") or s.get("shooter"), s.get("quarter"), s.get("type"))
-        if key not in shot_results_map:
-            shot_results_map[key] = []
-        shot_results_map[key].append(s.get("result"))
-        
-        # Also count assists directly from shot_locations
-        assister = s.get("assister")
-        if assister and s.get("result") == "made":
-            q = str(s.get("quarter", 1))
-            if q in quarterly_stats:
-                quarterly_stats[q]["ast"] += 1
-
-    for event in game_events:
-        quarter = str(event.get("quarter", 1))
-        if quarter not in ["1", "2"]:
-            continue
-
-        event_type = event.get("type", "")
-        detail = event.get("detail", {})
-
-        # Parse detail if it's a string
-        if isinstance(detail, str):
-            try:
-                import ast
-
-                detail = ast.literal_eval(detail) if detail else {}
-            except:
-                detail = {}
-
-        if not isinstance(detail, dict):
-            detail = {}
-
-        # Handle shot events
-        if event_type in ["SHOT_2PT", "SHOT_3PT"]:
-            quarterly_stats[quarter]["fga"] += 1
-            
-            # Try to get shot_attempt from event, or match from shot_locations
-            shot_result = event.get("shot_attempt")
-            if not shot_result:
-                # Match from shot_locations
-                shot_type_simple = "2pt" if event_type == "SHOT_2PT" else "3pt"
-                key = (event.get("player"), int(quarter), shot_type_simple)
-                if key in shot_results_map and shot_results_map[key]:
-                    shot_result = shot_results_map[key].pop(0)
-            
-            if shot_result == "made":
-                pts = 2 if event_type == "SHOT_2PT" else 3
-                quarterly_stats[quarter]["fgm"] += 1
-                quarterly_stats[quarter]["pts"] += pts
-                if event_type == "SHOT_3PT":
-                    quarterly_stats[quarter]["tpm"] += 1
-            
-            if event_type == "SHOT_3PT":
-                quarterly_stats[quarter]["tpa"] += 1
-
-        elif event_type == "FT":
-            # Free throws - points from detail
-            ftm = detail.get("ftm", 0)
-            fta = detail.get("fta", 0)
-            quarterly_stats[quarter]["pts"] += ftm
-            quarterly_stats[quarter]["ftm"] += ftm
-            quarterly_stats[quarter]["fta"] += fta
-
-        elif event_type == "TURNOVER":
-            quarterly_stats[quarter]["tov"] += 1
-            
-        elif event_type in ["REBOUND_DEFENSIVE", "REBOUND_OFFENSIVE"]:
-            quarterly_stats[quarter]["reb"] += 1
-            
-        elif event_type == "STEAL":
-            quarterly_stats[quarter]["stl"] += 1
-            
-        elif event_type == "BLOCK":
-            quarterly_stats[quarter]["blk"] += 1
-
-        # Track personal fouls from detail or dedicated event
-        pf_inc = detail.get("pf", 0)
-        if pf_inc:
-            quarterly_stats[quarter]["pf"] += pf_inc
-        elif event_type == "FOUL" or event_type == "FOUL_PERSONAL":
-            quarterly_stats[quarter]["pf"] += 1
+    summary = build_halftime_summary(data)
 
     html = render_template(
         "halftime_summary_pdf.html",
         opponent=opponent,
         date=date,
-        team_score=team_score,
-        opp_score=opp_score,
-        stats=stats,
-        top_performers=top_performers,
-        team_aggregates=team_aggregates,
-        quarterly_stats=quarterly_stats,
+        team_score=summary["team_score"],
+        opp_score=summary["opp_score"],
+        stats=summary["stats"],
+        top_performers=summary["top_performers"],
+        team_aggregates=summary["team_aggregates"],
+        quarterly_stats=summary["quarterly_stats"],
         generated_date=datetime.now().strftime("%B %d, %Y at %H:%M"),
         schema_version=schema_version,
         is_live=True,
