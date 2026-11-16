@@ -928,30 +928,100 @@
     return el && el.textContent ? el.textContent.trim() : fallback;
   }
 
+  // Console action label -> canonical halftime PDF event type (/result).
+  var HALFTIME_EVENT_MAP = {
+    "2PT MADE": ["SHOT_2PT", "made"],
+    "2PT MISS": ["SHOT_2PT", "missed"],
+    "3PT MADE": ["SHOT_3PT", "made"],
+    "3PT MISS": ["SHOT_3PT", "missed"],
+    "FT MADE": ["FT_MADE", null],
+    "FT MISS": ["FT_MISS", null],
+    "ASSIST": ["ASSIST", null],
+    "REBOUND": ["REBOUND", null],
+    "BLOCK": ["BLOCK", null],
+    "STEAL": ["STEAL", null],
+    "TOV": ["TURNOVER", null],
+    "FOUL": ["FOUL", null],
+    "TECH FOUL": ["TECH_FOUL", null],
+  };
+
   function collectHalftimePayload() {
     var stats = {};
+    var gameEvents = [];
     function ensure(name) {
       if (!stats[name]) {
         stats[name] = {
           points: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0,
-          oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0,
+          oreb: 0, dreb: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0,
           minutes_seconds: 0, plus_minus: 0,
         };
       }
       return stats[name];
     }
-    // Roster names first so the payload is never empty, even scoreless.
-    state.home.concat(state.away).forEach(function (p) {
+    // Only HOME players belong in our halftime box score. The v2 console
+    // also lists/logs the opponent (AWAY) for scorekeeping; those rows must
+    // never leak into the PDF or the WhatsApp leaders.
+    var homeNames = {};
+    state.home.forEach(function (p) {
       if (p && p.name) {
+        homeNames[p.name] = true;
         ensure(p.name);
       }
     });
     state.log.forEach(function (e) {
-      if (!e || e.undone || !e.name) {
+      if (!e || e.undone || !e.name || e.team !== "HOME") {
         return;
       }
+      if (!homeNames[e.name]) {
+        return;
+      }
+      var s = ensure(e.name);
+      var action = String(e.action || "").toUpperCase();
       if (e.scoreDelta) {
-        ensure(e.name).points += e.scoreDelta;
+        s.points += e.scoreDelta;
+      }
+      if (e.foulDelta) {
+        s.pf += e.foulDelta;
+      }
+      if (action === "2PT MADE") {
+        s.fgm += 1;
+        s.fga += 1;
+      } else if (action === "2PT MISS") {
+        s.fga += 1;
+      } else if (action === "3PT MADE") {
+        s.fgm += 1;
+        s.fga += 1;
+        s.tpm += 1;
+        s.tpa += 1;
+      } else if (action === "3PT MISS") {
+        s.fga += 1;
+        s.tpa += 1;
+      } else if (action === "FT MADE") {
+        s.ftm += 1;
+        s.fta += 1;
+      } else if (action === "FT MISS") {
+        s.fta += 1;
+      } else if (action === "ASSIST") {
+        s.ast += 1;
+      } else if (action === "REBOUND") {
+        s.reb += 1;
+      } else if (action === "BLOCK") {
+        s.blk += 1;
+      } else if (action === "STEAL") {
+        s.stl += 1;
+      } else if (action === "TOV") {
+        s.tov += 1;
+      }
+      var eventMeta = HALFTIME_EVENT_MAP[action];
+      if (eventMeta) {
+        gameEvents.push({
+          event_type: eventMeta[0],
+          player: e.name,
+          team: e.team,
+          quarter: e.period,
+          shot_attempt: eventMeta[1],
+          detail: e.foulDelta ? { pf: e.foulDelta } : null,
+        });
       }
     });
     var boot = window.V2_BOOTSTRAP || {};
@@ -961,6 +1031,7 @@
       team_score: parseInt(textOf("v2-team-a-score", "0"), 10) || 0,
       opp_score: parseInt(textOf("v2-team-b-score", "0"), 10) || 0,
       player_stats: stats,
+      game_events: gameEvents,
     };
   }
 
