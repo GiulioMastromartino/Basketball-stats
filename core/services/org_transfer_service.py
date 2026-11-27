@@ -386,6 +386,29 @@ def _str(value, default=""):
     return default if value is None else str(value)
 
 
+def _map_player_name(value, name_map):
+    return name_map.get(value, value) if isinstance(value, str) else value
+
+
+def _remap_player_names(obj, name_map):
+    """Point name-keyed rows at a player that was renamed during import.
+
+    ``Player.name`` is globally unique, so a colliding player becomes
+    ``"<name> (imported)"``. Stats, events, shots, lineup player lists and
+    development goals keep the *old* name unless they are remapped here;
+    without this they would no longer identify the imported roster player.
+    """
+    if not name_map:
+        return obj
+    value = getattr(obj, "player_name", None)
+    if isinstance(value, str) and value in name_map:
+        obj.player_name = name_map[value]
+    players = getattr(obj, "players", None)
+    if isinstance(players, list):
+        obj.players = [_map_player_name(item, name_map) for item in players]
+    return obj
+
+
 # ---------------------------------------------------------------------------
 # Import
 # ---------------------------------------------------------------------------
@@ -499,6 +522,7 @@ def _import_team(org, raw_team, warnings):
 
     # Players. Player.name is globally unique, so clashes get a suffix.
     player_map = {}
+    player_name_map = {}
     for row in _rows(raw_team, "players", label):
         name = _str(row.get("name")).strip()
         if not name:
@@ -521,6 +545,8 @@ def _import_team(org, raw_team, warnings):
             },
         )
         player_map[_old_id(row, "player")] = player
+        if player.name != name:
+            player_name_map[name] = player.name
     db.session.flush()
 
     # Plays (global unique name) and their storyboard sequences.
@@ -582,13 +608,15 @@ def _import_team(org, raw_team, warnings):
             exclude=("team_id",),
             overrides={"team_id": team.id},
         )
+        _remap_player_names(lineup, player_name_map)
         lineup_map[_old_id(row, "lineup")] = lineup
     db.session.flush()
 
     for game_row in _rows(raw_team, "games", label):
         _import_game(
             team, game_row, season_map=season_map, play_map=play_map,
-            lineup_map=lineup_map, warnings=warnings,
+            lineup_map=lineup_map, player_name_map=player_name_map,
+            warnings=warnings,
         )
 
     for session_row in _rows(raw_team, "training_sessions", label):
@@ -645,11 +673,12 @@ def _import_team(org, raw_team, warnings):
         )
 
     for row in _rows(raw_team, "development_goals", label):
-        _build(
+        goal = _build(
             DevelopmentGoal, row,
             exclude=("team_id",),
             overrides={"team_id": team.id},
         )
+        _remap_player_names(goal, player_name_map)
 
     db.session.flush()
 
@@ -667,7 +696,7 @@ def _mapped_id(mapping, old_id):
 
 
 def _import_game(team, raw_game, *, season_map, play_map, lineup_map,
-                 warnings):
+                 player_name_map, warnings):
     label = f"game '{_str(raw_game.get('opponent'), '?')}'"
     game = _build(
         Game, raw_game,
@@ -681,11 +710,12 @@ def _import_game(team, raw_game, *, season_map, play_map, lineup_map,
     db.session.flush()
 
     for row in _rows(raw_game, "player_stats", label):
-        _build(
+        stat = _build(
             PlayerStat, row,
             exclude=("game_id",),
             overrides={"game_id": game.id},
         )
+        _remap_player_names(stat, player_name_map)
 
     # Events first (their lineup_segment_id is linked after segments exist).
     event_map = {}
@@ -699,6 +729,7 @@ def _import_game(team, raw_game, *, season_map, play_map, lineup_map,
                 "play_id": _mapped_id(play_map, row.get("play_id")),
             },
         )
+        _remap_player_names(event, player_name_map)
         event_map[_old_id(row, "event")] = event
         if row.get("lineup_segment_id") is not None:
             pending_event_segments.append(
@@ -706,7 +737,7 @@ def _import_game(team, raw_game, *, season_map, play_map, lineup_map,
             )
 
     for row in _rows(raw_game, "shots", label):
-        _build(
+        shot = _build(
             ShotEvent, row,
             exclude=("game_id", "play_id"),
             overrides={
@@ -714,6 +745,7 @@ def _import_game(team, raw_game, *, season_map, play_map, lineup_map,
                 "play_id": _mapped_id(play_map, row.get("play_id")),
             },
         )
+        _remap_player_names(shot, player_name_map)
 
     segment_map = {}
     for row in _rows(raw_game, "lineup_segments", label):
@@ -725,14 +757,16 @@ def _import_game(team, raw_game, *, season_map, play_map, lineup_map,
                 "lineup_id": _mapped_id(lineup_map, row.get("lineup_id")),
             },
         )
+        _remap_player_names(segment, player_name_map)
         segment_map[_old_id(row, "segment")] = segment
         db.session.flush()
         for stat_row in _rows(row, "player_stats", f"{label} segment"):
-            _build(
+            lineup_stat = _build(
                 PlayerLineupStats, stat_row,
                 exclude=("lineup_segment_id",),
                 overrides={"lineup_segment_id": segment.id},
             )
+            _remap_player_names(lineup_stat, player_name_map)
 
     for event, old_segment_id in pending_event_segments:
         segment = _mapped(segment_map, old_segment_id)
@@ -741,6 +775,11 @@ def _import_game(team, raw_game, *, season_map, play_map, lineup_map,
                 f"Dropped a {label} event link to a missing lineup segment."
             )
         event.lineup_segment_id = segment.id if segment is not None else None
+
+    # A game with events and possessions but no lineup segments never hits the
+    # per-segment flush above, so assign the event ids before the possession
+    # rows copy ``start_event_id`` (nullable=False) from them.
+    db.session.flush()
 
     for row in _rows(raw_game, "possessions", label):
         start_event = _mapped(event_map, row.get("start_event_id"))

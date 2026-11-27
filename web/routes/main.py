@@ -2463,6 +2463,15 @@ def export_orgs():
     export covers every organization the viewer may administer.
     """
     allowed = _gm_org_ids()
+    if allowed is not None and not getattr(current_user, "is_auditor", False):
+        # Exporting a whole organization is an administrative read. A plain
+        # (non-GM) membership must not grant it, even though the admin panel
+        # lists those organizations for visibility.
+        allowed = allowed & {
+            membership.organization_id
+            for membership in current_user.memberships
+            if membership.is_gm
+        }
     requested = []
     for raw_id in request.args.getlist("org_id"):
         try:

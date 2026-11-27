@@ -206,6 +206,17 @@ class TestOrgExportService:
 
         # Global uniqueness collisions get a suffix; relationships stay intact.
         assert new_player.name == "Mario Rossi (imported)"
+        imported_name = new_player.name
+        # Name-keyed rows (stats, events, shots, lineup lists, goals) must point
+        # at the renamed player instead of the source name.
+        new_stat = PlayerStat.query.filter_by(game_id=new_game.id).one()
+        new_shot = ShotEvent.query.filter_by(game_id=new_game.id).one()
+        assert new_stat.player_name == imported_name
+        assert new_shot.player_name == imported_name
+        assert new_lineup.players == [imported_name]
+        assert DevelopmentGoal.query.filter_by(
+            team_id=new_team.id
+        ).one().player_name == imported_name
         assert PlaySequence.query.filter_by(play_id=new_play.id).count() == 1
         assert new_game.season_id == new_season.id
 
@@ -214,12 +225,14 @@ class TestOrgExportService:
         assert GameEvent.query.filter_by(game_id=new_game.id).count() == 2
         new_segment = LineupSegment.query.filter_by(game_id=new_game.id).one()
         assert new_segment.lineup_id == new_lineup.id
+        assert new_segment.players == [imported_name]
         assert PlayerLineupStats.query.filter_by(
             lineup_segment_id=new_segment.id
-        ).count() == 1
+        ).one().player_name == imported_name
 
         new_events = GameEvent.query.filter_by(game_id=new_game.id).all()
         assert all(e.lineup_segment_id is None for e in new_events)
+        assert {e.player_name for e in new_events} == {imported_name}
 
         possession = Possession.query.filter_by(game_id=new_game.id).one()
         assert possession.start_event_id in {e.id for e in new_events}
@@ -283,6 +296,51 @@ class TestOrgExportService:
             import_organizations(bundle)
         assert Organization.query.count() == before
 
+    def test_import_events_and_possessions_without_lineup_segments(
+        self, db_session, default_org, default_team
+    ):
+        """Possessions copy start_event_id: the events need a flush first.
+
+        With no lineup segments there is no per-segment flush before the
+        possession loop, so the event ids must be assigned explicitly or the
+        whole import fails on ``possessions.start_event_id`` (NOT NULL).
+        """
+        game = Game(
+            team_id=default_team.id, date="01-10-2025", opponent="Rivals",
+            team_score=80, opponent_score=70, result="W", game_type="Season",
+            sort_date="2025-10-01", source="MANUAL",
+        )
+        db.session.add(game)
+        db.session.flush()
+        start = GameEvent(
+            game_id=game.id, event_type="shot", player_name="A", timestamp=1000
+        )
+        end = GameEvent(
+            game_id=game.id, event_type="rebound", player_name="A", timestamp=2000
+        )
+        db.session.add_all([start, end])
+        db.session.flush()
+        db.session.add(Possession(
+            game_id=game.id, start_event_id=start.id, end_event_id=end.id,
+            team_possession=True, quarter=1, points=2,
+        ))
+        db.session.commit()
+
+        bundle = export_organizations([default_org.id])
+        exported_game = bundle["organizations"][0]["teams"][0]["games"][0]
+        assert exported_game["lineup_segments"] == []
+
+        imported, _ = import_organizations(bundle)
+
+        new_team = Team.query.filter_by(organization_id=imported[0].id).one()
+        new_game = Game.query.filter_by(team_id=new_team.id).one()
+        imported_possession = Possession.query.filter_by(game_id=new_game.id).one()
+        event_ids = {
+            e.id for e in GameEvent.query.filter_by(game_id=new_game.id).all()
+        }
+        assert imported_possession.start_event_id in event_ids
+        assert imported_possession.end_event_id in event_ids
+
 
 class TestOrgTransferRoutes:
     def test_admin_panel_transfer_section(self, admin_client):
@@ -318,6 +376,24 @@ class TestOrgTransferRoutes:
     ):
         other = Organization(name="Other", slug="other")
         db.session.add(other)
+        db.session.commit()
+
+        resp = admin_client.get(f"/admin/orgs/export?org_id={other.id}",
+                                follow_redirects=True)
+
+        assert resp.status_code == 200
+        assert b"Select at least one organization" in resp.data
+
+    def test_export_route_rejects_non_gm_membership(
+        self, admin_client, db_session, admin_user
+    ):
+        """A plain membership in another org must not grant a bundle export."""
+        other = Organization(name="Other", slug="other")
+        db.session.add(other)
+        db.session.flush()
+        db.session.add(OrganizationMembership(
+            user_id=admin_user.id, organization_id=other.id, is_gm=False
+        ))
         db.session.commit()
 
         resp = admin_client.get(f"/admin/orgs/export?org_id={other.id}",
