@@ -132,7 +132,7 @@ def ensure_admin(org, team):
             email=ADMIN_EMAIL,
             organization_id=org.id,
         )
-        admin.set_password(os.getenv("ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD))
+        admin.set_password(os.getenv("ADMIN_PASSWORD") or DEFAULT_ADMIN_PASSWORD)
         db.session.add(admin)
         try:
             db.session.flush()

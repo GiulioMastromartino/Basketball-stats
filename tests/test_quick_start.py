@@ -22,7 +22,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy import inspect, text
 
-from config import TestingConfig, config_map
+from config import TestingConfig
+import config as config_module
 from core.models import (
     Game,
     Organization,
@@ -63,7 +64,12 @@ def quick_start_app(monkeypatch, tmp_path):
         GAMES_DIR = str(tmp_path / "Games")
         OUTPUT_DIR = str(tmp_path / "Output")
 
-    monkeypatch.setitem(config_map, "quick_start_testing", _QuickStartTestingConfig)
+    # Resolve the live module attribute: other test modules reload `config`
+    # (test_multi_instance_hardening), so a name imported at collection time
+    # can point at a stale dict that get_config() no longer reads.
+    monkeypatch.setitem(
+        config_module.config_map, "quick_start_testing", _QuickStartTestingConfig
+    )
 
     from web import create_app
 
@@ -98,6 +104,17 @@ def test_setup_banner_never_echoes_a_custom_password(
     second = capsys.readouterr().out
     assert "sup3r-s3cret" not in second
     assert "password unchanged" in second
+
+
+def test_setup_ignores_an_empty_admin_password(
+    quick_start_app, quick_start_module, monkeypatch
+):
+    """An empty ADMIN_PASSWORD means "unset", not "create an empty password"."""
+    monkeypatch.setenv("ADMIN_PASSWORD", "")
+    _run_setup(quick_start_app, quick_start_module)
+    with quick_start_app.app_context():
+        admin = User.query.filter_by(username="admin").one()
+        assert admin.check_password(quick_start_module.DEFAULT_ADMIN_PASSWORD)
 
 
 def test_setup_creates_organization_with_slug(quick_start_app, quick_start_module):
