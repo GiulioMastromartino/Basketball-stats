@@ -43,6 +43,13 @@
             </a>
         </li>
         <li class="nav-item" role="presentation">
+            <a class="nav-link {% if section == 'transfer' %}active{% endif %}"
+               href="{{ url_for('main.admin_panel', section='transfer') }}"
+               role="tab">
+                <i class="fas fa-file-export"></i> Export / Import
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
             <a class="nav-link {% if section == 'matrix' %}active{% endif %}"
                href="{{ url_for('main.admin_panel', section='matrix') }}"
                role="tab">
@@ -519,12 +526,15 @@
                                     <h5 class="mb-0">{{ org.name }}</h5>
                                     <span class="text-muted small">{{ org.teams|length }} team{{ '' if org.teams|length == 1 else 's' }} · {{ org.memberships|length }} member{{ '' if org.memberships|length == 1 else 's' }}</span>
                                 </div>
-                                {% if not org.teams|length and not org.memberships|length and not is_auditor %}
-                                <form method="POST" action="{{ url_for('main.delete_org', org_id=org.id) }}" onsubmit="return confirm('Delete organization {{ org.name }}?')">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete org</button>
-                                </form>
-                                {% endif %}
+                                <div class="d-flex gap-2 align-items-center">
+                                    <a href="{{ url_for('main.export_orgs', org_id=org.id) }}" class="btn btn-sm btn-outline-secondary" title="Download this organization as JSON"><i class="fas fa-download"></i> Export</a>
+                                    {% if not org.teams|length and not org.memberships|length and not is_auditor %}
+                                    <form method="POST" action="{{ url_for('main.delete_org', org_id=org.id) }}" onsubmit="return confirm('Delete organization {{ org.name }}?')">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete org</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
                             </div>
                             {% if not is_auditor %}
                             <div class="d-flex gap-2 mt-2 flex-wrap">
@@ -615,6 +625,67 @@
                         </div>
                     </form>
                     {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane {% if section == 'transfer' %}show active{% endif %}" role="tabpanel">
+            <h4>Export / Import organizations</h4>
+            <p class="text-muted small">
+                Move an entire organization between deployments, or take a backup.
+                An export bundles the organization, its teams, seasons, players, games,
+                stats, shot/event logs, lineups, plays, training sessions, tracked
+                championships, WhatsApp groups and development goals.
+                User accounts, memberships, share links and audit rows are never included.
+            </p>
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h5><i class="fas fa-download"></i> Export</h5>
+                            <p class="text-muted small">Select the organizations to download as one JSON bundle. Leave every box unchecked to export all visible organizations.</p>
+                            <form method="GET" action="{{ url_for('main.export_orgs') }}">
+                                <div class="mb-3">
+                                    {% for org in visible_orgs %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="org_id" value="{{ org.id }}" id="export_org_{{ org.id }}">
+                                        <label class="form-check-label" for="export_org_{{ org.id }}">
+                                            {{ org.name }}
+                                            <span class="text-muted small">— {{ org.teams|length }} team{{ '' if org.teams|length == 1 else 's' }}</span>
+                                        </label>
+                                    </div>
+                                    {% else %}
+                                    <p class="text-muted small mb-0">No organizations available to export.</p>
+                                    {% endfor %}
+                                </div>
+                                <button type="submit" class="btn btn-primary" {% if not visible_orgs %}disabled{% endif %}>
+                                    <i class="fas fa-file-export"></i> Download JSON export
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h5><i class="fas fa-upload"></i> Import</h5>
+                            {% if is_auditor %}
+                            <div class="alert alert-secondary mb-0"><i class="fas fa-eye"></i> Auditor view — importing is disabled.</div>
+                            {% else %}
+                            <p class="text-muted small">Upload a JSON export. Import always creates <strong>new</strong> organizations; it never overwrites existing data. If a name already exists, the import gets a unique suffix.</p>
+                            <form method="POST" action="{{ url_for('main.import_orgs') }}" enctype="multipart/form-data">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <div class="mb-3">
+                                    <label class="form-label" for="org_file">Organization export (.json)</label>
+                                    <input type="file" class="form-control" id="org_file" name="org_file" accept=".json,application/json" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-file-import"></i> Import organizations
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

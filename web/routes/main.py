@@ -81,6 +81,11 @@ from core.services.notification_service import notify_game, notify_player_perfor
 from core.services import create_game_from_live_data
 from core.services.game_service import DuplicateGameError
 from core.services.analytics_service import AnalyticsService
+from core.services.org_transfer_service import (
+    OrgImportError,
+    export_organizations,
+    import_organizations,
+)
 from web.decorators import (
     gm_required,
     team_access_required,
@@ -2301,7 +2306,10 @@ def switch_org():
 # ADMIN PANEL
 # =============================================================================
 
-VALID_SECTIONS = {"users", "players", "settings", "seasons", "orgs", "matrix", "activity"}
+VALID_SECTIONS = {
+    "users", "players", "settings", "seasons", "orgs", "matrix", "activity",
+    "transfer",
+}
 
 
 def _slugify(name: str) -> str:
@@ -2438,6 +2446,134 @@ def admin_panel(section="users"):
         settings=settings,
         section=section,
     )
+
+
+# How much organization JSON we are willing to parse in one import. The app's
+# MAX_CONTENT_LENGTH caps the request body too; this is the friendly error.
+ORG_BUNDLE_MAX_BYTES = 16 * 1024 * 1024
+
+
+@main_bp.route("/admin/orgs/export")
+@login_required
+@admin_view_required
+def export_orgs():
+    """Download one or more organizations as a portable JSON bundle.
+
+    Read-only, so auditors may use it. With no ``org_id`` parameters the
+    export covers every organization the viewer may administer.
+    """
+    allowed = _gm_org_ids()
+    if allowed is not None and not getattr(current_user, "is_auditor", False):
+        # Exporting a whole organization is an administrative read. A plain
+        # (non-GM) membership must not grant it, even though the admin panel
+        # lists those organizations for visibility.
+        allowed = allowed & {
+            membership.organization_id
+            for membership in current_user.memberships
+            if membership.is_gm
+        }
+    requested = []
+    for raw_id in request.args.getlist("org_id"):
+        try:
+            requested.append(int(raw_id))
+        except (TypeError, ValueError):
+            continue
+    if requested:
+        orgs = (
+            Organization.query.filter(Organization.id.in_(requested))
+            .order_by(Organization.name, Organization.id)
+            .all()
+        )
+    else:
+        query = Organization.query
+        if allowed is not None:
+            query = (query.filter(Organization.id.in_(allowed))
+                     if allowed else query.filter(db.false()))
+        orgs = query.order_by(Organization.name, Organization.id).all()
+
+    targets = [o for o in orgs if allowed is None or o.id in allowed]
+    if not targets:
+        flash("Select at least one organization to export.", "warning")
+        return redirect(url_for("main.admin_panel", section="transfer"))
+
+    payload = export_organizations([org.id for org in targets])
+    if len(targets) == 1:
+        stem = secure_filename(targets[0].slug) or f"org-{targets[0].id}"
+    else:
+        stem = "organizations"
+    stamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    response = send_file(
+        BytesIO(json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8")),
+        mimetype="application/json",
+        as_attachment=True,
+        download_name=f"{stem}-export-{stamp}.json",
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    log_admin_action(
+        current_user, "org.export",
+        f"exported {len(targets)} organization(s): "
+        + ", ".join(org.name for org in targets)[:300],
+        target_type="org",
+        target_id=targets[0].id if len(targets) == 1 else None,
+    )
+    return response
+
+
+@main_bp.route("/admin/orgs/import", methods=["POST"])
+@login_required
+@gm_required
+def import_orgs():
+    """Import a bundle from :func:`export_orgs`, creating new organizations."""
+    upload = request.files.get("org_file")
+    if not upload or not (upload.filename or "").strip():
+        flash("Select an organization export file to import.", "danger")
+        return redirect(url_for("main.admin_panel", section="transfer"))
+    if not upload.filename.lower().endswith(".json"):
+        flash("Organization exports must be .json files.", "danger")
+        return redirect(url_for("main.admin_panel", section="transfer"))
+    try:
+        raw = upload.read(ORG_BUNDLE_MAX_BYTES + 1)
+    except Exception:
+        flash("Could not read the uploaded file.", "danger")
+        return redirect(url_for("main.admin_panel", section="transfer"))
+    if len(raw) > ORG_BUNDLE_MAX_BYTES:
+        flash("Organization export is too large (max 16 MB).", "danger")
+        return redirect(url_for("main.admin_panel", section="transfer"))
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        flash("Organization export is not valid JSON.", "danger")
+        return redirect(url_for("main.admin_panel", section="transfer"))
+
+    try:
+        orgs, warnings = import_organizations(
+            payload,
+            actor=current_user,
+            add_membership=not current_app.config.get("LOGIN_DISABLED"),
+        )
+    except OrgImportError as exc:
+        flash(f"Invalid organization export: {exc}", "danger")
+        return redirect(url_for("main.admin_panel", section="transfer"))
+    except Exception:
+        current_app.logger.exception("Organization import failed")
+        flash("Import failed; nothing was imported.", "danger")
+        return redirect(url_for("main.admin_panel", section="transfer"))
+
+    names = ", ".join(org.name for org in orgs)
+    display_names = names[:300] + ("…" if len(names) > 300 else "")
+    log_admin_action(
+        current_user, "org.import",
+        f"imported {len(orgs)} organization(s): {names[:300]}",
+        target_type="org",
+        target_id=orgs[0].id if len(orgs) == 1 else None,
+        organization_id=orgs[0].id,
+    )
+    flash(f"Imported {len(orgs)} organization(s): {display_names}.", "success")
+    if warnings:
+        shown = "; ".join(warnings[:5])
+        extra = f" (+{len(warnings) - 5} more)" if len(warnings) > 5 else ""
+        flash(f"Import adjusted some data: {shown}{extra}", "warning")
+    return redirect(url_for("main.admin_panel", section="transfer"))
 
 
 @main_bp.route("/seasons/create", methods=["POST"])
