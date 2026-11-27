@@ -211,10 +211,6 @@ def _season_options(today: date | None = None) -> tuple[tuple[str, str], ...]:
     )
 
 
-SEASONS: tuple[tuple[str, str], ...] = _season_options()
-SEASON_CODES = {c for c, _ in SEASONS}
-
-
 def _norm(value: str | None) -> str:
     """Upper-case a scalar form/JSON value; never raise on a non-string."""
     if value is None:
@@ -232,6 +228,7 @@ def season_year(season_label: str) -> str:
 
 def catalog() -> dict:
     """Full dropdown catalog for the GM dashboard + JSON endpoint."""
+    seasons = _season_options()
     return {
         "providers": [{"code": c, "label": l} for c, l in PROVIDERS],
         "fip": {
@@ -241,7 +238,7 @@ def catalog() -> dict:
             "sesso": [{"code": c, "label": l} for c, l in FIP_SESSO],
             "gironi_letters": list(FIP_GIRONI_LETTERS),
             "gironi_numeric": list(FIP_GIRONI_KNOWN_NUMERIC),
-            "seasons": [c for c, _ in SEASONS],
+            "seasons": [c for c, _ in seasons],
             "defaults": {
                 "comitato": "RLO", "campionato": "1DM",
                 "fase": "1", "sesso": "M", "girone": "85405",
@@ -260,7 +257,7 @@ def catalog() -> dict:
             "fasi": [{"code": c, "label": l} for c, l in PLAYBASKET_FASI],
             "comitati": [{"code": c, "label": l}
                          for c, l in PLAYBASKET_COMITATI],
-            "seasons": [c for c, _ in SEASONS],
+            "seasons": [c for c, _ in seasons],
             "defaults": {
                 "region": "lombardia", "comitato": "RLO",
                 "province": "MI", "campionato": "DR4",
@@ -268,7 +265,7 @@ def catalog() -> dict:
                 "season": "2025/2026",
             },
         },
-        "seasons": [{"code": c, "label": l} for c, l in SEASONS],
+        "seasons": [{"code": c, "label": l} for c, l in seasons],
     }
 
 
@@ -283,11 +280,12 @@ def validate(provider: str, data: dict) -> tuple[bool, str | None, dict]:
     if provider not in PROVIDER_CODES:
         return False, f"Provider sconosciuto: {provider!r}.", {}
 
+    seasons = _season_options()
     season = str(data.get("season_label") or "").strip()
-    if season not in SEASON_CODES or not _SEASON_RE.match(season):
+    if season not in {c for c, _ in seasons} or not _SEASON_RE.match(season):
         return False, (
             f"Stagione non valida: {season!r}. "
-            f"Scegli dal menu: {', '.join(s for s, _ in SEASONS)}."
+            f"Scegli dal menu: {', '.join(s for s, _ in seasons)}."
         ), {}
 
     if provider == "fip_api":
