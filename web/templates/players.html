@@ -130,7 +130,12 @@
             <a href="{{ url_for('reports.download_all_reports', game_type=filters.type) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
                 <i class="fas fa-download"></i> Download All
             </a>
-            <a href="{{ url_for('main.players_pages_zip', game_type=filters.type, limit=filters.limit, sort=filters.sort, order=filters.order, exclude_player=filters.exclude_player) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
+            <a href="{{ url_for('main.players_pages_zip', game_type=filters.type, limit=filters.limit, sort=filters.sort, order=filters.order, exclude_player=filters.exclude_player) }}"
+               id="playersPagesZipBtn"
+               class="btn btn-outline-secondary"
+               data-player-count="{{ stats|length }}"
+               data-estimate-url="{{ url_for('main.players_pages_zip', game_type=filters.type, limit=filters.limit, sort=filters.sort, order=filters.order, exclude_player=filters.exclude_player, estimate=1) }}"
+               target="_blank" rel="noopener">
                 <i class="fas fa-file-archive"></i> Download All Player Pages
             </a>
             {% if current_user.is_gm %}
@@ -139,6 +144,7 @@
             </button>
             {% endif %}
         </div>
+        <p id="playersPagesZipStatus" class="mt-2 mb-0 small" role="status" aria-live="polite"></p>
     </div>
 
     {% if current_user.is_gm %}
@@ -414,5 +420,132 @@
             }
         });
     }
+
+    // --- "Download All Player Pages" export feedback ------------------------
+    // The export renders one PDF per player plus a team page inside a single
+    // request: it can take a minute, and the server refuses selections that
+    // would exceed its time budget. Show what is happening instead of a
+    // dead link (plain JS, no dependencies).
+    (function () {
+        const link = document.getElementById('playersPagesZipBtn');
+        const status = document.getElementById('playersPagesZipStatus');
+        if (!link || !status) { return; }
+
+        const originalMarkup = link.innerHTML;
+        // Fallback estimate, mirrors the server-side model in
+        // web/routes/main.py (PAGES_ZIP_SECONDS_PER_PAGE_BASE +
+        // PAGES_ZIP_SECONDS_PER_GAME * games) for a typical season.
+        const FALLBACK_SECONDS_PER_PAGE = 7;
+
+        function playerCount() {
+            const parsed = parseInt(link.getAttribute('data-player-count'), 10);
+            return isNaN(parsed) ? 0 : parsed;
+        }
+
+        function formatDuration(seconds) {
+            const total = Math.max(0, Math.round(seconds));
+            const minutes = Math.floor(total / 60);
+            const rest = total % 60;
+            if (minutes && rest) { return minutes + ' min ' + rest + ' s'; }
+            if (minutes) { return minutes + ' min'; }
+            return total + ' s';
+        }
+
+        function setStatus(text, tone) {
+            status.textContent = text;
+            status.className = 'mt-2 mb-0 small ' + (tone || 'text-muted');
+        }
+
+        function setBusy(busy) {
+            link.classList.toggle('disabled', busy);
+            link.setAttribute('aria-disabled', busy ? 'true' : 'false');
+            link.innerHTML = busy
+                ? '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...'
+                : originalMarkup;
+        }
+
+        function filenameFromDisposition(header) {
+            if (!header) { return null; }
+            const utf8 = header.match(/filename\*=UTF-8''([^;]+)/i);
+            if (utf8) { return decodeURIComponent(utf8[1]); }
+            const plain = header.match(/filename="?([^";]+)"?/i);
+            return plain ? plain[1] : null;
+        }
+
+        function saveBlob(blob, filename) {
+            const objectUrl = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = objectUrl;
+            anchor.download = filename || 'player_pages.zip';
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 60000);
+        }
+
+        async function runExport(url) {
+            const players = playerCount();
+            setBusy(true);
+            setStatus('Preparing the export of ' + (players + 1) + ' pages for ' + players + ' players...', 'text-muted');
+
+            // Cheap preview: the server tells us the real page count and
+            // duration, and refuses the request before rendering anything.
+            let plan = null;
+            const estimateUrl = link.getAttribute('data-estimate-url') ||
+                url + (url.indexOf('?') === -1 ? '?' : '&') + 'estimate=1';
+            try {
+                const planResponse = await fetch(estimateUrl, {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (planResponse.ok || planResponse.status === 422) {
+                    plan = await planResponse.json();
+                }
+            } catch (error) {
+                plan = null; // the preview is optional, keep going
+            }
+
+            if (plan && plan.error === 'export_too_large') {
+                setStatus(plan.message + ' ' + (plan.hints || []).join(' '), 'text-danger');
+                setBusy(false);
+                return;
+            }
+
+            const pages = (plan && plan.pages) ? plan.pages : (players + 1);
+            const seconds = (plan && plan.estimated_seconds)
+                ? plan.estimated_seconds
+                : (pages * FALLBACK_SECONDS_PER_PAGE);
+            setStatus('Generating ' + pages + ' pages for ' + players + ' players - this can take about ' +
+                formatDuration(seconds) + '. Keep this page open, the download starts on its own.', 'text-warning');
+
+            try {
+                const response = await fetch(url, { credentials: 'same-origin' });
+                if (!response.ok) {
+                    let message = 'The export failed (HTTP ' + response.status + ').';
+                    try {
+                        const data = await response.json();
+                        if (data && data.message) { message = data.message; }
+                    } catch (error) { /* keep the default message */ }
+                    setStatus(message, 'text-danger');
+                    setBusy(false);
+                    return;
+                }
+                const blob = await response.blob();
+                const filename = filenameFromDisposition(response.headers.get('Content-Disposition')) || 'player_pages.zip';
+                saveBlob(blob, filename);
+                setStatus('Done: ' + filename + ' (' + pages + ' pages) downloaded.', 'text-success');
+            } catch (error) {
+                setStatus('The export could not be completed (' +
+                    (error && error.message ? error.message : 'network error') +
+                    '). It may have been cut off by the server timeout: narrow the selection and try again.', 'text-danger');
+            }
+            setBusy(false);
+        }
+
+        link.addEventListener('click', function (event) {
+            event.preventDefault();
+            runExport(link.getAttribute('href'));
+        });
+    })();
 </script>
 {% endblock %}

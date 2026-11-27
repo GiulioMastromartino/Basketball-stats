@@ -806,7 +806,7 @@ player_name=player_name, game_type=game_type)) %}
 <!-- /#playerPage -->
 
 {% if not is_pdf %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ static_url('vendor/chartjs/chart.umd.min.js') }}"></script>
 <script>
     window.quarterChartData = {{ quarter_chart_data|tojson }};
 
