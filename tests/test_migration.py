@@ -348,6 +348,33 @@ class TestProductionMigration:
                 columns = [c["name"] for c in inspector.get_columns(table)]
                 assert col in columns, f"Migration did not add: {table}.{col}"
 
+    def test_migrate_adds_sesso_to_tracked_championships(self, pre_migration_db):
+        """Existing tracked_championships tables gain sesso (FIP gender).
+
+        Production deploys with AUTO_MIGRATE=False and relies on
+        scripts/migrate.py step 1b (scripts.init_db.add_missing_columns).
+        """
+        from scripts.init_db import add_missing_columns
+
+        app, db = pre_migration_db
+        with app.app_context():
+            db.session.execute(text(
+                "CREATE TABLE tracked_championships ("
+                "id INTEGER PRIMARY KEY, team_id INTEGER, "
+                "provider VARCHAR(20))"
+            ))
+            db.session.commit()
+
+        add_missing_columns(app)
+
+        with app.app_context():
+            columns = [
+                c["name"]
+                for c in inspect(db.engine).get_columns(
+                    "tracked_championships")
+            ]
+            assert "sesso" in columns
+
     def test_migrate_adds_svg_snapshot_to_play_sequences(self, pre_migration_db):
         """Old play_sequences tables gain svg_snapshot (phase stills for PDFs)."""
         from scripts.migrate import run as run_migration

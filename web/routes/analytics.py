@@ -44,7 +44,13 @@ def dashboard():
     return render_template("analytics.html", players=player_names)
 
 
-CHAMPIONSHIP_SOURCES = ("internal", "playbasket")
+CHAMPIONSHIP_SOURCES = ("internal", "playbasket", "fip")
+
+SOURCE_PROVIDERS = {"playbasket": "playbasket_html", "fip": "fip_api"}
+SOURCE_LABELS = {"internal": "Internal", "playbasket": "Playbasket",
+                 "fip": "FIP"}
+SOURCE_ORIGINS = {"playbasket_html": "playbasket.it",
+                  "fip_api": "backend.fip.it"}
 
 
 def _load_playbasket_snapshot():
@@ -58,11 +64,12 @@ def _load_playbasket_snapshot():
         return {"meta": {}, "standings": [], "games": []}
 
 
-def _load_playbasket_from_store(ext_id: int | None = None):
-    """Playbasket snapshot from the SQLite sidecar, if populated.
+def _load_external_from_store(provider: str = "playbasket_html",
+                            ext_id: int | None = None):
+    """Sidecar snapshot for one external provider (``playbasket_html``/``fip_api``).
 
     Returns (snapshot, championships) where championships lists all
-    available playbasket snapshots for the selector. Falls back to
+    available snapshots of that provider for the selector. Falls back to
     (None, []) when the store is empty.
     """
     from core import external_store as store
@@ -73,21 +80,34 @@ def _load_playbasket_from_store(ext_id: int | None = None):
         return None, []
     try:
         champs = [c for c in store.list_championships(conn)
-                  if c["provider"] == "playbasket_html"]
+                  if c["provider"] == provider]
         if not champs:
             return None, []
+        # Default to the most relevant championship: one with games wins
+        # over an empty just-tracked season, then most recently synced.
+        # A retired empty entry must never shadow live data, but neither
+        # should an empty new season hide last season's games.
+        # ?ext=<id> still selects explicitly.
+        def _rank(c):
+            try:
+                n = len(store.list_games(conn, c["id"]))
+            except Exception:
+                n = 0
+            return (1 if n else 0, c.get("last_checked") or "", c["id"])
+        champs.sort(key=_rank, reverse=True)
         chosen = next((c for c in champs if c["id"] == ext_id), champs[0])
         games = store.list_games(conn, chosen["id"])
         standings = [{"pos": r["position"], "team": r["team"],
                       "pts": r["points"], "g": r["played"], "w": r["won"],
                       "l": r["lost"], "pf": r["scored"], "ps": r["conceded"]}
                      for r in store.get_standings(conn, chosen["id"])]
+        origin = SOURCE_ORIGINS.get(provider, "")
         snapshot = {
             "meta": {
                 "competition": chosen["display_name"] or "External championship",
                 "girone": chosen["codice_girone"],
                 "season": chosen["season_label"],
-                "source": "playbasket.it",
+                "source": origin,
                 "source_url": chosen["source_url"],
                 "scraped_at": chosen["last_checked"] or "unknown",
                 "note": "Live sidecar cache, refreshed by the daily sync.",
@@ -105,6 +125,14 @@ def _load_playbasket_from_store(ext_id: int | None = None):
         conn.close()
 
 
+def _load_playbasket_from_store(ext_id: int | None = None):
+    """Playbasket snapshot from the SQLite sidecar, if populated.
+
+    Kept as a thin wrapper (callers/tests import this name).
+    """
+    return _load_external_from_store("playbasket_html", ext_id)
+
+
 @analytics_bp.route("/analytics/championship")
 @login_required
 @team_access_required
@@ -112,7 +140,9 @@ def championship():
     """Championship subpage with selectable info source.
 
     - ``internal``: standings/record computed from this team's DB games.
-    - ``playbasket``: bundled Playbasket scrape (DR4 Lombardia 2025/26).
+    - ``playbasket``: Playbasket sidecar (bundled DR4 Lombardia 2025/26
+      snapshot as fallback when nothing synced yet).
+    - ``fip``: FIP API sidecar (national + regional with digital coverage).
     """
     from core.services.season_service import resolve_request_season_id
     source = (request.args.get("source") or "internal").strip().lower()
@@ -150,9 +180,10 @@ def championship():
     snapshot = None
     ext_championships: list = []
     ext_id = request.args.get("ext", type=int)
-    if source == "playbasket":
-        snapshot, ext_championships = _load_playbasket_from_store(ext_id)
-        if snapshot is None:
+    if source in ("playbasket", "fip"):
+        snapshot, ext_championships = _load_external_from_store(
+            SOURCE_PROVIDERS[source], ext_id)
+        if snapshot is None and source == "playbasket":
             snapshot = _load_playbasket_snapshot()
     team_filter = (request.args.get("team") or "").strip()
     if snapshot and team_filter:
@@ -203,6 +234,7 @@ def championship():
         "analytics_championship.html",
         source=source,
         sources=CHAMPIONSHIP_SOURCES,
+        source_labels=SOURCE_LABELS,
         internal=internal,
         snapshot=snapshot,
         ext_championships=ext_championships,
@@ -239,6 +271,9 @@ def championship_sync_health():
     health = sync_health_snapshot(ext_id)
 
     snapshot, _champs = _load_playbasket_from_store(ext_id)
+    if snapshot is None:
+        # ext_id may point at a FIP championship: try that provider too.
+        snapshot, _champs = _load_external_from_store("fip_api", ext_id)
     if snapshot is None:
         snapshot = _load_playbasket_snapshot()
     bundled = _load_playbasket_snapshot()

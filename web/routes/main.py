@@ -2513,7 +2513,11 @@ def gm_dashboard():
             "players": players,
             "tracked": [
                 {"id": t.id, "display_name": t.display_name,
-                 "provider": t.provider, "active": t.active}
+                 "provider": t.provider, "active": t.active,
+                 "sesso": getattr(t, "sesso", None) or "M",
+                 "season_label": t.season_label,
+                 "codice_campionato": t.codice_campionato,
+                 "codice_girone": t.codice_girone}
                 for t in team.tracked_championships
             ],
         })
@@ -2530,6 +2534,7 @@ def gm_dashboard():
         "has_players": sum(t["players"] for t in team_data) > 0,
         "has_games": has_games,
     }
+    from core import championship_catalog as catalog_mod
     return render_template(
         "gm/dashboard.html",
         org=org,
@@ -2538,6 +2543,7 @@ def gm_dashboard():
         my_orgs=my_orgs,
         checklist=checklist,
         is_auditor=bool(getattr(current_user, "is_auditor", False)),
+        champ_catalog=catalog_mod.catalog(),
     )
 
 
@@ -3176,33 +3182,209 @@ def delete_team(team_id):
     return redirect(url_for("main.admin_panel", section="orgs"))
 
 
-TRACK_PROVIDERS = ("fip_api", "playbasket_html")
+@main_bp.route("/teams/championship-options")
+@login_required
+def championship_options():
+    """Dropdown catalog for championship tracking (GM dashboard)."""
+    from core import championship_catalog as catalog_mod
+    return jsonify(catalog_mod.catalog())
+
+
+@main_bp.route("/teams/championship-gironi")
+@login_required
+def championship_gironi():
+    """Live id→label girone lookup for the tracking dropdowns.
+
+    Query: ``?provider=fip_api&comitato_codice=RLO&codice_campionato=1DM
+    &codice_fase=1&sesso=M``. Scrapes the official fip.it/risultati
+    gironi select so the dashboard offers the exact backend ids
+    (e.g. 85405 = Girone H) instead of guessed letters. Returns
+    ``{ok, gironi: [{code, label}]}``; on failure ``ok=False`` with a
+    message, and the dashboard keeps its static fallback options.
+    """
+    from core import championship_catalog as catalog_mod
+    provider = (request.args.get("provider") or "").strip()
+    if provider != "fip_api":
+        return jsonify({"ok": False,
+                        "message": "Solo FIP ha lookup live dei gironi."})
+    comitato = (request.args.get("comitato_codice") or "").strip().upper()
+    campionato = (request.args.get("codice_campionato") or "").strip().upper()
+    fase = (request.args.get("codice_fase") or "1").strip() or "1"
+    sesso = (request.args.get("sesso") or "M").strip().upper() or "M"
+    if (comitato not in catalog_mod.FIP_COMITATI_CODES
+            or campionato not in catalog_mod.FIP_CAMPIONATI_CODES):
+        return jsonify({"ok": False,
+                        "message": "Comitato/campionato non validi."})
+    try:
+        from jobs.adapters import fip_api
+        gironi = fip_api.discover_gironi(comitato, campionato, fase, sesso)
+    except Exception as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 502
+    if not gironi:
+        return jsonify({
+            "ok": False, "gironi": [],
+            "message": ("Nessun girone pubblicato per questa combinazione "
+                        "(stagione non iniziata?)."),
+        })
+    return jsonify({"ok": True, "gironi": gironi})
+
+
+@main_bp.route("/teams/<int:team_id>/track/verify", methods=["POST"])
+@login_required
+def verify_championship(team_id):
+    """Dry-run probe of external API before tracking (no DB writes).
+
+    Accepts the same fields as ``track_championship`` (form or JSON) and
+    returns ``{ok, games, standings, message}`` so the dashboard can show
+    a green check instead of an uncertain free-text guess.
+    """
+    from core import championship_catalog as catalog_mod
+    team = Team.query.get_or_404(team_id)
+    if getattr(current_user, "is_auditor", False):
+        return jsonify({"ok": False,
+                        "message": "Auditors have read-only access."}), 403
+    denied = require_own_org(team.organization_id)
+    if denied:
+        return jsonify({"ok": False,
+                        "message": "You do not administer this team."}), 403
+    payload = request.get_json(silent=True) or request.form.to_dict()
+    provider = (payload.get("provider") or "fip_api").strip()
+    ok, error, norm = catalog_mod.validate(provider, payload)
+    if not ok:
+        return jsonify({"ok": False, "message": error}), 400
+    try:
+        if norm["provider"] == "fip_api":
+            from jobs.adapters import fip_api
+            import urllib.parse
+            # Probe giornate 1-3 andata + ritorno (no full sweep).
+            # Zero games means the combo does not exist on FIP backend
+            # (or the season has not started): refuse to track instead of
+            # creating a silent empty sync.
+            total = 0
+            for code_ar in ("1", "0"):
+                for giornata in (1, 2, 3):
+                    params = {
+                        "comitato_codice": norm["comitato_codice"],
+                        "sesso": norm.get("sesso") or "M",
+                        "codice_campionato": norm["codice_campionato"],
+                        "codice_fase": norm["codice_fase"],
+                        "codice_girone": norm["codice_girone"],
+                        "codice_ar": code_ar,
+                        "giornata": giornata,
+                    }
+                    url = (fip_api.BASE + "?"
+                           + urllib.parse.urlencode(params))
+                    import urllib.request
+                    req = urllib.request.Request(
+                        url, headers=fip_api.USER_AGENT)
+                    with urllib.request.urlopen(req,
+                                                timeout=15) as resp:
+                        import json as _json
+                        data = _json.load(resp)
+                    total += len((data or {}).get("partite", []))
+            if total == 0:
+                return jsonify({
+                    "ok": False, "games": 0, "standings": 0,
+                    "message": ("FIP: nessuna partita in giornate 1-3 "
+                                "(andata+ritorno). Usa i codici ufficiali "
+                                "backend (es. DR3=1DM, gironi numerici via "
+                                "lookup) — combinazione inesistente oppure "
+                                "stagione non ancora iniziata."),
+                }), 400
+            return jsonify({
+                "ok": True, "games": total, "standings": 0,
+                "message": (f"FIP OK: giornate 1-3 → {total} partite "
+                            f"(andata+ritorno). Full sync covers all giornate."),
+            })
+        from jobs.adapters import playbasket_html as pb
+        season_year = (catalog_mod.season_year(norm["season_label"])
+                       or "2026")
+        try:
+            games, standings, _fp = pb.fetch_championship(
+                province=norm["province_codice"] or "MI",
+                championship=norm["codice_campionato"] or "DR4",
+                season=season_year,
+                girone=norm["codice_girone"] or "M")
+        except ValueError as exc:
+            # Unknown girone/championship for this exact league.
+            return jsonify({"ok": False, "message": str(exc)}), 400
+        if not games:
+            # Pre-season: no calendar yet. Confirm the league page itself
+            # exists (title carries "Girone X") so a real-but-not-started
+            # combo can still be tracked; a wrong combo is rejected.
+            try:
+                girone_id = pb.resolve_girone_id(
+                    norm["province_codice"] or "MI",
+                    norm["codice_campionato"] or "DR4",
+                    season_year, norm["codice_girone"] or "M")
+                page = pb._fetch(pb.league_url(
+                    "lombardia", norm["province_codice"] or "MI",
+                    norm["codice_campionato"] or "DR4",
+                    season_year, "gr", girone_id))
+                title = pb.league_title(page)
+            except Exception:
+                title = ""
+            wanted = f"Girone {(norm['codice_girone'] or '').strip().upper()}"
+            if wanted and wanted in title:
+                return jsonify({
+                    "ok": True, "games": 0,
+                    "standings": len(standings),
+                    "message": (f"Playbasket OK: girone confermato "
+                                f"({title.split('|')[0].strip()}) ma "
+                                f"calendario non ancora pubblicato — il sync "
+                                f"popolerà la pagina a stagione iniziata."),
+                })
+            return jsonify({
+                "ok": False, "games": 0, "standings": len(standings),
+                "message": ("Playbasket: girone non trovato per questo "
+                            "campionato/provincia/stagione, e nessuna gara "
+                            "in calendario."),
+            }), 400
+        return jsonify({
+            "ok": True, "games": len(games),
+            "standings": len(standings),
+            "message": (f"Playbasket OK: {len(games)} gare, "
+                        f"{len(standings)} squadre in classifica."),
+        })
+    except Exception as exc:
+        return jsonify({"ok": False,
+                        "message": f"Verifica fallita: {exc}"}), 502
 
 
 @main_bp.route("/teams/<int:team_id>/track", methods=["POST"])
 @login_required
 @gm_required
 def track_championship(team_id):
-    """Track an external championship for a team (daily sync cron)."""
+    """Track an external championship for a team (daily sync cron).
+
+    Every identifier comes from a dashboard ``<select>`` backed by
+    ``core.championship_catalog`` — validated here so hand-crafted posts
+    with typos are rejected instead of creating silent empty syncs.
+    """
+    from core import championship_catalog as catalog_mod
     from core.models import TrackedChampionship
     team = Team.query.get_or_404(team_id)
     denied = require_own_org(team.organization_id)
     if denied:
         return denied
     provider = (request.form.get("provider") or "fip_api").strip()
-    if provider not in TRACK_PROVIDERS:
-        provider = "fip_api"
+    ok, error, norm = catalog_mod.validate(provider, request.form.to_dict())
+    if not ok:
+        flash(error, "danger")
+        return _safe_next("main.gm_dashboard")
+    display = (request.form.get("display_name") or "").strip() \
+        or catalog_mod.default_display_name(norm["provider"], norm)
     data = {
         "team_id": team.id,
-        "provider": provider,
-        "comitato_codice": (request.form.get("comitato_codice") or "").strip(),
-        "province_codice": (request.form.get("province_codice") or "MI").strip() or "MI",
-        "codice_campionato": (request.form.get("codice_campionato") or "").strip(),
-        "codice_fase": (request.form.get("codice_fase") or "1").strip() or "1",
-        "codice_girone": (request.form.get("codice_girone") or "").strip(),
-        "season_label": (request.form.get("season_label") or "").strip(),
-        "display_name": (request.form.get("display_name") or "").strip()
-        or f"{provider} {request.form.get('codice_girone', '')}".strip(),
+        "provider": norm["provider"],
+        "comitato_codice": norm["comitato_codice"],
+        "province_codice": norm["province_codice"],
+        "codice_campionato": norm["codice_campionato"],
+        "codice_fase": norm["codice_fase"],
+        "codice_girone": norm["codice_girone"],
+        "season_label": norm["season_label"],
+        "sesso": norm.get("sesso") or "M",
+        "display_name": display[:150],
     }
     existing = TrackedChampionship.query.filter_by(
         team_id=team.id, provider=data["provider"],
@@ -3215,6 +3397,7 @@ def track_championship(team_id):
     if existing:
         existing.active = True
         existing.display_name = data["display_name"]
+        existing.sesso = data["sesso"]
     else:
         db.session.add(TrackedChampionship(**data))
     db.session.commit()

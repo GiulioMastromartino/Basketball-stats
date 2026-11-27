@@ -169,7 +169,7 @@
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                             <input type="hidden" name="next" value="{{ url_for('main.gm_dashboard') }}"/>
                             <button type="submit" class="badge {% if t.active %}bg-info text-dark{% else %}bg-secondary{% endif %} border-0 mb-1"
-                                    title="Click to {% if t.active %}pause{% else %}resume{% endif %} daily sync">
+                                    title="Click to {% if t.active %}pause{% else %}resume{% endif %} daily sync · {{ t.codice_campionato }} gir. {{ t.codice_girone }} {{ t.season_label }}{% if t.provider == 'fip_api' %} {{ t.sesso }}{% endif %}">
                                 <i class="fas fa-satellite-dish"></i> {{ t.display_name }}{% if not t.active %} (paused){% endif %}
                             </button>
                         </form>
@@ -177,21 +177,120 @@
                         {% if not is_auditor %}
                         <details class="small">
                             <summary class="text-muted" style="cursor:pointer">Track external championship</summary>
-                            <form method="POST" action="{{ url_for('main.track_championship', team_id=td.id) }}" class="d-flex gap-1 mt-1 flex-wrap">
+                            <form method="POST" action="{{ url_for('main.track_championship', team_id=td.id) }}"
+                                  class="d-flex gap-1 mt-2 flex-wrap align-items-end" data-track-form="{{ td.id }}">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <input type="hidden" name="next" value="{{ url_for('main.gm_dashboard') }}"/>
-                                <select name="provider" class="form-select form-select-sm w-auto">
-                                    <option value="fip_api">FIP API</option>
-                                    <option value="playbasket_html">Playbasket</option>
+                                <label class="mb-0">Fonte
+                                <select name="provider" class="form-select form-select-sm w-auto" data-provider required>
+                                    {% for p in champ_catalog.providers %}
+                                    <option value="{{ p.code }}">{{ p.label }}</option>
+                                    {% endfor %}
                                 </select>
-                                <input type="text" name="comitato_codice" class="form-control form-control-sm w-auto" placeholder="Comitato (RLO)" style="max-width:110px"/>
-                                <input type="text" name="province_codice" class="form-control form-control-sm w-auto" placeholder="Prov. (MI)" value="MI" style="max-width:90px"/>
-                                <input type="text" name="codice_campionato" class="form-control form-control-sm w-auto" placeholder="Camp. (DR4)" style="max-width:110px"/>
-                                <input type="text" name="codice_fase" class="form-control form-control-sm w-auto" placeholder="Fase (1)" value="1" style="max-width:80px"/>
-                                <input type="text" name="codice_girone" class="form-control form-control-sm w-auto" placeholder="Girone (M)" style="max-width:100px"/>
-                                <input type="text" name="season_label" class="form-control form-control-sm w-auto" placeholder="Season (2025/2026)" style="max-width:130px"/>
-                                <input type="text" name="display_name" class="form-control form-control-sm w-auto" placeholder="Label" style="max-width:130px"/>
-                                <button type="submit" class="btn btn-sm btn-outline-info">Track</button>
+                                </label>
+                                <!-- FIP API fields: every identifier is a dropdown -->
+                                <span class="d-flex gap-1 flex-wrap align-items-end" data-fip-fields>
+                                <label class="mb-0">Comitato
+                                <select name="comitato_codice" class="form-select form-select-sm w-auto" data-fip="comitato_codice" required>
+                                    {% for c in champ_catalog.fip.comitati %}
+                                    <option value="{{ c.code }}" {% if c.code == champ_catalog.fip.defaults.comitato %}selected{% endif %}>{{ c.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                </label>
+                                <label class="mb-0">Campionato
+                                <select name="codice_campionato" class="form-select form-select-sm w-auto" data-fip="codice_campionato" required>
+                                    {% for c in champ_catalog.fip.campionati %}
+                                    <option value="{{ c.code }}" {% if c.code == champ_catalog.fip.defaults.campionato %}selected{% endif %}>{{ c.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                </label>
+                                <label class="mb-0">Fase
+                                <select name="codice_fase" class="form-select form-select-sm w-auto" data-fip="codice_fase" required>
+                                    {% for c in champ_catalog.fip.fasi %}
+                                    <option value="{{ c.code }}" {% if c.code == champ_catalog.fip.defaults.fase %}selected{% endif %}>{{ c.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                </label>
+                                <label class="mb-0">Sesso
+                                <select name="sesso" class="form-select form-select-sm w-auto" data-fip="sesso" required>
+                                    {% for c in champ_catalog.fip.sesso %}
+                                    <option value="{{ c.code }}" {% if c.code == champ_catalog.fip.defaults.sesso %}selected{% endif %}>{{ c.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                </label>
+                                <label class="mb-0">Girone
+                                <select name="codice_girone" class="form-select form-select-sm w-auto" data-fip-girone required style="max-width:190px">
+                                    <optgroup label="Regionali — lettera">
+                                    {% for g in champ_catalog.fip.gironi_letters %}
+                                    <option value="{{ g }}" {% if g == champ_catalog.fip.defaults.girone %}selected{% endif %}>Girone {{ g }}</option>
+                                    {% endfor %}
+                                    </optgroup>
+                                    <optgroup label="Id numerici noti (es. DR3 / Serie A)">
+                                    {% for g in champ_catalog.fip.gironi_numeric %}
+                                    <option value="{{ g }}" {% if g == champ_catalog.fip.defaults.girone %}selected{% endif %}>Girone {{ g }}</option>
+                                    {% endfor %}
+                                    </optgroup>
+                                </select>
+                                </label>
+                                <label class="mb-0">Stagione
+                                <select name="season_label" class="form-select form-select-sm w-auto" data-fip="season_label" required>
+                                    {% for s in champ_catalog.seasons %}
+                                    <option value="{{ s.code }}" {% if s.code == champ_catalog.fip.defaults.season %}selected{% endif %}>{{ s.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                </label>
+                                </span>
+                                <!-- Playbasket fields: every identifier is a dropdown -->
+                                <span class="d-flex gap-1 flex-wrap align-items-end" data-pb-fields hidden>
+                                <label class="mb-0">Comitato
+                                <select name="comitato_codice" class="form-select form-select-sm w-auto" data-pb-comitato disabled>
+                                    {% for c in champ_catalog.playbasket.comitati %}
+                                    <option value="{{ c.code }}" selected>{{ c.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                </label>
+                                <label class="mb-0">Provincia
+                                <select name="province_codice" class="form-select form-select-sm w-auto" data-pb-province disabled required>
+                                    {% for c in champ_catalog.playbasket.provinces %}
+                                    <option value="{{ c.code }}" {% if c.code == champ_catalog.playbasket.defaults.province %}selected{% endif %}>{{ c.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                </label>
+                                <label class="mb-0">Campionato
+                                <select name="codice_campionato" class="form-select form-select-sm w-auto" data-pb-campionato disabled>
+                                    {% for c in champ_catalog.playbasket.championships %}
+                                    <option value="{{ c.code }}" {% if c.code == champ_catalog.playbasket.defaults.campionato %}selected{% endif %}>{{ c.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                </label>
+                                <label class="mb-0">Fase
+                                <select name="codice_fase" class="form-select form-select-sm w-auto" disabled>
+                                    {% for c in champ_catalog.playbasket.fasi %}
+                                    <option value="{{ c.code }}" selected>{{ c.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                </label>
+                                <label class="mb-0">Girone
+                                <select name="codice_girone" class="form-select form-select-sm w-auto" data-pb-girone disabled required style="max-width:150px">
+                                    {% for g in champ_catalog.playbasket.gironi %}
+                                    <option value="{{ g.code }}" {% if g.code == champ_catalog.playbasket.defaults.girone %}selected{% endif %}>{{ g.label }}{% if g.lg %} (lg {{ g.lg }}){% endif %}</option>
+                                    {% endfor %}
+                                </select>
+                                </label>
+                                <label class="mb-0">Stagione
+                                <select name="season_label" class="form-select form-select-sm w-auto" data-pb-season disabled required>
+                                    {% for s in champ_catalog.seasons %}
+                                    <option value="{{ s.code }}" {% if s.code == champ_catalog.playbasket.defaults.season %}selected{% endif %}>{{ s.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                </label>
+                                </span>
+                                <label class="mb-0">Etichetta (auto)
+                                <input type="text" name="display_name" class="form-control form-control-sm w-auto" placeholder="auto" style="max-width:170px" data-display/>
+                                </label>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-verify>Verifica</button>
+                                <button type="submit" class="btn btn-sm btn-outline-info" data-track disabled title="Verifica prima la combinazione">Track</button>
+                                <span class="small ms-1" data-verify-msg role="status"></span>
                             </form>
                         </details>
                         {% endif %}
@@ -202,4 +301,163 @@
         {% endfor %}
     </div>
 </div>
+<script>
+(function () {
+    function csrfToken() {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+    function showBox(box, show) {
+        // NOTE: the groups use Bootstrap d-flex (display:flex !important),
+        // which beats the `hidden` attribute — toggle display directly.
+        if (show) {
+            box.style.removeProperty('display');
+            box.removeAttribute('hidden');
+        } else {
+            box.style.setProperty('display', 'none', 'important');
+            box.setAttribute('hidden', '');
+        }
+    }
+    function setEnabled(container, enabled) {
+        container.querySelectorAll('select, input').forEach(function (el) {
+            if (el.hasAttribute('data-display')) return;
+            if (el.name === 'display_name' || el.name === 'csrf_token' || el.name === 'next' || el.name === 'provider') return;
+            el.disabled = !enabled;
+        });
+    }
+    function autoLabel(form, provider) {
+        var display = form.querySelector('[data-display]');
+        if (!display || display.dataset.dirty) return;
+        function val(name) {
+            var el = form.querySelector('[name="' + name + '"]:not([disabled])');
+            return el ? el.value : '';
+        }
+        if (provider === 'fip_api') {
+            display.value = ('FIP ' + val('codice_campionato') + ' ' + val('comitato_codice') + ' Gir. ' + val('codice_girone') + ' ' + val('season_label')).trim();
+        } else {
+            display.value = ('Playbasket ' + val('codice_campionato') + ' Gir. ' + val('codice_girone') + ' ' + val('season_label')).trim();
+        }
+    }
+    document.querySelectorAll('[data-track-form]').forEach(function (form) {
+        var teamId = form.getAttribute('data-track-form');
+        var providerSel = form.querySelector('[data-provider]');
+        var fipBox = form.querySelector('[data-fip-fields]');
+        var pbBox = form.querySelector('[data-pb-fields]');
+        var verifyBtn = form.querySelector('[data-verify]');
+        var trackBtn = form.querySelector('[data-track]');
+        var msg = form.querySelector('[data-verify-msg]');
+        var display = form.querySelector('[data-display]');
+        if (display) {
+            display.addEventListener('input', function () { display.dataset.dirty = '1'; });
+        }
+        function fipVal(name) {
+            var el = fipBox.querySelector('[name="' + name + '"]');
+            return el ? el.value : '';
+        }
+        function refreshFipGironi() {
+            // Live id→label lookup (fip.it/risultati): replaces guessed
+            // letters with exact backend ids (85405 = Girone H…).
+            if (providerSel.value !== 'fip_api') return;
+            var gironeSel = form.querySelector('[data-fip-girone]');
+            if (!gironeSel) return;
+            var prev = gironeSel.value;
+            var qs = new URLSearchParams({
+                provider: 'fip_api',
+                comitato_codice: fipVal('comitato_codice'),
+                codice_campionato: fipVal('codice_campionato'),
+                codice_fase: fipVal('codice_fase'),
+                sesso: fipVal('sesso') || 'M'
+            });
+            fetch('/teams/championship-gironi?' + qs.toString(), {
+                headers: { 'X-CSRFToken': csrfToken() }
+            }).then(function (resp) {
+                return resp.json().catch(function () { return {}; });
+            }).then(function (body) {
+                if (!body || !body.ok || !body.gironi || !body.gironi.length) return;
+                gironeSel.innerHTML = '';
+                var codes = {};
+                body.gironi.forEach(function (g) {
+                    codes[g.code] = true;
+                    var opt = document.createElement('option');
+                    opt.value = g.code;
+                    opt.textContent = g.label + ' (' + g.code + ')';
+                    gironeSel.appendChild(opt);
+                });
+                if (codes[prev]) gironeSel.value = prev;
+                trackBtn.disabled = true;
+                if (msg) msg.textContent = '';
+                autoLabel(form, providerSel.value);
+            }).catch(function () { /* keep static fallback options */ });
+        }
+        function applyProvider() {
+            var provider = providerSel.value;
+            var isFip = provider === 'fip_api';
+            showBox(fipBox, isFip);
+            showBox(pbBox, !isFip);
+            setEnabled(fipBox, isFip);
+            setEnabled(pbBox, !isFip);
+            resetVerify();
+            autoLabel(form, provider);
+            if (isFip) refreshFipGironi();
+        }
+        function resetVerify() {
+            trackBtn.disabled = true;
+            if (msg) {
+                msg.textContent = '';
+            }
+        }
+        providerSel.addEventListener('change', applyProvider);
+        form.querySelectorAll('select').forEach(function (sel) {
+            sel.addEventListener('change', function () {
+                trackBtn.disabled = true;
+                if (msg) msg.textContent = '';
+                autoLabel(form, providerSel.value);
+                // Driver change → refresh live girone ids (FIP only).
+                if (providerSel.value === 'fip_api'
+                        && sel.name !== 'codice_girone'
+                        && fipBox.contains(sel)) {
+                    refreshFipGironi();
+                }
+            });
+        });
+        verifyBtn.addEventListener('click', function () {
+            var provider = providerSel.value;
+            autoLabel(form, provider);
+            var data = { provider: provider };
+            form.querySelectorAll('select:not([disabled]), input[name="display_name"]').forEach(function (el) {
+                if (el.name) data[el.name] = el.value;
+            });
+            msg.textContent = 'Verifica…';
+            msg.className = 'small ms-1 text-muted';
+            verifyBtn.disabled = true;
+            fetch('/teams/' + encodeURIComponent(teamId) + '/track/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+                body: JSON.stringify(data)
+            }).then(function (resp) {
+                return resp.json().then(function (body) { return { status: resp.status, body: body }; })
+                    .catch(function () { return { status: resp.status, body: {} }; });
+            }).then(function (out) {
+                verifyBtn.disabled = false;
+                var ok = out.status === 200 && out.body && out.body.ok;
+                if (ok) {
+                    msg.textContent = '✓ ' + (out.body.message || 'OK');
+                    msg.className = 'small ms-1 text-success';
+                    trackBtn.disabled = false;
+                } else {
+                    msg.textContent = '✗ ' + ((out.body && out.body.message) || 'Combinazione non valida.');
+                    msg.className = 'small ms-1 text-danger';
+                    trackBtn.disabled = true;
+                }
+            }).catch(function () {
+                verifyBtn.disabled = false;
+                msg.textContent = '✗ Verifica non riuscita (rete).';
+                msg.className = 'small ms-1 text-danger';
+                trackBtn.disabled = true;
+            });
+        });
+        applyProvider();
+    });
+})();
+</script>
 {% endblock %}

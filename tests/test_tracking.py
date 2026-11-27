@@ -47,6 +47,81 @@ class TestTracking:
         assert TrackedChampionship.query.filter_by(
             team_id=team.id).first() is None
 
+    def test_fip_real_codes_validate(self):
+        from core import championship_catalog as catalog_mod
+        ok, error, norm = catalog_mod.validate("fip_api", {
+            "comitato_codice": "RLO", "codice_campionato": "1DM",
+            "codice_fase": "1", "sesso": "M", "codice_girone": "85405",
+            "season_label": "2026/2027"})
+        assert ok, error
+        assert norm["codice_girone"] == "85405"
+
+    def test_fip_guess_codes_rejected(self):
+        from core import championship_catalog as catalog_mod
+        ok, error, _ = catalog_mod.validate("fip_api", {
+            "comitato_codice": "RLO", "codice_campionato": "DR3",
+            "codice_fase": "1", "sesso": "M", "codice_girone": "M",
+            "season_label": "2026/2027"})
+        assert not ok
+        assert "DR3" in (error or "")
+
+    def test_gironi_lookup_endpoint(self, admin_client, monkeypatch):
+        from jobs.adapters import fip_api
+        monkeypatch.setattr(
+            fip_api, "discover_gironi",
+            lambda *a, **k: [{"code": "85405", "label": "Girone H"}])
+        resp = admin_client.get(
+            "/teams/championship-gironi?provider=fip_api"
+            "&comitato_codice=RLO&codice_campionato=1DM"
+            "&codice_fase=1&sesso=M")
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["ok"] is True
+        assert body["gironi"] == [{"code": "85405", "label": "Girone H"}]
+
+    def test_verify_playbasket_dry_run(self, admin_client, default_team,
+                                       monkeypatch):
+        from jobs.adapters import playbasket_html as pb
+        monkeypatch.setattr(
+            pb, "fetch_championship",
+            lambda **kw: ([{"home": "A", "away": "B"}],
+                          [{"team": "A"}], "fp"))
+        resp = admin_client.post(
+            f"/teams/{default_team.id}/track/verify",
+            json={"provider": "playbasket_html", "comitato_codice": "RLO",
+                  "province_codice": "MI", "codice_campionato": "DR4",
+                  "codice_fase": "1", "codice_girone": "M",
+                  "season_label": "2025/2026"})
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["ok"] is True
+        assert body["games"] == 1
+        assert body["standings"] == 1
+
+    def test_verify_rejects_unknown_fip_codes(self, admin_client,
+                                              default_team):
+        resp = admin_client.post(
+            f"/teams/{default_team.id}/track/verify",
+            json={"provider": "fip_api", "comitato_codice": "RLO",
+                  "codice_campionato": "DR3", "codice_fase": "1",
+                  "sesso": "M", "codice_girone": "M",
+                  "season_label": "2026/2027"})
+        assert resp.status_code == 400
+        assert resp.get_json()["ok"] is False
+
+    def test_track_fip_stores_sesso(self, admin_client, db_session,
+                                    default_team):
+        admin_client.post(
+            f"/teams/{default_team.id}/track",
+            data={"provider": "fip_api", "comitato_codice": "RLO",
+                  "codice_campionato": "1DM", "codice_fase": "1",
+                  "sesso": "F", "codice_girone": "85405",
+                  "season_label": "2026/2027"},
+            follow_redirects=True)
+        row = TrackedChampionship.query.filter_by(
+            team_id=default_team.id).one()
+        assert row.sesso == "F"
+
     def test_toggle_and_delete(self, admin_client, db_session,
                                default_team):
         row = TrackedChampionship(team_id=default_team.id,

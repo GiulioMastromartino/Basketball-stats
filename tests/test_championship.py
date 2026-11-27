@@ -1,6 +1,15 @@
 """Tests for the Championship analytics subpage (selectable source)."""
 
+import pytest
+
 from core.models import Game, db
+
+
+@pytest.fixture(autouse=True)
+def _isolated_sidecar(tmp_path, monkeypatch):
+    """Pin the sidecar to a scratch DB: real dev/prod caches must never
+    leak into bundled-fallback assertions (or vice versa)."""
+    monkeypatch.setenv("EXT_CACHE_PATH", str(tmp_path / "sidecar.db"))
 
 
 class TestChampionship:
@@ -61,6 +70,38 @@ class TestChampionship:
         resp = client.get("/admin/users")
         assert resp.status_code == 200
         assert b"test_admin" not in resp.data
+
+    def test_fip_source_empty_shows_warning(self, admin_client, tmp_path,
+                                            monkeypatch):
+        # No FIP rows in the sidecar: no bundled fallback, just guidance.
+        monkeypatch.setenv("EXT_CACHE_PATH", str(tmp_path / "empty.db"))
+        resp = admin_client.get("/analytics/championship?source=fip")
+        assert resp.status_code == 200
+        assert b"FIP" in resp.data
+        assert b"nothing synced" in resp.data
+
+    def test_fip_source_shows_sidecar_games(self, admin_client, tmp_path,
+                                            monkeypatch):
+        from core import external_store as store
+        monkeypatch.setenv("EXT_CACHE_PATH", str(tmp_path / "fip.db"))
+        conn = store.connect()
+        try:
+            champ_id = store.upsert_championship(
+                conn, provider="fip_api", comitato="NAZ",
+                campionato="A1/M", fase="1", girone="85160",
+                season="2026/2027", display_name="Serie A")
+            store.upsert_game(
+                conn, champ_id,
+                {"round": "Andata 1", "date": "2026-09-26",
+                 "home": "TREVISO", "away": "ROMA",
+                 "home_score": 109, "away_score": 94,
+                 "status": "omologata"})
+        finally:
+            conn.close()
+        resp = admin_client.get("/analytics/championship?source=fip")
+        assert resp.status_code == 200
+        assert b"TREVISO" in resp.data
+        assert b"109" in resp.data
 
     def test_playbasket_missing_snapshot_shows_warning(
             self, admin_client, monkeypatch):

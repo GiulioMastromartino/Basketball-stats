@@ -6,14 +6,17 @@ Click **Championship** in the sidebar (`/analytics/championship`). Login + team 
 
 ---
 
-## Two Sources
+## Sources
 
 | Source (`?source=`) | What it is |
 |---------------------|------------|
 | `internal` (default) | Standings/record computed from **your DB games** (`Draft` games excluded), with per-opponent W/L and points for/against |
-| `playbasket` | External league data: a **bundled snapshot** (`data/playbasket_dr4_2025_26.json` — DR4 Lombardia 2025/26, Girone M) overlaid with the **live sidecar cache**, refreshed by the daily sync |
+| `playbasket` | Lombardy provincial leagues (**DR1–DR4**): a **bundled snapshot** (`data/playbasket_dr4_2025_26.json` — DR4 Lombardia 2025/26, Girone M) overlaid with the **live sidecar cache**, refreshed by the daily sync |
+| `fip` | FIP backend (`backend.fip.it`): nationals (Serie A/B…) **and** regionals with digital coverage (Lombardy DR1–DR3: backend codes `D`, `PM`, `1DM` — not `DR1/DR2/DR3`; gironi are numeric ids, e.g. `85405` = DR3 Milano Girone H). The GM dashboard looks the exact ids up live from fip.it/risultati, so they are always dropdown selections, never guesses |
 
-On the Playbasket view you can filter by team (`?team=`) and switch between tracked championships (`?ext=<id>`).
+On the Playbasket/FIP views you can filter by team (`?team=`) and switch between tracked championships (`?ext=<id>`). FIP publishes results but no standings table — that card stays empty on the FIP view until computed locally.
+
+> **Empty page?** Tracking only saves the configuration — run `python -m jobs.championship_sync --once` (or wait for the daily scraper) to fill the sidecar. Two other common causes: the combination does not exist (the dashboard **Verifica** button rejects those before tracking), or the season has not started yet (Lombardy regionals tip off mid-October — last year on 14/10 — so pre-season pages stay empty until Playbasket/FIP publish the calendar).
 
 ---
 
