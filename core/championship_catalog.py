@@ -22,6 +22,7 @@ Conventions:
 from __future__ import annotations
 
 import re
+from datetime import date
 
 PROVIDERS = (
     ("fip_api", "FIP API — nazionale e regionali con copertura digitale"),
@@ -60,6 +61,12 @@ FIP_COMITATI: tuple[tuple[str, str], ...] = (
     ("RTR", "RTR — Trentino-Alto Adige"),
 )
 FIP_COMITATI_CODES = {c for c, _ in FIP_COMITATI}
+
+# Committees whose regional risultati page is scraped for live girone ids
+# (Lombardy: the page groups them under regione_codice="LO"). Other
+# committees keep the static fallback ids; the dashboard explicitly
+# disables the live lookup for them instead of guessing another region.
+LIVE_FIP_GIRONE_COMITATI = {"RLO", "PBG", "PBS", "PVA"}
 
 # Official backend.fip.it ``codice_campionato`` values (see the
 # ``campionato`` select on fip.it/risultati — regional codes are NOT
@@ -109,7 +116,10 @@ FIP_GIRONI_LETTERS: tuple[str, ...] = tuple(
 )
 FIP_GIRONI_KNOWN_NUMERIC: tuple[str, ...] = ("85160", "85404", "85405",
                                              "85406")
-_FIP_GIRONE_RE = re.compile(r"^(?:[A-Z]|[0-9]{1,6})$")
+# A single letter (legacy static options) or a real 4-6 digit numeric
+# backend id (FIP ids are 5 digits, e.g. 85160/85405). All-zero ids
+# ("000000") and short hand-typed guesses must not enter the catalog.
+_FIP_GIRONE_RE = re.compile(r"^(?:[A-Z]|[1-9][0-9]{3,5})$")
 
 # ---------------------------------------------------------------------------
 # Playbasket options (provincial pages, currently Lombardia DR4)
@@ -173,23 +183,48 @@ PLAYBASKET_COMITATI: tuple[tuple[str, str], ...] = (
 )
 PLAYBASKET_COMITATI_CODES = {c for c, _ in PLAYBASKET_COMITATI}
 
-SEASONS: tuple[tuple[str, str], ...] = (
-    ("2023/2024", "2023/2024"),
-    ("2024/2025", "2024/2025"),
-    ("2025/2026", "2025/2026"),
-    ("2026/2027", "2026/2027"),
-)
-SEASON_CODES = {c for c, _ in SEASONS}
 _SEASON_RE = re.compile(r"^20\d{2}/20\d{2}$")
 
 
+def current_season_label(today: date | None = None) -> str:
+    """Season the FIP backend currently serves (September–June convention).
+
+    ``fip_api.fetch_games`` has no season parameter, so FIP tracking must
+    not accept a different ``season_label`` than the one the endpoint is
+    actually publishing.
+    """
+    today = today or date.today()
+    start = today.year if today.month >= 9 else today.year - 1
+    return f"{start}/{start + 1}"
+
+
+def _season_options(today: date | None = None) -> tuple[tuple[str, str], ...]:
+    """Offered seasons: 2023/2024 through the current season + 1.
+
+    Derived (not hard-coded) so a September rollover does not leave the
+    dropdown stuck on last season and validation rejecting the new one.
+    """
+    current_start = int(current_season_label(today).split("/")[0])
+    return tuple(
+        (f"{year}/{year + 1}", f"{year}/{year + 1}")
+        for year in range(2023, current_start + 2)
+    )
+
+
+SEASONS: tuple[tuple[str, str], ...] = _season_options()
+SEASON_CODES = {c for c, _ in SEASONS}
+
+
 def _norm(value: str | None) -> str:
-    return (value or "").strip().upper()
+    """Upper-case a scalar form/JSON value; never raise on a non-string."""
+    if value is None:
+        return ""
+    return str(value).strip().upper()
 
 
 def season_year(season_label: str) -> str:
     """Second-half year used by Playbasket URLs (``2025/2026`` -> ``2026``)."""
-    label = (season_label or "").strip()
+    label = str(season_label or "").strip()
     if "/" in label:
         return label.split("/")[-1].strip()
     return label
@@ -210,7 +245,7 @@ def catalog() -> dict:
             "defaults": {
                 "comitato": "RLO", "campionato": "1DM",
                 "fase": "1", "sesso": "M", "girone": "85405",
-                "season": "2026/2027",
+                "season": current_season_label(),
             },
         },
         "playbasket": {
@@ -244,11 +279,11 @@ def validate(provider: str, data: dict) -> tuple[bool, str | None, dict]:
     codice_fase, codice_girone, season_label, sesso (+ region for
     Playbasket, currently fixed to Lombardy).
     """
-    provider = (provider or "").strip()
+    provider = str(provider or "").strip()
     if provider not in PROVIDER_CODES:
         return False, f"Provider sconosciuto: {provider!r}.", {}
 
-    season = (data.get("season_label") or "").strip()
+    season = str(data.get("season_label") or "").strip()
     if season not in SEASON_CODES or not _SEASON_RE.match(season):
         return False, (
             f"Stagione non valida: {season!r}. "
@@ -258,7 +293,7 @@ def validate(provider: str, data: dict) -> tuple[bool, str | None, dict]:
     if provider == "fip_api":
         comitato = _norm(data.get("comitato_codice"))
         campionato = _norm(data.get("codice_campionato"))
-        fase = (data.get("codice_fase") or "").strip()
+        fase = str(data.get("codice_fase") or "").strip()
         sesso = _norm(data.get("sesso")) or "M"
         girone = _norm(data.get("codice_girone"))
         if comitato not in FIP_COMITATI_CODES:
@@ -290,11 +325,11 @@ def validate(provider: str, data: dict) -> tuple[bool, str | None, dict]:
         return True, None, normalized
 
     # playbasket_html
-    region = (data.get("region") or "lombardia").strip().lower()
+    region = str(data.get("region") or "lombardia").strip().lower()
     comitato = _norm(data.get("comitato_codice")) or "RLO"
     province = _norm(data.get("province_codice")) or "MI"
     campionato = _norm(data.get("codice_campionato"))
-    fase = (data.get("codice_fase") or "").strip() or "1"
+    fase = str(data.get("codice_fase") or "").strip() or "1"
     girone = _norm(data.get("codice_girone"))
     if region not in PLAYBASKET_REGION_CODES:
         return False, f"Regione non valida: {region!r}.", {}

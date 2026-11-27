@@ -197,7 +197,7 @@ def resolve_girone_id(province: str = "MI", championship: str = "DR4",
                         continue
                 elif not text.startswith(f"Girone {letter} |"):
                     continue
-                query = urllib.parse.urlparse(href)
+                query = urllib.parse.urlparse(html_module.unescape(href))
                 params = urllib.parse.parse_qs(query.query)
                 if ((params.get("lc", [""])[0].upper()
                         != championship.upper())

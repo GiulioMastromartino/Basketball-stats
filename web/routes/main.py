@@ -3215,6 +3215,15 @@ def championship_gironi():
             or campionato not in catalog_mod.FIP_CAMPIONATI_CODES):
         return jsonify({"ok": False,
                         "message": "Comitato/campionato non validi."})
+    if comitato not in catalog_mod.LIVE_FIP_GIRONE_COMITATI:
+        # fip.it/risultati groups gironi by region and we only know the
+        # Lombardy region code; do not guess another region's id mapping.
+        return jsonify({
+            "ok": False, "gironi": [],
+            "message": ("Lookup live disponibile solo per i comitati "
+                        "lombardi (RLO/PBG/PBS/PVA). Usa gli id statici "
+                        "per gli altri comitati."),
+        })
     try:
         from jobs.adapters import fip_api
         gironi = fip_api.discover_gironi(comitato, campionato, fase, sesso)
@@ -3240,6 +3249,9 @@ def verify_championship(team_id):
     """
     from core import championship_catalog as catalog_mod
     team = Team.query.get_or_404(team_id)
+    if not getattr(current_user, "is_gm", False):
+        return jsonify({"ok": False,
+                        "message": "Only GMs can verify a championship."}), 403
     if getattr(current_user, "is_auditor", False):
         return jsonify({"ok": False,
                         "message": "Auditors have read-only access."}), 403
@@ -3247,22 +3259,49 @@ def verify_championship(team_id):
     if denied:
         return jsonify({"ok": False,
                         "message": "You do not administer this team."}), 403
-    payload = request.get_json(silent=True) or request.form.to_dict()
-    provider = (payload.get("provider") or "fip_api").strip()
+    body = request.get_json(silent=True)
+    if body is not None and not isinstance(body, dict):
+        return jsonify({"ok": False,
+                        "message": "Expected a JSON object."}), 400
+    payload = body or request.form.to_dict()
+    provider = payload.get("provider") or "fip_api"
+    if not isinstance(provider, str):
+        return jsonify({"ok": False,
+                        "message": "Invalid provider."}), 400
+    provider = provider.strip()
     ok, error, norm = catalog_mod.validate(provider, payload)
     if not ok:
         return jsonify({"ok": False, "message": error}), 400
     try:
         if norm["provider"] == "fip_api":
             from jobs.adapters import fip_api
+            import time
             import urllib.parse
+            # fip_api.fetch_games has no season parameter: the backend
+            # publishes the current season only, so never verify/store a
+            # calendar under a different season label.
+            current_season = catalog_mod.current_season_label()
+            if norm["season_label"] != current_season:
+                return jsonify({
+                    "ok": False, "games": 0, "standings": 0,
+                    "message": (f"FIP pubblica solo la stagione corrente "
+                                f"({current_season}). Seleziona quella."),
+                }), 400
             # Probe giornate 1-3 andata + ritorno (no full sweep).
             # Zero games means the combo does not exist on FIP backend
             # (or the season has not started): refuse to track instead of
-            # creating a silent empty sync.
+            # creating a silent empty sync. A hard deadline keeps one
+            # click from tying up a worker for ~90s.
             total = 0
+            timed_out = False
+            deadline = time.monotonic() + 20.0
             for code_ar in ("1", "0"):
+                if timed_out:
+                    break
                 for giornata in (1, 2, 3):
+                    if time.monotonic() >= deadline:
+                        timed_out = True
+                        break
                     params = {
                         "comitato_codice": norm["comitato_codice"],
                         "sesso": norm.get("sesso") or "M",
@@ -3277,12 +3316,17 @@ def verify_championship(team_id):
                     import urllib.request
                     req = urllib.request.Request(
                         url, headers=fip_api.USER_AGENT)
-                    with urllib.request.urlopen(req,
-                                                timeout=15) as resp:
+                    with urllib.request.urlopen(req, timeout=6) as resp:
                         import json as _json
                         data = _json.load(resp)
                     total += len((data or {}).get("partite", []))
             if total == 0:
+                if timed_out:
+                    return jsonify({
+                        "ok": False, "games": 0, "standings": 0,
+                        "message": ("FIP non ha risposto entro 20 secondi. "
+                                    "Riprova o usa gli id statici."),
+                    }), 504
                 return jsonify({
                     "ok": False, "games": 0, "standings": 0,
                     "message": ("FIP: nessuna partita in giornate 1-3 "
@@ -3317,13 +3361,15 @@ def verify_championship(team_id):
                     norm["province_codice"] or "MI",
                     norm["codice_campionato"] or "DR4",
                     season_year, norm["codice_girone"] or "M")
-                page = pb._fetch(pb.league_url(
-                    "lombardia", norm["province_codice"] or "MI",
-                    norm["codice_campionato"] or "DR4",
-                    season_year, "gr", girone_id))
-                title = pb.league_title(page)
-            except Exception:
-                title = ""
+            except ValueError as exc:
+                return jsonify({"ok": False, "message": str(exc)}), 400
+            # A fetch failure here is a provider error: let the outer
+            # handler return 502 instead of claiming the girone is missing.
+            page = pb._fetch(pb.league_url(
+                "lombardia", norm["province_codice"] or "MI",
+                norm["codice_campionato"] or "DR4",
+                season_year, "gr", girone_id))
+            title = pb.league_title(page)
             wanted = f"Girone {(norm['codice_girone'] or '').strip().upper()}"
             if wanted and wanted in title:
                 return jsonify({
@@ -3372,6 +3418,11 @@ def track_championship(team_id):
     if not ok:
         flash(error, "danger")
         return _safe_next("main.gm_dashboard")
+    if (norm["provider"] == "fip_api"
+            and norm["season_label"] != catalog_mod.current_season_label()):
+        flash(f"FIP pubblica solo la stagione corrente "
+              f"({catalog_mod.current_season_label()}).", "danger")
+        return _safe_next("main.gm_dashboard")
     display = (request.form.get("display_name") or "").strip() \
         or catalog_mod.default_display_name(norm["provider"], norm)
     data = {
@@ -3386,21 +3437,38 @@ def track_championship(team_id):
         "sesso": norm.get("sesso") or "M",
         "display_name": display[:150],
     }
+    identity = {
+        "team_id": team.id,
+        "provider": data["provider"],
+        "comitato_codice": data["comitato_codice"],
+        "province_codice": data["province_codice"],
+        "codice_campionato": data["codice_campionato"],
+        "codice_fase": data["codice_fase"],
+        "codice_girone": data["codice_girone"],
+        "season_label": data["season_label"],
+    }
     existing = TrackedChampionship.query.filter_by(
-        team_id=team.id, provider=data["provider"],
-        comitato_codice=data["comitato_codice"],
-        province_codice=data["province_codice"],
-        codice_campionato=data["codice_campionato"],
-        codice_fase=data["codice_fase"],
-        codice_girone=data["codice_girone"],
-        season_label=data["season_label"]).first()
+        **identity, sesso=data["sesso"]).first()
     if existing:
         existing.active = True
         existing.display_name = data["display_name"]
         existing.sesso = data["sesso"]
     else:
         db.session.add(TrackedChampionship(**data))
-    db.session.commit()
+    from sqlalchemy.exc import IntegrityError
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # A database created before sesso joined the unique constraint
+        # still rejects a second sex for the same configuration. The
+        # production migration (scripts/migrate.py) upgrades the
+        # constraint; until then, fail explicitly instead of a 500.
+        db.session.rollback()
+        flash("This championship is already tracked for this "
+              "configuration and the database still uses the legacy "
+              "unique key. PostgreSQL: run scripts/migrate.py. SQLite: "
+              "recreate the database or keep one sex.", "danger")
+        return _safe_next("main.gm_dashboard")
     log_admin_action(current_user, "team.track",
                      f"tracking {data['display_name']} for {team.name}",
                      target_type="team", target_id=team.id,

@@ -40,6 +40,9 @@ def discover_gironi(comitato: str, campionato: str, fase: str = "1",
     The risultati page is server-rendered: requesting it with
     comitato/campionato pre-selected embeds the exact ``gironi`` select
     for that league (e.g. DR3/1DM Milano → G=85404, H=85405, I=85406).
+    ``regione`` selects the regional group; the dashboard only calls this
+    for Lombardy committees (``RLO/PBG/PBS/PVA``), whose region code is
+    ``LO``.
     Returns ``[{"code": "85405", "label": "Girone H"}]`` (empty when the
     league has no gironi select). Raises ``RuntimeError`` on fetch failure.
     """
@@ -49,6 +52,7 @@ def discover_gironi(comitato: str, campionato: str, fase: str = "1",
         "comitato_codice": comitato,
         "sesso": sesso,
         "codice_campionato": campionato,
+        "codice_fase": fase,
     }
     url = RISULTATI_PAGE + "?" + urllib.parse.urlencode(params)
     request = urllib.request.Request(url, headers=BROWSER_UA)

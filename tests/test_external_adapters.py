@@ -73,6 +73,14 @@ class TestPlaybasketAdapter:
         monkeypatch.setattr(pb, "_fetch", lambda url: index)
         assert (pb.resolve_girone_id("MI", "DR3", "2027", "c") == "3")
 
+    def test_resolve_girone_id_unescapes_html_entities(self, monkeypatch):
+        # Playbasket templates escape query separators as &amp;.
+        index = ('<a href="league.php?lt=2&amp;lf=M&amp;lr=LO&amp;lp=MI'
+                 '&amp;lc=DR4&amp;season=2026&amp;lg=13&amp;mod=gr">'
+                 'Girone M</a>')
+        monkeypatch.setattr(pb, "_fetch", lambda url: index)
+        assert (pb.resolve_girone_id("MI", "DR4", "2026", "m") == "13")
+
     def test_resolve_girone_id_rejects_wrong_league(self, monkeypatch):
         index = ('<a href="league.php?lt=2&lf=M&lr=LO&lp=MI&lc=DR4'
                  '&season=2027&lg=13&mod=gr">Girone M</a>')
@@ -133,6 +141,37 @@ class TestFipDiscoverGironi:
     def test_empty_without_select(self, monkeypatch):
         self._fake_urlopen(monkeypatch, "<html><body>niente</body></html>")
         assert fip_api.discover_gironi("RLO", "1DM") == []
+
+    def test_sends_fase_and_sex(self, monkeypatch):
+        import urllib.request
+
+        seen = {}
+        page = self.PAGE
+
+        class FakeHeaders:
+            def get_content_charset(self):
+                return "utf-8"
+
+        class FakeResp:
+            headers = FakeHeaders()
+
+            def read(self):
+                return page.encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        def fake_urlopen(req, timeout=25):
+            seen["url"] = req.full_url
+            return FakeResp()
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        fip_api.discover_gironi("RLO", "1DM", "2", "F")
+        assert "codice_fase=2" in seen["url"]
+        assert "sesso=F" in seen["url"]
 
     def test_fetch_failure_raises(self, monkeypatch):
         import urllib.request

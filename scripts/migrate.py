@@ -247,6 +247,70 @@ def migrate_plays_team_unique(app=None):
         return True
 
 
+TRACKED_CHAMPIONSHIP_UNIQUE_COLS = [
+    "team_id", "provider", "comitato_codice", "province_codice",
+    "codice_campionato", "codice_fase", "codice_girone",
+    "season_label", "sesso",
+]
+
+
+def migrate_tracked_championship_unique(app=None):
+    """Idempotent migration: add ``sesso`` to the tracked-championship key.
+
+    Fresh databases get the nine-column constraint via ``db.create_all()``.
+    Existing databases keep the legacy eight-column constraint, which makes
+    tracking the same league for both sexes impossible. PostgreSQL is
+    upgraded in place (drop the old constraint, add the new one); SQLite
+    cannot alter a table-level constraint without a rebuild, so the route's
+    explicit conflict message covers that case. Returns True when the
+    nine-column constraint is in place.
+    """
+    from sqlalchemy import inspect as sa_inspect
+
+    app = app or create_app()
+    with app.app_context():
+        engine = db.engine
+        inspector = sa_inspect(engine)
+        if not inspector.has_table("tracked_championships"):
+            print("[migrate] tracked_championships table missing; nothing to migrate.")
+            return False
+        try:
+            constraints = inspector.get_unique_constraints(
+                "tracked_championships")
+        except NotImplementedError:
+            constraints = []
+
+        legacy = []
+        for constraint in constraints:
+            cols = list(constraint.get("column_names") or [])
+            if set(cols) == set(TRACKED_CHAMPIONSHIP_UNIQUE_COLS):
+                print("[migrate] tracked_championships unique key already includes sesso.")
+                return True
+            if set(cols) == set(TRACKED_CHAMPIONSHIP_UNIQUE_COLS[:-1]):
+                legacy.append(constraint)
+
+        if engine.dialect.name == "postgresql":
+            with engine.begin() as conn:
+                for constraint in legacy:
+                    if constraint.get("name"):
+                        name = str(constraint["name"]).replace('"', '""')
+                        conn.execute(text(
+                            f'ALTER TABLE tracked_championships '
+                            f'DROP CONSTRAINT "{name}"'))
+                conn.execute(text(
+                    "ALTER TABLE tracked_championships ADD CONSTRAINT "
+                    "uq_tracked_championships_sesso UNIQUE ("
+                    "team_id, provider, comitato_codice, province_codice, "
+                    "codice_campionato, codice_fase, codice_girone, "
+                    "season_label, sesso)"))
+            print("[migrate] tracked_championships unique key now includes sesso.")
+            return True
+
+        print("[migrate] SQLite: keeping the legacy tracked_championships "
+              "unique key (one sex per configuration).")
+        return False
+
+
 def run(app=None):
     """Run the production migration.
 
@@ -291,6 +355,16 @@ def run(app=None):
             migrate_plays_team_unique(app)
         except Exception as e:
             print(f"[migrate] Warning: plays uniqueness migration failed: {e}")
+
+        # ── 1d2. Tracked championships: include sesso in the unique key ──
+        # Same-championship M/F tracking needs sesso in the key; the
+        # legacy constraint predates the column. PostgreSQL is altered in
+        # place, SQLite keeps the legacy key (the route reports it).
+        print("[migrate] Expanding tracked_championships uniqueness with sesso...")
+        try:
+            migrate_tracked_championship_unique(app)
+        except Exception as e:
+            print(f"[migrate] Warning: tracked_championships uniqueness migration failed: {e}")
 
         # ── 1e. Game import idempotency: dedupe + unique index ─────────────
         # Two app nodes importing the same CSV concurrently must not create

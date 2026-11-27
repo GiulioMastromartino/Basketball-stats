@@ -347,6 +347,19 @@
         var trackBtn = form.querySelector('[data-track]');
         var msg = form.querySelector('[data-verify-msg]');
         var display = form.querySelector('[data-display]');
+        var details = form.closest('details');
+        var lookupSeq = 0;
+        var staticGironeOptions = null;
+        function formVisible() {
+            return !details || details.open;
+        }
+        function selectionKey() {
+            var parts = [providerSel.value];
+            form.querySelectorAll('select:not([disabled])').forEach(function (el) {
+                parts.push(el.name + '=' + el.value);
+            });
+            return parts.join('&');
+        }
         if (display) {
             display.addEventListener('input', function () { display.dataset.dirty = '1'; });
         }
@@ -360,7 +373,21 @@
             if (providerSel.value !== 'fip_api') return;
             var gironeSel = form.querySelector('[data-fip-girone]');
             if (!gironeSel) return;
+            var seq = ++lookupSeq;
             var prev = gironeSel.value;
+            // Never keep the previous championship's live ids while the new
+            // lookup is in flight (or if it fails): fall back to the static
+            // options rendered by the server.
+            if (!staticGironeOptions) {
+                staticGironeOptions = gironeSel.innerHTML;
+            }
+            gironeSel.innerHTML = staticGironeOptions;
+            if (Array.prototype.some.call(gironeSel.options, function (o) {
+                return o.value === prev;
+            })) {
+                gironeSel.value = prev;
+            }
+            autoLabel(form, providerSel.value);
             var qs = new URLSearchParams({
                 provider: 'fip_api',
                 comitato_codice: fipVal('comitato_codice'),
@@ -373,7 +400,15 @@
             }).then(function (resp) {
                 return resp.json().catch(function () { return {}; });
             }).then(function (body) {
-                if (!body || !body.ok || !body.gironi || !body.gironi.length) return;
+                // Ignore a reply superseded by a newer lookup/provider.
+                if (seq !== lookupSeq || providerSel.value !== 'fip_api') return;
+                if (!body || !body.ok || !body.gironi || !body.gironi.length) {
+                    if (msg && body && body.message) {
+                        msg.textContent = body.message;
+                        msg.className = 'small ms-1 text-muted';
+                    }
+                    return;
+                }
                 gironeSel.innerHTML = '';
                 var codes = {};
                 body.gironi.forEach(function (g) {
@@ -392,13 +427,14 @@
         function applyProvider() {
             var provider = providerSel.value;
             var isFip = provider === 'fip_api';
+            lookupSeq++; // invalidate any in-flight lookup from the old provider
             showBox(fipBox, isFip);
             showBox(pbBox, !isFip);
             setEnabled(fipBox, isFip);
             setEnabled(pbBox, !isFip);
             resetVerify();
             autoLabel(form, provider);
-            if (isFip) refreshFipGironi();
+            if (isFip && formVisible()) refreshFipGironi();
         }
         function resetVerify() {
             trackBtn.disabled = true;
@@ -407,6 +443,13 @@
             }
         }
         providerSel.addEventListener('change', applyProvider);
+        if (details) {
+            details.addEventListener('toggle', function () {
+                if (details.open && providerSel.value === 'fip_api') {
+                    refreshFipGironi();
+                }
+            });
+        }
         form.querySelectorAll('select').forEach(function (sel) {
             sel.addEventListener('change', function () {
                 trackBtn.disabled = true;
@@ -423,6 +466,7 @@
         verifyBtn.addEventListener('click', function () {
             var provider = providerSel.value;
             autoLabel(form, provider);
+            var verifiedKey = selectionKey();
             var data = { provider: provider };
             form.querySelectorAll('select:not([disabled]), input[name="display_name"]').forEach(function (el) {
                 if (el.name) data[el.name] = el.value;
@@ -439,6 +483,9 @@
                     .catch(function () { return { status: resp.status, body: {} }; });
             }).then(function (out) {
                 verifyBtn.disabled = false;
+                // The selection changed while the probe was running: its
+                // result says nothing about what is selected now.
+                if (selectionKey() !== verifiedKey) return;
                 var ok = out.status === 200 && out.body && out.body.ok;
                 if (ok) {
                     msg.textContent = '✓ ' + (out.body.message || 'OK');

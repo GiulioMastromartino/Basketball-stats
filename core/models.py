@@ -253,7 +253,7 @@ class TrackedChampionship(db.Model):
     __table_args__ = (db.UniqueConstraint(
         "team_id", "provider", "comitato_codice", "province_codice",
         "codice_campionato", "codice_fase", "codice_girone",
-        "season_label"),)
+        "season_label", "sesso"),)
 
     team = db.relationship("Team", backref=db.backref(
         "tracked_championships", lazy=True))

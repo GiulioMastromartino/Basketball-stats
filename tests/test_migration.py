@@ -375,6 +375,28 @@ class TestProductionMigration:
             ]
             assert "sesso" in columns
 
+    def test_tracked_championship_unique_migration_on_sqlite(
+            self, pre_migration_db):
+        """SQLite keeps the legacy key but the helper must not crash."""
+        from scripts.migrate import migrate_tracked_championship_unique
+
+        app, db = pre_migration_db
+        with app.app_context():
+            db.session.execute(text(
+                "CREATE TABLE tracked_championships ("
+                "id INTEGER PRIMARY KEY, team_id INTEGER, "
+                "provider VARCHAR(20), comitato_codice VARCHAR(20), "
+                "province_codice VARCHAR(20), codice_campionato VARCHAR(20), "
+                "codice_fase VARCHAR(20), codice_girone VARCHAR(20), "
+                "season_label VARCHAR(20), sesso VARCHAR(5), "
+                "UNIQUE (team_id, provider, comitato_codice, "
+                "province_codice, codice_campionato, codice_fase, "
+                "codice_girone, season_label))"
+            ))
+            db.session.commit()
+
+        assert migrate_tracked_championship_unique(app) is False
+
     def test_migrate_adds_svg_snapshot_to_play_sequences(self, pre_migration_db):
         """Old play_sequences tables gain svg_snapshot (phase stills for PDFs)."""
         from scripts.migrate import run as run_migration

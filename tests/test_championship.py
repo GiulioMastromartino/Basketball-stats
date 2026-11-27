@@ -1,5 +1,7 @@
 """Tests for the Championship analytics subpage (selectable source)."""
 
+import json
+
 import pytest
 
 from core.models import Game, db
@@ -102,6 +104,58 @@ class TestChampionship:
         assert resp.status_code == 200
         assert b"TREVISO" in resp.data
         assert b"109" in resp.data
+
+    def test_explicit_ext_id_is_provider_scoped(self, tmp_path, monkeypatch):
+        """?ext=<id> must not fall back to another provider's default row."""
+        from core import external_store as store
+        from web.routes.analytics import _load_external_from_store
+        monkeypatch.setenv("EXT_CACHE_PATH", str(tmp_path / "both.db"))
+        conn = store.connect()
+        try:
+            pb_id = store.upsert_championship(
+                conn, provider="playbasket_html", comitato="RLO",
+                campionato="DR4", fase="1", girone="M",
+                season="2025/2026", display_name="Playbasket DR4 M")
+            fip_id = store.upsert_championship(
+                conn, provider="fip_api", comitato="NAZ",
+                campionato="A1/M", fase="1", girone="85160",
+                season="2026/2027", display_name="Serie A")
+            store.upsert_game(
+                conn, pb_id,
+                {"round": "Andata 1", "date": "2025-10-01",
+                 "home": "A", "away": "B", "home_score": 80,
+                 "away_score": 70})
+        finally:
+            conn.close()
+
+        snapshot, _ = _load_external_from_store("playbasket_html", fip_id)
+        assert snapshot is None
+        default, _ = _load_external_from_store("playbasket_html", None)
+        assert default is not None
+
+    def test_sync_health_fip_has_no_playbasket_baseline(
+            self, admin_client, tmp_path, monkeypatch):
+        from core import external_store as store
+        monkeypatch.setenv("EXT_CACHE_PATH", str(tmp_path / "fip-health.db"))
+        conn = store.connect()
+        try:
+            fip_id = store.upsert_championship(
+                conn, provider="fip_api", comitato="NAZ",
+                campionato="A1/M", fase="1", girone="85160",
+                season="2026/2027", display_name="Serie A")
+            store.upsert_game(
+                conn, fip_id,
+                {"round": "Andata 1", "date": "2026-09-26",
+                 "home": "TREVISO", "away": "ROMA", "home_score": 109,
+                 "away_score": 94})
+        finally:
+            conn.close()
+
+        data = json.loads(admin_client.get(
+            f"/analytics/championship/sync-health?ext={fip_id}").data)
+        assert data["baseline_note"]
+        assert data["standings_diff"] == []
+        assert data["games_diff"] == []
 
     def test_playbasket_missing_snapshot_shows_warning(
             self, admin_client, monkeypatch):
