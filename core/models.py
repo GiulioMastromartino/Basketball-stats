@@ -241,6 +241,10 @@ class TrackedChampionship(db.Model):
     codice_girone = db.Column(db.String(20), nullable=False, default="")
     season_label = db.Column(db.String(20), nullable=False, default="")
     display_name = db.Column(db.String(150), nullable=False, default="")
+    # FIP sesso (M/F). Playbasket rows always store "M". Added after the
+    # dropdown-only rework; auto-migrated by add_missing_columns().
+    sesso = db.Column(db.String(5), nullable=False, default="M",
+                      server_default=text("'M'"))
     active = db.Column(db.Boolean, nullable=False, default=True,
                        server_default=text("true"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow,
@@ -249,7 +253,7 @@ class TrackedChampionship(db.Model):
     __table_args__ = (db.UniqueConstraint(
         "team_id", "provider", "comitato_codice", "province_codice",
         "codice_campionato", "codice_fase", "codice_girone",
-        "season_label"),)
+        "season_label", "sesso"),)
 
     team = db.relationship("Team", backref=db.backref(
         "tracked_championships", lazy=True))

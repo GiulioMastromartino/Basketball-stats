@@ -8,10 +8,10 @@
             <label class="text-muted small mb-0" for="source">Source:</label>
             <select id="source" name="source" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
                 {% for s in sources %}
-                <option value="{{ s }}" {% if s == source %}selected{% endif %}>{{ s|capitalize }}</option>
+                <option value="{{ s }}" {% if s == source %}selected{% endif %}>{{ source_labels[s] if source_labels is defined and s in source_labels else s|capitalize }}</option>
                 {% endfor %}
             </select>
-            {% if source == 'playbasket' %}
+            {% if source != 'internal' %}
             {% if ext_championships|length > 1 %}
             <select name="ext" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
                 {% for c in ext_championships %}
@@ -72,7 +72,7 @@
         Season {{ snapshot.meta.season }} · via {{ snapshot.meta.source }}
         (scraped {{ snapshot.meta.scraped_at }}). {{ snapshot.meta.note }}</p>
     {% else %}
-    <p class="alert alert-warning">External championship snapshot unavailable — showing nothing from Playbasket.</p>
+    <p class="alert alert-warning">External championship snapshot unavailable — nothing synced yet for this source. Track it from the GM dashboard.</p>
     {% endif %}
     <div class="card shadow-sm mb-3">
         <div class="card-header bg-light"><h6 class="mb-0">Standings</h6></div>

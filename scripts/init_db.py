@@ -157,6 +157,12 @@ def add_missing_columns(app):
             "team_assignments": {
                 "is_team_gm": "BOOLEAN DEFAULT FALSE",
             },
+            # External championship tracking: FIP sesso was added after the
+            # dropdown-only rework. Existing deployments get the column here
+            # (production runs scripts/migrate.py with AUTO_MIGRATE off).
+            "tracked_championships": {
+                "sesso": "VARCHAR(5) NOT NULL DEFAULT 'M'",
+            },
         }
 
         columns_added = 0

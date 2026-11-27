@@ -61,7 +61,8 @@ def sync_once() -> dict:
                 if item.provider == "fip_api":
                     games = adapter.fetch_games(
                         item.comitato_codice, item.codice_campionato,
-                        item.codice_fase, item.codice_girone)
+                        item.codice_fase, item.codice_girone,
+                        sesso=getattr(item, "sesso", None) or "M")
                     standings = []
                 else:
                     season_year = (item.season_label.split("/")[-1].strip()
