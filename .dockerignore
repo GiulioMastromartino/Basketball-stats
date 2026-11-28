@@ -3,7 +3,14 @@ __pycache__/
 *.pyc
 .git/
 .DS_Store
+
+# Secrets must never enter the build context: `COPY . .` would bake them into
+# the image layer. Runtime secrets are mounted by Compose instead.
 .env
+.env.*
+nginx/certs/*.pem
+nginx/certs/*.key
+
 basketball_stats.db
 basketball_stats.log
 Games/

@@ -73,6 +73,24 @@ Set these in `.env` (dev) or `.env.prod` (production):
 | `EVOLUTION_INSTANCE` | No | `basketball-bot` | WhatsApp instance name |
 | `CLOUDFLARE_TUNNEL_TOKEN` | No | — | For Cloudflare Tunnel public access |
 
+### TLS Certificates
+
+`nginx/certs/` is gitignored and excluded from the Docker build context, so a
+fresh checkout never contains private keys. The production Compose file mounts
+these four files into nginx:
+
+- `fullchain.pem` / `privkey.pem` — `www.superhooper.work.gd`
+- `hoopslab-fullchain.pem` / `hoopslab-privkey.pem` — `hoopslab.2bd.net`
+
+For Jenkins, place them under `/var/jenkins_home/certs`; the pipeline's
+**Stage Secrets** step copies them into `nginx/certs/` before building. For
+local runs, copy them into `nginx/certs/` manually. See
+`nginx/certs/README.md`.
+
+> If a private key was ever committed or baked into an image, treat it as
+> compromised and reissue the certificate. Deleting the file from HEAD does
+> not remove it from git history.
+
 ---
 
 ## Building & Publishing the Image

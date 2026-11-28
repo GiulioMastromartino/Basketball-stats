@@ -15,6 +15,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # Mount real .env.prod for deploy (place at /var/jenkins_home/.env.prod)
       - /var/jenkins_home/.env.prod:/app/.env.prod:ro
+      # TLS certs are read from /var/jenkins_home/certs (already covered by the
+      # Jenkins home mount above) and staged by the pipeline. Never commit them.
     group_add:
       - "110"
     environment:
