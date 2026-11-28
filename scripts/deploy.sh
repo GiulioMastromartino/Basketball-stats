@@ -27,6 +27,54 @@ fi
 cp /app/.env.prod .env.prod 2>/dev/null || true
 cp /app/.env.prod .env 2>/dev/null || true
 
+# ── 1b. Validate required secrets ───────────────────────────────────────
+# Compose only warns and substitutes an empty string for a missing variable,
+# which produces a silently broken deploy. Fail fast instead.
+REQUIRED_SECRETS=(SECRET_KEY DB_USER DB_PASSWORD DB_NAME)
+MISSING_SECRETS=()
+for key in "${REQUIRED_SECRETS[@]}"; do
+    if [ -z "${!key:-}" ]; then
+        MISSING_SECRETS+=("$key")
+    fi
+done
+if [ "${#MISSING_SECRETS[@]}" -gt 0 ]; then
+    echo "[ERROR] Missing required secrets: ${MISSING_SECRETS[*]}" >&2
+    echo "        Add them to /app/.env.prod (mounted from /var/jenkins_home/.env.prod)." >&2
+    exit 1
+fi
+
+# Optional integrations: a blank value disables the feature or, for Evolution,
+# leaves the WhatsApp API unauthenticated. Surface it instead of hiding it in a
+# compose warning.
+for key in EVOLUTION_API_KEY WORKOS_API_KEY WORKOS_COOKIE_PASSWORD \
+           GOOGLE_DRIVE_CLIENT_SECRET GOOGLE_DRIVE_TOKEN_KEY; do
+    if [ -z "${!key:-}" ]; then
+        echo "[WARN] $key is empty — the related integration is disabled or unauthenticated." >&2
+    fi
+done
+
+# ── 1c. Validate TLS material ───────────────────────────────────────────
+# Certs are gitignored and staged by the Jenkins pipeline. Refuse to deploy
+# with missing keys: nginx would fail to start after the old containers are
+# already gone.
+TLS_FILES=(
+    nginx/certs/fullchain.pem
+    nginx/certs/privkey.pem
+    nginx/certs/hoopslab-fullchain.pem
+    nginx/certs/hoopslab-privkey.pem
+)
+MISSING_TLS=()
+for f in "${TLS_FILES[@]}"; do
+    if [ ! -f "$f" ]; then
+        MISSING_TLS+=("$f")
+    fi
+done
+if [ "${#MISSING_TLS[@]}" -gt 0 ]; then
+    echo "[ERROR] Missing TLS files: ${MISSING_TLS[*]}" >&2
+    echo "        Stage them under /var/jenkins_home/certs (see nginx/certs/README.md)." >&2
+    exit 1
+fi
+
 # ── 2. Backup database ──────────────────────────────────────────────────
 echo ""
 echo "[STEP] Backing up PostgreSQL database..."

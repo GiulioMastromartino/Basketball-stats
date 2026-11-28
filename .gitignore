@@ -3,6 +3,11 @@
 .env.prod
 .env.local
 venv/
+
+# TLS material - environment-specific and private keys are secret.
+# Jenkins stages these from /var/jenkins_home/certs before deploy.
+nginx/certs/*.pem
+nginx/certs/*.key
 # `venv/` above only matches a directory; worktrees use a symlinked venv,
 # which `git add -A` would otherwise stage (and commit as a broken link).
 venv

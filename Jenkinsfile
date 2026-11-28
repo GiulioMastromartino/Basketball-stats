@@ -31,9 +31,57 @@ pipeline {
             }
         }
 
+        stage('Stage Secrets') {
+            steps {
+                sh '''
+                    set -eu
+                    # Secrets are gitignored, so a fresh checkout has none.
+                    # The Jenkins container receives them as read-only mounts:
+                    #   /var/jenkins_home/.env.prod -> /app/.env.prod
+                    #   /var/jenkins_home/certs     -> $JENKINS_HOME/certs
+                    # Stage them into the workspace before compose runs.
+                    if [ ! -f /app/.env.prod ]; then
+                        echo '[ERROR] /app/.env.prod is not mounted' >&2
+                        exit 1
+                    fi
+                    cp /app/.env.prod .env.prod
+                    chmod 600 .env.prod
+                    echo '[OK] Staged .env.prod from /app/.env.prod'
+
+                    CERTS_SRC="${JENKINS_HOME:-/var/jenkins_home}/certs"
+                    if [ ! -d "$CERTS_SRC" ]; then
+                        echo "[ERROR] TLS cert directory not found: $CERTS_SRC" >&2
+                        echo '        See nginx/certs/README.md for the expected files.' >&2
+                        exit 1
+                    fi
+                    mkdir -p nginx/certs
+                    cp "$CERTS_SRC"/*.pem nginx/certs/
+                    chmod 600 nginx/certs/*privkey*.pem
+                    echo "[OK] Staged TLS certs from $CERTS_SRC"
+                '''
+            }
+        }
+
         stage('Build Docker Images') {
             steps {
                 sh 'docker-compose -f $COMPOSE_FILE build'
+            }
+        }
+
+        stage('Verify Image Has No Secrets') {
+            steps {
+                sh '''
+                    set -eu
+                    IMAGE="basketball-stats-web-1:latest"
+                    # Defense in depth: the build context must never contain the
+                    # env file or TLS private keys (see .dockerignore).
+                    if docker run --rm --entrypoint sh "$IMAGE" -c \
+                        'test -e /app/.env.prod || test -e /app/nginx/certs/privkey.pem'; then
+                        echo "[ERROR] Build context leaked secrets into $IMAGE" >&2
+                        exit 1
+                    fi
+                    echo "[OK] No secret files baked into $IMAGE"
+                '''
             }
         }
 
@@ -54,16 +102,6 @@ print('All dependencies verified')
         stage('Deploy to Production') {
             steps {
                 sh '''
-                    # .env.prod is gitignored so the checkout lacks it, but the
-                    # Jenkins container has real secrets at /app/.env.prod
-                    # (see docker-compose.jenkins.yml). Stage it into the
-                    # workspace: compose 'env_file: .env.prod' resolves here.
-                    if [ -f /app/.env.prod ]; then
-                        cp /app/.env.prod .env.prod
-                        echo '[OK] Staged .env.prod from /app/.env.prod'
-                    else
-                        echo '[WARN] /app/.env.prod not mounted; deploy may fail'
-                    fi
                     chmod +x scripts/deploy.sh
                     ./scripts/deploy.sh
                 '''
