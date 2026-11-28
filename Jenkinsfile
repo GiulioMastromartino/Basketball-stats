@@ -45,7 +45,8 @@ pipeline {
                         exit 1
                     fi
                     cp /app/.env.prod .env.prod
-                    chmod 600 .env.prod
+                    cp /app/.env.prod .env
+                    chmod 600 .env.prod .env
                     echo '[OK] Staged .env.prod from /app/.env.prod'
 
                     CERTS_SRC="${JENKINS_HOME:-/var/jenkins_home}/certs"
