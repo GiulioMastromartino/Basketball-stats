@@ -169,6 +169,11 @@ def create_app(config_name: str = None) -> Flask:
     # Initialize Prometheus metrics
     if config.METRICS_ENABLED:
         metrics.init_app(app)
+        # Health/readiness probes and the metrics scrape endpoint are polled
+        # far more often than the per-IP default (50/hour). Exempt them so
+        # container healthchecks and Prometheus scrapes never get a 429.
+        if not disable_auth:
+            limiter.exempt(app.view_functions["prometheus_metrics"])
 
     # Request diagnostics middleware
     @app.before_request
@@ -364,6 +369,10 @@ def create_app(config_name: str = None) -> Flask:
 
     # Register blueprints
     register_blueprints(app)
+    if not disable_auth:
+        # Liveness/readiness probes are polled every few seconds by Docker,
+        # well above the 50/hour per-IP default, so exempt the whole blueprint.
+        limiter.exempt(app.blueprints["health"])
 
     # Register CLI commands
     register_commands(app)
